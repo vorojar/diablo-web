@@ -535,6 +535,13 @@
             text-align: right;
         }
 
+        #stash-panel {
+            top: 15%;
+            right: 20px;
+            left: auto;
+            width: 350px;
+        }
+
         .quest-item {
             border: 1px solid #444;
             padding: 10px;
@@ -868,7 +875,7 @@
                     <label class="setting-item"><input type="checkbox" id="chk-sfx" checked
                             onchange="toggleSetting('sfx')"> 音效</label>
                 </div>
-                <button class="reset-btn" onclick="resetSave()">清除存档</button>
+                <button class="reset-btn" onclick="confirmResetSave()">清除存档</button>
                 <p style="color: #444; margin-top: 20px;">[C] 角色 [I] 物品 [T] 技能 [J] 任务 [Alt] 显示物品</p>
                 <div id="save-status" style="color: #666; font-size: 12px; margin-top: 10px;">正在检查存档...</div>
             </div>
@@ -1725,6 +1732,30 @@
         }
         function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
 
+        function confirmResetSave() {
+            // 检查是否有存档
+            const statusEl = document.getElementById('save-status');
+            const hasSave = statusEl && statusEl.innerText !== '正在检查存档...' && statusEl.innerText !== '未发现存档';
+
+            let message = '⚠️ 警告：此操作将永久删除所有存档数据！\n\n';
+
+            if (hasSave) {
+                // 提取存档信息
+                const match = statusEl.innerText.match(/发现存档: Lv(\d+) - (.+)/);
+                if (match) {
+                    const level = match[1];
+                    const location = match[2];
+                    message += `当前存档：等级 ${level} - ${location}\n\n`;
+                }
+            }
+
+            message += '是否确定要清除所有存档？\n\n此操作无法撤销！';
+
+            if (confirm(message)) {
+                SaveSystem.reset();
+            }
+        }
+
         function startGame() {
             AudioSys.init();
             // 启动背景音乐（需要用户交互触发）
@@ -2322,7 +2353,9 @@
             if (npc.type === 'merchant') {
                 togglePanel('shop');
             } else if (npc.type === 'stash') {
-                togglePanel('stash');
+                // 直接显示仓库面板，而不是切换
+                const stashPanel = document.getElementById('stash-panel');
+                stashPanel.style.display = 'block';
                 renderStash();
             } else if (npc.type === 'healer') {
                 const currentQ = QUEST_DB[player.questIndex];
