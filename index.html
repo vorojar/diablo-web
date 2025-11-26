@@ -1364,7 +1364,6 @@
                         osc2.start(t + i * 0.03);
                         osc2.stop(t + 0.5);
                     });
-
                     // 3. 高频嘶嘶声层 - 正弦波模拟空气振动
                     const osc3 = this.ctx.createOscillator();
                     const gain3 = this.ctx.createGain();
@@ -1377,6 +1376,19 @@
                     gain3.gain.linearRampToValueAtTime(0, t + 0.2);
                     osc3.start(t);
                     osc3.stop(t + 0.2);
+                } else if (type === 'arrow') {
+                    // 箭矢音效 - 风声和撞击声
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.connect(gain);
+                    gain.connect(this.sfxGain);
+                    osc.frequency.setValueAtTime(800, t);
+                    osc.frequency.exponentialRampToValueAtTime(400, t + 0.1);
+                    gain.gain.setValueAtTime(0.1, t);
+                    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+                    osc.start(t);
+                    osc.stop(t + 0.2);
                 }
             },
             toggleSetting: function (key, val) {
@@ -1800,13 +1812,28 @@
             projectiles.forEach((p, i) => {
                 p.life -= dt; p.x += Math.cos(p.angle) * p.speed * dt; p.y += Math.sin(p.angle) * p.speed * dt;
                 if (isWall(p.x, p.y)) { p.life = 0; for (let j = 0; j < 3; j++)createParticle(p.x, p.y, '#aaa', 2); }
-                enemies.forEach(e => {
-                    if (!e.dead && Math.hypot(p.x - e.x, p.y - e.y) < e.radius + 10) {
-                        takeDamage(e, p.damage); p.life = 0;
-                        if (p.freeze) { e.frozenTimer = p.freeze; createDamageNumber(e.x, e.y - 40, "冻结!", COLORS.ice); }
+
+                // 如果投射物有owner（怪物发射的），检测是否击中玩家
+                if (p.owner && p.owner !== player) {
+                    if (Math.hypot(p.x - player.x, p.y - player.y) < player.radius + 10) {
+                        player.hp -= Math.max(0, p.damage - player.armor * 0.1);
+                        p.life = 0;
+                        createDamageNumber(player.x, player.y - 20, Math.floor(p.damage), '#ff0000');
+                        AudioSys.play('hit');
+                        updateUI(); checkPlayerDeath();
                         for (let j = 0; j < 5; j++)createParticle(p.x, p.y, p.color || '#ff4400');
                     }
-                });
+                } else {
+                    // 玩家发射的投射物，检测是否击中敌人
+                    enemies.forEach(e => {
+                        if (!e.dead && e !== p.owner && Math.hypot(p.x - e.x, p.y - e.y) < e.radius + 10) {
+                            takeDamage(e, p.damage); p.life = 0;
+                            if (p.freeze) { e.frozenTimer = p.freeze; createDamageNumber(e.x, e.y - 40, "冻结!", COLORS.ice); }
+                            for (let j = 0; j < 5; j++)createParticle(p.x, p.y, p.color || '#ff4400');
+                        }
+                    });
+                }
+
                 if (p.life <= 0) projectiles.splice(i, 1);
             });
 
@@ -1836,7 +1863,17 @@
                     } else if (dist < 400) {
                         if (e.cooldown <= 0) {
                             const angle = Math.atan2(player.y - e.y, player.x - e.x);
-                            projectiles.push({ x: e.x, y: e.y, angle: angle, speed: 250, life: 2, damage: e.dmg, color: '#fff' });
+                            projectiles.push({
+                                x: e.x,
+                                y: e.y,
+                                angle: angle,
+                                speed: 250,
+                                life: 2,
+                                damage: e.dmg,
+                                color: '#ffaa00',
+                                owner: e
+                            });
+                            AudioSys.play('arrow');
                             e.cooldown = 2.0;
                         }
                     }
@@ -1972,7 +2009,25 @@
             }
 
             projectiles.forEach(p => {
-                ctx.fillStyle = p.color || '#fa0'; ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = p.color || '#fa0';
+                ctx.fillStyle = p.color || '#fa0';
+                ctx.lineWidth = 2;
+
+                // 箭矢投射物（怪物发射）- 画成线条
+                if (p.color === '#ffaa00' && p.owner !== player) {
+                    const len = 15;
+                    const endX = p.x - Math.cos(p.angle) * len;
+                    const endY = p.y - Math.sin(p.angle) * len;
+                    ctx.beginPath();
+                    ctx.moveTo(endX, endY);
+                    ctx.lineTo(p.x, p.y);
+                    ctx.stroke();
+                } else {
+                    // 火球等投射物 - 画成圆形
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             });
 
             particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); });
@@ -2423,7 +2478,7 @@
             const c = document.getElementById('world-labels'); c.innerHTML = '';
             groundItems.forEach(i => {
                 const d = document.createElement('div'); d.className = 'drop-label'; d.innerText = i.displayName || i.name; d.style.color = getItemColor(i.rarity);
-                d.onclick = e => { e.stopPropagation(); if (Math.hypot(i.x - player.x, i.y - player.y) < 100) { if (i.type === 'gold') { player.gold += i.val; createDamageNumber(player.x, player.y - 40, "+" + i.val + "G", 'gold'); AudioSys.play('gold'); } else { if (!addItemToInventory(i)) { alert("背包满"); return; } } groundItems = groundItems.filter(x => x !== i); d.remove(); } };
+                d.onclick = e => { e.stopPropagation(); if (Math.hypot(i.x - player.x, i.y - player.y) < 100) { if (i.type === 'gold') { player.gold += i.val; createDamageNumber(player.x, player.y - 40, "+" + i.val + "G", 'gold'); AudioSys.play('gold'); } else { if (!addItemToInventory(i)) { showNotification("背包已满！"); return; } } groundItems = groundItems.filter(x => x !== i); d.remove(); } };
                 i.el = d; c.appendChild(d);
             });
         }
@@ -2468,7 +2523,7 @@
                 if (player.skillCooldowns.fireball > 0) return;
                 player.mp -= 5; player.skillCooldowns.fireball = 0.5;
                 const angle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
-                projectiles.push({ x: player.x, y: player.y, angle, speed: 450, life: 0.9, damage: 10 * player.skills.fireball + player.ene });
+                projectiles.push({ x: player.x, y: player.y, angle, speed: 450, life: 0.9, damage: 10 * player.skills.fireball + player.ene, owner: player });
                 AudioSys.play('attack');
             } else if (type === 'frostnova') {
                 if (player.mp < 15) {
@@ -2477,7 +2532,7 @@
                 }
                 if (player.skillCooldowns.frostnova > 0) return;
                 player.mp -= 15; player.skillCooldowns.frostnova = 4;
-                for (let i = 0; i < 360; i += 15) projectiles.push({ x: player.x, y: player.y, angle: i * Math.PI / 180, speed: 300, life: 0.4, damage: 5 * player.skills.frostnova, color: COLORS.ice, freeze: 2 });
+                for (let i = 0; i < 360; i += 15) projectiles.push({ x: player.x, y: player.y, angle: i * Math.PI / 180, speed: 300, life: 0.4, damage: 5 * player.skills.frostnova, color: COLORS.ice, freeze: 2, owner: player });
                 AudioSys.play('fireball');
             } else if (type === 'multishot') {
                 if (player.mp < 10) {
@@ -2490,7 +2545,7 @@
                 const cnt = 2 + player.skills.multishot;
                 for (let i = 0; i < cnt; i++) {
                     const a = base - 0.3 + (0.6 / (cnt - 1)) * i;
-                    projectiles.push({ x: player.x, y: player.y, angle: a, speed: 500, life: 1, damage: player.damage[0] * 0.8, color: '#ffff00' });
+                    projectiles.push({ x: player.x, y: player.y, angle: a, speed: 500, life: 1, damage: player.damage[0] * 0.8, color: '#ffff00', owner: player });
                 }
                 AudioSys.play('attack');
             }
