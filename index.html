@@ -462,6 +462,79 @@
             width: 300px;
         }
 
+        #achievements-panel {
+            top: 10%;
+            left: 20px;
+            width: 350px;
+            max-height: 85%;
+            overflow-y: auto;
+        }
+
+        /* 自定义滚动条样式 */
+        #achievements-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #achievements-panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        #achievements-panel::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+            border: 1px solid #666;
+        }
+
+        #achievements-panel::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Firefox支持 */
+        #achievements-panel {
+            scrollbar-width: thin;
+            scrollbar-color: #444 rgba(0, 0, 0, 0.3);
+        }
+
+        .achievement-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+
+        .achievement-item.completed {
+            border-color: var(--text-gold);
+            background: rgba(218, 165, 32, 0.1);
+        }
+
+        .achievement-item.completed::before {
+            content: "✓ ";
+            color: var(--text-gold);
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .ach-name {
+            color: var(--text-gold);
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .ach-desc {
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .ach-progress {
+            color: #888;
+            font-size: 11px;
+            text-align: right;
+        }
+
         .quest-item {
             border: 1px solid #444;
             padding: 10px;
@@ -786,7 +859,7 @@
             <div id="notification-area"></div>
 
             <div id="start-screen">
-                <h1>DIABLO WEB</h1>
+                <h1>DIABLO</h1>
                 <h2>经典版</h2>
                 <button class="start-btn" onclick="startGame()">踏入庇护所</button>
                 <div class="settings-box">
@@ -902,6 +975,12 @@
                 <div id="quest-list"></div>
             </div>
 
+            <div id="achievements-panel" class="panel">
+                <div class="panel-close" onclick="togglePanel('achievements')">X</div>
+                <div class="panel-header">成就</div>
+                <div id="achievement-list"></div>
+            </div>
+
             <div id="shop-panel" class="panel">
                 <div class="panel-close" onclick="togglePanel('shop')">X</div>
                 <div class="panel-header">基格商店</div>
@@ -998,6 +1077,7 @@
                         class="notification-badge" id="badge-skills"></span></button>
                 <button class="sys-btn" id="btn-quest" onclick="togglePanel('quest')">任务 (J)<span
                         class="notification-badge" id="badge-quest"></span></button>
+                <button class="sys-btn" id="btn-achievements" onclick="togglePanel('achievements')">成就 (A)</button>
             </div>
 
             <div id="bottom-hud">
@@ -1053,7 +1133,7 @@
 
         const COLORS = {
             white: '#ffffff', blue: '#4850b8', yellow: '#ffff00', gold: '#908858', red: '#c23b22', green: '#00ff00',
-            ice: '#00ccff', floor: '#0c0c0c', floorAlt: '#080808', wall: '#222', townFloor: '#1a1a1a',
+            ice: '#00ccff', floor: '#0c0c0c', floorAlt: '#080808', wall: '#2C2C2C', townFloor: '#1a1a1a',
             exit: '#0055aa', entrance: '#aa5500'
         };
 
@@ -1119,7 +1199,9 @@
             inventory: Array(30).fill(null),
             stash: Array(36).fill(null), // 仓库，36个格子
             questIndex: 0, questState: 0, questProgress: 0,
-            portalTimer: 0
+            portalTimer: 0,
+            died: false,
+            achievements: {}
         };
 
         const spriteSheet = new Image();
@@ -1164,6 +1246,53 @@
             npcRow: 2
         };
 
+        // 成就系统定义
+        const ACHIEVEMENTS = [
+            {
+                id: 'kill_fallen_1000',
+                name: '沉沦魔克星',
+                description: '击杀1000只沉沦魔',
+                target: 1000,
+                type: 'kill_monster',
+                monsterName: '沉沦魔'
+            },
+            {
+                id: 'reach_floor_10',
+                name: '地牢征服者',
+                description: '到达地牢第10层',
+                target: 10,
+                type: 'reach_floor'
+            },
+            {
+                id: 'all_unique_equipment',
+                name: '暗金收藏家',
+                description: '收集全套暗金装备',
+                target: 1,
+                type: 'collect_unique_set'
+            },
+            {
+                id: 'no_death_floor10',
+                name: '钢铁意志',
+                description: '从未死亡到达第10层',
+                target: 10,
+                type: 'no_death_floor'
+            },
+            {
+                id: 'kill_boss_5',
+                name: 'BOSS猎人',
+                description: '击败5个首领级敌人',
+                target: 5,
+                type: 'kill_boss'
+            },
+            {
+                id: 'reach_level_30',
+                name: '传奇英雄',
+                description: '达到等级30',
+                target: 30,
+                type: 'reach_level'
+            }
+        ];
+
         function getHeroFrame(direction) {
             const frameMap = {
                 'left': 0,
@@ -1201,6 +1330,105 @@
                 width: SPRITE_CONFIG.frameWidth,
                 height: SPRITE_CONFIG.frameHeight
             };
+        }
+
+        // 成就追踪系统
+        function trackAchievement(type, data) {
+            ACHIEVEMENTS.forEach(ach => {
+                if (ach.type !== type || !player.achievements[ach.id]) return;
+
+                if (player.achievements[ach.id].completed) return;
+
+                let progress = 0;
+
+                switch (type) {
+                    case 'kill_monster':
+                        if (data.monsterName === ach.monsterName) {
+                            player.achievements[ach.id].progress++;
+                            progress = player.achievements[ach.id].progress;
+                        }
+                        break;
+
+                    case 'reach_floor':
+                        if (player.floor >= ach.target) {
+                            completeAchievement(ach);
+                        }
+                        return;
+
+                    case 'collect_unique_set':
+                        checkAllUniqueEquipment();
+                        return;
+
+                    case 'no_death_floor':
+                        if (player.floor >= ach.target && !player.died) {
+                            completeAchievement(ach);
+                        }
+                        return;
+
+                    case 'kill_boss':
+                        if (data.isBoss || data.isQuestTarget) {
+                            player.achievements[ach.id].progress++;
+                            progress = player.achievements[ach.id].progress;
+                        }
+                        break;
+
+                    case 'reach_level':
+                        if (player.lvl >= ach.target) {
+                            completeAchievement(ach);
+                        }
+                        return;
+                }
+
+                if (progress >= ach.target) {
+                    completeAchievement(ach);
+                }
+            });
+        }
+
+        function completeAchievement(achievement) {
+            player.achievements[achievement.id].completed = true;
+            player.achievements[achievement.id].completedAt = Date.now();
+
+            showNotification(`成就完成：${achievement.name}！`);
+            AudioSys.play('quest');
+
+            saveGame();
+        }
+
+        function checkAllUniqueEquipment() {
+            const uniqueItems = [];
+            Object.values(player.equipment).forEach(item => {
+                if (item && item.unique) uniqueItems.push(item);
+            });
+
+            const ach = ACHIEVEMENTS.find(a => a.id === 'all_unique_equipment');
+            if (!ach || !player.achievements['all_unique_equipment']) return;
+
+            if (uniqueItems.length >= 8 && !player.achievements['all_unique_equipment'].completed) {
+                completeAchievement(ach);
+            }
+        }
+
+        function checkNoDeathRun() {
+            if (player.floor >= 10) {
+                const ach = ACHIEVEMENTS.find(a => a.id === 'no_death_run');
+                if (!ach || !player.achievements['no_death_run']) return;
+
+                if (!player.achievements['no_death_run'].completed) {
+                    completeAchievement(ach);
+                }
+            }
+        }
+
+        function initAchievements() {
+            ACHIEVEMENTS.forEach(ach => {
+                if (!player.achievements[ach.id]) {
+                    player.achievements[ach.id] = {
+                        progress: 0,
+                        completed: false
+                    };
+                }
+            });
         }
 
         const SLOT_MAP = {
@@ -1515,6 +1743,13 @@
 
                 if (!player.skills) player.skills = { fireball: 1, frostnova: 0, multishot: 0 };
 
+                if (player.died === undefined) player.died = false; // 初始化死亡标记
+
+                if (!player.achievements) player.achievements = {}; // 初始化成就字段
+
+                // 初始化成就数据结构
+                initAchievements();
+
                 if (player.questIndex === undefined) {
                     player.questIndex = 0; player.questState = 0; player.questProgress = 0;
                     if (player.quests && player.quests.q2 === 2) player.questIndex = QUEST_DB.length;
@@ -1541,6 +1776,11 @@
             else {
                 addItemToInventory(createItem('短剑', 0)); addItemToInventory(createItem('治疗药剂', 0)); addItemToInventory(createItem('回城卷轴', 0));
                 player.floor = 0;
+
+                // 新游戏初始化成就
+                player.died = false;
+                player.achievements = {};
+                initAchievements();
             }
             updateStats(); enterFloor(player.floor, 'start'); renderInventory(); updateStatsUI(); updateSkillsUI(); updateUI(); updateBeltUI(); updateQuestUI(); updateMenuIndicators();
             gameActive = true; gameLoop(0); spawnEnemyTimer();
@@ -1549,6 +1789,9 @@
         // Revised enterFloor with spawn point logic
         function enterFloor(f, spawnAt = 'start') {
             player.floor = f; enemies = []; groundItems = []; projectiles = []; npcs = [];
+
+            // 成就追踪：到达楼层
+            trackAchievement('reach_floor', { floor: f });
 
             // 修复：切换楼层/死亡复活时，强制清空地面的物品标签
             document.getElementById('world-labels').innerHTML = '';
@@ -1576,6 +1819,7 @@
                 else { player.x = dungeonEntrance.x; player.y = dungeonEntrance.y; }
             } else {
                 document.getElementById('floor-display').innerText = `地牢 ${f}层`;
+
                 generateDungeon();
                 for (let i = 0; i < 15; i++) {
                     let x, y, v = false; while (!v) { x = Math.random() * MAP_WIDTH * TILE_SIZE; y = Math.random() * MAP_HEIGHT * TILE_SIZE; if (!isWall(x, y) && Math.hypot(x - dungeonEntrance.x, y - dungeonEntrance.y) > 300) v = true; }
@@ -1917,7 +2161,7 @@
                 for (let c = sc - 1; c < ec + 1; c++) {
                     if (r >= 0 && r < MAP_HEIGHT && c >= 0 && c < MAP_WIDTH) {
                         const x = c * TILE_SIZE, y = r * TILE_SIZE;
-                        if (mapData[r][c] === 0) { ctx.fillStyle = '#222'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); ctx.fillStyle = '#111'; ctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10); }
+                        if (mapData[r][c] === 0) { ctx.fillStyle = COLORS.wall; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); ctx.fillStyle = '#111'; ctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10); }
                         else { ctx.fillStyle = ((c + r) % 2 === 0) ? '#151515' : '#1a1a1a'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); }
                     }
                 }
@@ -2221,6 +2465,44 @@
             el.innerHTML += `<div><span class="tracker-title" style="color:${titleColor}">${currentQ.title}</span><br><span class="tracker-desc">${text}</span></div>`;
         }
 
+        function renderAchievements() {
+            const list = document.getElementById('achievement-list');
+            if (!list) return;
+            list.innerHTML = '';
+
+            ACHIEVEMENTS.forEach(ach => {
+                const progress = player.achievements[ach.id];
+                if (!progress) return;
+
+                const div = document.createElement('div');
+                div.className = 'achievement-item' + (progress.completed ? ' completed' : '');
+
+                let progressText = '';
+                if (ach.type === 'collect_unique_set') {
+                    const uniqueItems = [];
+                    Object.values(player.equipment).forEach(item => {
+                        if (item && item.unique) uniqueItems.push(item);
+                    });
+                    progressText = `${uniqueItems.length} / 8 装备栏位`;
+                } else if (ach.type === 'reach_floor') {
+                    progressText = progress.completed ? '已完成' : `当前 ${player.floor} / ${ach.target} 层`;
+                } else if (ach.type === 'no_death_floor') {
+                    progressText = progress.completed ? '已完成' : `未死亡到达第${player.floor}层`;
+                } else if (ach.type === 'reach_level') {
+                    progressText = progress.completed ? '已完成' : `当前等级 ${player.lvl} / ${ach.target}`;
+                } else {
+                    progressText = `${progress.progress || 0} / ${ach.target}`;
+                }
+
+                div.innerHTML = `
+                    <div class="ach-name">${ach.name}</div>
+                    <div class="ach-desc">${ach.description}</div>
+                    <div class="ach-progress">${progressText}</div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
         // New function for indicators
         function updateMenuIndicators() {
             document.getElementById('badge-stats').style.display = player.points > 0 ? 'block' : 'none';
@@ -2343,7 +2625,16 @@
 
         function createDamageNumber(x, y, val, color) { damageNumbers.push({ x, y, val, color, life: 1 }); }
         function createParticle(x, y, color, size = 3) { particles.push({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size }); }
-        function checkPlayerDeath() { if (player.hp <= 0) { alert("你死了！灵魂回到了罗格营地。"); player.hp = player.maxHp; player.gold = Math.floor(player.gold / 2); enterFloor(0); } }
+        function checkPlayerDeath() {
+            if (player.hp <= 0) {
+                // 标记玩家曾经死亡
+                player.died = true;
+                alert("你死了！灵魂回到了罗格营地。");
+                player.hp = player.maxHp;
+                player.gold = Math.floor(player.gold / 2);
+                enterFloor(0);
+            }
+        }
 
         function renderStash() {
             const c = document.getElementById('stash-grid');
@@ -2421,6 +2712,14 @@
         }
 
         function dropLoot(monster) {
+            // 成就追踪：击杀沉沦魔
+            trackAchievement('kill_monster', { monsterName: monster.name });
+
+            // 成就追踪：击杀BOSS
+            if (monster.isBoss || monster.isQuestTarget) {
+                trackAchievement('kill_boss', { isBoss: monster.isBoss, isQuestTarget: monster.isQuestTarget });
+            }
+
             const x = monster.x;
             const y = monster.y;
             const f = player.floor;
@@ -2796,6 +3095,9 @@
             player.lifeSteal = ls;
             player.attackSpeed = ias;
             player.critChance = Math.min(100, 5 + dex * 0.5); // 5% Base + 0.5% per Dex
+
+            // 检查暗金装备成就
+            checkAllUniqueEquipment();
         }
 
         function updateUI() {
@@ -2859,6 +3161,10 @@
         function checkLevelUp() {
             while (player.xp >= player.xpNext) {
                 player.lvl++;
+
+                // 成就追踪：达到等级
+                trackAchievement('reach_level', { level: player.lvl });
+
                 player.xp -= player.xpNext;
                 player.xpNext = Math.floor(player.xpNext * 1.5);
                 player.points += 5;
@@ -2875,14 +3181,14 @@
             SaveSystem.save();
         }
 
-        function togglePanel(id) { const e = document.getElementById(id + '-panel'); e.style.display = e.style.display === 'block' ? 'none' : 'block'; if (e.style.display === 'block') { if (id === 'inventory') renderInventory(); if (id === 'skills') updateSkillsUI(); if (id === 'stats') updateStatsUI(); if (id === 'quest') updateQuestUI(); } }
+        function togglePanel(id) { const e = document.getElementById(id + '-panel'); e.style.display = e.style.display === 'block' ? 'none' : 'block'; if (e.style.display === 'block') { if (id === 'inventory') renderInventory(); if (id === 'skills') updateSkillsUI(); if (id === 'stats') updateStatsUI(); if (id === 'quest') updateQuestUI(); if (id === 'achievements') renderAchievements(); } }
         function selectSkill(k) { player.activeSkill = k; updateUI(); }
         function addStat(t) { if (player.points > 0) { player[t]++; player.points--; updateStats(); updateStatsUI(); updateMenuIndicators(); } }
         function upgradeSkill(t) { if (player.skillPoints > 0) { player.skills[t]++; player.skillPoints--; updateSkillsUI(); updateMenuIndicators(); } }
 
         function isHoveringUI() {
             if (mouse.y > window.innerHeight - 140) return true;
-            const panels = ['stats-panel', 'inventory-panel', 'skills-panel', 'shop-panel', 'menu-btns', 'quest-panel', 'dialog-box'];
+            const panels = ['stats-panel', 'inventory-panel', 'skills-panel', 'shop-panel', 'menu-btns', 'quest-panel', 'achievements-panel', 'dialog-box'];
             for (let id of panels) {
                 const el = document.getElementById(id);
                 if (el && (el.style.display === 'block' || id === 'menu-btns')) {
@@ -2931,6 +3237,7 @@
             if (e.key === 'w' || e.key === 'W') selectSkill('frostnova');
             if (e.key === 'e' || e.key === 'E') selectSkill('multishot');
             if (e.key === 'j' || e.key === 'J') togglePanel('quest');
+            if (e.key === 'a' || e.key === 'A') togglePanel('achievements');
 
             if (e.key === '1') useQuickItem('health');
             if (e.key === '2') useQuickItem('mana');
