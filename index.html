@@ -181,10 +181,11 @@
         }
 
         .xp-container {
-            width: 100%;
+            width: 400px;
             display: flex;
             align-items: center;
             gap: 10px;
+            margin: 0 auto;
         }
 
         .xp-bar {
@@ -460,6 +461,8 @@
             top: 15%;
             left: 20px;
             width: 300px;
+            max-height: 85%;
+            overflow-y: auto;
         }
 
         #achievements-panel {
@@ -492,6 +495,32 @@
 
         /* Firefox支持 */
         #achievements-panel {
+            scrollbar-width: thin;
+            scrollbar-color: #444 rgba(0, 0, 0, 0.3);
+        }
+
+        /* 任务面板自定义滚动条样式 */
+        #quest-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #quest-panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        #quest-panel::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+            border: 1px solid #666;
+        }
+
+        #quest-panel::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Firefox支持 */
+        #quest-panel {
             scrollbar-width: thin;
             scrollbar-color: #444 rgba(0, 0, 0, 0.3);
         }
@@ -1129,6 +1158,70 @@
     </div>
 
     <script>
+        // 面板管理系统
+        const panelManager = {
+            panels: {
+                'stats': { id: 'stats-panel', group: 'left', top: 10, baseTop: 10, opened: false, zIndex: 0 },
+                'achievements': { id: 'achievements-panel', group: 'left', top: 10, baseTop: 10, opened: false, zIndex: 0 },
+                'quest': { id: 'quest-panel', group: 'left', top: 15, baseTop: 15, opened: false, zIndex: 0 },
+                'inventory': { id: 'inventory-panel', group: 'right', top: 10, baseTop: 10, opened: false, zIndex: 0 },
+                'stash': { id: 'stash-panel', group: 'right', top: 15, baseTop: 15, opened: false, zIndex: 0 },
+                'skills': { id: 'skills-panel', group: 'center', top: 15, baseTop: 15, opened: false, zIndex: 0, left: 340 },
+                'shop': { id: 'shop-panel', group: 'center', top: 10, baseTop: 10, opened: false, zIndex: 0 }
+            },
+            maxZIndex: 100,
+
+            // 动态计算面板位置
+            calculatePosition(panelId) {
+                const panel = this.panels[panelId];
+                const element = document.getElementById(panel.id);
+
+                // 计算同组中已打开面板的数量
+                const openedInGroup = Object.values(this.panels).filter(
+                    p => p.group === panel.group && p.opened && p.id !== panel.id
+                ).length;
+
+                // 根据同组打开面板数量动态调整位置
+                const offset = openedInGroup * 8; // 每个面板错开8%
+                const newTop = panel.baseTop + offset;
+
+                element.style.top = newTop + '%';
+
+                // 对于中间组的面板,水平错开
+                if (panel.group === 'center' && panel.left) {
+                    const centerOffset = (openedInGroup % 2) * 50 - 25; // 左右错开
+                    element.style.left = (panel.left + centerOffset) + 'px';
+                }
+
+                return newTop;
+            },
+
+            // 设置面板在最上层
+            bringToFront(panelId) {
+                const panel = this.panels[panelId];
+                const element = document.getElementById(panel.id);
+
+                this.maxZIndex += 10;
+                panel.zIndex = this.maxZIndex;
+                element.style.zIndex = this.maxZIndex;
+            },
+
+            // 打开面板
+            open(panelId) {
+                const panel = this.panels[panelId];
+                panel.opened = true;
+                this.calculatePosition(panelId);
+                this.bringToFront(panelId);
+            },
+
+            // 关闭面板
+            close(panelId) {
+                const panel = this.panels[panelId];
+                panel.opened = false;
+                panel.zIndex = 0;
+            }
+        };
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const miniCanvas = document.getElementById('minimap');
@@ -3214,7 +3307,43 @@
             SaveSystem.save();
         }
 
-        function togglePanel(id) { const e = document.getElementById(id + '-panel'); e.style.display = e.style.display === 'block' ? 'none' : 'block'; if (e.style.display === 'block') { if (id === 'inventory') renderInventory(); if (id === 'skills') updateSkillsUI(); if (id === 'stats') updateStatsUI(); if (id === 'quest') updateQuestUI(); if (id === 'achievements') renderAchievements(); } }
+        function togglePanel(id) {
+            const panelElement = document.getElementById(id + '-panel');
+            const isOpening = panelElement.style.display !== 'block';
+
+            if (isOpening) {
+                // 打开面板
+                panelElement.style.display = 'block';
+
+                // 使用面板管理器动态调整位置和层级
+                if (panelManager && panelManager.panels[id]) {
+                    panelManager.open(id);
+                }
+
+                // 根据面板类型调用相应的UI更新函数
+                const updateFunctions = {
+                    'inventory': renderInventory,
+                    'skills': updateSkillsUI,
+                    'stats': updateStatsUI,
+                    'quest': updateQuestUI,
+                    'achievements': renderAchievements,
+                    'shop': () => { },
+                    'stash': () => { }
+                };
+
+                if (updateFunctions[id]) {
+                    updateFunctions[id]();
+                }
+            } else {
+                // 关闭面板
+                panelElement.style.display = 'none';
+
+                // 更新面板管理器状态
+                if (panelManager && panelManager.panels[id]) {
+                    panelManager.close(id);
+                }
+            }
+        }
         function selectSkill(k) { player.activeSkill = k; updateUI(); }
         function addStat(t) { if (player.points > 0) { player[t]++; player.points--; updateStats(); updateStatsUI(); updateMenuIndicators(); } }
         function upgradeSkill(t) { if (player.skillPoints > 0) { player.skills[t]++; player.skillPoints--; updateSkillsUI(); updateMenuIndicators(); } }
