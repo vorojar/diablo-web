@@ -81,7 +81,6 @@
         let lastTime = 0;
         let particles = [];
         let damageNumbers = [];
-        let floatingTexts = []; // 浮动提示文字
         let enemies = [];
         let groundItems = [];
         let projectiles = [];
@@ -1105,7 +1104,6 @@
 
             particles.forEach((p, i) => { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.life <= 0) particles.splice(i, 1) });
             damageNumbers.forEach((d, i) => { d.life -= dt; d.y -= 20 * dt; if (d.life <= 0) damageNumbers.splice(i, 1); });
-            floatingTexts.forEach((t, i) => { t.life -= dt; t.y -= 15 * dt; if (t.life <= 0) floatingTexts.splice(i, 1); });
 
             // 定期清理死亡的怪物，防止数组无限增长
             enemies = enemies.filter(e => !e.dead || (e.dead && Math.hypot(e.x - player.x, e.y - player.y) < 500));
@@ -1334,15 +1332,6 @@
 
             ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center';
             damageNumbers.forEach(d => { ctx.fillStyle = d.color; ctx.fillText(d.val, d.x, d.y); });
-
-            // 渲染浮动提示文字
-            ctx.font = 'bold 14px Arial';
-            floatingTexts.forEach(t => {
-                ctx.fillStyle = t.color;
-                ctx.globalAlpha = t.life / t.maxLife; // 根据生命周期调整透明度
-                ctx.fillText(t.text, t.x, t.y);
-            });
-            ctx.globalAlpha = 1;
 
             ctx.restore();
 
@@ -1690,7 +1679,45 @@
         }
 
         function createDamageNumber(x, y, val, color) { damageNumbers.push({ x, y, val, color, life: 1 }); }
-        function createFloatingText(x, y, text, color = '#ffff00', duration = 2) { floatingTexts.push({ x, y, text, color, life: duration, maxLife: duration }); }
+        function createFloatingText(x, y, text, color = '#ffff00', duration = 2) {
+            // 创建DOM元素显示浮动文字
+            const container = document.getElementById('floating-texts-container');
+            if (!container) return;
+
+            const el = document.createElement('div');
+            el.className = 'floating-text';
+            el.textContent = text;
+            el.style.color = color;
+            el.style.left = (x - camera.x) + 'px';
+            el.style.top = (y - camera.y - 20) + 'px';
+            el.style.opacity = '1';
+
+            container.appendChild(el);
+
+            // 使用动画而不是存储在数组中
+            let life = 0;
+            const speed = 30; // 像素/秒
+            const interval = 50; // 更新间隔（毫秒）
+
+            const animate = () => {
+                life += interval / 1000;
+                const progress = life / duration;
+
+                if (progress >= 1) {
+                    el.remove();
+                    return;
+                }
+
+                // 向上移动并淡出
+                const currentY = y - camera.y - 20 - (life * speed);
+                el.style.top = currentY + 'px';
+                el.style.opacity = (1 - progress).toString();
+
+                setTimeout(animate, interval);
+            };
+
+            animate();
+        }
         function createParticle(x, y, color, size = 3) { particles.push({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size }); }
         function checkPlayerDeath() {
             if (player.hp <= 0) {
