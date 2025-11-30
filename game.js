@@ -801,13 +801,37 @@
                     if (currentQ.type === 'kill_elite' || currentQ.type === 'kill_boss') {
                         let x = dungeonExit.x, y = dungeonExit.y;
                         if (f !== 5 && f !== 10) { let v = false; while (!v) { x = Math.random() * MAP_WIDTH * TILE_SIZE; y = Math.random() * MAP_HEIGHT * TILE_SIZE; if (!isWall(x, y)) v = true; } }
-                        let hp = Math.floor(100 + f * f * 15);
-                        if (currentQ.id === 1) hp = 200;
-                        if (currentQ.id === 3) hp = 400;
+
+                        // 增强BOSS血量和伤害，使其更有挑战性
+                        let hp, dmg, speed;
+
+                        if (currentQ.id === 1) {
+                            // 第一个BOSS（相对弱一些）
+                            hp = 300;
+                            dmg = 25;
+                            speed = 90;
+                        } else if (currentQ.id === 3) {
+                            // 第5层BOSS
+                            hp = 800;
+                            dmg = 40;
+                            speed = 100;
+                        } else {
+                            // 根据楼层动态计算BOSS属性
+                            const baseHp = 150 + f * f * 25; // 基础血量增加
+                            const multiplier = 1 + (f / 10); // 随楼层递增的倍数
+                            hp = Math.floor(baseHp * multiplier);
+                            dmg = 20 + f * 3; // 伤害成长更高
+                            speed = 90 + Math.floor(f / 3); // 速度也随楼层增加
+                        }
+
+                        // 确保BOSS至少有最低强度
+                        hp = Math.max(hp, 300);
+                        dmg = Math.max(dmg, 25);
+
                         enemies.push({
-                            x, y, hp, maxHp: hp, dmg: 15 + f * 2, speed: 90, radius: 25,
+                            x, y, hp, maxHp: hp, dmg, speed, radius: 30, // 增大碰撞半径
                             dead: false, cooldown: 0, name: currentQ.targetName,
-                            isBoss: true, isQuestTarget: true, xpValue: 1000 + f * 200,
+                            isBoss: true, isQuestTarget: true, xpValue: 1500 + f * 300, // 增加经验值
                             ai: 'chase', frameIndex: MONSTER_FRAMES.boss
                         });
                         showNotification(`警告：发现了 ${currentQ.targetName}！`);
