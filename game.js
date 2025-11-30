@@ -130,7 +130,7 @@
             hp: 100, maxHp: 100, mp: 50, maxMp: 50, damage: [2, 4], armor: 5, gold: 0,
             lifeSteal: 0, attackSpeed: 0, critChance: 0,
             skills: { fireball: 1, frostnova: 0, multishot: 0 }, activeSkill: 'fireball',
-            targetX: null, targetY: null, attacking: false, attackCooldown: 0,
+            targetX: null, targetY: null, targetItem: null, attacking: false, attackCooldown: 0,
             skillCooldowns: { fireball: 0, frostnova: 0, multishot: 0 },
             equipment: {
                 mainhand: null, offhand: null, body: null, ring: null,
@@ -1008,7 +1008,38 @@
                     if (!isWall(nx, player.y)) player.x = nx;
                     if (!isWall(player.x, ny)) player.y = ny;
                     if (isWall(nx, ny) && isWall(nx, player.y) && isWall(player.x, ny)) player.targetX = null;
-                } else player.targetX = null;
+                } else {
+                    // 到达目标位置
+                    player.targetX = null;
+
+                    // 检查是否有待拾取的物品
+                    if (player.targetItem) {
+                        const item = player.targetItem;
+                        const finalDistance = Math.hypot(item.x - player.x, item.y - player.y);
+
+                        // 确保在拾取范围内
+                        if (finalDistance < 100) {
+                            if (item.type === 'gold') {
+                                // 拾取金币
+                                player.gold += item.val;
+                                createDamageNumber(player.x, player.y - 40, "+" + item.val + "G", 'gold');
+                                AudioSys.play('gold');
+                            } else {
+                                // 拾取物品到背包
+                                if (!addItemToInventory(item)) {
+                                    showNotification("背包已满！");
+                                }
+                            }
+
+                            // 从地面移除物品和UI元素
+                            groundItems = groundItems.filter(x => x !== item);
+                            if (item.el) item.el.remove();
+                            updateLabelsPosition();
+                        }
+
+                        player.targetItem = null; // 清除目标物品
+                    }
+                }
             }
 
             const pc = Math.floor(player.x / TILE_SIZE), pr = Math.floor(player.y / TILE_SIZE);
@@ -1742,9 +1773,48 @@
         function updateWorldLabels() {
             const c = document.getElementById('world-labels'); c.innerHTML = '';
             groundItems.forEach(i => {
-                const d = document.createElement('div'); d.className = 'drop-label'; d.innerText = i.displayName || i.name; d.style.color = getItemColor(i.rarity);
-                d.onclick = e => { e.stopPropagation(); if (Math.hypot(i.x - player.x, i.y - player.y) < 100) { if (i.type === 'gold') { player.gold += i.val; createDamageNumber(player.x, player.y - 40, "+" + i.val + "G", 'gold'); AudioSys.play('gold'); } else { if (!addItemToInventory(i)) { showNotification("背包已满！"); return; } } groundItems = groundItems.filter(x => x !== i); d.remove(); } };
-                i.el = d; c.appendChild(d);
+                const d = document.createElement('div');
+                d.className = 'drop-label';
+                d.innerText = i.displayName || i.name;
+                d.style.color = getItemColor(i.rarity);
+
+                d.onclick = e => {
+                    e.stopPropagation();
+
+                    // 计算玩家与物品的距离
+                    const distance = Math.hypot(i.x - player.x, i.y - player.y);
+
+                    // 检查是否在拾取范围内（100像素）
+                    if (distance < 100) {
+                        // 直接拾取
+                        if (i.type === 'gold') {
+                            // 拾取金币
+                            player.gold += i.val;
+                            createDamageNumber(player.x, player.y - 40, "+" + i.val + "G", 'gold');
+                            AudioSys.play('gold');
+                        } else {
+                            // 拾取物品到背包
+                            if (!addItemToInventory(i)) {
+                                showNotification("背包已满！");
+                                return;
+                            }
+                        }
+
+                        // 从地面移除物品
+                        groundItems = groundItems.filter(x => x !== i);
+                        d.remove();
+                        player.targetItem = null; // 清除目标
+                    } else {
+                        // 距离太远，自动走过去拾取
+                        player.targetX = i.x;
+                        player.targetY = i.y;
+                        player.targetItem = i; // 标记要去拾取的物品
+                        showNotification("自动移动到物品处...");
+                    }
+                };
+
+                i.el = d;
+                c.appendChild(d);
             });
         }
 
@@ -2122,7 +2192,7 @@
                 xpPct = (player.xp / player.xpNext * 100);
             }
             document.getElementById('xp-fill').style.width = Math.min(100, xpPct) + '%';
-            document.getElementById('xp-percentage').innerText = Math.floor(xpPct) + '%';
+            document.getElementById('xp-percentage').innerText = xpPct.toFixed(2) + '%';
             document.getElementById('hud-lvl').innerText = player.lvl;
 
             updateLabelsPosition();
