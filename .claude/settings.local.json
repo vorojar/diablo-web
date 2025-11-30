@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(ffmpeg:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
