@@ -81,6 +81,7 @@
         let lastTime = 0;
         let particles = [];
         let damageNumbers = [];
+        let floatingTexts = []; // 浮动提示文字
         let enemies = [];
         let groundItems = [];
         let projectiles = [];
@@ -1078,6 +1079,7 @@
 
             particles.forEach((p, i) => { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.life <= 0) particles.splice(i, 1) });
             damageNumbers.forEach((d, i) => { d.life -= dt; d.y -= 20 * dt; if (d.life <= 0) damageNumbers.splice(i, 1); });
+            floatingTexts.forEach((t, i) => { t.life -= dt; t.y -= 15 * dt; if (t.life <= 0) floatingTexts.splice(i, 1); });
 
             // 定期清理死亡的怪物，防止数组无限增长
             enemies = enemies.filter(e => !e.dead || (e.dead && Math.hypot(e.x - player.x, e.y - player.y) < 500));
@@ -1274,6 +1276,15 @@
 
             ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center';
             damageNumbers.forEach(d => { ctx.fillStyle = d.color; ctx.fillText(d.val, d.x, d.y); });
+
+            // 渲染浮动提示文字
+            ctx.font = 'bold 14px Arial';
+            floatingTexts.forEach(t => {
+                ctx.fillStyle = t.color;
+                ctx.globalAlpha = t.life / t.maxLife; // 根据生命周期调整透明度
+                ctx.fillText(t.text, t.x, t.y);
+            });
+            ctx.globalAlpha = 1;
 
             ctx.restore();
 
@@ -1621,6 +1632,7 @@
         }
 
         function createDamageNumber(x, y, val, color) { damageNumbers.push({ x, y, val, color, life: 1 }); }
+        function createFloatingText(x, y, text, color = '#ffff00', duration = 2) { floatingTexts.push({ x, y, text, color, life: duration, maxLife: duration }); }
         function createParticle(x, y, color, size = 3) { particles.push({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size }); }
         function checkPlayerDeath() {
             if (player.hp <= 0) {
@@ -1893,7 +1905,7 @@
 
             if (type === 'fireball') {
                 if (player.mp < 5) {
-                    showNotification('法力不足！(需要 5 法力)');
+                    createFloatingText(player.x, player.y - 40, '法力不足！(需要 5 法力)', '#4d94ff', 1.5);
                     return;
                 }
                 if (player.skillCooldowns.fireball > 0) return;
@@ -1903,7 +1915,7 @@
                 AudioSys.play('attack');
             } else if (type === 'frostnova') {
                 if (player.mp < 15) {
-                    showNotification('法力不足！(需要 15 法力)');
+                    createFloatingText(player.x, player.y - 40, '法力不足！(需要 15 法力)', '#4d94ff', 1.5);
                     return;
                 }
                 if (player.skillCooldowns.frostnova > 0) return;
@@ -1912,7 +1924,7 @@
                 AudioSys.play('fireball');
             } else if (type === 'multishot') {
                 if (player.mp < 10) {
-                    showNotification('法力不足！(需要 10 法力)');
+                    createFloatingText(player.x, player.y - 40, '法力不足！(需要 10 法力)', '#4d94ff', 1.5);
                     return;
                 }
                 if (player.skillCooldowns.multishot > 0) return;
