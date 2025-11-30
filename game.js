@@ -1125,6 +1125,38 @@
                         const body = enemies.find(other => other.dead && Math.hypot(other.x - e.x, other.y - e.y) < 200);
                         if (body) {
                             body.dead = false; body.hp = body.maxHp;
+
+                            // 调整复活位置，确保离主角有一定距离
+                            const distToPlayer = Math.hypot(body.x - player.x, body.y - player.y);
+                            if (distToPlayer < 150) {
+                                // 如果尸体离主角太近，将复活位置调整到距离主角150-250像素的位置
+                                const angle = Math.atan2(body.y - player.y, body.x - player.x);
+                                const newDist = 150 + Math.random() * 100; // 150-250像素距离
+                                body.x = player.x + Math.cos(angle) * newDist;
+                                body.y = player.y + Math.sin(angle) * newDist;
+
+                                // 检查新位置是否是墙，如果是则稍微调整
+                                if (isWall(body.x, body.y)) {
+                                    // 尝试在附近找非墙位置
+                                    let foundPos = false;
+                                    for (let angleOffset = 0; angleOffset < Math.PI * 2; angleOffset += Math.PI / 4) {
+                                        const testX = player.x + Math.cos(angle + angleOffset) * newDist;
+                                        const testY = player.y + Math.sin(angle + angleOffset) * newDist;
+                                        if (!isWall(testX, testY)) {
+                                            body.x = testX;
+                                            body.y = testY;
+                                            foundPos = true;
+                                            break;
+                                        }
+                                    }
+                                    // 如果还找不到，就使用原位置
+                                    if (!foundPos) {
+                                        body.x = player.x + Math.cos(angle) * newDist;
+                                        body.y = player.y + Math.sin(angle) * newDist;
+                                    }
+                                }
+                            }
+
                             createDamageNumber(body.x, body.y - 20, "复活!", '#ff00ff');
                             e.cooldown = 5.0;
                             return;
