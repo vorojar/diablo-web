@@ -1028,7 +1028,9 @@
                             } else {
                                 // 拾取物品到背包
                                 if (!addItemToInventory(item)) {
-                                    showNotification("背包已满！");
+                                    createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
+                                    player.targetItem = null;
+                                    return; // 不要移除地面物品
                                 }
                             }
 
@@ -1807,7 +1809,7 @@
                         } else {
                             // 拾取物品到背包
                             if (!addItemToInventory(i)) {
-                                showNotification("背包已满！");
+                                createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
                                 return;
                             }
                         }
