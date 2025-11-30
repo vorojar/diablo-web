@@ -1605,7 +1605,23 @@
 
         function takeDamage(e, dmg) {
             e.hp -= dmg; createDamageNumber(e.x, e.y, Math.floor(dmg), '#fff'); AudioSys.play('hit');
-            if (e.hp <= 0) {
+
+            // 如果怪物还没死，让它感知到玩家并追击（针对远程攻击）
+            if (e.hp > 0) {
+                const dist = Math.hypot(player.x - e.x, player.y - e.y);
+                // 如果距离较远，直接向玩家方向移动一小段距离（吸引怪物过来）
+                if (dist > 100) {
+                    const moveDist = Math.min(30, dist - 50); // 移动30像素或到距离50像素的位置
+                    const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                    const newX = e.x + Math.cos(angle) * moveDist;
+                    const newY = e.y + Math.sin(angle) * moveDist;
+
+                    // 检查新位置是否可通行
+                    if (!isWall(newX, e.y)) e.x = newX;
+                    if (!isWall(e.x, newY)) e.y = newY;
+                }
+            } else {
+                // 怪物死亡
                 e.dead = true;
                 const xpGain = e.xpValue || 15; player.xp += xpGain; createDamageNumber(player.x, player.y - 50, "+" + xpGain + " XP", '#4d69cd');
                 dropLoot(e);
@@ -1997,7 +2013,7 @@
                 if (player.skillCooldowns.fireball > 0) return;
                 player.mp -= 5; player.skillCooldowns.fireball = 0.5;
                 const angle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
-                projectiles.push({ x: player.x, y: player.y, angle, speed: 450, life: 0.9, damage: 10 * player.skills.fireball + player.ene, owner: player });
+                projectiles.push({ x: player.x, y: player.y, angle, speed: 450, life: 0.5, damage: 10 * player.skills.fireball + player.ene, owner: player });
                 AudioSys.play('attack');
             } else if (type === 'frostnova') {
                 if (player.mp < 15) {
