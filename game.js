@@ -2392,6 +2392,9 @@
                 // 关闭面板
                 panelElement.style.display = 'none';
 
+                // 隐藏tooltip，避免残留
+                hideTooltip();
+
                 // 更新面板管理器状态
                 if (panelManager && panelManager.panels[id]) {
                     panelManager.close(id);
