@@ -1696,10 +1696,11 @@
             if (player.hp <= 0) {
                 // 标记玩家曾经死亡
                 player.died = true;
-                alert("你死了！灵魂回到了罗格营地。");
+                createFloatingText(player.x, player.y - 50, "你死了！灵魂回到了罗格营地", '#ff4444', 3);
                 player.hp = player.maxHp;
                 player.gold = Math.floor(player.gold / 2);
-                enterFloor(0);
+                // 延迟1秒后传送回营地，让玩家看到死亡提示
+                setTimeout(() => enterFloor(0), 1000);
             }
         }
 
@@ -2155,8 +2156,8 @@
                 if (rarity === 4) { item.displayName = "暗金·" + item.name; item.stats = { allSkills: 1, str: 10, lifeSteal: 5 }; }
 
                 if (!addItemToInventory(item)) {
-                    player.gold += cost;
-                    alert("背包已满");
+                    player.gold += cost; // 返还金币
+                    createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
                 } else {
                     createDamageNumber(player.x, player.y - 40, `-${cost}G`, 'gold');
                     showNotification(`花费 ${cost} G`);
@@ -2182,7 +2183,7 @@
                     showNotification(`花费 ${cost} G - 购买 ${itemName}`);
                     renderInventory();
                 } else {
-                    alert("背包已满");
+                    createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
                 }
             } else {
                 showNotification("金币不足");
