@@ -1,0 +1,885 @@
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
+
+        :root {
+            --bg-color: #050505;
+            --ui-border: #4a3b2a;
+            --text-gold: #c7b377;
+            --text-red: #c23b22;
+            --text-blue: #4d69cd;
+            --item-unique: #908858;
+            --item-rare: #ffff00;
+            --item-magic: #4850b8;
+            --item-normal: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            color: #ccc;
+            font-family: 'Cinzel', serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        .ui-layer {
+            position: absolute;
+            pointer-events: none;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        #minimap-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 150px;
+            height: 150px;
+            border: 2px solid var(--ui-border);
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 4px;
+            overflow: hidden;
+            pointer-events: auto;
+            z-index: 50;
+        }
+
+        #minimap {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #bottom-hud {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 140px;
+            background: linear-gradient(to top, #111 0%, transparent 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 0 20px 10px;
+            box-sizing: border-box;
+            pointer-events: auto;
+        }
+
+        .orb-container {
+            width: 100px;
+            height: 100px;
+            position: relative;
+            background: #222;
+            border-radius: 50%;
+            border: 4px solid #333;
+            box-shadow: 0 0 20px #000 inset;
+            overflow: hidden;
+            z-index: 10;
+        }
+
+        .orb-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            transition: height 0.2s;
+        }
+
+        #health-orb .orb-fill {
+            background: radial-gradient(circle at 30% 30%, #ff6b6b, #8a0e0e);
+            box-shadow: 0 0 20px #ff0000;
+        }
+
+        #mana-orb .orb-fill {
+            background: radial-gradient(circle at 30% 30%, #4d94ff, #0e2a8a);
+            box-shadow: 0 0 20px #0055ff;
+        }
+
+        .orb-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: bold;
+            text-shadow: 1px 1px 2px #000;
+            z-index: 2;
+        }
+
+        #center-hud {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-bottom: 10px;
+            gap: 5px;
+            flex: 1;
+            max-width: 600px;
+        }
+
+        .belt-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+
+        .belt-slot {
+            width: 36px;
+            height: 36px;
+            background: #111;
+            border: 1px solid #444;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            cursor: pointer;
+            font-size: 20px;
+        }
+
+        .belt-slot:hover {
+            border-color: var(--text-gold);
+        }
+
+        .belt-key {
+            position: absolute;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            color: #888;
+            background: #000;
+            padding: 0 3px;
+        }
+
+        .belt-count {
+            position: absolute;
+            bottom: 0;
+            right: 2px;
+            font-size: 10px;
+            color: #fff;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        .xp-container {
+            width: 350px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 auto;
+        }
+
+        .xp-bar {
+            flex: 1;
+            height: 8px;
+            background: #222;
+            border: 1px solid #444;
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .xp-fill {
+            height: 100%;
+            background: #c7b377;
+            width: 0%;
+            transition: width 0.2s;
+        }
+
+        .xp-percentage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 11px;
+            color: #000;
+            font-weight: bold;
+            text-shadow: 0 0 2px rgba(255, 255, 255, 0.5);
+            pointer-events: none;
+        }
+
+        .level-display {
+            color: var(--text-gold);
+            font-weight: bold;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .skill-bar {
+            display: flex;
+            gap: 10px;
+            margin-top: 5px;
+        }
+
+        .skill-btn {
+            width: 48px;
+            height: 48px;
+            background: #1a1a1a;
+            border: 2px solid #555;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 12px;
+            color: #888;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .skill-btn.active {
+            border-color: var(--text-gold);
+            color: var(--text-gold);
+        }
+
+        .skill-btn .key {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            font-size: 10px;
+            color: #fff;
+        }
+
+        .skill-btn .lvl {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 10px;
+            color: #aaa;
+        }
+
+        .panel {
+            position: absolute;
+            background: rgba(10, 10, 12, 0.95);
+            border: 2px solid var(--ui-border);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            color: var(--text-gold);
+            pointer-events: auto;
+            display: none;
+            width: 320px;
+            z-index: 60;
+        }
+
+        .panel-header {
+            text-align: center;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--ui-border);
+            padding-bottom: 5px;
+            cursor: move;
+            user-select: none;
+        }
+
+        .panel-close {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            cursor: pointer;
+            color: #888;
+        }
+
+        #stats-panel {
+            top: 10%;
+            left: 20px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+
+        .stat-btn {
+            background: #333;
+            border: 1px solid #666;
+            width: 20px;
+            height: 20px;
+            line-height: 18px;
+            text-align: center;
+            cursor: pointer;
+            color: #fff;
+        }
+
+        .stat-btn:hover {
+            background: #555;
+        }
+
+        #inventory-panel {
+            top: 10%;
+            right: 20px;
+            width: 320px;
+        }
+
+        .equipment-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+            justify-items: center;
+        }
+
+        .equip-slot {
+            width: 60px;
+            height: 60px;
+            border: 1px solid #444;
+            background: #080808;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .bag-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+        }
+
+        .stash-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 4px;
+        }
+
+        .bag-slot {
+            width: 48px;
+            height: 48px;
+            border: 1px solid #333;
+            background: #080808;
+            position: relative;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .item-count {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            color: #fff;
+            font-size: 10px;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        #skills-panel {
+            top: 15%;
+            left: 340px;
+            width: 280px;
+        }
+
+        .skill-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px;
+            border: 1px solid #333;
+        }
+
+        .skill-icon {
+            width: 40px;
+            height: 40px;
+            background: #222;
+            border: 1px solid #555;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            margin-right: 10px;
+        }
+
+        .skill-info {
+            flex: 1;
+        }
+
+        .skill-name {
+            font-weight: bold;
+            color: var(--text-gold);
+            font-size: 0.9em;
+        }
+
+        .skill-desc {
+            font-size: 0.7em;
+            color: #888;
+        }
+
+        #shop-panel {
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 400px;
+        }
+
+        .gamble-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .gamble-slot {
+            background: #111;
+            border: 1px solid #444;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .gamble-slot:hover {
+            background: #222;
+            border-color: var(--text-gold);
+        }
+
+        .gamble-price {
+            color: gold;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .shop-section-title {
+            text-align: center;
+            color: #888;
+            font-size: 12px;
+            margin-top: 10px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 2px;
+        }
+
+        #quest-panel {
+            top: 15%;
+            left: 20px;
+            width: 300px;
+            max-height: 85%;
+            overflow-y: auto;
+        }
+
+        #achievements-panel {
+            top: 10%;
+            left: 20px;
+            width: 350px;
+            max-height: 85%;
+            overflow-y: auto;
+        }
+
+        /* 自定义滚动条样式 */
+        #achievements-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #achievements-panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        #achievements-panel::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+            border: 1px solid #666;
+        }
+
+        #achievements-panel::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Firefox支持 */
+        #achievements-panel {
+            scrollbar-width: thin;
+            scrollbar-color: #444 rgba(0, 0, 0, 0.3);
+        }
+
+        /* 任务面板自定义滚动条样式 */
+        #quest-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #quest-panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        #quest-panel::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+            border: 1px solid #666;
+        }
+
+        #quest-panel::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Firefox支持 */
+        #quest-panel {
+            scrollbar-width: thin;
+            scrollbar-color: #444 rgba(0, 0, 0, 0.3);
+        }
+
+        .achievement-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+
+        .achievement-item.completed {
+            border-color: var(--text-gold);
+            background: rgba(218, 165, 32, 0.1);
+        }
+
+        .achievement-item.completed::before {
+            content: "✓ ";
+            color: var(--text-gold);
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .ach-name {
+            color: var(--text-gold);
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .ach-desc {
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .ach-progress {
+            color: #888;
+            font-size: 11px;
+            text-align: right;
+        }
+
+        #stash-panel {
+            top: 15%;
+            right: 20px;
+            left: auto;
+            width: 350px;
+        }
+
+        .quest-item {
+            border: 1px solid #444;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .quest-title {
+            color: var(--text-gold);
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .quest-status {
+            font-size: 0.8em;
+            color: #888;
+        }
+
+        .quest-status.completed {
+            color: #00ff00;
+        }
+
+        #dialog-box {
+            position: absolute;
+            bottom: 160px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 500px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid var(--ui-border);
+            padding: 20px;
+            color: #ccc;
+            display: none;
+            z-index: 100;
+            pointer-events: auto;
+        }
+
+        .dialog-name {
+            color: var(--text-gold);
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .dialog-text {
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .dialog-options {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .dialog-btn {
+            background: #333;
+            border: 1px solid #555;
+            color: #fff;
+            padding: 5px 15px;
+            cursor: pointer;
+            font-family: 'Cinzel', serif;
+        }
+
+        .dialog-btn:hover {
+            border-color: var(--text-gold);
+            color: var(--text-gold);
+        }
+
+        .drop-label {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2px 5px;
+            border: 1px solid #333;
+            font-size: 12px;
+            cursor: pointer;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            pointer-events: auto;
+        }
+
+        .drop-label:hover {
+            background: rgba(50, 50, 50, 0.9);
+            border-color: #666;
+        }
+
+        #tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid var(--text-gold);
+            padding: 10px;
+            pointer-events: none;
+            z-index: 1000; /* 提高 z-index 确保在最上层 */
+            display: none;
+            max-width: 250px;
+            font-size: 14px;
+        }
+
+        .tooltip-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .tooltip-type {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .tooltip-stat {
+            color: #aaa;
+            display: block;
+        }
+
+        #notification-area {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--text-gold);
+            font-size: 16px;
+            text-shadow: 0 0 5px #000;
+            pointer-events: none;
+            transition: opacity 0.5s;
+            opacity: 0;
+            text-align: center;
+        }
+
+        #interaction-msg {
+            position: absolute;
+            top: 70%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 0 0 5px #000;
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 16px;
+            border: 1px solid #c7b377;
+            border-radius: 4px;
+            font-family: 'Cinzel', serif;
+        }
+
+        #floor-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #bbb;
+            font-size: 1.4em;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 #000;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* 任务追踪器位于左侧下方 */
+        #quest-tracker {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            text-align: left;
+            pointer-events: none;
+            z-index: 10;
+            max-width: 300px;
+        }
+
+        .tracker-title {
+            color: #c7b377;
+            font-weight: bold;
+            font-size: 14px;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        .tracker-desc {
+            color: #aaa;
+            font-size: 12px;
+            margin-top: 2px;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        .menu-btns {
+            position: absolute;
+            bottom: 150px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            pointer-events: auto;
+        }
+
+        .sys-btn {
+            background: #222;
+            border: 1px solid #555;
+            color: #aaa;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-family: 'Cinzel', serif;
+            position: relative;
+        }
+
+        .sys-btn:hover {
+            border-color: var(--text-gold);
+            color: var(--text-gold);
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -3px;
+            right: -3px;
+            width: 10px;
+            height: 10px;
+            background-color: #ff3333;
+            border-radius: 50%;
+            box-shadow: 0 0 4px #ff0000;
+            display: none;
+        }
+
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-image: radial-gradient(circle, #222 0%, #000 80%);
+            pointer-events: auto;
+        }
+
+        h1 {
+            color: #8a0e0e;
+            font-size: 4em;
+            margin-bottom: 0;
+            text-shadow: 0 0 20px #ff0000;
+            letter-spacing: 5px;
+        }
+
+        h2 {
+            color: #555;
+            margin-top: 0;
+            font-size: 1.2em;
+        }
+
+        .start-btn {
+            margin-top: 50px;
+            padding: 15px 40px;
+            background: #111;
+            border: 2px solid #8a0e0e;
+            color: #ccc;
+            font-size: 1.5em;
+            cursor: pointer;
+            font-family: 'Cinzel', serif;
+            transition: all 0.3s;
+        }
+
+        .start-btn:hover {
+            background: #8a0e0e;
+            color: #000;
+            box-shadow: 0 0 30px #8a0e0e;
+        }
+
+        .reset-btn {
+            margin-top: 20px;
+            padding: 8px 15px;
+            background: #220000;
+            border: 1px solid #500;
+            color: #888;
+            font-size: 0.9em;
+            cursor: pointer;
+            font-family: 'Cinzel', serif;
+        }
+
+        .reset-btn:hover {
+            background: #400;
+            color: #fff;
+        }
+
+        /* Settings */
+        .settings-box {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+        }
+
+        .setting-item {
+            color: #888;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .setting-item:hover {
+            color: #fff;
+        }
+
+        .setting-item input {
+            cursor: pointer;
+        }
