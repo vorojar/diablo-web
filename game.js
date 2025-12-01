@@ -893,7 +893,6 @@ const AFFIXES = {
         { name: '全能之', stat: 'allRes', min: 8, max: 15 },
         // 元素伤害
         { name: '燃烧的', stat: 'fireDmg', min: 5, max: 20 },
-        { name: '寒冰的', stat: 'coldDmg', min: 5, max: 20 },
         { name: '雷电的', stat: 'lightningDmg', min: 5, max: 20 },
         { name: '剧毒的', stat: 'poisonDmg', min: 10, max: 40 },
         // 特殊效果
@@ -2886,7 +2885,6 @@ function performAttack(t) {
     const damageObj = {
         physical: dmg,
         fire: player.elementalDamage.fire,
-        cold: player.elementalDamage.cold,
         lightning: player.elementalDamage.lightning,
         poison: player.elementalDamage.poison
     };
@@ -3326,7 +3324,6 @@ function updateStats() {
 
             // 元素伤害
             player.elementalDamage.fire += (i.stats.fireDmg || 0);
-            player.elementalDamage.cold += (i.stats.coldDmg || 0);
             player.elementalDamage.lightning += (i.stats.lightningDmg || 0);
             player.elementalDamage.poison += (i.stats.poisonDmg || 0);
 
@@ -3785,7 +3782,6 @@ function showTooltip(item, e) {
 
             // 元素伤害
             else if (k === 'fireDmg') { label = "火焰伤害"; color = '#ff4400'; }
-            else if (k === 'coldDmg') { label = "冰霜伤害"; color = '#00aaff'; }
             else if (k === 'lightningDmg') { label = "闪电伤害"; color = '#ffff00'; }
             else if (k === 'poisonDmg') { label = "毒素伤害"; color = '#00ff00'; }
 
