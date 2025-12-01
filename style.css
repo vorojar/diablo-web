@@ -912,3 +912,16 @@
         .setting-item input {
             cursor: pointer;
         }
+
+/* 卖出提示淡出动画 */
+@keyframes fadeOut {
+    0% {
+        opacity: 1;
+    }
+    70% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}

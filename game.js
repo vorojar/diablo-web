@@ -1096,6 +1096,9 @@ function enterFloor(f, spawnAt = 'start') {
         // 始终添加地狱守卫，但交互需要条件
         npcs.push({ x: dungeonEntrance.x - 150, y: dungeonEntrance.y + 50, name: "地狱守卫", type: "difficulty", radius: 20, frameIndex: 3 });
 
+        // 洗点师 - 神秘贤者
+        npcs.push({ x: dungeonEntrance.x + 150, y: dungeonEntrance.y + 50, name: "神秘贤者", type: "respec", radius: 20, frameIndex: 3 });
+
         showNotification("欢迎回到罗格营地");
 
         // ==== Boss 刷新检查 ==== //
@@ -1938,6 +1941,9 @@ function interactNPC(npc) {
     } else if (npc.type === 'difficulty') {
         // 地狱守卫 - 进入/返回地狱
         showHellPortalDialog();
+    } else if (npc.type === 'respec') {
+        // 神秘贤者 - 洗点服务
+        showRespecDialog();
     } else if (npc.type === 'healer') {
         const currentQ = QUEST_DB[player.questIndex];
 
@@ -2023,6 +2029,121 @@ function showDialog(name, text, options) {
     box.style.display = 'block';
 }
 function closeDialog() { document.getElementById('dialog-box').style.display = 'none'; }
+
+// 洗点对话
+function showRespecDialog() {
+    const fullCost = player.lvl * 500;
+    const statCost = player.lvl * 300;
+    const skillCost = player.lvl * 300;
+
+    const dialogText = `年轻的英雄，命运之路充满选择。如果你对自己的能力分配不满意，我可以帮你重塑。
+
+当前等级：${player.lvl}
+
+选择你需要的服务：`;
+
+    const options = [
+        {
+            text: `完全洗点（${fullCost} 金币）`,
+            action: () => {
+                if (player.gold < fullCost) {
+                    showDialog("神秘贤者", `金币不足！你需要 ${fullCost} 金币才能进行完全洗点。\n\n当前金币：${player.gold}`, [{ text: "知道了", action: closeDialog }]);
+                    return;
+                }
+                player.gold -= fullCost;
+                respecPlayer('full');
+                AudioSys.play('levelup');
+                showDialog("神秘贤者", `✨ 重置成功！✨\n\n所有属性点和技能点已经重置。\n你可以重新规划自己的成长路线了。\n\n消耗：${fullCost} 金币\n剩余金币：${player.gold}`, [{ text: "太好了！", action: closeDialog }]);
+            }
+        },
+        {
+            text: `仅重置属性点（${statCost} 金币）`,
+            action: () => {
+                if (player.gold < statCost) {
+                    showDialog("神秘贤者", `金币不足！你需要 ${statCost} 金币才能重置属性点。\n\n当前金币：${player.gold}`, [{ text: "知道了", action: closeDialog }]);
+                    return;
+                }
+                player.gold -= statCost;
+                respecPlayer('stats');
+                AudioSys.play('levelup');
+                showDialog("神秘贤者", `✨ 属性点已重置！✨\n\n力量、敏捷、体力、精力已恢复到初始状态。\n所有属性点已返还。\n\n消耗：${statCost} 金币\n剩余金币：${player.gold}`, [{ text: "太好了！", action: closeDialog }]);
+            }
+        },
+        {
+            text: `仅重置技能点（${skillCost} 金币）`,
+            action: () => {
+                if (player.gold < skillCost) {
+                    showDialog("神秘贤者", `金币不足！你需要 ${skillCost} 金币才能重置技能点。\n\n当前金币：${player.gold}`, [{ text: "知道了", action: closeDialog }]);
+                    return;
+                }
+                player.gold -= skillCost;
+                respecPlayer('skills');
+                AudioSys.play('levelup');
+                showDialog("神秘贤者", `✨ 技能点已重置！✨\n\n所有技能已重置（火球术保持1级）。\n技能点已全部返还。\n\n消耗：${skillCost} 金币\n剩余金币：${player.gold}`, [{ text: "太好了！", action: closeDialog }]);
+            }
+        },
+        {
+            text: '离开',
+            action: closeDialog
+        }
+    ];
+
+    showDialog("神秘贤者", dialogText, options);
+}
+
+// 洗点逻辑
+function respecPlayer(type) {
+    if (type === 'full' || type === 'stats') {
+        // 计算总属性点（每级5点）
+        const totalPoints = (player.lvl - 1) * 5;
+
+        // 重置属性到初始值
+        player.str = 15;
+        player.dex = 15;
+        player.vit = 20;
+        player.ene = 10;
+
+        // 返还所有属性点
+        player.points = totalPoints;
+    }
+
+    if (type === 'full' || type === 'skills') {
+        // 计算总技能点（升级获得的 + 任务奖励的）
+        let totalSkillPoints = player.lvl - 1; // 升级获得的技能点（1级没有技能点，2级开始每级1点）
+
+        // 加上任务奖励的技能点（需要计算已完成的任务）
+        const completedQuests = player.questIndex;
+        for (let i = 0; i < completedQuests; i++) {
+            const quest = QUEST_DB[i];
+            if (quest && quest.reward) {
+                if (quest.reward.includes('2 技能点')) {
+                    totalSkillPoints += 2;
+                } else if (quest.reward.includes('技能点')) {
+                    totalSkillPoints += 1;
+                }
+            }
+        }
+
+        // 重置技能等级
+        player.skills.fireball = 1; // 火球术保持1级（初始技能）
+        player.skills.thunder = 0;
+        player.skills.multishot = 0;
+
+        // 返还所有技能点（减去火球术的1点）
+        player.skillPoints = totalSkillPoints;
+    }
+
+    // 重新计算玩家属性
+    updateStats();
+
+    // 更新UI
+    updateStatsUI();
+    updateSkillsUI();
+    updateUI();
+
+    // 播放音效
+    AudioSys.play('quest');
+}
 
 function showHellPortalDialog() {
     const isInHell = player.isInHell || false;
@@ -3109,6 +3230,9 @@ function useOrEquipItem(idx) {
         AudioSys.play('gold');
         renderInventory();
         updateBeltUI();
+
+        // 在物品槽位上显示卖出提示
+        showSellTooltip(idx, val);
         return;
     }
 
@@ -3697,6 +3821,51 @@ function updateMenuIndicators() {
     document.getElementById('badge-stats').style.display = player.points > 0 ? 'block' : 'none';
     document.getElementById('badge-skills').style.display = player.skillPoints > 0 ? 'block' : 'none';
     document.getElementById('badge-quest').style.display = player.questState === 2 ? 'block' : 'none';
+}
+
+// 在物品槽位上显示卖出提示
+function showSellTooltip(idx, val) {
+    const bagGrid = document.getElementById('bag-grid');
+    if (!bagGrid) return;
+
+    const slots = bagGrid.querySelectorAll('.bag-slot');
+    if (idx >= slots.length) return;
+
+    const slot = slots[idx];
+
+    // 创建提示元素
+    const tip = document.createElement('div');
+    tip.style.position = 'absolute';
+    tip.style.left = '0';
+    tip.style.top = '0';
+    tip.style.width = '100%';
+    tip.style.height = '100%';
+    tip.style.backgroundColor = 'rgba(0, 0, 0, 0.85)';
+    tip.style.color = '#ffd700';
+    tip.style.display = 'flex';
+    tip.style.flexDirection = 'column';
+    tip.style.justifyContent = 'center';
+    tip.style.alignItems = 'center';
+    tip.style.fontSize = '11px';
+    tip.style.fontWeight = 'bold';
+    tip.style.textAlign = 'center';
+    tip.style.padding = '5px';
+    tip.style.boxSizing = 'border-box';
+    tip.style.zIndex = '1000';
+    tip.style.pointerEvents = 'none';
+    tip.style.animation = 'fadeOut 2s ease-out forwards';
+    tip.innerHTML = `<div>已卖出</div><div style="font-size:13px; margin-top:2px;">+${val}G</div>`;
+
+    // 添加到槽位
+    slot.style.position = 'relative';
+    slot.appendChild(tip);
+
+    // 2秒后移除提示
+    setTimeout(() => {
+        if (tip.parentNode) {
+            tip.parentNode.removeChild(tip);
+        }
+    }, 2000);
 }
 
 // 修复：恢复智能对比 Tooltip
