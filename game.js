@@ -123,10 +123,13 @@ const MONSTER_FRAMES = {
 };
 
 // 每层对应的 Boss 信息（名称与基础血量）
-// 示例：第5层屠夫，第10层巴尔
 const floorBossMap = {
-    5: { name: '屠夫', hp: 2000 },
-    10: { name: '巴尔', hp: 5000 }
+    2: { name: '血鸟', hp: 300 },
+    4: { name: '女伯爵', hp: 800 },
+    5: { name: '屠夫', hp: 1050 },
+    7: { name: '树头木拳', hp: 2150 },
+    9: { name: '暗黑破坏神', hp: 3840 },
+    10: { name: '巴尔', hp: 4500 }
 };
 
 const player = {
@@ -138,27 +141,24 @@ const player = {
     lifeSteal: 0, attackSpeed: 0, critChance: 0,
     resistances: { fire: 0, cold: 0, lightning: 0, poison: 0 },  // 抗性系统
     elementalDamage: { fire: 0, cold: 0, lightning: 0, poison: 0 },  // 元素伤害
-    skills: { fireball: 1, frostnova: 0, multishot: 0 }, activeSkill: 'fireball',
+    skills: { fireball: 1, thunder: 0, multishot: 0 }, activeSkill: 'fireball',
     targetX: null, targetY: null, targetItem: null, attacking: false, attackCooldown: 0,
-    skillCooldowns: { fireball: 0, frostnova: 0, multishot: 0 },
+    skillCooldowns: { fireball: 0, thunder: 0, multishot: 0 },
+    // 存储当前激活的闪电特效
+    activeLightning: null,
     equipment: {
         mainhand: null, offhand: null, body: null, ring: null,
         helm: null, gloves: null, boots: null, belt: null, amulet: null
     },
     // 记录每层 Boss 的下次刷新时间戳（毫秒）
     bossRespawn: {},
-    // 是否已经首次击败巴尔（用于成就计数）
-    firstKillBaal: false,
     inventory: Array(30).fill(null),
     stash: Array(36).fill(null), // 仓库，36个格子
     questIndex: 0, questState: 0, questProgress: 0,
-    portalTimer: 0,
     died: false,
     achievements: {},
     // 难度系统
-    difficulty: 'normal',  // normal/hell (已废弃，改为isInHell)
-    defeatedBaal: false,  // 是否击败巴尔
-    unlockedHell: false,  // 是否解锁地狱模式
+    defeatedBaal: false,  // 是否击败巴尔（同时用于解锁地狱模式）
     isInHell: false,      // 当前是否在地狱中
     hellFloor: 1          // 地狱层数（独立于地牢层数）
 };
@@ -490,7 +490,11 @@ const AudioSys = {
         }
     },
     play: function (type) {
-        if (!this.ctx) return;
+        if (!this.ctx) { console.log('AudioSys: No context'); return; }
+        if (this.ctx.state === 'suspended') { console.log('AudioSys: Context suspended'); this.ctx.resume(); }
+
+        // console.log('AudioSys playing:', type, 'SFX:', Settings.sfx, 'Gain:', this.sfxGain.gain.value); // Debug
+
         const t = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -591,6 +595,39 @@ const AudioSys = {
             gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
             osc.start(t);
             osc.stop(t + 0.2);
+        } else if (type === 'thunder') {
+            // 雷电音效：白噪声 + 低频震荡
+            // 1. 初始的尖锐爆裂声 (高频锯齿波)
+            const osc1 = this.ctx.createOscillator();
+            const gain1 = this.ctx.createGain();
+            osc1.type = 'sawtooth';
+            osc1.frequency.setValueAtTime(800, t);
+            osc1.frequency.exponentialRampToValueAtTime(100, t + 0.1);
+            gain1.gain.setValueAtTime(0.3, t);
+            gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+            osc1.connect(gain1);
+            gain1.connect(this.sfxGain);
+            osc1.start(t);
+            osc1.stop(t + 0.15);
+
+            // 2. 隆隆的雷声 (低频噪声模拟)
+            // 由于 Web Audio API 原生没有白噪声节点，我们用多个低频振荡器模拟
+            [60, 80, 100, 120, 150].forEach((f) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square'; // 方波听起来更粗糙，适合模拟雷声
+                osc.frequency.setValueAtTime(f + Math.random() * 20, t);
+                osc.frequency.linearRampToValueAtTime(f * 0.5, t + 0.5 + Math.random() * 0.5);
+
+                gain.gain.setValueAtTime(0.05, t);
+                gain.gain.linearRampToValueAtTime(0.08, t + 0.1); // 渐强
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8 + Math.random() * 0.4); // 漫长的衰减
+
+                osc.connect(gain);
+                gain.connect(this.sfxGain);
+                osc.start(t);
+                osc.stop(t + 1.5);
+            });
         }
     },
     toggleSetting: function (key, val) {
@@ -630,6 +667,7 @@ const SaveSystem = {
             inventory: player.inventory.map(clean),
             equipment: eq,
             stash: player.stash.map(clean), // 保存仓库
+            targetItem: clean(player.targetItem), // 清理targetItem的DOM元素引用
             townPortal: townPortal,
             settings: Settings // Save settings
         };
@@ -668,20 +706,14 @@ const DIFFICULTY_MODIFIERS = {
         monsterDmgMult: 1,
         monsterSpeedMult: 1,
         xpMult: 1,
-        dropQualityMult: 1,
-        resistancePenalty: 0,
-        immuneChance: 0,
-        doubleImmuneChance: 0
+        dropQualityMult: 1
     },
     hell: {
         monsterHpMult: 6,
         monsterDmgMult: 4,
         monsterSpeedMult: 1.3,
         xpMult: 5,
-        dropQualityMult: 3.5,  // 150%提升 = 原250%
-        resistancePenalty: -100,
-        immuneChance: 0.6,     // 60%怪物有至少一种免疫（包括物理）
-        doubleImmuneChance: 0.4  // 40%怪物有双重免疫
+        dropQualityMult: 3.5  // 150%提升 = 原250%
     }
 };
 
@@ -950,7 +982,7 @@ function startGame() {
         if (!player.achievements) player.achievements = {}; // 初始化成就字段
 
         // 向后兼容：旧存档没有地狱相关字段，或者已设置为false
-        if (player.unlockedHell === undefined || (player.unlockedHell === false && window.pendingLoadData)) {
+        if (player.defeatedBaal === undefined || (player.defeatedBaal === false && window.pendingLoadData)) {
             // 判断条件：已完成所有任务，或到达过第10层，或有相关成就
             const hasCompletedAllQuests = (player.questIndex !== undefined && player.questIndex >= QUEST_DB.length);
             const hasReachedFloor10 = (player.floor >= 10);
@@ -961,15 +993,13 @@ function startGame() {
                 floor: player.floor,
                 hasKillBoss: hasKillBossAchievement,
                 questDBLength: QUEST_DB.length,
-                unlockedHell: player.unlockedHell
+                defeatedBaal: player.defeatedBaal
             });
 
             if (hasCompletedAllQuests || hasReachedFloor10 || hasKillBossAchievement) {
-                player.unlockedHell = true;
                 player.defeatedBaal = true;
                 console.log('[地狱模式] 向后兼容：检测到已通关，自动解锁地狱模式');
-            } else if (player.unlockedHell === undefined) {
-                player.unlockedHell = false;
+            } else if (player.defeatedBaal === undefined) {
                 player.defeatedBaal = false;
             }
         }
@@ -990,6 +1020,28 @@ function startGame() {
         }
         // Cleanup legacy
         if (player.quests) delete player.quests;
+
+        // 技能迁移：将 frostnova 转换为 thunder
+        if (player.skills.frostnova !== undefined) {
+            if (player.skills.thunder === undefined) {
+                player.skills.thunder = player.skills.frostnova;
+                console.log('[技能迁移] 将冰霜新星等级迁移至雷电术:', player.skills.thunder);
+            }
+            delete player.skills.frostnova;
+        }
+        // 确保 thunder 技能已初始化且不是 NaN
+        if (player.skills.thunder === undefined || isNaN(player.skills.thunder)) {
+            player.skills.thunder = 0;
+            console.log('[技能修复] 重置雷电术等级为 0 (原值为 undefined 或 NaN)');
+        }
+        // 确保 skillCooldowns 中也有 thunder
+        if (player.skillCooldowns.thunder === undefined) {
+            player.skillCooldowns.thunder = 0;
+        }
+        // 如果当前激活的是 frostnova，重置为 fireball
+        if (player.activeSkill === 'frostnova') {
+            player.activeSkill = 'fireball';
+        }
 
         // 加载仓库数据（如果没有则使用默认空仓库，如果存档是旧版60格则截断为36格）
         if (window.pendingLoadData.stash) {
@@ -1204,7 +1256,7 @@ function enterFloor(f, spawnAt = 'start') {
         else if (spawnAt === 'portal') { if (townPortal) { player.x = townPortal.x; player.y = townPortal.y; } else { player.x = dungeonEntrance.x; player.y = dungeonEntrance.y; } }
         else { player.x = dungeonEntrance.x; player.y = dungeonEntrance.y; }
     }
-    player.targetX = null; player.portalTimer = 1.0; updateQuestTracker(); SaveSystem.save();
+    player.targetX = null; updateQuestTracker(); SaveSystem.save();
 }
 
 function generateTown() {
@@ -1317,7 +1369,6 @@ function update(dt) {
     if (player.hp < player.maxHp) player.hp += 0.5 * dt; if (player.mp < player.maxMp) player.mp += 1.5 * dt;
     if (player.attackCooldown > 0) player.attackCooldown -= dt;
     for (let k in player.skillCooldowns) if (player.skillCooldowns[k] > 0) player.skillCooldowns[k] -= dt;
-    if (player.portalTimer > 0) player.portalTimer -= dt;
 
     // 处理冰冻状态
     if (player.frozenTimer > 0) {
@@ -1726,6 +1777,45 @@ function draw() {
         }
     });
 
+    // 绘制雷电特效 (直接在最上层绘制，确保可见)
+    if (player.activeLightning && player.activeLightning.life > 0) {
+        const l = player.activeLightning;
+        ctx.save();
+        ctx.beginPath();
+        // 遍历点集绘制折线
+        if (l.points.length > 0) {
+            ctx.moveTo(l.points[0].x, l.points[0].y);
+            for (let i = 1; i < l.points.length; i++) {
+                ctx.lineTo(l.points[i].x, l.points[i].y);
+            }
+        }
+
+        // 样式参考：高亮白芯，蓝色光晕
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // 外发光
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#0088ff';
+
+        // 宽线条背景 (蓝色)
+        ctx.strokeStyle = '#0088ff';
+        ctx.lineWidth = 6;
+        ctx.globalAlpha = l.life * 2; // 快速闪烁
+        ctx.stroke();
+
+        // 细线条核心 (白色)
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = l.life * 3;
+        ctx.stroke();
+
+        ctx.restore();
+
+        // 减少生命值
+        l.life -= 0.05; // 持续约 20 帧
+    }
+
     if (player.targetX !== null) { ctx.strokeStyle = '#333'; ctx.beginPath(); ctx.arc(player.targetX, player.targetY, 5, 0, Math.PI * 2); ctx.stroke(); }
     if (spritesLoaded && processedSpriteSheet) {
         const frame = getHeroFrame(player.direction);
@@ -1759,7 +1849,25 @@ function draw() {
         }
     });
 
-    particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); });
+    particles.forEach((p) => {
+        if (p.type === 'lightning') {
+            ctx.beginPath();
+            ctx.moveTo(p.points[0].x, p.points[0].y);
+            for (let j = 1; j < p.points.length; j++) {
+                ctx.lineTo(p.points[j].x, p.points[j].y);
+            }
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = p.width * (p.life / 0.2); // 随时间变细
+            ctx.stroke();
+            // 闪光效果
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = p.color;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        } else {
+            ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+        }
+    });
     ctx.globalAlpha = 1;
 
     ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center';
@@ -1923,7 +2031,7 @@ function showHellPortalDialog() {
         ]);
     } else {
         // 检查是否已解锁地狱模式（击败巴尔）
-        if (!player.defeatedBaal && !player.unlockedHell) {
+        if (!player.defeatedBaal) {
             showDialog('地狱守卫', "你需要先去击杀10层Boss才能开启地狱模式。", [
                 {
                     text: '知道了',
@@ -2236,13 +2344,8 @@ function takeDamage(e, dmg, isSkillDamage = false) {
                 // 如果是巴尔（第10层BOSS），解锁地狱模式
                 if (e.name === '巴尔' && player.floor === 10) {
                     player.defeatedBaal = true;
-                    player.unlockedHell = true;
-                    // 标记首次击败巴尔，用于成就统计
-                    if (!player.firstKillBaal) {
-                        player.firstKillBaal = true;
-                        // 显式触发成就
-                        trackAchievement('kill_baal', { name: e.name });
-                    }
+                    // 显式触发成就（trackAchievement内部已有防重复机制）
+                    trackAchievement('kill_baal', { name: e.name });
                     showNotification('地狱之门已开启！');
                     AudioSys.play('quest');
                     // 设置该层 Boss 刷新计时（默认 5 分钟）
@@ -2349,6 +2452,53 @@ function addItemToInventory(i) {
         if (existing) { existing.quantity = (existing.quantity || 1) + 1; renderInventory(); updateBeltUI(); AudioSys.play('gold'); return true; }
     }
     const idx = player.inventory.findIndex(x => !x); if (idx < 0) return false; player.inventory[idx] = i; renderInventory(); updateBeltUI(); AudioSys.play('gold'); return true;
+}
+
+function createLightningEffect(targetX, targetY) {
+    // 闪电效果：从目标正上方落下
+    const startX = targetX + (Math.random() - 0.5) * 50;
+    const startY = targetY - 250; // 固定从上方 250 像素处落下
+
+    const segments = 8;
+    let currentX = startX;
+    let currentY = startY;
+    const stepY = (targetY - startY) / segments;
+
+    const points = [{ x: startX, y: startY }];
+
+    for (let i = 1; i < segments; i++) {
+        currentY += stepY;
+        const offset = (Math.random() - 0.5) * 80; // 随机偏移
+        currentX += (targetX - currentX) / (segments - i) + offset;
+        points.push({ x: currentX, y: currentY });
+    }
+    points.push({ x: targetX, y: targetY });
+
+    // 设置全局激活的闪电特效
+    player.activeLightning = {
+        points: points,
+        life: 1.0 // 初始生命值
+    };
+
+    // 备用视觉：在目标点创建一个爆炸粒子，确保至少能看到击中位置
+    createNovaEffect(targetX, targetY, '#ffff00');
+}
+
+function createNovaEffect(x, y, color) {
+    const count = 12;
+    for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 / count) * i;
+        const speed = 150;
+        particles.push({
+            x: x, y: y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 0.5,
+            color: color,
+            size: 3,
+            type: 'particle'
+        });
+    }
 }
 
 function createDamageNumber(x, y, val, color) { damageNumbers.push({ x, y, val, color, life: 1 }); }
@@ -2684,17 +2834,17 @@ function performAttack(t) {
     player.attackCooldown = 0.5 / (1 + player.attackSpeed / 100);
 }
 
-function castSkill(type) {
+function castSkill(skillName) {
     if (player.floor === 0) return;
 
     // 检查是否选择了未学习的技能
-    if (!player.skills[type] || player.skills[type] <= 0) {
-        const typeNames = { fireball: '火球术', frostnova: '霜之新星', multishot: '多重射击' };
-        showNotification(`技能未学习：${typeNames[type] || type}`);
+    if (!player.skills[skillName] || player.skills[skillName] <= 0) {
+        const typeNames = { fireball: '火球术', thunder: '雷电术', multishot: '多重射击' };
+        showNotification(`技能未学习：${typeNames[skillName] || skillName}`);
         return;
     }
 
-    if (type === 'fireball') {
+    if (skillName === 'fireball') {
         if (player.mp < 5) {
             createFloatingText(player.x, player.y - 40, '法力不足！(需要 5 法力)', '#4d94ff', 1.5);
             return;
@@ -2704,16 +2854,46 @@ function castSkill(type) {
         const angle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
         projectiles.push({ x: player.x, y: player.y, angle, speed: 450, life: 0.5, damage: 10 * player.skills.fireball + player.ene, owner: player });
         AudioSys.play('attack');
-    } else if (type === 'frostnova') {
-        if (player.mp < 15) {
-            createFloatingText(player.x, player.y - 40, '法力不足！(需要 15 法力)', '#4d94ff', 1.5);
+    } else if (skillName === 'thunder') {
+        const cost = 15 + (player.skills.thunder - 1) * 2;
+        if (player.mp < cost) {
+            createFloatingText(player.x, player.y - 60, "法力不足!", '#55aaff');
             return;
         }
-        if (player.skillCooldowns.frostnova > 0) return;
-        player.mp -= 15; player.skillCooldowns.frostnova = 4;
-        for (let i = 0; i < 360; i += 15) projectiles.push({ x: player.x, y: player.y, angle: i * Math.PI / 180, speed: 300, life: 0.4, damage: 5 * player.skills.frostnova, color: COLORS.ice, freeze: 2, owner: player });
-        AudioSys.play('fireball');
-    } else if (type === 'multishot') {
+
+        // 获取鼠标指向的敌人
+        const target = getEnemyAtCursor();
+        if (!target) {
+            // 如果没有指向敌人，可以不做任何事，或者给个提示
+            // 这里选择不做任何事，或者可以播放一个失败音效
+            return;
+        }
+
+        // 检查射程 (缩小为 200 像素)
+        if (Math.hypot(target.x - player.x, target.y - player.y) > 200) {
+            createFloatingText(player.x, player.y - 60, "目标太远!", '#ff5555');
+            return;
+        }
+
+        player.mp -= cost;
+        player.skillCooldowns.thunder = 2; // 2秒冷却
+
+        // 伤害计算：基础伤害 + 技能等级加成
+        // 假设每级增加 15 点基础伤害
+        const baseDmg = 30 + (player.skills.thunder - 1) * 15;
+        // 智力(ene)加成：每点智力增加 2% 伤害
+        const dmg = Math.floor(baseDmg * (1 + player.ene * 0.02));
+
+        // 造成闪电伤害
+        takeDamage(target, { lightning: dmg }, true);
+
+        // 视觉效果：闪电
+        createLightningEffect(target.x, target.y);
+
+        // 音效
+        AudioSys.play('thunder');
+
+    } else if (skillName === 'multishot') {
         if (player.mp < 10) {
             createFloatingText(player.x, player.y - 40, '法力不足！(需要 10 法力)', '#4d94ff', 1.5);
             return;
@@ -3092,7 +3272,7 @@ function updateUI() {
     else {
         const btns = document.querySelectorAll('.skill-btn');
         if (player.activeSkill === 'fireball') btns[1].classList.add('active');
-        if (player.activeSkill === 'frostnova') btns[2].classList.add('active');
+        if (player.activeSkill === 'thunder') btns[2].classList.add('active');
         if (player.activeSkill === 'multishot') btns[3].classList.add('active');
     }
 
@@ -3134,11 +3314,16 @@ function updateStatsUI() {
 function updateSkillsUI() {
     document.getElementById('skill-points').innerText = player.skillPoints;
     document.getElementById('lvl-fireball').innerText = player.skills.fireball;
-    document.getElementById('lvl-frostnova').innerText = player.skills.frostnova;
+    document.getElementById('lvl-thunder').innerText = player.skills.thunder; // Changed from frostnova
     document.getElementById('lvl-multishot').innerText = player.skills.multishot;
     document.getElementById('bar-lvl-fireball').innerText = player.skills.fireball;
-    document.getElementById('bar-lvl-frostnova').innerText = player.skills.frostnova;
+    document.getElementById('bar-lvl-thunder').innerText = player.skills.thunder; // Changed from frostnova
     document.getElementById('bar-lvl-multishot').innerText = player.skills.multishot;
+
+    // 更新雷电术法力消耗显示
+    const thunderCost = 15 + Math.max(0, player.skills.thunder - 1) * 2;
+    const thunderCostEl = document.getElementById('cost-thunder');
+    if (thunderCostEl) thunderCostEl.innerText = `法力: ${thunderCost}`;
 }
 
 function checkLevelUp() {
@@ -3288,7 +3473,7 @@ window.addEventListener('keydown', e => {
     if (e.key === 'i' || e.key === 'I' || e.key === 'b' || e.key === 'B') togglePanel('inventory');
     if (e.key === 't' || e.key === 'T') togglePanel('skills');
     if (e.key === 'q' || e.key === 'Q') selectSkill('fireball');
-    if (e.key === 'w' || e.key === 'W') selectSkill('frostnova');
+    if (e.key === 'w' || e.key === 'W') selectSkill('thunder');
     if (e.key === 'e' || e.key === 'E') selectSkill('multishot');
     if (e.key === 'j' || e.key === 'J') togglePanel('quest');
     if (e.key === 'a' || e.key === 'A') togglePanel('achievements');

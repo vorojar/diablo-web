@@ -136,24 +136,27 @@
                     <div class="skill-info">
                         <div class="skill-name">火球术 [Q]</div>
                         <div class="skill-desc">发射火球 (射程: 中等)</div>
+                        <div class="skill-cost" style="color:#4d94ff; font-size:11px;">法力: 5</div>
                     </div>
                     <div style="font-size:12px; color:#fff">Lv <span id="lvl-fireball">1</span> <button class="stat-btn"
                             onclick="upgradeSkill('fireball')">+</button></div>
                 </div>
                 <div class="skill-row">
-                    <div class="skill-icon" style="color:#00ccff">❄️</div>
+                    <div class="skill-icon" style="color:#ffff00">⚡</div>
                     <div class="skill-info">
-                        <div class="skill-name">冰霜新星 [W]</div>
-                        <div class="skill-desc">冻结敌人 (射程: 短程范围)</div>
+                        <div class="skill-name">雷电术 [W]</div>
+                        <div class="skill-desc">召唤雷电打击敌人 (射程: 中等)</div>
+                        <div class="skill-cost" id="cost-thunder" style="color:#4d94ff; font-size:11px;">法力: 15</div>
                     </div>
-                    <div style="font-size:12px; color:#fff">Lv <span id="lvl-frostnova">0</span> <button
-                            class="stat-btn" onclick="upgradeSkill('frostnova')">+</button></div>
+                    <div style="font-size:12px; color:#fff">Lv <span id="lvl-thunder">0</span> <button class="stat-btn"
+                            onclick="upgradeSkill('thunder')">+</button></div>
                 </div>
                 <div class="skill-row">
                     <div class="skill-icon" style="color:#ffff00">🏹</div>
                     <div class="skill-info">
                         <div class="skill-name">多重射击 [E]</div>
                         <div class="skill-desc">扇形箭矢</div>
+                        <div class="skill-cost" style="color:#4d94ff; font-size:11px;">法力: 10</div>
                     </div>
                     <div style="font-size:12px; color:#fff">Lv <span id="lvl-multishot">0</span> <button
                             class="stat-btn" onclick="upgradeSkill('multishot')">+</button></div>
@@ -298,8 +301,11 @@
                                 class="key">LMB</span> ⚔️</div>
                         <div class="skill-btn" onclick="selectSkill('fireball')"><span class="key">Q</span> 🔥 <span
                                 class="lvl" id="bar-lvl-fireball">1</span></div>
-                        <div class="skill-btn" onclick="selectSkill('frostnova')"><span class="key">W</span> ❄️ <span
-                                class="lvl" id="bar-lvl-frostnova">0</span></div>
+                        <div class="skill-btn" onclick="selectSkill('thunder')"><span class="key">W</span> ⚡ <span
+                                class="lvl" id="bar-lvl-thunder">0</span>
+                            <div class="cd-overlay" id="cd-overlay-w"></div>
+                            <div class="cd-text" id="cd-text-w"></div>
+                        </div>
                         <div class="skill-btn" onclick="selectSkill('multishot')"><span class="key">E</span> 🏹 <span
                                 class="lvl" id="bar-lvl-multishot">0</span></div>
                     </div>
