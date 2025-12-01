@@ -22,7 +22,7 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=2.1">
+    <link rel="stylesheet" href="style.css?v=2.2">
 </head>
 
 <body>
@@ -31,7 +31,9 @@
         <canvas id="gameCanvas"></canvas>
         <div class="ui-layer">
             <div id="floor-display">罗格营地 (Town)</div>
-            <div id="hell-indicator" style="display:none; position: absolute; top: 40px; left: 10px; color: #ff4444; font-weight: bold; font-size: 16px;">地狱</div>
+            <div id="hell-indicator"
+                style="display:none; position: absolute; top: 40px; left: 10px; color: #ff4444; font-weight: bold; font-size: 16px;">
+                地狱</div>
             <div id="minimap-container"><canvas id="minimap" width="150" height="150"></canvas></div>
             <div id="quest-tracker"></div>
             <div id="world-labels"></div>
@@ -87,10 +89,14 @@
                 <div class="stat-row"><span>攻速加成</span> <span id="stat-ias" style="color:#ffff00">0%</span></div>
                 <div class="stat-row"><span>生命窃取</span> <span id="stat-ll" style="color:#ff0000">0%</span></div>
                 <hr style="border-color: #333">
-                <div class="stat-row"><span>🔥 火焰抗性</span> <span id="stat-fire-res" style="color:#ff6644">0%</span></div>
-                <div class="stat-row"><span>❄️ 冰霜抗性</span> <span id="stat-cold-res" style="color:#4488ff">0%</span></div>
-                <div class="stat-row"><span>⚡ 闪电抗性</span> <span id="stat-lightning-res" style="color:#ffff44">0%</span></div>
-                <div class="stat-row"><span>☠️ 毒素抗性</span> <span id="stat-poison-res" style="color:#44ff44">0%</span></div>
+                <div class="stat-row"><span>🔥 火焰抗性</span> <span id="stat-fire-res" style="color:#ff6644">0%</span>
+                </div>
+                <div class="stat-row"><span>❄️ 冰霜抗性</span> <span id="stat-cold-res" style="color:#4488ff">0%</span>
+                </div>
+                <div class="stat-row"><span>⚡ 闪电抗性</span> <span id="stat-lightning-res" style="color:#ffff44">0%</span>
+                </div>
+                <div class="stat-row"><span>☠️ 毒素抗性</span> <span id="stat-poison-res" style="color:#44ff44">0%</span>
+                </div>
             </div>
 
             <div id="inventory-panel" class="panel">
@@ -308,7 +314,7 @@
         </div>
     </div>
 
-    <script src="game.js?v=2.1"></script>
+    <script src="game.js?v=2.2"></script>
 </body>
 
 </html>
