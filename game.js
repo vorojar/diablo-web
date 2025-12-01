@@ -974,6 +974,13 @@ function startGame() {
             }
         }
 
+        // 兼容旧存档：如果已击败巴尔但成就未完成，手动完成
+        if (player.defeatedBaal && player.achievements && player.achievements['kill_baal'] && !player.achievements['kill_baal'].completed) {
+            player.achievements['kill_baal'].progress = 1;
+            player.achievements['kill_baal'].completed = true;
+            console.log('[成就修复] 检测到已击败巴尔，自动完成"世界拯救者"成就');
+        }
+
         // 初始化成就数据结构
         initAchievements();
 
@@ -2233,7 +2240,8 @@ function takeDamage(e, dmg, isSkillDamage = false) {
                     // 标记首次击败巴尔，用于成就统计
                     if (!player.firstKillBaal) {
                         player.firstKillBaal = true;
-                        // 成就已在 kill_baal 中处理，这里仅标记
+                        // 显式触发成就
+                        trackAchievement('kill_baal', { name: e.name });
                     }
                     showNotification('地狱之门已开启！');
                     AudioSys.play('quest');
