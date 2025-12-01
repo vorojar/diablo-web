@@ -1864,6 +1864,23 @@ function draw() {
             ctx.shadowColor = p.color;
             ctx.stroke();
             ctx.shadowBlur = 0;
+        } else if (p.type === 'lightning_chain') {
+            // 渲染闪电链
+            ctx.globalAlpha = p.alpha * (p.life / 0.3);  // 随时间淡出
+            ctx.beginPath();
+            ctx.moveTo(p.points[0].x, p.points[0].y);
+            for (let j = 1; j < p.points.length; j++) {
+                ctx.lineTo(p.points[j].x, p.points[j].y);
+            }
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            // 发光效果
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = p.color;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1.0;
         } else {
             ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
         }
@@ -2484,6 +2501,60 @@ function createLightningEffect(targetX, targetY) {
     createNovaEffect(targetX, targetY, '#ffff00');
 }
 
+// 寻找最近的敌人（用于闪电链）
+function findNearestEnemy(x, y, maxRange, excludeSet) {
+    let nearest = null;
+    let minDist = maxRange;
+
+    enemies.forEach(e => {
+        if (e.dead || excludeSet.has(e)) return;  // 跳过死亡或已击中的敌人
+
+        const dist = Math.hypot(e.x - x, e.y - y);
+        if (dist < minDist) {
+            minDist = dist;
+            nearest = e;
+        }
+    });
+
+    return nearest;
+}
+
+// 创建闪电链视觉效果（从一个目标到另一个目标）
+function createLightningChain(fromX, fromY, toX, toY) {
+    const segments = 5;
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+
+    const points = [{ x: fromX, y: fromY }];
+
+    for (let i = 1; i < segments; i++) {
+        const t = i / segments;
+        const baseX = fromX + dx * t;
+        const baseY = fromY + dy * t;
+
+        // 添加随机偏移让闪电看起来更自然
+        const offset = (Math.random() - 0.5) * 30;
+        const perpX = -dy / Math.hypot(dx, dy);
+        const perpY = dx / Math.hypot(dx, dy);
+
+        points.push({
+            x: baseX + perpX * offset,
+            y: baseY + perpY * offset
+        });
+    }
+    points.push({ x: toX, y: toY });
+
+    // 添加到粒子系统中
+    particles.push({
+        type: 'lightning_chain',
+        points: points,
+        life: 0.3,  // 闪电链持续0.3秒
+        color: '#ffff00',
+        alpha: 1.0
+    });
+}
+
+
 function createNovaEffect(x, y, color) {
     const count = 12;
     for (let i = 0; i < count; i++) {
@@ -2884,7 +2955,7 @@ function castSkill(skillName) {
         // 智力(ene)加成：每点智力增加 2% 伤害
         const dmg = Math.floor(baseDmg * (1 + player.ene * 0.02));
 
-        // 造成闪电伤害
+        // 造成闪电伤害（主目标）
         takeDamage(target, { lightning: dmg }, true);
 
         // 视觉效果：闪电
@@ -2892,6 +2963,65 @@ function castSkill(skillName) {
 
         // 音效
         AudioSys.play('thunder');
+
+        // ====== 溅射机制 ======
+        // Lv1: 无溅射
+        // Lv2: 1个跳跃（40%伤害）
+        // Lv3: 1个跳跃（50%伤害）
+        // Lv5: 2个跳跃（50% → 25%）
+        // Lv7: 2个跳跃（50% → 25%），范围增加
+        // Lv10: 3个跳跃（60% → 30% → 15%）
+
+        const skillLevel = player.skills.thunder;
+        let chainCount = 0;  // 可跳跃次数
+        let chainDamageRatios = [];  // 每次跳跃的伤害比例
+        let chainRange = 150;  // 溅射搜索范围
+
+        if (skillLevel >= 10) {
+            chainCount = 3;
+            chainDamageRatios = [0.60, 0.30, 0.15];
+        } else if (skillLevel >= 7) {
+            chainCount = 2;
+            chainDamageRatios = [0.50, 0.25];
+            chainRange = 200;  // Lv7+ 范围增加
+        } else if (skillLevel >= 5) {
+            chainCount = 2;
+            chainDamageRatios = [0.50, 0.25];
+        } else if (skillLevel >= 3) {
+            chainCount = 1;
+            chainDamageRatios = [0.50];
+        } else if (skillLevel >= 2) {
+            chainCount = 1;
+            chainDamageRatios = [0.40];
+        }
+
+        // 执行闪电链
+        if (chainCount > 0) {
+            let currentTarget = target;
+            const hitTargets = new Set([target]);  // 记录已击中的目标，防止重复
+
+            for (let i = 0; i < chainCount; i++) {
+                // 寻找下一个目标
+                const nextTarget = findNearestEnemy(currentTarget.x, currentTarget.y, chainRange, hitTargets);
+
+                if (!nextTarget) break;  // 没有找到下一个目标，停止连锁
+
+                // 计算连锁伤害
+                const chainDmg = Math.floor(dmg * chainDamageRatios[i]);
+
+                // 造成伤害
+                takeDamage(nextTarget, { lightning: chainDmg }, true);
+
+                // 创建闪电链视觉效果（从当前目标到下一个目标）
+                createLightningChain(currentTarget.x, currentTarget.y, nextTarget.x, nextTarget.y);
+
+                // 记录已击中
+                hitTargets.add(nextTarget);
+
+                // 更新当前目标
+                currentTarget = nextTarget;
+            }
+        }
 
     } else if (skillName === 'multishot') {
         if (player.mp < 10) {
