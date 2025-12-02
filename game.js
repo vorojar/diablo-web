@@ -115,12 +115,34 @@ const QUEST_DB = [
 ];
 
 const MONSTER_FRAMES = {
-    'melee': 0,
-    'ranged': 1,
-    'shaman': 2,
-    'elite': 3,
-    'boss': 3
+    'melee': 0,      // 沉沦魔
+    'ranged': 1,     // 骷髅弓箭手
+    'shaman': 2,     // 黑暗萨满
+    'elite': 3,      // 精英怪物
+    'bloodRaven': 4, // Boss: 血鸟
+    'countess': 5,   // Boss: 女伯爵
+    'butcher': 6,    // Boss: 屠夫
+    'duriel': 7,     // Boss: 树头木拳
+    'diablo': 8,     // Boss: 暗黑破坏神
+    'baal': 9        // Boss: 巴尔
 };
+
+// 根据Boss名称获取frameIndex
+function getBossFrameIndex(bossName) {
+    // 移除"地狱"前缀
+    const cleanName = bossName.replace('地狱', '');
+
+    const bossFrameMap = {
+        '血鸟': MONSTER_FRAMES.bloodRaven,
+        '女伯爵': MONSTER_FRAMES.countess,
+        '屠夫': MONSTER_FRAMES.butcher,
+        '树头木拳': MONSTER_FRAMES.duriel,
+        '暗黑破坏神': MONSTER_FRAMES.diablo,
+        '巴尔': MONSTER_FRAMES.baal
+    };
+
+    return bossFrameMap[cleanName] || MONSTER_FRAMES.elite; // 默认使用精英怪物图像
+}
 
 // 每层对应的 Boss 信息（名称与基础血量）
 const floorBossMap = {
@@ -1089,15 +1111,17 @@ function enterFloor(f, spawnAt = 'start') {
 
         document.getElementById('floor-display').innerText = "罗格营地";
         generateTown();
-        npcs.push({ x: dungeonEntrance.x - 100, y: dungeonEntrance.y - 100, name: "基格", type: "merchant", radius: 20, frameIndex: 0 });
-        npcs.push({ x: dungeonEntrance.x + 100, y: dungeonEntrance.y - 50, name: "阿卡拉", type: "healer", radius: 20, quest: 'q1', frameIndex: 1 });
-        npcs.push({ x: dungeonEntrance.x, y: dungeonEntrance.y + 100, name: "瓦瑞夫", type: "stash", radius: 20, frameIndex: 2 });
+        npcs.push({ x: dungeonEntrance.x - 100, y: dungeonEntrance.y - 100, name: "基格", type: "merchant", radius: 20, frameIndex: 1 });
+        npcs.push({ x: dungeonEntrance.x + 100, y: dungeonEntrance.y - 50, name: "阿卡拉", type: "healer", radius: 20, quest: 'q1', frameIndex: 2 });
+        npcs.push({ x: dungeonEntrance.x, y: dungeonEntrance.y + 100, name: "瓦瑞夫", type: "stash", radius: 20, frameIndex: 0 });
 
         // 始终添加地狱守卫，但交互需要条件
         npcs.push({ x: dungeonEntrance.x - 150, y: dungeonEntrance.y + 50, name: "地狱守卫", type: "difficulty", radius: 20, frameIndex: 3 });
 
         // 洗点师 - 神秘贤者
-        npcs.push({ x: dungeonEntrance.x + 150, y: dungeonEntrance.y + 50, name: "神秘贤者", type: "respec", radius: 20, frameIndex: 3 });
+        // frameIndex: 1 = 临时使用阿卡拉图像（当前）
+        // frameIndex: 4 = 使用自定义图像（添加sprites.png后改为4）
+        npcs.push({ x: dungeonEntrance.x + 150, y: dungeonEntrance.y + 50, name: "神秘贤者", type: "respec", radius: 20, frameIndex: 4 });
 
         showNotification("欢迎回到罗格营地");
 
@@ -1237,7 +1261,7 @@ function enterFloor(f, spawnAt = 'start') {
                     x, y, hp, maxHp: hp, dmg, speed, radius: 30, // 增大碰撞半径
                     dead: false, cooldown: 0, name: bossName,
                     isBoss: true, isQuestTarget: true, xpValue: xpValue, // 增加经验值
-                    ai: 'chase', frameIndex: MONSTER_FRAMES.boss
+                    ai: 'chase', frameIndex: getBossFrameIndex(bossName) // 根据Boss名称获取独特的图像
                 });
                 showNotification(`警告：发现了 ${currentQ.targetName}！`);
             }
