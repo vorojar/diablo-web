@@ -208,7 +208,7 @@ const player = {
 };
 
 const spriteSheet = new Image();
-spriteSheet.src = 'sprites.png?v=3.5';
+spriteSheet.src = 'sprites.png?v=3.6';
 
 let spritesLoaded = false;
 let processedSpriteSheet = null;
@@ -2839,8 +2839,12 @@ function validateAndFixPortalPosition(x, y) {
     const tileX = Math.floor(x / TILE_SIZE), tileY = Math.floor(y / TILE_SIZE);
     const distFromCenter = Math.hypot(tileX - cx, tileY - cy);
 
+    // 留出2个格子的安全缓冲距离（避免贴墙导致卡住）
+    // r=10 (墙壁), r-1=9 (地板边缘), r-2=8 (安全地板)
+    const safeRadius = r - 2;
+
     // 如果位置在有效区域内，返回原位置
-    if (distFromCenter < r) {
+    if (distFromCenter < safeRadius) {
         return { x: x, y: y };
     }
 
@@ -2852,8 +2856,8 @@ function validateAndFixPortalPosition(x, y) {
     if (dist > 0) {
         // 归一化方向向量并缩放到圆形边界内
         const nx = dx / dist, ny = dy / dist;
-        const targetX = cx + nx * (r - 1); // r-1 确保在边界内
-        const targetY = cy + ny * (r - 1);
+        const targetX = cx + nx * safeRadius;
+        const targetY = cy + ny * safeRadius;
 
         return {
             x: Math.max(0, Math.min((MAP_WIDTH - 1) * TILE_SIZE, targetX * TILE_SIZE)),
