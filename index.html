@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<!-- ========== 发布版本号：3.4 （更新时修改此处，然后全局替换 ?v=旧版本 为 ?v=新版本）========== -->
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- 禁用HTML缓存 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>暗黑破坏神 Web版 (Hardcore Travel)</title>
+    <meta name="description" content="暗黑破坏神网页版 - 经典的动作RPG游戏，在您的浏览器中体验原汁原味的Diablo风格冒险。战斗、收集装备、学习技能、完成任务！">
+    <meta name="keywords" content="暗黑破坏神,Diablo,网页游戏,在线游戏,ARPG,动作RPG,Diablo Web">
+    <meta name="author" content="Hardcore Travel">
+
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="暗黑破坏神 Web版 (Hardcore Travel)">
+    <meta property="og:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
+    <meta property="og:type" content="website">
+    <!-- <meta property="og:url" content="https://example.com/diablo-web/">
+    <meta property="og:image" content="https://example.com/diablo-web/preview.jpg"> -->
+
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="暗黑破坏神 Web版 (Hardcore Travel)">
+    <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
+    <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
+
+    <link rel="stylesheet" href="style.css?v=3.4">
+</head>
+
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="ui-layer">
+            <div id="floor-display">罗格营地 (Town)</div>
+            <div id="hell-indicator"
+                style="display:none; position: absolute; top: 40px; left: 10px; color: #ff4444; font-weight: bold; font-size: 16px;">
+                地狱</div>
+            <div id="minimap-container"><canvas id="minimap" width="150" height="150"></canvas></div>
+            <div class="auto-battle-container" onmousedown="event.stopPropagation()">
+                <div id="auto-battle-btn" class="auto-battle-btn" onclick="toggleAutoBattle()" title="开启/关闭自动战斗">
+                    <span id="auto-battle-icon">⚔️</span>
+                    <span id="auto-battle-text">自动战斗</span>
+                </div>
+                <div id="auto-battle-settings-btn" class="auto-battle-settings-btn" onclick="togglePanel('auto-battle')"
+                    title="自动战斗设置">⚙️</div>
+            </div>
+            <div id="quest-tracker"></div>
+            <div id="world-labels"></div>
+            <div id="interaction-msg"></div>
+            <div id="notification-area"></div>
+
+            <div id="start-screen">
+                <video id="start-screen-video" autoplay loop muted playsinline>
+                    <source src="bg.mp4" type="video/mp4">
+                    您的浏览器不支持视频标签。
+                </video>
+                <div id="welcome-back"></div>
+                <button class="start-btn" onclick="startGame()">踏入庇护所</button>
+                <div class="settings-box">
+                    <label class="setting-item"><input type="checkbox" id="chk-bgm" checked
+                            onchange="toggleSetting('bgm')"> 背景音乐</label>
+                    <label class="setting-item"><input type="checkbox" id="chk-sfx" checked
+                            onchange="toggleSetting('sfx')"> 音效</label>
+                    <hr style="border-color: #555; margin: 10px 0;">
+                    <label class="setting-item"><input type="checkbox" id="chk-auto-gold" checked
+                            onchange="toggleAutoPickup('gold')"> 自动拾取金币</label>
+                    <label class="setting-item"><input type="checkbox" id="chk-auto-potion" checked
+                            onchange="toggleAutoPickup('potion')"> 自动拾取药水</label>
+                    <label class="setting-item"><input type="checkbox" id="chk-auto-scroll" checked
+                            onchange="toggleAutoPickup('scroll')"> 自动拾取卷轴</label>
+                </div>
+                <button class="reset-btn" onclick="confirmResetSave()">清除存档</button>
+                <p style="color: #fff; margin-top: 20px;">[C] 角色 [I] 物品 [T] 技能 [J] 任务 [Alt] 显示物品</p>
+                <div id="save-status" style="color: #fff; font-size: 12px;">正在检查存档...</div>
+                <p style="color: #888; font-size: 11px; margin-top: 10px;">v3.3</p>
+            </div>
+
+            <div id="stats-panel" class="panel">
+                <div class="panel-close" onclick="togglePanel('stats')">X</div>
+                <div class="panel-header">角色属性</div>
+                <div class="stat-row"><span>等级</span> <span id="stat-lvl" style="color:white">1</span></div>
+                <div class="stat-row"><span>经验</span> <span id="stat-xp">0 / 100</span></div>
+                <hr style="border-color: #333">
+                <div class="stat-row" style="color:var(--text-gold)"><span>属性点</span> <span id="stat-points">0</span>
+                </div>
+                <div class="stat-row"><span>力量</span>
+                    <div><span id="stat-str">15</span> <button class="stat-btn" onclick="addStat('str')">+</button>
+                    </div>
+                </div>
+                <div class="stat-row"><span>敏捷</span>
+                    <div><span id="stat-dex">15</span> <button class="stat-btn" onclick="addStat('dex')">+</button>
+                    </div>
+                </div>
+                <div class="stat-row"><span>体力</span>
+                    <div><span id="stat-vit">20</span> <button class="stat-btn" onclick="addStat('vit')">+</button>
+                    </div>
+                </div>
+                <div class="stat-row"><span>精力</span>
+                    <div><span id="stat-ene">10</span> <button class="stat-btn" onclick="addStat('ene')">+</button>
+                    </div>
+                </div>
+                <hr style="border-color: #333">
+                <div class="stat-row"><span>生命值 (HP)</span> <span id="stat-hp-val" style="color:#ff4444">100</span>
+                </div>
+                <div class="stat-row"><span>法力值 (MP)</span> <span id="stat-mp-val" style="color:#4444ff">50</span></div>
+                <div class="stat-row"><span>伤害</span> <span id="stat-dmg" style="color:white">2-4</span></div>
+                <div class="stat-row"><span>防御</span> <span id="stat-def" style="color:white">5</span></div>
+                <div class="stat-row"><span>暴击率</span> <span id="stat-crit" style="color:#ffff00">0%</span></div>
+                <div class="stat-row"><span>攻速加成</span> <span id="stat-ias" style="color:#ffff00">0%</span></div>
+                <div class="stat-row"><span>生命窃取</span> <span id="stat-ll" style="color:#ff0000">0%</span></div>
+                <hr style="border-color: #333">
+                <div class="stat-row"><span>🔥 火焰抗性</span> <span id="stat-fire-res" style="color:#ff6644">0%</span>
+                </div>
+                <div class="stat-row"><span>❄️ 冰霜抗性</span> <span id="stat-cold-res" style="color:#4488ff">0%</span>
+                </div>
+                <div class="stat-row"><span>⚡ 闪电抗性</span> <span id="stat-lightning-res" style="color:#ffff44">0%</span>
+                </div>
+                <div class="stat-row"><span>☠️ 毒素抗性</span> <span id="stat-poison-res" style="color:#44ff44">0%</span>
+                </div>
+            </div>
+
+            <div id="inventory-panel" class="panel">
+                <div class="panel-close" onclick="togglePanel('inventory')">X</div>
+                <div class="panel-header">物品栏</div>
+                <div class="equipment-grid">
+                    <!-- Row 1 -->
+                    <div class="equip-slot" id="slot-helm" onclick="unequipItem('helm')"></div>
+                    <div class="equip-slot" id="slot-amulet" onclick="unequipItem('amulet')"></div>
+                    <div class="equip-slot" id="slot-body" onclick="unequipItem('body')"></div>
+                    <!-- Row 2 -->
+                    <div class="equip-slot" id="slot-mainhand" onclick="unequipItem('mainhand')"></div>
+                    <div class="equip-slot" id="slot-offhand" onclick="unequipItem('offhand')"></div>
+                    <div class="equip-slot" id="slot-gloves" onclick="unequipItem('gloves')"></div>
+                    <!-- Row 3 -->
+                    <div class="equip-slot" id="slot-ring" onclick="unequipItem('ring')"></div>
+                    <div class="equip-slot" id="slot-belt" onclick="unequipItem('belt')"></div>
+                    <div class="equip-slot" id="slot-boots" onclick="unequipItem('boots')"></div>
+                </div>
+                <div style="margin-bottom:5px; font-size: 0.8em; color: #888;">金币: <span id="gold-display"
+                        style="color:gold">0</span> <span style="font-size:0.8em; color:#666;">(商店可售)</span></div>
+                <div class="bag-grid" id="bag-grid"></div>
+                <div
+                    style="margin-top: 15px; padding: 8px; background: rgba(0, 0, 0, 0.5); border: 1px solid #333; border-radius: 5px; font-size: 11px; color: #aaa; line-height: 1.5;">
+                    <div>💡 左键：使用或装备物品（打开仓库时左键=存入） 右键：丢弃物品（仅在地牢）</div>
+                    <div>💰 罗格营地找基格可以买卖物品，找瓦瑞夫使用仓库</div>
+                </div>
+            </div>
+
+            <div id="skills-panel" class="panel">
+                <div class="panel-close" onclick="togglePanel('skills')">X</div>
+                <div class="panel-header">技能树</div>
+                <div style="text-align:center; color:var(--text-gold); margin-bottom:10px;">剩余技能点: <span
+                        id="skill-points">0</span></div>
+                <div class="skill-row">
+                    <div class="skill-icon" style="color:#ff4400">🔥</div>
+                    <div class="skill-info">
+                        <div class="skill-name">火球术 [Q]</div>
+                        <div class="skill-desc">发射火球 (射程: 中等)<br>
+                            <span style="color:#88ff88; font-size:10px;">Lv5+: 解锁爆炸效果</span>
+                        </div>
+                        <div class="skill-cost" style="color:#4d94ff; font-size:11px;">法力: 10</div>
+                    </div>
+                    <div style="font-size:12px; color:#fff">Lv <span id="lvl-fireball">1</span> <button class="stat-btn"
+                            onclick="upgradeSkill('fireball')">+</button></div>
+                </div>
+                <div class="skill-row">
+                    <div class="skill-icon" style="color:#ffff00">⚡</div>
+                    <div class="skill-info">
+                        <div class="skill-name">雷电术 [W]</div>
+                        <div class="skill-desc">召唤雷电打击敌人 (射程: 中等)<br>
+                            <span style="color:#88ff88; font-size:10px;">Lv2+: 解锁闪电链效果</span>
+                        </div>
+                        <div class="skill-cost" id="cost-thunder" style="color:#4d94ff; font-size:11px;">法力: 15</div>
+                    </div>
+                    <div style="font-size:12px; color:#fff">Lv <span id="lvl-thunder">0</span> <button class="stat-btn"
+                            onclick="upgradeSkill('thunder')">+</button></div>
+                </div>
+                <div class="skill-row">
+                    <div class="skill-icon" style="color:#ffff00">🏹</div>
+                    <div class="skill-info">
+                        <div class="skill-name">多重射击 [E]</div>
+                        <div class="skill-desc">扇形箭矢</div>
+                        <div class="skill-cost" style="color:#4d94ff; font-size:11px;">法力: 10</div>
+                    </div>
+                    <div style="font-size:12px; color:#fff">Lv <span id="lvl-multishot">0</span> <button
+                            class="stat-btn" onclick="upgradeSkill('multishot')">+</button></div>
+                </div>
+            </div>
+
+            <div id="quest-panel" class="panel">
+                <div class="panel-close" onclick="togglePanel('quest')">X</div>
+                <div class="panel-header">任务日志</div>
+                <div id="quest-list"></div>
+            </div>
+
+            <div id="achievements-panel" class="panel">
+                <div class="panel-close" onclick="togglePanel('achievements')">X</div>
+                <div class="panel-header">成就</div>
+                <div id="achievement-list"></div>
+            </div>
+
+            <div id="shop-panel" class="panel">
+                <div class="panel-close" onclick="togglePanel('shop')">X</div>
+                <div class="panel-header">基格商店</div>
+                <div class="shop-section-title">物资补给</div>
+                <div class="gamble-grid" style="margin-top:0;">
+                    <div class="gamble-slot" onclick="buyItem('health')">
+                        <div class="shop-item-icon" style="background-position: 33.333% 0%"></div>
+                        <div>治疗药剂</div>
+                        <div class="gamble-price">50 G</div>
+                    </div>
+                    <div class="gamble-slot" onclick="buyItem('mana')">
+                        <div class="shop-item-icon" style="background-position: 66.666% 0%"></div>
+                        <div>法力药剂</div>
+                        <div class="gamble-price">50 G</div>
+                    </div>
+                    <div class="gamble-slot" onclick="buyItem('scroll')">
+                        <div class="shop-item-icon" style="background-position: 100% 0%"></div>
+                        <div>回城卷轴</div>
+                        <div class="gamble-price">100 G</div>
+                    </div>
+                </div>
+                <div class="shop-section-title" style="margin-top:15px;">未辨识装备 (赌博)</div>
+                <div class="gamble-grid" style="margin-top:0; grid-template-columns: repeat(4, 1fr);">
+                    <div class="gamble-slot" onclick="gambleItem('weapon')">
+                        <div class="shop-item-icon" style="background-position: 0% 33.333%"></div>
+                        <div>武器</div>
+                        <div class="gamble-price">500</div>
+                    </div>
+                    <div class="gamble-slot" onclick="gambleItem('armor')">
+                        <div class="shop-item-icon" style="background-position: 33.333% 66.666%"></div>
+                        <div>护甲</div>
+                        <div class="gamble-price">400</div>
+                    </div>
+                    <div class="gamble-slot" onclick="gambleItem('helm')">
+                        <div class="shop-item-icon" style="background-position: 0% 66.666%"></div>
+                        <div>头盔</div>
+                        <div class="gamble-price">300</div>
+                    </div>
+                    <div class="gamble-slot" onclick="gambleItem('gloves')">
+                        <div class="shop-item-icon" style="background-position: 66.666% 66.666%"></div>
+                        <div>手套</div>
+                        <div class="gamble-price">250</div>
+                    </div>
+                    <div class="gamble-slot" onclick="gambleItem('boots')">
+                        <div class="shop-item-icon" style="background-position: 100% 66.666%"></div>
+                        <div>鞋子</div>
+                        <div class="gamble-price">250</div>
+                    </div>
+                    <div class="gamble-slot" onclick="gambleItem('belt')">
+                        <div class="shop-item-icon" style="background-position: 0% 100%"></div>
+                        <div>腰带</div>
+                        <div class="gamble-price">250</div>
+                    </div>
+                    <div class="gamble-slot" onclick="gambleItem('ring')">
+                        <div class="shop-item-icon" style="background-position: 66.666% 100%"></div>
+                        <div>戒指</div>
+                        <div class="gamble-price">800</div>
+                    </div>
+                    <div class="gamble-slot" onclick="gambleItem('amulet')">
+                        <div class="shop-item-icon" style="background-position: 100% 100%"></div>
+                        <div>项链</div>
+                        <div class="gamble-price">1000</div>
+                    </div>
+                </div>
+                <div
+                    style="margin-top: 20px; padding: 10px; background: rgba(0, 0, 0, 0.5); border: 1px solid #333; border-radius: 5px; font-size: 12px; color: #aaa; text-align: center;">
+                    💡 提示：点击背包中的物品可以卖给我换金币！
+                </div>
+            </div>
+
+            <div id="stash-panel" class="panel">
+                <div class="panel-close" onclick="togglePanel('stash')">X</div>
+                <div class="panel-header">私人仓库</div>
+                <div style="margin-bottom:10px; font-size: 0.9em; color: #888;">与背包互通，可自由存取物品</div>
+                <div class="stash-grid" id="stash-grid"></div>
+                <div
+                    style="margin-top: 15px; padding: 8px; background: rgba(0, 0, 0, 0.5); border: 1px solid #333; border-radius: 5px; font-size: 11px; color: #aaa;">
+                    💡 提示：左键点击背包物品存入仓库，左键点击仓库物品取出到背包
+                </div>
+            </div>
+
+            <div id="auto-battle-panel" class="panel">
+                <div class="panel-close" onclick="togglePanel('auto-battle')">X</div>
+                <div class="panel-header">自动战斗设置</div>
+                <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
+                    <span>战斗策略</span>
+                </div>
+
+                <div class="stat-row">
+                    <span>优先使用技能</span>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="auto-use-skill" checked onchange="updateAutoBattleSettings()">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+
+                <div class="stat-row">
+                    <span>保持距离 (远程)</span>
+                    <div>
+                        <input type="range" id="auto-keep-distance" min="50" max="300" value="150" step="10"
+                            onchange="updateAutoBattleSettings(); updateDistanceDisplay()">
+                        <span id="distance-display" style="color: #88ff88; font-size: 12px;">150</span>
+                    </div>
+                </div>
+
+                <hr style="border-color: #333; margin: 15px 0;">
+                <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
+                    <span>生存设置</span>
+                </div>
+
+                <div class="stat-row">
+                    <span>喝红药阈值</span>
+                    <div>
+                        <input type="range" id="auto-hp-threshold" min="10" max="80" value="30" step="5"
+                            onchange="updateAutoBattleSettings(); updateHpDisplay()">
+                        <span id="hp-threshold-display" style="color: #ff4444; font-size: 12px;">30%</span>
+                    </div>
+                </div>
+
+                <div class="stat-row">
+                    <span>喝蓝药阈值</span>
+                    <div>
+                        <input type="range" id="auto-mp-threshold" min="10" max="50" value="20" step="5"
+                            onchange="updateAutoBattleSettings(); updateMpDisplay()">
+                        <span id="mp-threshold-display" style="color: #4444ff; font-size: 12px;">20%</span>
+                    </div>
+                </div>
+
+                <div class="stat-row">
+                    <span>紧急回城阈值</span>
+                    <div>
+                        <input type="range" id="auto-emergency-hp" min="5" max="30" value="15" step="5"
+                            onchange="updateAutoBattleSettings(); updateEmergencyDisplay()">
+                        <span id="emergency-display" style="color: #ff0000; font-size: 12px;">15%</span>
+                    </div>
+                </div>
+
+                <hr style="border-color: #333; margin: 15px 0;">
+                <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
+                    <span>拾取设置</span>
+                </div>
+
+                <div class="stat-row">
+                    <span>自动拾取暗金</span>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="auto-pickup-unique" checked onchange="updateAutoBattleSettings()">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+
+                <div class="stat-row">
+                    <span>自动拾取套装</span>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="auto-pickup-set" checked onchange="updateAutoBattleSettings()">
+                        <span class="checkmark"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="dialog-box">
+                <div class="dialog-name" id="dialog-name">NPC Name</div>
+                <div class="dialog-text" id="dialog-text">Hello adventurer.</div>
+                <div class="dialog-options" id="dialog-options"><button class="dialog-btn"
+                        onclick="closeDialog()">离开</button></div>
+            </div>
+
+            <div class="menu-btns" id="menu-btns">
+                <button class="sys-btn" id="btn-stats" onclick="togglePanel('stats')">角色 (C)<span
+                        class="notification-badge" id="badge-stats"></span></button>
+                <button class="sys-btn" id="btn-inventory" onclick="togglePanel('inventory')">物品 (I)</button>
+                <button class="sys-btn" id="btn-skills" onclick="togglePanel('skills')">技能 (T)<span
+                        class="notification-badge" id="badge-skills"></span></button>
+                <button class="sys-btn" id="btn-quest" onclick="togglePanel('quest')">任务 (J)<span
+                        class="notification-badge" id="badge-quest"></span></button>
+                <button class="sys-btn" id="btn-achievements" onclick="togglePanel('achievements')">成就 (A)</button>
+            </div>
+
+            <div id="bottom-hud">
+                <div class="orb-container" id="health-orb">
+                    <div class="orb-fill" id="hp-fill" style="height: 100%"></div>
+                    <div class="orb-text" id="hp-text">100</div>
+                </div>
+                <div id="center-hud">
+                    <div class="belt-bar" id="belt-bar">
+                        <div class="belt-slot" onclick="useQuickItem('health')" id="belt-1"><span
+                                class="belt-key">1</span> 🔴 <span class="belt-count" id="count-health">0</span></div>
+                        <div class="belt-slot" onclick="useQuickItem('mana')" id="belt-2"><span
+                                class="belt-key">2</span> 🔵 <span class="belt-count" id="count-mana"
+                                style="color:#4d94ff">0</span></div>
+                        <div class="belt-slot" onclick="useQuickItem('scroll')" id="belt-3"><span
+                                class="belt-key">3</span> 📜 <span class="belt-count" id="count-scroll">0</span></div>
+                    </div>
+                    <div class="xp-container">
+                        <div class="xp-bar">
+                            <div class="xp-fill" id="xp-fill"></div>
+                            <div class="xp-percentage" id="xp-percentage">0%</div>
+                        </div>
+                        <div class="level-display">Lv. <span id="hud-lvl">1</span></div>
+                    </div>
+                    <div class="skill-bar">
+                        <div class="skill-btn active" id="skill-attack" onclick="selectSkill('attack')"><span
+                                class="key">LMB</span> ⚔️</div>
+                        <div class="skill-btn" onclick="selectSkill('fireball')"><span class="key">Q</span> 🔥 <span
+                                class="lvl" id="bar-lvl-fireball">1</span></div>
+                        <div class="skill-btn" onclick="selectSkill('thunder')"><span class="key">W</span> ⚡ <span
+                                class="lvl" id="bar-lvl-thunder">0</span>
+                            <div class="cd-overlay" id="cd-overlay-w"></div>
+                            <div class="cd-text" id="cd-text-w"></div>
+                        </div>
+                        <div class="skill-btn" onclick="selectSkill('multishot')"><span class="key">E</span> 🏹 <span
+                                class="lvl" id="bar-lvl-multishot">0</span></div>
+                    </div>
+                </div>
+                <div class="orb-container" id="mana-orb">
+                    <div class="orb-fill" id="mp-fill" style="height: 100%"></div>
+                    <div class="orb-text" id="mp-text">50</div>
+                </div>
+            </div>
+            <div id="tooltip"></div>
+            <div id="floating-texts-container"></div>
+        </div>
+    </div>
+
+    <script src="game.js?v=3.4"></script>
+    <script src="pocketbase.umd.js"></script>
+    <script src="online.js?v=3.4"></script>
+    <script>
+        // 显示欢迎回来信息
+        const savedNickname = localStorage.getItem('pb_nickname');
+        if (savedNickname) {
+            document.getElementById('welcome-back').textContent = `欢迎回来，${savedNickname}`;
+        }
+    </script>
+</body>
+
+</html>

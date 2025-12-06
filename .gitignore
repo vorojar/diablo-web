@@ -1,0 +1,8 @@
+node_modules
+dist
+*.log
+.DS_Store
+.claude
+game.js.bak
+Area.mp4
+area_compressed.mp4
