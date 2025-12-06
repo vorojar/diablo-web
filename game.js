@@ -208,7 +208,7 @@ const player = {
 };
 
 const spriteSheet = new Image();
-spriteSheet.src = 'sprites.png?v=2.9';
+spriteSheet.src = 'sprites.png?v=3.5';
 
 let spritesLoaded = false;
 let processedSpriteSheet = null;
