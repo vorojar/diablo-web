@@ -243,7 +243,7 @@ const player = {
 };
 
 const spriteSheet = new Image();
-spriteSheet.src = 'sprites.png?v=3.4';
+spriteSheet.src = 'sprites.png?v=3.5';
 
 let spritesLoaded = false;
 let processedSpriteSheet = null;
@@ -2063,7 +2063,15 @@ const SaveSystem = {
         db.transaction(['saveData']).objectStore('saveData').get('player1').onsuccess = e => {
             if (e.target.result) {
                 window.pendingLoadData = e.target.result;
-                const f = e.target.result.floor === 0 ? "罗格营地" : `地牢 ${e.target.result.floor}层`;
+                // 修复：正确显示地狱模式状态
+                let f;
+                if (e.target.result.floor === 0) {
+                    f = "罗格营地";
+                } else if (e.target.result.isInHell) {
+                    f = `地狱 ${e.target.result.hellFloor || 1}层`;
+                } else {
+                    f = `地牢 ${e.target.result.floor}层`;
+                }
                 const statusEl = document.getElementById('save-status');
                 statusEl.innerHTML = `发现存档: Lv${e.target.result.lvl} - ${f} <span onclick="confirmResetSave()" style="color: #ff4444; text-decoration: underline; cursor: pointer; margin-left: 10px; font-size: 11px;">清除存档</span>`;
 
@@ -2372,8 +2380,8 @@ const SET_ITEMS = {
                 stats: { mpRegen: 100, ene: 20 }
             },
             6: {
-                desc: "火焰伤害 +200%，火球技能 +2级，火球消耗 -50%",
-                stats: { fireDmg: 150 }
+                desc: "火焰伤害 +200，法力回复 +50%，暴击率 +10%",
+                stats: { fireDmg: 200, mpRegen: 50, critChance: 10 }
             }
         }
     },
@@ -2498,8 +2506,8 @@ const SET_ITEMS = {
                 stats: { critDamage: 75, dex: 20 }
             },
             6: {
-                desc: "敏捷 +40，多重射击伤害 +150%，暴击率 +15%",
-                stats: { dex: 40, dmgPct: 100 }
+                desc: "敏捷 +40，伤害 +150%，暴击率 +15%",
+                stats: { dex: 40, dmgPct: 150, critChance: 15 }
             }
         }
     }
@@ -4731,7 +4739,8 @@ function dropLoot(monster) {
 
     const x = monster.x;
     const y = monster.y;
-    const f = player.floor;
+    // 修复：地狱模式下使用hellFloor而不是floor
+    const f = player.isInHell ? player.hellFloor : player.floor;
 
     // 基础金币掉落
     let goldAmount = Math.floor(Math.random() * 50) + 10;
@@ -5430,7 +5439,7 @@ function updateStats() {
 
     // 初始化新属性
     let hpRegen = 0, mpRegen = 0, blockChance = 0, reflectDamage = 0;
-    let damageReduction = 0, critDamage = 0, allRes = 0;
+    let damageReduction = 0, critDamage = 0, allRes = 0, bonusCritChance = 0;
 
     Object.values(player.equipment).forEach(i => {
         if (!i) return;
@@ -5544,6 +5553,7 @@ function updateStats() {
                 reflectDamage += (bonusStats.reflectDamage || 0);
                 damageReduction += (bonusStats.damageReduction || 0);
                 critDamage += (bonusStats.critDamage || 0);
+                bonusCritChance += (bonusStats.critChance || 0);
 
                 // 百分比加成（需要重新计算）
                 if (bonusStats.dmgPct) {
@@ -5569,7 +5579,7 @@ function updateStats() {
     player.armor = armor + dex;
     player.lifeSteal = ls;
     player.attackSpeed = ias;
-    player.critChance = Math.min(100, 5 + dex * 0.5);
+    player.critChance = Math.min(100, 5 + dex * 0.5 + bonusCritChance);
 
     // 更新特殊属性
     player.hpRegen = hpRegen;

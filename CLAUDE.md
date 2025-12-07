@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 核心架构
 
 ### 单文件架构
-所有游戏逻辑集中在 `game.js` 中（约5500行），采用函数式编程风格，主要系统包括：
+所有游戏逻辑集中在 `game.js` 中（约6200行），采用函数式编程风格，主要系统包括：
 
 1. **游戏循环系统**: `gameLoop()` → `update(dt)` → `draw()`
 2. **状态管理**: 全局 `player` 对象维护玩家所有状态
@@ -25,10 +25,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 6. **自动战斗系统**: `AutoBattle` 对象管理自动战斗AI、A*寻路和自动拾取
 7. **套装系统**: `SET_ITEMS` 定义套装数据，`calculateEquippedSets()` 计算穿戴加成
 
+### 关键全局对象位置
+
+| 对象 | 行号 | 用途 |
+|------|------|------|
+| `panelManager` | 1 | UI面板管理系统 |
+| `player` | 202 | 玩家状态和数据 |
+| `AutoBattle` | 627 | 自动战斗AI系统 |
+| `AudioSys` | 1704 | 音效和背景音乐 |
+| `SaveSystem` | 2034 | IndexedDB存档系统 |
+| `SET_ITEMS` | 2317 | 套装装备数据定义 |
+| `enterFloor()` | 2666 | 进入楼层/地图生成 |
+| `takeDamage()` | 4197 | 伤害计算和死亡处理 |
+
 ### 关键全局对象
 
 ```javascript
-// 玩家状态 - 存储所有游戏数据
+// 玩家状态 - 存储所有游戏数据 (game.js:202)
 const player = {
     // 位置和移动
     x, y, radius, speed, direction,
@@ -41,14 +54,23 @@ const player = {
     // 战斗属性
     hp, maxHp, mp, maxMp, damage, armor,
     lifeSteal, attackSpeed, critChance,
+    resistances: { fire, cold, lightning, poison },   // 抗性系统
+    elementalDamage: { fire, cold, lightning, poison }, // 元素伤害
 
     // 装备和物品
     equipment: { mainhand, offhand, body, ring, helm, gloves, boots, belt, amulet },
+    equippedSets: {},   // 套装追踪 { 'tals_set': 3, 'immortal_king': 2 }
     inventory: Array(30),
     stash: Array(36),
 
+    // 地图和进度
+    floor, kills,
+    defeatedBaal,       // 是否击败巴尔（解锁地狱模式）
+    isInHell,           // 当前是否在地狱
+    hellFloor,          // 地狱层数（独立于普通地牢）
+
     // 任务和成就
-    floor, questIndex, questState, questProgress,
+    questIndex, questState, questProgress,
     achievements, died
 };
 
@@ -146,15 +168,15 @@ let damageNumbers = [];    // 伤害数字显示
 2. **'ranged'** (远程): 骷髅弓箭手，距离150内后退，150-400发射箭矢
 3. **'revive'** (复活): 沉沦魔巫师，可以复活死去的怪物
 
-敌人属性在 `game.js:1115-1203` 的 `enemies.forEach()` 循环中更新。
+敌人属性在 `game.js:3259` 的 `enemies.forEach()` 循环中更新（update函数内）。
 
 ### 战斗系统
 - **物理攻击**: 主角点击敌人触发，计算距离和视线检测（防止隔墙攻击）
 - **技能系统**:
-  - 火球术 (Q): 发射单体远程火球，中等射程（约400像素）
-  - 冰霜新星 (W): 范围冻结，短程（约200像素）
+  - 火球术 (Q): 发射单体远程火球，中等射程（约300像素），Lv5+解锁爆炸效果
+  - 雷电术 (W): 单体雷电攻击，Lv2+解锁闪电链效果
   - 多重射击 (E): 扇形箭矢，远程（约500像素）
-- **伤害计算**: `takeDamage(e, dmg)` 函数处理所有敌人受伤逻辑
+- **伤害计算**: `takeDamage(e, dmg, isSkillDamage)` 函数（`game.js:4197`）处理所有敌人受伤逻辑
 
 ### 物品系统
 物品品质等级：
@@ -201,8 +223,8 @@ let damageNumbers = [];    // 伤害数字显示
 ## 常见修改场景
 
 ### 调整游戏平衡
-- **怪物属性**: 在 `enterFloor()` 函数中的敌人生成逻辑（`game.js:754-856`）
-- **BOSS强度**: `game.js:805-833` 中的BOSS属性计算
+- **怪物属性**: 在 `enterFloor()` 函数中的敌人生成逻辑（`game.js:2666`）
+- **BOSS强度**: `enterFloor()` 函数中的 `isBoss` 分支处理BOSS属性计算，支持无限层级循环
 - **技能数值**: 搜索技能名称（如 `'fireball'`）找到对应的伤害、法力消耗、射程等参数
 - **掉落率**: `dropLoot()` 函数控制物品掉落
 
@@ -224,18 +246,14 @@ let damageNumbers = [];    // 伤害数字显示
 
 ## 已知Bug和注意事项
 
-### 最近修复的问题
-1. **远程攻击BOSS瞬移bug**: 已在 `game.js:1606-1611` 移除 `takeDamage()` 中的瞬移逻辑
-2. **隔墙攻击bug**: 添加了视线检测
-3. **复活怪物位置bug**: 添加了距离检测，确保复活怪物距离玩家150-250像素
-
 ### 开发注意事项
 1. **不要修改怪物受伤时的移动逻辑**: 已移除受伤瞬移，避免重新引入
-2. **chase AI 的追击距离**: 当前限制为400像素，如果需要远距离追击需要修改 `game.js:1192` 的距离判断
-3. **存档兼容性**: 修改 `player` 对象结构时，需要在 `SaveSystem.load()` 中添加向后兼容代码
+2. **chase AI 的追击距离**: 当前限制为400像素，如需修改在敌人AI更新循环中调整
+3. **存档兼容性**: 修改 `player` 对象结构时，需要在 `SaveSystem.load()`（`game.js:2034`）中添加向后兼容代码
 4. **音频播放**: Web Audio API 需要用户交互后才能播放，已在 `startGame()` 中处理
-5. **套装系统**: 添加新套装时需更新 `SET_ITEMS` 和 `COLORS.setGreen`，装备/卸下时需调用 `checkSetAchievements()`
-6. **自动战斗设置**: `AutoBattle.settings` 会保存到 IndexedDB，修改设置结构需保持向后兼容
+5. **套装系统**: 添加新套装时需更新 `SET_ITEMS`（`game.js:2317`）和 `COLORS.setGreen`，装备/卸下时需调用 `checkSetAchievements()`
+6. **自动战斗设置**: `AutoBattle.settings`（`game.js:627`）会保存到 IndexedDB，修改设置结构需保持向后兼容
+7. **无限层级BOSS**: 11层及以上BOSS属性按周目循环增强，修改时注意 `enterFloor()` 中的周目计算逻辑
 
 ## 性能优化建议
 - 粒子系统和伤害数字有自动清理机制（生命周期结束后删除）
