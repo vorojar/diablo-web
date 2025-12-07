@@ -398,13 +398,7 @@ const ACHIEVEMENTS = [
         target: 10,
         type: 'reach_floor'
     },
-    {
-        id: 'collect_full_set',
-        name: '套装收藏家',
-        description: '收集任意一套完整套装（6件）',
-        target: 6,
-        type: 'collect_set'
-    },
+
     {
         id: 'equip_full_set',
         name: '套装大师',
@@ -412,13 +406,7 @@ const ACHIEVEMENTS = [
         target: 6,
         type: 'equip_set'
     },
-    {
-        id: 'no_death_floor10',
-        name: '钢铁意志',
-        description: '从未死亡到达第10层',
-        target: 10,
-        type: 'no_death_floor'
-    },
+
     {
         id: 'kill_boss_5',
         name: 'BOSS猎人',
@@ -506,11 +494,7 @@ function trackAchievement(type, data) {
                 return;
 
 
-            case 'no_death_floor':
-                if (player.floor >= ach.target && !player.died) {
-                    completeAchievement(ach);
-                }
-                return;
+
 
             case 'kill_boss':
                 if (data.isBoss || data.isQuestTarget) {
@@ -551,50 +535,6 @@ function completeAchievement(achievement) {
 
 // 检查套装收藏成就
 function checkSetAchievements() {
-    // 1. 检查"套装收藏家"：收集任意一套完整套装（包括背包和仓库）
-    const collectAch = ACHIEVEMENTS.find(a => a.id === 'collect_full_set');
-    if (collectAch && player.achievements['collect_full_set']) {
-        // 统计每个套装收集的件数
-        const setItemCounts = {};
-
-        // 检查装备栏
-        Object.values(player.equipment).forEach(item => {
-            if (item && item.setId) {
-                setItemCounts[item.setId] = (setItemCounts[item.setId] || 0) + 1;
-            }
-        });
-
-        // 检查背包
-        player.inventory.forEach(item => {
-            if (item && item.setId) {
-                setItemCounts[item.setId] = (setItemCounts[item.setId] || 0) + 1;
-            }
-        });
-
-        // 检查仓库
-        player.stash.forEach(item => {
-            if (item && item.setId) {
-                setItemCounts[item.setId] = (setItemCounts[item.setId] || 0) + 1;
-            }
-        });
-
-        // 找到收集最多的套装件数
-        let maxCollected = 0;
-        for (let setId in setItemCounts) {
-            if (setItemCounts[setId] > maxCollected) {
-                maxCollected = setItemCounts[setId];
-            }
-        }
-
-        // 更新进度（最多6件）
-        player.achievements['collect_full_set'].progress = Math.min(maxCollected, 6);
-
-        // 检查是否完成（收集齐6件）
-        if (!player.achievements['collect_full_set'].completed && maxCollected >= 6) {
-            completeAchievement(collectAch);
-        }
-    }
-
     // 2. 检查"套装大师"：同时穿戴一套完整套装
     const equipAch = ACHIEVEMENTS.find(a => a.id === 'equip_full_set');
     if (equipAch && player.achievements['equip_full_set']) {
