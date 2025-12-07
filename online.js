@@ -17,7 +17,7 @@ const OnlineSystem = {
         if (!this.nickname) {
             // this.showNicknameDialog();
         } else {
-            // await this.startOnline();
+            await this.startOnline();
         }
 
         this.loadOnlineCount();
