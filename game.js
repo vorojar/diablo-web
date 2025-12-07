@@ -864,7 +864,12 @@ const AutoBattle = {
         };
 
         // 优先反击最近攻击我的敌人（即使超出正常搜索范围）
-        if (this.lastDamagedBy && !this.lastDamagedBy.dead && !isBlacklisted(this.lastDamagedBy)) {
+        // 但如果当前目标快死了（血量<30%），坚持打死它再切换
+        const currentTargetLowHp = this.currentTarget &&
+            !this.currentTarget.dead &&
+            (this.currentTarget.hp / this.currentTarget.maxHp) < 0.3;
+
+        if (!currentTargetLowHp && this.lastDamagedBy && !this.lastDamagedBy.dead && !isBlacklisted(this.lastDamagedBy)) {
             const timeSinceAttacked = Date.now() - this.lastDamagedTime;
             if (timeSinceAttacked < 5000) { // 5秒内被攻击，优先反击（延长时间）
                 const dist = Math.hypot(this.lastDamagedBy.x - player.x, this.lastDamagedBy.y - player.y);
