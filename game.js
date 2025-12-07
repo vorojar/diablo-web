@@ -124,6 +124,115 @@ const QUEST_DB = [
     { id: 9, title: '世界之石要塞', desc: '在地牢第10层击败巴尔，拯救世界。', type: 'kill_boss', targetName: '巴尔', floor: 10, reward: '终极神装' }
 ];
 
+// 获取当前或指定索引的任务（支持无限任务）
+function getCurrentQuest(index) {
+    const idx = (index !== undefined) ? index : player.questIndex;
+
+    // 1. 经典任务 (0-9)
+    if (idx < QUEST_DB.length) {
+        return QUEST_DB[idx];
+    }
+
+    // 2. 无限任务生成 (10+)
+    const currentFloor = idx + 1;
+    const isBossLevel = (currentFloor % 10 === 0) || (currentFloor % 5 === 0); // 每5层/10层特殊
+
+    // 奖励计算
+    let rewardGold = Math.floor(currentFloor * 150 * (1 + Math.random() * 0.2));
+    let rewardStr = `${rewardGold} 金币`;
+
+    // 每10层奖励技能点
+    if (currentFloor % 10 === 0) {
+        rewardStr += " & 1 技能点";
+    }
+    // Boss层额外奖励装备
+    if (isBossLevel) {
+        rewardStr += " & 随机装备";
+    }
+
+    if (isBossLevel) {
+        // Boss任务
+        // 简化的Boss名称逻辑
+        const bossPool = ['血鸟', '女伯爵', '屠夫', '树头木拳', '暗黑破坏神', '巴尔'];
+        const bossName = bossPool[Math.floor(currentFloor / 10) % bossPool.length] || '精英守卫';
+        const isTrueBoss = (currentFloor % 10 === 0);
+
+        return {
+            id: idx,
+            title: `第 ${currentFloor} 层：${isTrueBoss ? '首领挑战' : '精英狩猎'}`,
+            desc: `前往地牢第 ${currentFloor} 层，击败强大的 ${bossName}。`,
+            type: isTrueBoss ? 'kill_boss' : 'kill_elite',
+            targetName: bossName,
+            floor: currentFloor,
+            reward: rewardStr,
+            isGenerated: true
+        };
+    } else {
+        // 杀怪任务
+        const targetCount = Math.min(50, 15 + Math.floor((idx - 9) * 2)); // 数量逐渐增加，上限50
+        return {
+            id: idx,
+            title: `第 ${currentFloor} 层：区域清理`,
+            desc: `清除地牢第 ${currentFloor} 层的 ${targetCount} 只怪物，确保营地安全。`,
+            type: 'kill_count',
+            target: targetCount,
+            floor: currentFloor,
+            reward: rewardStr,
+            isGenerated: true
+        };
+    }
+}
+
+// 领取任务奖励（UI直接调用）
+function claimQuestReward() {
+    if (player.questState !== 2) return;
+
+    const q = getCurrentQuest();
+    if (!q) return;
+
+    // 发放奖励
+    // 1. 金币 (解析字符串 "1500 金币")
+    const goldMatch = q.reward.match(/(\d+)\s*金币/);
+    if (goldMatch) {
+        player.gold += parseInt(goldMatch[1]);
+    }
+    // 2. 技能点
+    if (q.reward.includes('技能点')) {
+        player.skillPoints += 1; // 简单处理，无限任务每次最多1点
+        showNotification("获得 1 技能点！");
+    }
+    // 3. 装备
+    if (q.reward.includes('装备') || q.reward.includes('戒指') || q.reward.includes('神装')) {
+        const item = createItem('戒指', player.lvl);
+        if (q.reward.includes('暗金') || q.reward.includes('传奇') || q.reward.includes('神装')) {
+            item.rarity = (Math.random() > 0.5) ? 3 : 2; // 稍微给好点
+        }
+        addItemToInventory(item);
+    }
+    // 兼容旧的硬编码奖励逻辑（如果是前10个任务）
+    if (q.id <= 9) {
+        // 这里只是为了保险，实际上上面的通用解析应该能覆盖大部分
+        if (q.reward.includes('500 金币') && !goldMatch) player.gold += 500;
+        if (q.reward.includes('1000 金币') && !goldMatch) player.gold += 1000;
+    }
+
+    // 完成任务
+    player.questIndex++;
+    player.questState = 0; // 重置为"未开始"（或者直接开始？通常是接任务->进行中。这里设为0，updateUI里显示"新任务"）
+    player.questProgress = 0;
+
+    // 自动接受下一个任务（为了流畅体验，"永远有任务"）
+    player.questState = 1;
+
+    AudioSys.play('levelup'); // 借用一下升级音效，或者 cash 音效
+    showNotification(`任务完成！`);
+
+    // 保存并更新UI
+    SaveSystem.save();
+    updateUI();
+    updateQuestTracker();
+}
+
 const MONSTER_FRAMES = {
     'melee': 0,      // 沉沦魔
     'ranged': 1,     // 骷髅弓箭手
@@ -2767,7 +2876,7 @@ function enterFloor(f, spawnAt = 'start') {
         // 无限层级BOSS生成逻辑
         const bossData = getBossSpawnInfo(f);
         if (bossData) {
-            const currentQ = QUEST_DB[player.questIndex];
+            const currentQ = getCurrentQuest();
             const isQuestTarget = currentQ && player.questState === 1 && currentQ.floor === f;
 
             // 如果是任务目标，或者单纯是该层对应的BOSS
@@ -3537,7 +3646,7 @@ function draw() {
 
         // Quest Indicators (above name)
         if (n.type === 'healer') {
-            if (player.questState === 0 && player.questIndex < QUEST_DB.length) {
+            if (player.questState === 0) {
                 ctx.fillStyle = '#ffff00'; ctx.font = '20px Arial'; ctx.fillText("!", n.x, n.y - 80);
             } else if (player.questState === 2) {
                 ctx.fillStyle = '#ffff00'; ctx.font = '20px Arial'; ctx.fillText("?", n.x, n.y - 80);
@@ -3771,7 +3880,7 @@ function interactNPC(npc) {
         // 神秘贤者 - 洗点服务
         showRespecDialog();
     } else if (npc.type === 'healer') {
-        const currentQ = QUEST_DB[player.questIndex];
+        const currentQ = getCurrentQuest();
 
         if (!currentQ) {
             showDialog(npc.name, "你已经完成了所有任务，真正的英雄！", [{ text: "谢谢", action: closeDialog }]);
@@ -3940,7 +4049,7 @@ function respecPlayer(type) {
         // 加上任务奖励的技能点（需要计算已完成的任务）
         const completedQuests = player.questIndex;
         for (let i = 0; i < completedQuests; i++) {
-            const quest = QUEST_DB[i];
+            const quest = getCurrentQuest(i);
             if (quest && quest.reward) {
                 if (quest.reward.includes('2 技能点')) {
                     totalSkillPoints += 2;
@@ -4061,43 +4170,63 @@ function updateQuestUI() {
     const list = document.getElementById('quest-list');
     list.innerHTML = '';
 
-    QUEST_DB.forEach((q, idx) => {
-        if (idx > player.questIndex) return;
+    // 显示已完成总数
+    const statsDiv = document.createElement('div');
+    statsDiv.style.marginBottom = '15px';
+    statsDiv.style.color = '#888';
+    statsDiv.style.fontSize = '12px';
+    statsDiv.style.textAlign = 'center';
+    statsDiv.innerText = `已完成任务: ${player.questIndex}`;
+    list.appendChild(statsDiv);
 
-        const d = document.createElement('div');
-        d.className = 'quest-item';
+    // 获取当前任务
+    const q = getCurrentQuest();
+    if (!q) return;
 
-        let statusText = "未开始";
-        let colorClass = "";
+    const d = document.createElement('div');
+    d.className = 'quest-item';
+    d.style.background = 'rgba(0,0,0,0.6)';
+    d.style.border = '1px solid #4a3b2a';
+    d.style.padding = '15px';
 
-        if (idx < player.questIndex) {
-            statusText = "已完成"; colorClass = "completed";
-        } else {
-            if (player.questState === 0) statusText = "待接受";
-            else if (player.questState === 1) {
-                statusText = "进行中";
-                if (q.type === 'kill_count') statusText += ` (${player.questProgress}/${q.target})`;
-            }
-            else if (player.questState === 2) { statusText = "可交付"; colorClass = "completed"; }
+    let statusText = "进行中";
+    let colorClass = "";
+
+    if (player.questState === 0) {
+        statusText = "新任务";
+    } else if (player.questState === 1) {
+        statusText = "进行中";
+        if (q.type === 'kill_count') {
+            const pct = Math.floor((player.questProgress / q.target) * 100);
+            statusText += ` ${player.questProgress}/${q.target}`;
+            // 进度条
+            d.innerHTML += `<div style="width:100%; height:4px; background:#333; margin-top:5px; border-radius:2px;"><div style="width:${pct}%; height:100%; background:#c7b377;"></div></div>`;
         }
+    } else if (player.questState === 2) {
+        statusText = "可交付 (去找阿卡拉)";
+        colorClass = "completed";
+    }
 
-        d.innerHTML = `<div class="quest-title">${q.title} <span class="quest-status ${colorClass}">(${statusText})</span></div><div style="font-size:12px; color:#aaa;">${q.desc}</div><div style="font-size:12px; color:#gold;">奖励: ${q.reward}</div>`;
-        list.appendChild(d);
-    });
+    let html = `<div class="quest-title" style="font-size:16px; margin-bottom:8px; color:#c7b377;">${q.title} <span class="quest-status ${colorClass}" style="float:right; font-size:12px;">${statusText}</span></div>`;
+    html += `<div style="font-size:13px; color:#ccc; margin-bottom:10px; line-height:1.4;">${q.desc}</div>`;
+    html += `<div style="font-size:12px; color:#88ff88; margin-top:5px;">🎁 奖励: ${q.reward}</div>`;
+
+    d.innerHTML = html + (d.innerHTML || '');
+    list.appendChild(d);
 }
 
 function updateQuestTracker() {
     const el = document.getElementById('quest-tracker');
     el.innerHTML = '';
 
-    const currentQ = QUEST_DB[player.questIndex];
+    const currentQ = getCurrentQuest();
     if (!currentQ || player.questState === 0) return;
 
     let text = "";
     let titleColor = "#c7b377";
 
     if (player.questState === 2) {
-        text = "回去找阿卡拉";
+        text = "任务完成！回去找阿卡拉";
         titleColor = "#0f0";
     } else {
         if (currentQ.type === 'kill_count') {
@@ -4290,7 +4419,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         checkLevelUp();
 
         // QUEST LOGIC
-        const currentQ = QUEST_DB[player.questIndex];
+        const currentQ = getCurrentQuest();
         if (currentQ && player.questState === 1) {
             let progressMade = false;
 

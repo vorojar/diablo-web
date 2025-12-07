@@ -161,7 +161,9 @@
                 <div style="text-align:center; color:var(--text-gold); margin-bottom:10px;">剩余技能点: <span
                         id="skill-points">0</span></div>
                 <div class="skill-row">
-                    <div class="skill-icon" style="color:#ff4400">🔥</div>
+                    <div class="skill-icon">
+                        <div class="skill-sprite skill-fireball"></div>
+                    </div>
                     <div class="skill-info">
                         <div class="skill-name">火球术 [Q]</div>
                         <div class="skill-desc">发射火球 (射程: 中等)<br>
@@ -173,7 +175,9 @@
                             onclick="upgradeSkill('fireball')">+</button></div>
                 </div>
                 <div class="skill-row">
-                    <div class="skill-icon" style="color:#ffff00">⚡</div>
+                    <div class="skill-icon">
+                        <div class="skill-sprite skill-thunder"></div>
+                    </div>
                     <div class="skill-info">
                         <div class="skill-name">雷电术 [W]</div>
                         <div class="skill-desc">召唤雷电打击敌人 (射程: 中等)<br>
@@ -185,7 +189,9 @@
                             onclick="upgradeSkill('thunder')">+</button></div>
                 </div>
                 <div class="skill-row">
-                    <div class="skill-icon" style="color:#ffff00">🏹</div>
+                    <div class="skill-icon">
+                        <div class="skill-sprite skill-multishot"></div>
+                    </div>
                     <div class="skill-info">
                         <div class="skill-name">多重射击 [E]</div>
                         <div class="skill-desc">扇形箭矢</div>
@@ -409,19 +415,27 @@
                     </div>
                     <div class="skill-bar">
                         <div class="skill-btn active" id="skill-attack" onclick="selectSkill('attack')"><span
-                                class="key">LMB</span> ⚔️</div>
-                        <div class="skill-btn" id="skill-fireball" onclick="selectSkill('fireball'); triggerSkillClick(this)"><span class="key">Q</span> 🔥 <span
-                                class="lvl" id="bar-lvl-fireball">1</span>
+                                class="key">LMB</span>
+                            <div class="skill-sprite skill-attack"></div>
+                        </div>
+                        <div class="skill-btn" id="skill-fireball"
+                            onclick="selectSkill('fireball'); triggerSkillClick(this)"><span class="key">Q</span>
+                            <div class="skill-sprite skill-fireball"></div> <span class="lvl"
+                                id="bar-lvl-fireball">1</span>
                             <div class="cd-sweep" id="cd-sweep-fireball"></div>
                             <div class="cd-time" id="cd-time-fireball"></div>
                         </div>
-                        <div class="skill-btn" id="skill-thunder" onclick="selectSkill('thunder'); triggerSkillClick(this)"><span class="key">W</span> ⚡ <span
-                                class="lvl" id="bar-lvl-thunder">0</span>
+                        <div class="skill-btn" id="skill-thunder"
+                            onclick="selectSkill('thunder'); triggerSkillClick(this)"><span class="key">W</span>
+                            <div class="skill-sprite skill-thunder"></div> <span class="lvl"
+                                id="bar-lvl-thunder">0</span>
                             <div class="cd-sweep" id="cd-sweep-thunder"></div>
                             <div class="cd-time" id="cd-time-thunder"></div>
                         </div>
-                        <div class="skill-btn" id="skill-multishot" onclick="selectSkill('multishot'); triggerSkillClick(this)"><span class="key">E</span> 🏹 <span
-                                class="lvl" id="bar-lvl-multishot">0</span>
+                        <div class="skill-btn" id="skill-multishot"
+                            onclick="selectSkill('multishot'); triggerSkillClick(this)"><span class="key">E</span>
+                            <div class="skill-sprite skill-multishot"></div> <span class="lvl"
+                                id="bar-lvl-multishot">0</span>
                             <div class="cd-sweep" id="cd-sweep-multishot"></div>
                             <div class="cd-time" id="cd-time-multishot"></div>
                         </div>
