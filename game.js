@@ -3453,25 +3453,12 @@ function draw() {
                     if (wallTilesLoaded) {
                         const wallIndex = getWallTextureIndex(player.floor);
 
-                        // 计算行高 (假设图片是3行)
-                        const rowHeight = wallTiles.height / 3;
-
-                        // 关键修正：不要使用整个图片的宽度，会导致严重的缩放（看起来细节太小）
-                        // 我们只取图片中的一小块正方形区域作为纹理
-                        // 假设生成的图片是高分辨率的，我们从每行的左侧截取一个正方形
-                        // 使用较小的源尺寸相当于"放大"纹理细节
-
-                        // 自动适配：如果图片很大，我们只取左边一部分
-                        const sampleSize = Math.min(rowHeight, wallTiles.width, 256);
-
-                        // 源坐标：始终从每行的左侧开始(0)，垂直偏移由 wallIndex 决定
-                        // 为了让纹理看起来更大（Zoom In），我们需要减小 sampleSize? 
-                        // 用户觉得"图太小"（细节太小），所以我们需要减小 srcRect (Sample Size)。
-
-                        const sourceSize = 120; // 调小这个通过"裁剪"来放大细节
+                        // 图片已调整为 120x360 (每个图块 120x120)
+                        // 120px 到 40px 是完美的 3倍缩放
+                        const tileHeight = wallTiles.height / 3;
 
                         ctx.drawImage(wallTiles,
-                            0, wallIndex * rowHeight, sourceSize, sourceSize,
+                            0, wallIndex * tileHeight, wallTiles.width, tileHeight,
                             x, y, TILE_SIZE, TILE_SIZE
                         );
 
