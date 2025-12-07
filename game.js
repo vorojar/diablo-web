@@ -292,6 +292,18 @@ itemSpriteSheet.src = 'items.png';
 let itemSpritesLoaded = false;
 itemSpriteSheet.onload = () => { itemSpritesLoaded = true; };
 
+const wallTiles = new Image();
+wallTiles.src = 'wall_tiles.png';
+let wallTilesLoaded = false;
+wallTiles.onload = () => { wallTilesLoaded = true; };
+
+function getWallTextureIndex(floor) {
+    if (player.isInHell) return 2; // Hell texture
+    if (floor >= 9) return 2;      // Hellish levels
+    if (floor >= 5) return 1;      // Cave levels
+    return 0;                      // Stone levels (1-4)
+}
+
 const ITEM_FRAMES = {
     'gold': { col: 0, row: 0 },
     'potion_health': { col: 1, row: 0 },
@@ -3437,7 +3449,42 @@ function draw() {
         for (let c = sc - 1; c < ec + 1; c++) {
             if (r >= 0 && r < MAP_HEIGHT && c >= 0 && c < MAP_WIDTH) {
                 const x = c * TILE_SIZE, y = r * TILE_SIZE;
-                if (mapData[r][c] === 0) { ctx.fillStyle = COLORS.wall; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); ctx.fillStyle = '#111'; ctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10); }
+                if (mapData[r][c] === 0) {
+                    if (wallTilesLoaded) {
+                        const wallIndex = getWallTextureIndex(player.floor);
+
+                        // 计算行高 (假设图片是3行)
+                        const rowHeight = wallTiles.height / 3;
+
+                        // 关键修正：不要使用整个图片的宽度，会导致严重的缩放（看起来细节太小）
+                        // 我们只取图片中的一小块正方形区域作为纹理
+                        // 假设生成的图片是高分辨率的，我们从每行的左侧截取一个正方形
+                        // 使用较小的源尺寸相当于"放大"纹理细节
+
+                        // 自动适配：如果图片很大，我们只取左边一部分
+                        const sampleSize = Math.min(rowHeight, wallTiles.width, 256);
+
+                        // 源坐标：始终从每行的左侧开始(0)，垂直偏移由 wallIndex 决定
+                        // 为了让纹理看起来更大（Zoom In），我们需要减小 sampleSize? 
+                        // 用户觉得"图太小"（细节太小），所以我们需要减小 srcRect (Sample Size)。
+
+                        const sourceSize = 120; // 调小这个通过"裁剪"来放大细节
+
+                        ctx.drawImage(wallTiles,
+                            0, wallIndex * rowHeight, sourceSize, sourceSize,
+                            x, y, TILE_SIZE, TILE_SIZE
+                        );
+
+                        // 阴影
+                        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                        ctx.fillRect(x, y + TILE_SIZE - 6, TILE_SIZE, 6);
+                    } else {
+                        ctx.fillStyle = COLORS.wall;
+                        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        ctx.fillStyle = '#111';
+                        ctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10);
+                    }
+                }
                 else { ctx.fillStyle = ((c + r) % 2 === 0) ? '#151515' : '#1a1a1a'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); }
             }
         }
