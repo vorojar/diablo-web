@@ -959,6 +959,17 @@ const AutoBattle = {
 
             // 如果5个位置的平均移动距离很小，判定为摇摆
             if (this.oscillationDetector.positions.length === 5) {
+                // 如果正在攻击范围内的目标，不触发摇摆检测（站桩攻击是正常行为）
+                if (this.currentTarget && !this.currentTarget.dead) {
+                    const distToTarget = Math.hypot(this.currentTarget.x - player.x, this.currentTarget.y - player.y);
+                    const attackRange = 60; // 近战攻击范围
+                    if (distToTarget <= attackRange) {
+                        // 正在近战攻击，跳过摇摆检测
+                        this.oscillationDetector.positions = [];
+                        return;
+                    }
+                }
+
                 const avgX = this.oscillationDetector.positions.reduce((sum, p) => sum + p.x, 0) / 5;
                 const avgY = this.oscillationDetector.positions.reduce((sum, p) => sum + p.y, 0) / 5;
                 const maxDist = Math.max(...this.oscillationDetector.positions.map(p =>
@@ -3401,9 +3412,11 @@ function updateEnemies(dt) {
 
                     // 法力燃烧：消耗玩家法力
                     if (e.manaBurn) {
-                        const manaBurned = Math.min(player.mp, Math.floor(totalDmg * 0.5));
+                        const manaBurned = Math.floor(Math.min(player.mp, totalDmg * 0.5));
                         player.mp -= manaBurned;
-                        createDamageNumber(player.x, player.y - 50, "-" + manaBurned + " MP", '#0066ff');
+                        if (manaBurned > 0) {
+                            createDamageNumber(player.x, player.y - 50, "-" + manaBurned + " MP", '#0066ff');
+                        }
                     }
                 }
 
