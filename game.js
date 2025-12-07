@@ -2143,6 +2143,17 @@ const SaveSystem = {
             autoBattleSettings: AutoBattle.settings
         };
         db.transaction(['saveData'], 'readwrite').objectStore('saveData').put(data);
+
+        // 提交排行榜
+        if (typeof OnlineSystem !== 'undefined') {
+            OnlineSystem.submitScore({
+                level: player.lvl,
+                kills: player.kills,
+                maxFloor: player.isInHell ? player.hellFloor + 10 : player.floor,
+                isHell: player.isInHell
+            });
+        }
+
         showNotification("游戏已保存");
     },
     load: function () {
@@ -2765,6 +2776,17 @@ function enterFloor(f, spawnAt = 'start') {
     } else {
         player.floor = f;
     }
+
+    // 提交排行榜（进入新楼层时更新）
+    if (typeof OnlineSystem !== 'undefined') {
+        OnlineSystem.submitScore({
+            level: player.lvl,
+            kills: player.kills,
+            maxFloor: player.isInHell ? player.hellFloor + 10 : player.floor,
+            isHell: player.isInHell
+        });
+    }
+
     enemies = []; groundItems = []; projectiles = []; npcs = [];
 
     // 清空A*寻路缓存（新楼层需要重新计算路径）
@@ -4771,6 +4793,17 @@ function checkPlayerDeath() {
     if (player.hp <= 0) {
         // 标记玩家曾经死亡
         player.died = true;
+
+        // 提交排行榜（死亡时更新）
+        if (typeof OnlineSystem !== 'undefined') {
+            OnlineSystem.submitScore({
+                level: player.lvl,
+                kills: player.kills,
+                maxFloor: player.isInHell ? player.hellFloor + 10 : player.floor,
+                isHell: player.isInHell
+            });
+        }
+
         createFloatingText(player.x, player.y - 50, "你死了！灵魂回到了罗格营地", '#ff4444', 3);
         player.hp = player.maxHp;
         player.gold = Math.floor(player.gold / 2);
@@ -5135,12 +5168,12 @@ function castSkill(skillName) {
     }
 
     if (skillName === 'fireball') {
-        if (player.mp < 10) {
-            createFloatingText(player.x, player.y - 40, '法力不足！(需要 10 法力)', '#4d94ff', 1.5);
+        if (player.mp < 5) {
+            createFloatingText(player.x, player.y - 40, '法力不足！(需要 5 法力)', '#4d94ff', 1.5);
             return;
         }
         if (player.skillCooldowns.fireball > 0) return;
-        player.mp -= 10; player.skillCooldowns.fireball = 0.5;
+        player.mp -= 5; player.skillCooldowns.fireball = 0.5;
         const angle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
         projectiles.push({
             x: player.x,
@@ -5155,7 +5188,7 @@ function castSkill(skillName) {
         });
         AudioSys.play('fireball');
     } else if (skillName === 'thunder') {
-        const cost = 15 + (player.skills.thunder - 1) * 2;
+        const cost = 10 + (player.skills.thunder - 1) * 1;
         if (player.mp < cost) {
             createFloatingText(player.x, player.y - 60, "法力不足!", '#55aaff');
             return;
@@ -5253,12 +5286,12 @@ function castSkill(skillName) {
         }
 
     } else if (skillName === 'multishot') {
-        if (player.mp < 10) {
-            createFloatingText(player.x, player.y - 40, '法力不足！(需要 10 法力)', '#4d94ff', 1.5);
+        if (player.mp < 8) {
+            createFloatingText(player.x, player.y - 40, '法力不足！(需要 8 法力)', '#4d94ff', 1.5);
             return;
         }
         if (player.skillCooldowns.multishot > 0) return;
-        player.mp -= 10; player.skillCooldowns.multishot = 1;
+        player.mp -= 8; player.skillCooldowns.multishot = 1;
         const base = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
         const cnt = 2 + player.skills.multishot;
         for (let i = 0; i < cnt; i++) {
@@ -5915,7 +5948,7 @@ function updateSkillsUI() {
     document.getElementById('bar-lvl-multishot').innerText = player.skills.multishot;
 
     // 更新雷电术法力消耗显示
-    const thunderCost = 15 + Math.max(0, player.skills.thunder - 1) * 2;
+    const thunderCost = 10 + Math.max(0, player.skills.thunder - 1) * 1;
     const thunderCostEl = document.getElementById('cost-thunder');
     if (thunderCostEl) thunderCostEl.innerText = `法力: ${thunderCost}`;
 }
@@ -6347,9 +6380,14 @@ function showTooltip(item, e) {
             if (k === 'str') label = "力量";
             else if (k === 'dex') label = "敏捷";
             else if (k === 'vit') label = "体力";
+            else if (k === 'ene') label = "能量";
             else if (k === 'def') label = "防御";
+            else if (k === 'maxHp') { label = "最大生命"; color = '#ff4444'; }
+            else if (k === 'maxMp' || k === 'mp') { label = "最大法力"; color = '#4444ff'; }
+            else if (k === 'hp') { label = "生命"; color = '#ff4444'; }
             else if (k === 'lifeSteal') label = "%吸血";
             else if (k === 'attackSpeed') label = "%攻速";
+            else if (k === 'critChance') { label = "%暴击率"; color = '#ffff00'; }
             else if (k === 'dmgPct') label = "%伤害";
             else if (k === 'allSkills') label = "所有技能";
 

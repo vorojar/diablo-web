@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ========== 发布版本号：3.4 （更新时修改此处，然后全局替换 ?v=旧版本 为 ?v=新版本）========== -->
+<!-- ========== 发布版本号：3.7 （更新时修改此处，然后全局替换 ?v=旧版本 为 ?v=新版本）========== -->
 <html lang="zh-CN">
 
 <head>
@@ -27,7 +27,7 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=3.6">
+    <link rel="stylesheet" href="style.css?v=3.7">
 </head>
 
 <body>
@@ -64,9 +64,9 @@
                 <button class="start-btn" onclick="startGame()">踏入庇护所</button>
                 <div class="settings-box">
                     <label class="setting-item"><input type="checkbox" id="chk-bgm" checked
-                            onchange="toggleSetting('bgm')"> 背景音乐</label>
+                            onchange="AudioSys.toggleSetting('bgm', this.checked)"> 背景音乐</label>
                     <label class="setting-item"><input type="checkbox" id="chk-sfx" checked
-                            onchange="toggleSetting('sfx')"> 音效</label>
+                            onchange="AudioSys.toggleSetting('sfx', this.checked)"> 音效</label>
                     <hr style="border-color: #555; margin: 10px 0;">
                     <label class="setting-item"><input type="checkbox" id="chk-auto-gold" checked
                             onchange="toggleAutoPickup('gold')"> 自动拾取金币</label>
@@ -81,7 +81,7 @@
                         style="color: #ff4444; text-decoration: underline; cursor: pointer; margin-left: 10px; font-size: 11px;">清除存档</span>
                 </div>
                 <p style="color: #fff; margin-top: 10px;">[C] 角色 [I] 物品 [T] 技能 [J] 任务 [Alt] 显示物品</p>
-                <p style="color: #888; font-size: 11px; margin-top: 10px;">v3.6</p>
+                <p style="color: #888; font-size: 11px; margin-top: 10px;">v3.7</p>
             </div>
 
             <div id="stats-panel" class="panel">
@@ -451,9 +451,11 @@
         </div>
     </div>
 
-    <script src="game.js?v=3.6"></script>
+    <script src="game.js?v=3.7"></script>
+    </script>
     <script src="pocketbase.umd.js"></script>
-    <script src="online.js?v=3.6"></script>
+    <script src="online.js?v=3.7"></script>
+    </script>
     <script>
         // 显示欢迎回来信息
         const savedNickname = localStorage.getItem('pb_nickname');
