@@ -15,9 +15,9 @@ const OnlineSystem = {
         this.nickname = localStorage.getItem('pb_nickname');
 
         if (!this.nickname) {
-            this.showNicknameDialog();
+            // this.showNicknameDialog();
         } else {
-            await this.startOnline();
+            // await this.startOnline();
         }
 
         this.loadOnlineCount();

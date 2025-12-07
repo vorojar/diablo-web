@@ -155,14 +155,49 @@ function getBossFrameIndex(bossName) {
 }
 
 // 每层对应的 Boss 信息（名称与基础血量）
-const floorBossMap = {
-    2: { name: '血鸟', hp: 300 },
-    4: { name: '女伯爵', hp: 800 },
-    5: { name: '屠夫', hp: 1050 },
-    7: { name: '树头木拳', hp: 2150 },
-    9: { name: '暗黑破坏神', hp: 3840 },
-    10: { name: '巴尔', hp: 4500 }
+// 基础Boss配置
+const BASE_BOSS_MAP = {
+    2: { name: '血鸟', hp: 300, dmg: 25, xp: 1000 },
+    4: { name: '女伯爵', hp: 800, dmg: 40, xp: 2000 },
+    5: { name: '屠夫', hp: 1050, dmg: 50, xp: 2500 },
+    7: { name: '树头木拳', hp: 2150, dmg: 55, xp: 3000 },
+    9: { name: '暗黑破坏神', hp: 3840, dmg: 70, xp: 5000 },
+    10: { name: '巴尔', hp: 4500, dmg: 80, xp: 8000 }
 };
+
+// 获取当前层的BOSS生成信息（支持无限层级）
+function getBossSpawnInfo(floor) {
+    // 计算周目数 (0: 1-10层, 1: 11-20层, ...)
+    const cycle = Math.floor((floor - 1) / 10);
+    // 映射到基础层数 (1-10)
+    const baseFloor = ((floor - 1) % 10) + 1;
+
+    const config = BASE_BOSS_MAP[baseFloor];
+    if (!config) return null;
+
+    // 属性膨胀系数
+    // 血量：每周目+150%
+    const hpMult = 1 + cycle * 1.5;
+    // 伤害：每周目+60%
+    const dmgMult = 1 + cycle * 0.6;
+    // 经验：每周目+100%
+    const xpMult = 1 + cycle * 1.0;
+
+    // 称号前缀
+    let prefix = "";
+    if (cycle === 1) prefix = "噩梦 ";
+    else if (cycle === 2) prefix = "地狱 ";
+    else if (cycle >= 3) prefix = "折磨" + (cycle - 2) + " ";
+
+    return {
+        name: prefix + config.name,
+        originalName: config.name, // 用于查找资源
+        hp: Math.floor(config.hp * hpMult),
+        dmg: Math.floor(config.dmg * dmgMult),
+        xp: Math.floor(config.xp * xpMult),
+        speed: 90 + Math.min(cycle * 10, 100) // 速度有上限
+    };
+}
 
 const player = {
     x: 0, y: 0, radius: 12, color: '#eee', speed: 180, direction: 'front',
@@ -208,7 +243,7 @@ const player = {
 };
 
 const spriteSheet = new Image();
-spriteSheet.src = 'sprites.png?v=3.6';
+spriteSheet.src = 'sprites.png?v=3.4';
 
 let spritesLoaded = false;
 let processedSpriteSheet = null;
@@ -2029,7 +2064,8 @@ const SaveSystem = {
             if (e.target.result) {
                 window.pendingLoadData = e.target.result;
                 const f = e.target.result.floor === 0 ? "罗格营地" : `地牢 ${e.target.result.floor}层`;
-                document.getElementById('save-status').innerText = `发现存档: Lv${e.target.result.lvl} - ${f}`;
+                const statusEl = document.getElementById('save-status');
+                statusEl.innerHTML = `发现存档: Lv${e.target.result.lvl} - ${f} <span onclick="confirmResetSave()" style="color: #ff4444; text-decoration: underline; cursor: pointer; margin-left: 10px; font-size: 11px;">清除存档</span>`;
 
                 // Load Settings
                 if (e.target.result.settings) {
@@ -2479,7 +2515,8 @@ function resize() { canvas.width = window.innerWidth; canvas.height = window.inn
 function confirmResetSave() {
     // 检查是否有存档
     const statusEl = document.getElementById('save-status');
-    const hasSave = statusEl && statusEl.innerText !== '正在检查存档...' && statusEl.innerText !== '未发现存档';
+    // 只要包含"发现存档"字样，就认为有存档
+    const hasSave = statusEl && statusEl.innerText.includes('发现存档');
 
     let message = '⚠️ 警告：此操作将永久删除所有存档数据！\n\n';
 
@@ -2590,7 +2627,15 @@ function startGame() {
             player.stash = Array(36).fill(null);
         }
 
-        if (window.pendingLoadData.townPortal) townPortal = window.pendingLoadData.townPortal;
+        if (window.pendingLoadData.townPortal) {
+            townPortal = window.pendingLoadData.townPortal;
+            // 修复：加载存档时强制验证传送门位置，解决旧存档卡墙问题
+            if (townPortal) {
+                const fixed = validateAndFixPortalPosition(townPortal.x, townPortal.y);
+                townPortal.x = fixed.x;
+                townPortal.y = fixed.y;
+            }
+        }
         if (window.pendingLoadData.autoBattleSettings) {
             Object.assign(AutoBattle.settings, window.pendingLoadData.autoBattleSettings);
             syncAutoBattleUI();
@@ -2664,26 +2709,15 @@ function enterFloor(f, spawnAt = 'start') {
         showNotification("欢迎回到罗格营地");
 
         // ==== Boss 刷新检查 ==== //
-        const bossInfo = floorBossMap[f];
+        // 罗格营地也可以有BOSS攻城事件（可选），这里暂时保持只检查配置
+        const bossInfo = getBossSpawnInfo(f);
         if (bossInfo) {
             const now = Date.now();
             const nextRespawn = player.bossRespawn[f] || 0;
             if (now >= nextRespawn) {
-                // 简单创建 Boss 对象，后续可根据实际需求完善属性
-                const boss = {
-                    name: bossInfo.name,
-                    isBoss: true,
-                    hp: bossInfo.hp,
-                    maxHp: bossInfo.hp,
-                    damage: [10, 20], // 示例伤害范围
-                    armor: 10,
-                    radius: 20,
-                    x: dungeonEntrance.x + 200,
-                    y: dungeonEntrance.y,
-                    dead: false
-                };
-                enemies.push(boss);
-                console.log(`[Boss] ${bossInfo.name} 已在第 ${f} 层生成`);
+                // 修正：在罗格营地生成演示用BOSS，或者干脆不生成
+                // 原逻辑是检查 floorBossMap[f]，这里 f=0
+                // 下面的代码其实只会在 f > 0 时更有意义，但保留原意
             }
         }
 
@@ -2744,65 +2778,51 @@ function enterFloor(f, spawnAt = 'start') {
                 frameIndex: MONSTER_FRAMES.melee
             });
         }
-        const currentQ = QUEST_DB[player.questIndex];
-        if (currentQ && player.questState === 1 && currentQ.floor === f) {
-            if (currentQ.type === 'kill_elite' || currentQ.type === 'kill_boss') {
-                let x = dungeonExit.x, y = dungeonExit.y;
-                if (f !== 5 && f !== 10) { let v = false; while (!v) { x = Math.random() * MAP_WIDTH * TILE_SIZE; y = Math.random() * MAP_HEIGHT * TILE_SIZE; if (!isWall(x, y)) v = true; } }
+        // 无限层级BOSS生成逻辑
+        const bossData = getBossSpawnInfo(f);
+        if (bossData) {
+            const currentQ = QUEST_DB[player.questIndex];
+            const isQuestTarget = currentQ && player.questState === 1 && currentQ.floor === f;
 
-                // 增强BOSS血量和伤害，使其更有挑战性
-                let hp, dmg, speed, xpValue, bossName;
-
-                if (currentQ.id === 1) {
-                    // 第一个BOSS（相对弱一些）
-                    hp = 300;
-                    dmg = 25;
-                    speed = 90;
-                    xpValue = 1000;
-                    bossName = isInHell ? `地狱${currentQ.targetName}` : currentQ.targetName;
-                } else if (currentQ.id === 3) {
-                    // 第5层BOSS
-                    hp = 800;
-                    dmg = 40;
-                    speed = 100;
-                    xpValue = 2000;
-                    bossName = isInHell ? `地狱${currentQ.targetName}` : currentQ.targetName;
-                } else if (currentQ.id === 9) {
-                    // 巴尔 - 在地狱中变成地狱巴尔
-                    hp = 1500;
-                    dmg = 60;
-                    speed = 110;
-                    xpValue = 5000;
-                    bossName = isInHell ? '地狱巴尔' : currentQ.targetName;
-                } else {
-                    // 根据楼层动态计算BOSS属性
-                    const baseHp = 150 + f * f * 25; // 基础血量增加
-                    const multiplier = 1 + (f / 10); // 随楼层递增的倍数
-                    hp = Math.floor(baseHp * multiplier);
-                    dmg = 20 + f * 3; // 伤害成长更高
-                    speed = 90 + Math.floor(f / 3); // 速度也随楼层增加
-                    xpValue = 1500 + f * 300;
-                    bossName = isInHell ? `地狱${currentQ.targetName}` : currentQ.targetName;
+            // 如果是任务目标，或者单纯是该层对应的BOSS
+            let x = dungeonExit.x, y = dungeonExit.y;
+            // 不在出口生成，随机找个空地，除非是第5/10层这种守关BOSS
+            if ((f % 5) !== 0) {
+                let v = false;
+                while (!v) {
+                    x = Math.random() * MAP_WIDTH * TILE_SIZE;
+                    y = Math.random() * MAP_HEIGHT * TILE_SIZE;
+                    if (!isWall(x, y)) v = true;
                 }
-
-                // 确保BOSS至少有最低强度
-                hp = Math.max(hp, 300);
-                dmg = Math.max(dmg, 25);
-
-                // 应用难度系数
-                hp = Math.floor(hp * difficulty.monsterHpMult);
-                dmg = Math.floor(dmg * difficulty.monsterDmgMult);
-                speed = Math.floor(speed * difficulty.monsterSpeedMult);
-                xpValue = Math.floor(xpValue * difficulty.xpMult);
-
-                enemies.push({
-                    x, y, hp, maxHp: hp, dmg, speed, radius: 30, // 增大碰撞半径
-                    dead: false, cooldown: 0, name: bossName,
-                    isBoss: true, isQuestTarget: true, xpValue: xpValue, // 增加经验值
-                    ai: 'chase', frameIndex: getBossFrameIndex(bossName) // 根据Boss名称获取独特的图像
-                });
-                showNotification(`警告：发现了 ${currentQ.targetName}！`);
             }
+
+            // 应用难度系数
+            let hp = Math.floor(bossData.hp * difficulty.monsterHpMult);
+            let dmg = Math.floor(bossData.dmg * difficulty.monsterDmgMult);
+            let speed = Math.floor(bossData.speed * difficulty.monsterSpeedMult);
+            let xpValue = Math.floor(bossData.xp * difficulty.xpMult);
+
+            // 在地狱模式下，属性额外提升（叠加前面的难度系数）
+            if (isInHell) {
+                hp = Math.floor(hp * 1.5);
+                dmg = Math.floor(dmg * 1.2);
+                xpValue = Math.floor(xpValue * 1.5);
+            }
+
+            enemies.push({
+                x, y, hp, maxHp: hp, dmg, speed, radius: 30,
+                dead: false, cooldown: 0, name: bossData.name,
+                isBoss: true,
+                isQuestTarget: isQuestTarget, // 标记是否为任务目标
+                xpValue: xpValue,
+                ai: 'chase',
+                frameIndex: getBossFrameIndex(bossData.originalName),
+                // 赋予一些精英词缀
+                eliteAffixes: isInHell || f > 10 ? [ELITE_AFFIXES[Math.floor(Math.random() * ELITE_AFFIXES.length)]] : []
+            });
+
+            const noticeText = isQuestTarget ? `警告：发现了 ${bossData.name}！` : `遭遇强敌：${bossData.name}！`;
+            showNotification(noticeText);
         }
         showNotification(`进入第 ${f} 层`);
 
