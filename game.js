@@ -304,6 +304,16 @@ function getWallTextureIndex(floor) {
     return 0;                      // Stone levels (1-4)
 }
 
+const floorTiles = new Image();
+floorTiles.src = 'floor_tiles.png';
+let floorTilesLoaded = false;
+floorTiles.onload = () => { floorTilesLoaded = true; };
+
+function getFloorTextureIndex(floor) {
+    if (floor === 0) return 0;     // Camp (Grass)
+    return 1;                      // Stone levels (All dungeons)
+}
+
 const ITEM_FRAMES = {
     'gold': { col: 0, row: 0 },
     'potion_health': { col: 1, row: 0 },
@@ -3441,7 +3451,7 @@ function updateEnemies(dt) {
 // --- Rendering ---
 function draw() {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.save(); ctx.translate(-camera.x, -camera.y);
+    ctx.save(); ctx.translate(-Math.floor(camera.x), -Math.floor(camera.y));
 
     const sc = Math.floor(camera.x / TILE_SIZE), ec = sc + (canvas.width / TILE_SIZE) + 1;
     const sr = Math.floor(camera.y / TILE_SIZE), er = sr + (canvas.height / TILE_SIZE) + 1;
@@ -3472,7 +3482,27 @@ function draw() {
                         ctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10);
                     }
                 }
-                else { ctx.fillStyle = ((c + r) % 2 === 0) ? '#151515' : '#1a1a1a'; ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE); }
+                else {
+                    const x = c * TILE_SIZE, y = r * TILE_SIZE;
+                    if (floorTilesLoaded) {
+                        const floorIndex = getFloorTextureIndex(player.floor);
+                        const tileHeight = floorTiles.height / 3;
+
+                        ctx.drawImage(floorTiles,
+                            0, floorIndex * tileHeight, floorTiles.width, tileHeight,
+                            x, y, TILE_SIZE, TILE_SIZE
+                        );
+
+                        // Subtle checkerboard pattern for variety
+                        if ((c + r) % 2 === 0) {
+                            ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        }
+                    } else {
+                        ctx.fillStyle = ((c + r) % 2 === 0) ? '#151515' : '#1a1a1a';
+                        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    }
+                }
             }
         }
     }
