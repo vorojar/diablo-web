@@ -4654,6 +4654,11 @@ function renderStash() {
         slot.className = 'bag-slot';
 
         if (item) {
+            // 根据稀有度添加光效 class
+            if (item.rarity >= 3 && item.rarity <= 4) slot.classList.add('rarity-unique');
+            else if (item.rarity === 5) slot.classList.add('rarity-set');
+            else if (item.rarity === 2) slot.classList.add('rarity-rare');
+
             applyItemSpriteToElement(slot, item);
             slot.style.display = 'flex';
             slot.style.justifyContent = 'center';
@@ -5115,6 +5120,11 @@ function renderInventory() {
     player.inventory.forEach((i, idx) => {
         const s = document.createElement('div'); s.className = 'bag-slot';
         if (i) {
+            // 根据稀有度添加光效 class
+            if (i.rarity >= 3 && i.rarity <= 4) s.classList.add('rarity-unique');
+            else if (i.rarity === 5) s.classList.add('rarity-set');
+            else if (i.rarity === 2) s.classList.add('rarity-rare');
+
             applyItemSpriteToElement(s, i);
             s.style.display = 'flex'; s.style.justifyContent = 'center'; s.style.alignItems = 'center';
             if (i.quantity && i.quantity > 1) {
@@ -5139,7 +5149,14 @@ function renderInventory() {
     ['mainhand', 'offhand', 'body', 'ring'].forEach(sn => {
         const el = document.getElementById('slot-' + sn), i = player.equipment[sn];
         el.innerHTML = `<span style="color:#333;font-size:10px;position:absolute;bottom:2px;">${sn}</span>`;
+        // 清除之前的稀有度 class
+        el.classList.remove('rarity-unique', 'rarity-set', 'rarity-rare');
         if (i) {
+            // 根据稀有度添加光效 class
+            if (i.rarity >= 3 && i.rarity <= 4) el.classList.add('rarity-unique');
+            else if (i.rarity === 5) el.classList.add('rarity-set');
+            else if (i.rarity === 2) el.classList.add('rarity-rare');
+
             const ic = document.createElement('div');
             ic.style.width = '100%'; ic.style.height = '100%';
             applyItemSpriteToElement(ic, i);
@@ -5155,7 +5172,14 @@ function renderInventory() {
         if (!el) return;
         const i = player.equipment[sn];
         el.innerHTML = `<span style="color:#333;font-size:8px;position:absolute;bottom:2px;">${sn.substring(0, 3)}</span>`;
+        // 清除之前的稀有度 class
+        el.classList.remove('rarity-unique', 'rarity-set', 'rarity-rare');
         if (i) {
+            // 根据稀有度添加光效 class
+            if (i.rarity >= 3 && i.rarity <= 4) el.classList.add('rarity-unique');
+            else if (i.rarity === 5) el.classList.add('rarity-set');
+            else if (i.rarity === 2) el.classList.add('rarity-rare');
+
             const ic = document.createElement('div');
             ic.style.width = '100%'; ic.style.height = '100%';
             applyItemSpriteToElement(ic, i);
@@ -5215,6 +5239,8 @@ function useOrEquipItem(idx) {
             // 验证并修正传送门位置，确保在罗格营地的安全区域
             const safePortalPos = validateAndFixPortalPosition(player.x, player.y);
             townPortal = { returnFloor: player.floor, x: safePortalPos.x, y: safePortalPos.y, activeFloor: 0 };
+            // 清除自动战斗锁定目标，避免箭头残留在城镇
+            AutoBattle.currentTarget = null;
             enterFloor(0);
             if (item.quantity > 1) item.quantity--; else player.inventory[idx] = null;
         } else {
@@ -5598,6 +5624,17 @@ function updateUI() {
     document.getElementById('hp-text').innerText = Math.floor(player.hp);
     document.getElementById('mp-fill').style.height = Math.max(0, Math.min(100, player.mp / player.maxMp * 100)) + '%';
     document.getElementById('mp-text').innerText = Math.floor(player.mp);
+
+    // 濒危视觉警告：HP < 20% 时显示红光
+    const vignette = document.getElementById('low-hp-vignette');
+    if (vignette) {
+        const hpPercent = player.hp / player.maxHp;
+        if (hpPercent < 0.2 && player.hp > 0) {
+            vignette.classList.add('active');
+        } else {
+            vignette.classList.remove('active');
+        }
+    }
 
     let xpPct = 0;
     if (player.xpNext > 0) {
@@ -6090,6 +6127,7 @@ function showTooltip(item, e) {
             let label = k;
             let color = '#4850b8';  // 默认蓝色
             let prefix = '+';
+            let elementClass = '';  // 元素高亮 class
 
             // 基础属性
             if (k === 'str') label = "力量";
@@ -6102,16 +6140,16 @@ function showTooltip(item, e) {
             else if (k === 'allSkills') label = "所有技能";
 
             // 抗性类
-            else if (k === 'fireRes') { label = "🔥火焰抗性"; color = '#ff6644'; }
-            else if (k === 'coldRes') { label = "❄️冰霜抗性"; color = '#4488ff'; }
-            else if (k === 'lightningRes') { label = "⚡闪电抗性"; color = '#ffff44'; }
-            else if (k === 'poisonRes') { label = "☠️毒素抗性"; color = '#44ff44'; }
+            else if (k === 'fireRes') { label = "🔥火焰抗性"; color = '#ff6644'; elementClass = 'fire-stat'; }
+            else if (k === 'coldRes') { label = "❄️冰霜抗性"; color = '#4488ff'; elementClass = 'cold-stat'; }
+            else if (k === 'lightningRes') { label = "⚡闪电抗性"; color = '#ffff44'; elementClass = 'lightning-stat'; }
+            else if (k === 'poisonRes') { label = "☠️毒素抗性"; color = '#44ff44'; elementClass = 'poison-stat'; }
             else if (k === 'allRes') { label = "所有抗性"; color = '#ffaa44'; }
 
             // 元素伤害
-            else if (k === 'fireDmg') { label = "火焰伤害"; color = '#ff4400'; }
-            else if (k === 'lightningDmg') { label = "闪电伤害"; color = '#ffff00'; }
-            else if (k === 'poisonDmg') { label = "毒素伤害"; color = '#00ff00'; }
+            else if (k === 'fireDmg') { label = "火焰伤害"; color = '#ff4400'; elementClass = 'fire-stat'; }
+            else if (k === 'lightningDmg') { label = "闪电伤害"; color = '#ffff00'; elementClass = 'lightning-stat'; }
+            else if (k === 'poisonDmg') { label = "毒素伤害"; color = '#00ff00'; elementClass = 'poison-stat'; }
 
             // 特殊效果
             else if (k === 'hpRegen') { label = "生命回复/秒"; color = '#ff4444'; }
@@ -6122,7 +6160,7 @@ function showTooltip(item, e) {
             else if (k === 'critDamage') { label = "%暴击伤害"; color = '#ffff00'; }
             else if (k === 'armorPierce') { label = "%护甲穿透"; color = '#ff8800'; }
             else if (k === 'knockback') { label = "%击退几率"; color = '#88ff88'; }
-            else if (k === 'slow') { label = "%减速几率"; color = '#8888ff'; }
+            else if (k === 'slow') { label = "%减速几率"; color = '#8888ff'; elementClass = 'cold-stat'; }
             else if (k === 'doubleHit') { label = "%连击几率"; color = '#ff88ff'; }
             else if (k === 'attackRating') { label = "攻击等级"; color = '#ffaa00'; }
             else if (k === 'magicFind') { label = "%魔法发现"; color = '#00ffff'; }
@@ -6131,7 +6169,7 @@ function showTooltip(item, e) {
             let eqStat = 0;
             if (equipped && equipped.stats && equipped.stats[k]) eqStat = equipped.stats[k];
 
-            html += `<div class="tooltip-stat" style="color:${color}">${prefix}${v} ${label}${diffSpan(v, eqStat)}</div>`;
+            html += `<div class="tooltip-stat ${elementClass}" style="color:${color}">${prefix}${v} ${label}${diffSpan(v, eqStat)}</div>`;
         }
     }
 
