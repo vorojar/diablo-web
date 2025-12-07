@@ -1,4 +1,4 @@
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Roboto:wght@400;500&display=swap');
 
         :root {
             --bg-color: #050505;
@@ -406,10 +406,43 @@
 
         .panel-close {
             position: absolute;
-            top: 5px;
+            top: 8px;
             right: 10px;
             cursor: pointer;
-            color: #888;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            /* 红色宝石渐变 */
+            background: radial-gradient(circle at 30% 30%, #ff6666 0%, #cc2222 50%, #880000 100%);
+            border: 2px solid #4a3b2a;
+            box-shadow:
+                0 0 3px rgba(0, 0, 0, 0.8),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.4),
+                inset 0 2px 4px rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 12px;
+            font-weight: bold;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+            transition: all 0.15s ease;
+        }
+
+        .panel-close:hover {
+            background: radial-gradient(circle at 30% 30%, #ff8888 0%, #ee3333 50%, #aa0000 100%);
+            box-shadow:
+                0 0 8px rgba(255, 0, 0, 0.5),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.4),
+                inset 0 2px 4px rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+
+        .panel-close:active {
+            transform: scale(0.95);
+            box-shadow:
+                0 0 3px rgba(0, 0, 0, 0.8),
+                inset 0 2px 4px rgba(0, 0, 0, 0.5);
         }
 
         #stats-panel {
@@ -1411,4 +1444,80 @@
         }
         .tooltip-stat.poison-stat {
             text-shadow: 0 0 8px rgba(68, 255, 68, 0.6);
+        }
+
+        /* ========== 装备需求不足遮罩 ========== */
+        .bag-slot.requirement-not-met,
+        .equip-slot.requirement-not-met {
+            position: relative;
+        }
+
+        .bag-slot.requirement-not-met::after,
+        .equip-slot.requirement-not-met::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(180, 0, 0, 0.35);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        /* 需求不足的边框变红 */
+        .bag-slot.requirement-not-met {
+            border-color: #882222 !important;
+        }
+
+        /* ========== 信息层级优化 - 数值使用无衬线字体 ========== */
+
+        /* Tooltip 数值使用 Roboto */
+        .tooltip-stat {
+            font-family: 'Roboto', sans-serif;
+            font-size: 13px;
+            letter-spacing: 0.3px;
+        }
+
+        .tooltip-type {
+            font-family: 'Roboto', sans-serif;
+        }
+
+        /* 角色面板数值 */
+        .stat-row {
+            font-family: 'Roboto', sans-serif;
+        }
+
+        .stat-row span:first-child {
+            font-family: 'Cinzel', serif;
+        }
+
+        /* 血球/蓝球数值 */
+        .orb-text {
+            font-family: 'Roboto', sans-serif;
+        }
+
+        /* 物品数量 */
+        .item-count {
+            font-family: 'Roboto', sans-serif;
+        }
+
+        /* 腰带数量 */
+        .belt-count {
+            font-family: 'Roboto', sans-serif;
+        }
+
+        /* 经验百分比 */
+        .xp-percentage {
+            font-family: 'Roboto', sans-serif;
+        }
+
+        /* 成就进度 */
+        .ach-progress {
+            font-family: 'Roboto', sans-serif;
+        }
+
+        /* 商店价格 */
+        .gamble-price {
+            font-family: 'Roboto', sans-serif;
         }

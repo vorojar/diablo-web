@@ -4659,6 +4659,11 @@ function renderStash() {
             else if (item.rarity === 5) slot.classList.add('rarity-set');
             else if (item.rarity === 2) slot.classList.add('rarity-rare');
 
+            // 检查装备需求是否满足
+            if (item.requirements && !meetsRequirements(item)) {
+                slot.classList.add('requirement-not-met');
+            }
+
             applyItemSpriteToElement(slot, item);
             slot.style.display = 'flex';
             slot.style.justifyContent = 'center';
@@ -5115,6 +5120,16 @@ function castSkill(skillName) {
 
 function spawnBoss(x, y) { enemies.push({ x, y, hp: 500, maxHp: 500, dmg: 20, speed: 100, isBoss: true, radius: 30, dead: false, cooldown: 0, xpValue: 5000, name: "屠夫" }); }
 
+// 检查物品需求是否满足
+function meetsRequirements(item) {
+    if (!item || !item.requirements) return true;
+    const req = item.requirements;
+    if (req.level && player.lvl < req.level) return false;
+    if (req.str && player.str < req.str) return false;
+    if (req.dex && player.dex < req.dex) return false;
+    return true;
+}
+
 function renderInventory() {
     const c = document.getElementById('bag-grid'); c.innerHTML = '';
     player.inventory.forEach((i, idx) => {
@@ -5124,6 +5139,11 @@ function renderInventory() {
             if (i.rarity >= 3 && i.rarity <= 4) s.classList.add('rarity-unique');
             else if (i.rarity === 5) s.classList.add('rarity-set');
             else if (i.rarity === 2) s.classList.add('rarity-rare');
+
+            // 检查装备需求是否满足（仅对可装备物品）
+            if (i.requirements && !meetsRequirements(i)) {
+                s.classList.add('requirement-not-met');
+            }
 
             applyItemSpriteToElement(s, i);
             s.style.display = 'flex'; s.style.justifyContent = 'center'; s.style.alignItems = 'center';
