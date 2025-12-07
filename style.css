@@ -375,6 +375,84 @@
             color: #aaa;
         }
 
+        /* 扇形CD遮罩 */
+        .skill-btn .cd-sweep {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 4px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+
+        .skill-btn .cd-sweep.active {
+            opacity: 1;
+            background: conic-gradient(
+                rgba(0, 0, 0, 0.85) var(--cd-progress, 0%),
+                transparent var(--cd-progress, 0%)
+            );
+        }
+
+        .skill-btn .cd-time {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 4px #000, 0 0 8px #000;
+            z-index: 2;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .skill-btn .cd-time.active {
+            opacity: 1;
+        }
+
+        /* 技能按钮点击波纹效果 */
+        .skill-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: radial-gradient(circle, rgba(255, 200, 100, 0.6) 0%, transparent 70%);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: width 0.3s, height 0.3s, opacity 0.3s;
+        }
+
+        .skill-btn.clicked::after {
+            width: 80px;
+            height: 80px;
+            opacity: 0;
+        }
+
+        /* 增强按下效果 */
+        .skill-btn:active {
+            transform: scale(0.9) translateY(2px);
+            box-shadow: inset 0 0 20px #000, inset 0 5px 10px rgba(0, 0, 0, 0.8);
+            border-color: #222;
+            filter: brightness(0.8);
+        }
+
+        /* 腰带格子点击效果 */
+        .belt-slot {
+            transition: all 0.1s;
+        }
+
+        .belt-slot:active {
+            transform: scale(0.92) translateY(2px);
+            filter: brightness(0.7);
+        }
+
         .panel {
             position: absolute;
             background: rgba(10, 10, 12, 0.95);

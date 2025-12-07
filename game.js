@@ -5701,6 +5701,49 @@ function updateUI() {
     } else {
         promptEl.style.display = 'none';
     }
+
+    // 更新技能冷却扇形遮罩
+    updateSkillCooldownUI();
+}
+
+// 技能最大冷却时间
+const SKILL_MAX_CD = {
+    fireball: 0.5,
+    thunder: 2,
+    multishot: 1
+};
+
+// 更新技能冷却UI（扇形遮罩）
+function updateSkillCooldownUI() {
+    const skills = ['fireball', 'thunder', 'multishot'];
+
+    skills.forEach(skill => {
+        const cd = player.skillCooldowns[skill];
+        const maxCd = SKILL_MAX_CD[skill];
+        const sweepEl = document.getElementById(`cd-sweep-${skill}`);
+        const timeEl = document.getElementById(`cd-time-${skill}`);
+
+        if (!sweepEl || !timeEl) return;
+
+        if (cd > 0) {
+            // 计算剩余百分比（从100%到0%）
+            const progress = (cd / maxCd) * 100;
+            sweepEl.style.setProperty('--cd-progress', `${progress}%`);
+            sweepEl.classList.add('active');
+            timeEl.classList.add('active');
+            timeEl.textContent = cd.toFixed(1);
+        } else {
+            sweepEl.classList.remove('active');
+            timeEl.classList.remove('active');
+            timeEl.textContent = '';
+        }
+    });
+}
+
+// 技能按钮点击效果
+function triggerSkillClick(btn) {
+    btn.classList.add('clicked');
+    setTimeout(() => btn.classList.remove('clicked'), 300);
 }
 
 function updateStatsUI() {

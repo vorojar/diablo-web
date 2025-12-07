@@ -410,15 +410,21 @@
                     <div class="skill-bar">
                         <div class="skill-btn active" id="skill-attack" onclick="selectSkill('attack')"><span
                                 class="key">LMB</span> ⚔️</div>
-                        <div class="skill-btn" onclick="selectSkill('fireball')"><span class="key">Q</span> 🔥 <span
-                                class="lvl" id="bar-lvl-fireball">1</span></div>
-                        <div class="skill-btn" onclick="selectSkill('thunder')"><span class="key">W</span> ⚡ <span
-                                class="lvl" id="bar-lvl-thunder">0</span>
-                            <div class="cd-overlay" id="cd-overlay-w"></div>
-                            <div class="cd-text" id="cd-text-w"></div>
+                        <div class="skill-btn" id="skill-fireball" onclick="selectSkill('fireball'); triggerSkillClick(this)"><span class="key">Q</span> 🔥 <span
+                                class="lvl" id="bar-lvl-fireball">1</span>
+                            <div class="cd-sweep" id="cd-sweep-fireball"></div>
+                            <div class="cd-time" id="cd-time-fireball"></div>
                         </div>
-                        <div class="skill-btn" onclick="selectSkill('multishot')"><span class="key">E</span> 🏹 <span
-                                class="lvl" id="bar-lvl-multishot">0</span></div>
+                        <div class="skill-btn" id="skill-thunder" onclick="selectSkill('thunder'); triggerSkillClick(this)"><span class="key">W</span> ⚡ <span
+                                class="lvl" id="bar-lvl-thunder">0</span>
+                            <div class="cd-sweep" id="cd-sweep-thunder"></div>
+                            <div class="cd-time" id="cd-time-thunder"></div>
+                        </div>
+                        <div class="skill-btn" id="skill-multishot" onclick="selectSkill('multishot'); triggerSkillClick(this)"><span class="key">E</span> 🏹 <span
+                                class="lvl" id="bar-lvl-multishot">0</span>
+                            <div class="cd-sweep" id="cd-sweep-multishot"></div>
+                            <div class="cd-time" id="cd-time-multishot"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="orb-container" id="mana-orb">
