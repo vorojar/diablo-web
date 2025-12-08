@@ -398,7 +398,10 @@ const player = {
     // 冰冻状态
     frozen: false,
     frozenTimer: 0,
-    freezeImmuneTimer: 0  // 冰冻免疫时间
+    freezeImmuneTimer: 0,  // 冰冻免疫时间
+    // 掉落系统 - 累积幸运机制
+    luckAccumulator: 0,       // 累积幸运值（每杀怪没掉好东西+1）
+    killsSincePotion: 0       // 自上次掉落消耗品后的击杀数
 };
 
 const spriteSheet = new Image();
@@ -2801,6 +2804,9 @@ function startGame() {
         // 向后兼容：旧存档没有 maxFloor/lastFloor
         if (player.maxFloor === undefined) player.maxFloor = player.floor || 0;
         if (player.lastFloor === undefined) player.lastFloor = player.floor || 0;
+        // 向后兼容：旧存档没有掉落系统幸运值
+        if (player.luckAccumulator === undefined) player.luckAccumulator = 0;
+        if (player.killsSincePotion === undefined) player.killsSincePotion = 0;
     }
     else {
         addItemToInventory(createItem('短剑', 0)); addItemToInventory(createItem('治疗药剂', 0)); addItemToInventory(createItem('回城卷轴', 0));
@@ -5028,80 +5034,125 @@ function dropLoot(monster) {
 
     const x = monster.x;
     const y = monster.y;
-    // 修复：地狱模式下使用hellFloor而不是floor
     const f = player.isInHell ? player.hellFloor : player.floor;
+    const isBoss = monster.isBoss || monster.isQuestTarget;
+    const isElite = monster.rarity > 0;
 
-    // 基础金币掉落
-    let goldAmount = Math.floor(Math.random() * 50) + 10;
-    if (monster.isBoss || monster.isQuestTarget) {
-        goldAmount *= 3; // BOSS掉落3倍金币
-    } else if (monster.rarity > 0) {
-        goldAmount *= 1.5; // 精英怪掉落1.5倍金币
-    }
+    // ========== 金币掉落（层数加成） ==========
+    let goldBase = 10 + f * 5;  // 基础金币随层数增加
+    let goldAmount = Math.floor(goldBase + Math.random() * goldBase);
+    if (isBoss) goldAmount *= 3;
+    else if (isElite) goldAmount *= 1.5;
+
     groundItems.push({
-        type: 'gold',
-        val: goldAmount,
-        x: x + Math.random() * 20 - 10,
-        y: y + Math.random() * 20 - 10,
-        rarity: 0,
-        name: goldAmount + " 金币",
-        icon: '💰',
-        dropTime: Date.now()
+        type: 'gold', val: Math.floor(goldAmount),
+        x: x + Math.random() * 20 - 10, y: y + Math.random() * 20 - 10,
+        rarity: 0, name: Math.floor(goldAmount) + " 金币", icon: '💰', dropTime: Date.now()
     });
 
-    // 物品掉落
-    let dropChance = 0.4; // 基础掉落概率
-    let dropCount = 1; // 基础掉落数量
-
-    if (monster.isBoss || monster.isQuestTarget) {
-        dropChance = 1.0; // BOSS必定掉落
-        dropCount = 2 + Math.floor(f / 3); // BOSS至少掉落2件，每3层加1件
-    } else if (monster.rarity > 0) {
-        dropChance = 0.7; // 精英怪高概率掉落
+    // ========== 消耗品保底机制 ==========
+    player.killsSincePotion = (player.killsSincePotion || 0) + 1;
+    if (player.killsSincePotion >= 8 || isBoss) {
+        // 每8只怪或击杀BOSS必掉消耗品
+        const potionType = Math.random() < 0.6 ? 'potion_hp' : (Math.random() < 0.7 ? 'potion_mp' : 'scroll_tp');
+        const potionNames = { potion_hp: '生命药水', potion_mp: '法力药水', scroll_tp: '回城卷轴' };
+        groundItems.push({
+            type: potionType, x: x + Math.random() * 20 - 10, y: y + Math.random() * 20 - 10,
+            rarity: 0, name: potionNames[potionType], stackable: true, count: 1, dropTime: Date.now()
+        });
+        player.killsSincePotion = 0;
     }
+
+    // ========== 装备掉落系统 ==========
+    // 层数加成：每层+4%掉落率，+2%品质提升
+    const floorDropBonus = Math.min(f * 0.04, 0.4);      // 最高+40%
+    const floorQualityBonus = Math.min(f * 0.02, 0.25);  // 最高+25%
+
+    // 累积幸运加成：每次没掉好东西+1，最高50
+    const luckBonus = Math.min((player.luckAccumulator || 0) * 0.01, 0.3);  // 最高+30%
+
+    // 计算最终掉落参数
+    let dropChance, dropCount, qualityBonus;
+
+    if (isBoss) {
+        dropChance = 1.0;
+        dropCount = 2;  // BOSS固定2件，减少数量提高质量
+        qualityBonus = 0.35 + floorQualityBonus;  // BOSS基础+35%品质
+    } else if (isElite) {
+        dropChance = 0.6 + floorDropBonus + luckBonus;
+        dropCount = 1;
+        qualityBonus = 0.15 + floorQualityBonus + luckBonus;
+    } else {
+        dropChance = 0.35 + floorDropBonus + luckBonus;
+        dropCount = 1;
+        qualityBonus = floorQualityBonus + luckBonus;
+    }
+
+    let droppedGoodItem = false;  // 是否掉落了好东西（蓝装以上）
 
     for (let i = 0; i < dropCount; i++) {
         if (Math.random() < dropChance) {
-            let item;
+            let item = null;
 
-            // 套装物品掉落机制
-            if (monster.isBoss || monster.isQuestTarget) {
-                // BOSS有15%概率掉落套装物品
-                const setDropChance = f >= 5 ? 0.15 : 0.08;  // 5层以后提高套装掉落率
-                if (Math.random() < setDropChance) {
-                    item = generateRandomSetItem(f);
-                    if (item) {
-                        console.log(`BOSS dropped SET item: ${item.displayName}`);
-                    }
-                }
-            } else if (monster.rarity > 0) {
-                // 精英怪有5%概率掉落套装物品
-                if (Math.random() < 0.05) {
-                    item = generateRandomSetItem(f);
-                    if (item) {
-                        console.log(`Elite dropped SET item: ${item.displayName}`);
-                    }
-                }
+            // ========== 套装掉落 ==========
+            // 套装是稀有物品，概率要低：BOSS 10-15%, 精英 2-3%, 普通怪 0.3-0.5%
+            const setBaseChance = isBoss ? 0.10 : (isElite ? 0.015 : 0.003);
+            const setFloorBonus = f >= 5 ? 0.02 : 0;  // 5层以上+2%
+            const setLuckBonus = luckBonus * 0.1;      // 幸运值影响降低到10%
+            const setChance = setBaseChance + setFloorBonus + setLuckBonus;
+            if (Math.random() < setChance) {
+                item = generateRandomSetItem(f);
+                if (item) droppedGoodItem = true;
             }
 
-            // 如果没有掉落套装物品，则掉落普通物品
+            // ========== 普通装备掉落 ==========
             if (!item) {
                 item = createItem(null, f);
 
-                // BOSS掉落更高品质
-                if (monster.isBoss || monster.isQuestTarget) {
-                    // 重新roll一次稀有度，提高稀有度概率
-                    const qualityRoll = Math.random();
-                    if (qualityRoll < 0.4) item.rarity = 3; // 40%概率稀有
-                    else if (qualityRoll < 0.7) item.rarity = 2; // 30%概率魔法
+                // 品质重roll（应用所有加成）
+                const qualityRoll = Math.random();
+                const adjustedRoll = qualityRoll - qualityBonus;  // 加成越高，越容易出好东西
+
+                if (isBoss) {
+                    // BOSS保底蓝装，高概率黄装
+                    if (adjustedRoll < 0.08) { item.rarity = 4; droppedGoodItem = true; }       // 8%+加成 暗金
+                    else if (adjustedRoll < 0.45) { item.rarity = 3; droppedGoodItem = true; }  // 37%+加成 稀有
+                    else { item.rarity = 2; droppedGoodItem = true; }                           // 保底魔法
+                } else if (isElite) {
+                    // 精英怪
+                    if (adjustedRoll < 0.05) { item.rarity = 4; droppedGoodItem = true; }
+                    else if (adjustedRoll < 0.25) { item.rarity = 3; droppedGoodItem = true; }
+                    else if (adjustedRoll < 0.60) { item.rarity = 2; droppedGoodItem = true; }
+                    else item.rarity = 1;
+                } else {
+                    // 普通怪
+                    if (adjustedRoll < 0.02) { item.rarity = 4; droppedGoodItem = true; }
+                    else if (adjustedRoll < 0.12) { item.rarity = 3; droppedGoodItem = true; }
+                    else if (adjustedRoll < 0.40) { item.rarity = 2; droppedGoodItem = true; }
+                    else item.rarity = 1;
+                }
+
+                // 更新显示名称（如果品质被修改）
+                if (item.rarity === 4 && !item.displayName.startsWith('暗金')) {
+                    item.displayName = "暗金·" + item.name;
+                    item.stats.allSkills = (item.stats.allSkills || 0) + 1;
+                    item.stats.str = (item.stats.str || 0) + 10;
+                    item.stats.lifeSteal = (item.stats.lifeSteal || 0) + 5;
                 }
             }
 
-            item.x = x + Math.random() * 30 - 15 + i * 20; // 分散掉落位置
+            item.x = x + Math.random() * 30 - 15 + i * 20;
             item.y = y + Math.random() * 30 - 15;
             item.dropTime = Date.now();
             groundItems.push(item);
         }
+    }
+
+    // ========== 更新累积幸运值 ==========
+    if (droppedGoodItem) {
+        player.luckAccumulator = 0;  // 掉到好东西，重置幸运值
+    } else {
+        player.luckAccumulator = Math.min((player.luckAccumulator || 0) + 1, 50);  // 没掉好东西，累积+1
     }
 
     updateWorldLabels();
