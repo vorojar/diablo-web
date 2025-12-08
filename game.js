@@ -5818,6 +5818,7 @@ function updateStats() {
     // 初始化新属性
     let hpRegen = 0, mpRegen = 0, blockChance = 0, reflectDamage = 0;
     let damageReduction = 0, critDamage = 0, allRes = 0, bonusCritChance = 0;
+    let dmgPct = 0;  // 百分比伤害加成（词缀"残忍的"）
 
     Object.values(player.equipment).forEach(i => {
         if (!i) return;
@@ -5825,6 +5826,7 @@ function updateStats() {
             str += (i.stats.str || 0);
             vit += (i.stats.vit || 0);
             dex += (i.stats.dex || 0);
+            ene += (i.stats.ene || 0);  // 能量（套装加成）
             ls += (i.stats.lifeSteal || 0);
             ias += (i.stats.attackSpeed || 0);
 
@@ -5847,9 +5849,13 @@ function updateStats() {
             reflectDamage += (i.stats.reflectDamage || 0);
             damageReduction += (i.stats.damageReduction || 0);
             critDamage += (i.stats.critDamage || 0);
+            dmgPct += (i.stats.dmgPct || 0);  // 百分比伤害（词缀"残忍的"）
+            bonusCritChance += (i.stats.critChance || 0);  // 暴击率加成
         }
         if (i.minDmg) baseDmg = i.minDmg;
         if (i.def) armor += i.def;
+        // 词缀和套装加的防御（存在stats.def中）
+        armor += (i.stats.def || 0);
     });
 
     // 应用全能抗性
@@ -5866,17 +5872,18 @@ function updateStats() {
     player.resistances.lightning = Math.max(-100, Math.min(75, player.resistances.lightning));
     player.resistances.poison = Math.max(-100, Math.min(75, player.resistances.poison));
 
-    // New Formula
+    // New Formula（包含词缀dmgPct加成）
+    const dmgMultiplier = 1 + dmgPct / 100;  // 词缀"残忍的"百分比伤害
     player.damage = [
-        Math.floor((baseDmg + Math.floor(str / 5)) * (1 + str * 0.05)),
-        Math.floor((baseDmg + 3 + Math.floor(str / 5)) * (1 + str * 0.05))
+        Math.floor((baseDmg + Math.floor(str / 5)) * (1 + str * 0.05) * dmgMultiplier),
+        Math.floor((baseDmg + 3 + Math.floor(str / 5)) * (1 + str * 0.05) * dmgMultiplier)
     ];
     player.maxHp = vit * 5;
     player.maxMp = ene * 3;
     player.armor = armor + dex; // 1 Dex = 1 Armor
     player.lifeSteal = ls;
     player.attackSpeed = ias;
-    player.critChance = Math.min(100, 5 + dex * 0.5); // 5% Base + 0.5% per Dex
+    player.critChance = Math.min(100, 5 + dex * 0.5 + bonusCritChance); // 5% Base + 0.5% per Dex + 装备加成
 
     // 保存新属性到player对象（供后续使用）
     player.hpRegen = hpRegen;
@@ -5947,10 +5954,10 @@ function updateStats() {
     player.resistances.lightning = Math.max(-100, Math.min(75, player.resistances.lightning));
     player.resistances.poison = Math.max(-100, Math.min(75, player.resistances.poison));
 
-    // 重新计算最终属性（包含套装加成）
+    // 重新计算最终属性（包含套装加成和词缀dmgPct）
     player.damage = [
-        Math.floor((baseDmg + Math.floor(str / 5)) * (1 + str * 0.05)),
-        Math.floor((baseDmg + 3 + Math.floor(str / 5)) * (1 + str * 0.05))
+        Math.floor((baseDmg + Math.floor(str / 5)) * (1 + str * 0.05) * dmgMultiplier),
+        Math.floor((baseDmg + 3 + Math.floor(str / 5)) * (1 + str * 0.05) * dmgMultiplier)
     ];
     player.maxHp = vit * 5;
     player.maxMp = ene * 3;
