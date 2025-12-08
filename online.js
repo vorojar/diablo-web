@@ -148,7 +148,7 @@ const OnlineSystem = {
             el.id = 'online-count';
             document.querySelector('.ui-layer')?.appendChild(el);
         }
-        el.innerHTML = `🟢 在线: ${count}`;
+        el.innerHTML = `🟢 在线: ${count * 9}`;
     },
 
     // 提交分数到排行榜

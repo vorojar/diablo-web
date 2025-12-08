@@ -510,10 +510,13 @@
             document.getElementById('welcome-back').textContent = `欢迎回来，${savedNickname}`;
         }
 
-        // 注册 Service Worker（网络优先策略，自动获取最新代码）
+        // 注册 Service Worker（强制更新策略）
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/diablo/sw.js')
-                .then(() => console.log('SW registered'))
+            navigator.serviceWorker.register('/diablo/sw.js', { updateViaCache: 'none' })
+                .then(reg => {
+                    console.log('SW registered');
+                    reg.update(); // 每次访问检查更新
+                })
                 .catch(err => console.log('SW registration failed:', err));
         }
     </script>
