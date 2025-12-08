@@ -429,6 +429,31 @@
                         onclick="closeDialog()">离开</button></div>
             </div>
 
+            <!-- 天赋商店弹窗 -->
+            <div id="talent-shop-overlay">
+                <div id="talent-shop">
+                    <div class="talent-shop-header">
+                        <span class="talent-shop-title">⚔️ 天赋商店</span>
+                        <span class="talent-shop-floor" id="talent-shop-floor">第 1 层</span>
+                    </div>
+                    <div class="talent-shop-gold">💰 <span id="talent-shop-gold">0</span></div>
+                    <div class="talent-grid" id="talent-grid">
+                        <!-- 天赋卡片会动态生成 -->
+                    </div>
+                    <div class="talent-shop-actions">
+                        <button class="talent-btn talent-btn-refresh" onclick="refreshTalentShop()">
+                            🔄 刷新 <span class="refresh-cost">30金</span>
+                        </button>
+                        <button class="talent-btn talent-btn-skip" onclick="closeTalentShop()">
+                            不买
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 天赋栏HUD（显示当前已购买的天赋） -->
+            <div id="talent-hud"></div>
+
             <div class="menu-btns" id="menu-btns">
                 <button class="sys-btn" id="btn-stats" onclick="togglePanel('stats')">角色 (C)<span
                         class="notification-badge" id="badge-stats"></span></button>

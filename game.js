@@ -85,6 +85,214 @@ const COLORS = {
     exit: '#0055aa', entrance: '#aa5500', setGreen: '#20ff20'  // 套装绿色
 };
 
+// ========== 天赋商店系统 ==========
+// 天赋数据库 - 每层可购买的随机天赋
+const TALENTS = {
+    // 攻击类天赋
+    flame_soul: {
+        id: 'flame_soul',
+        name: '烈焰之魂',
+        icon: '🔥',
+        desc: '攻击附带30%火焰伤害',
+        tier: 'rare',      // normal/rare/epic/legendary
+        price: 150,
+        effect: { fireDmgPct: 30 }
+    },
+    thunder_chain: {
+        id: 'thunder_chain',
+        name: '连锁闪电',
+        icon: '⚡',
+        desc: '击杀敌人时电击周围敌人',
+        tier: 'epic',
+        price: 200,
+        effect: { onKillChainLightning: true }
+    },
+    executioner: {
+        id: 'executioner',
+        name: '处刑者',
+        icon: '💀',
+        desc: '对低于30%血量敌人伤害+100%',
+        tier: 'rare',
+        price: 120,
+        effect: { executeDmgPct: 100, executeThreshold: 0.3 }
+    },
+    berserker: {
+        id: 'berserker',
+        name: '狂战士',
+        icon: '😡',
+        desc: '伤害+50%，受到伤害+20%',
+        tier: 'rare',
+        price: 100,
+        effect: { dmgPct: 50, damageTakenPct: 20 }
+    },
+    critical_master: {
+        id: 'critical_master',
+        name: '暴击大师',
+        icon: '🎯',
+        desc: '暴击率+15%，暴击伤害+30%',
+        tier: 'epic',
+        price: 180,
+        effect: { critChance: 15, critDamage: 30 }
+    },
+    poison_blade: {
+        id: 'poison_blade',
+        name: '淬毒之刃',
+        icon: '☠️',
+        desc: '攻击附带25%毒素伤害',
+        tier: 'rare',
+        price: 140,
+        effect: { poisonDmgPct: 25 }
+    },
+
+    // 防御类天赋
+    iron_wall: {
+        id: 'iron_wall',
+        name: '铁壁',
+        icon: '🛡️',
+        desc: '+80防御，移速-10%',
+        tier: 'normal',
+        price: 80,
+        effect: { def: 80, speedPct: -10 }
+    },
+    vampire: {
+        id: 'vampire',
+        name: '吸血鬼',
+        icon: '🧛',
+        desc: '生命偷取+8%',
+        tier: 'rare',
+        price: 130,
+        effect: { lifeSteal: 8 }
+    },
+    regeneration: {
+        id: 'regeneration',
+        name: '再生',
+        icon: '💚',
+        desc: '每秒恢复2%最大生命值',
+        tier: 'rare',
+        price: 150,
+        effect: { hpRegenPct: 2 }
+    },
+    elemental_shield: {
+        id: 'elemental_shield',
+        name: '元素护盾',
+        icon: '🌈',
+        desc: '所有抗性+25%',
+        tier: 'epic',
+        price: 200,
+        effect: { allRes: 25 }
+    },
+    thorns: {
+        id: 'thorns',
+        name: '荆棘',
+        icon: '🌵',
+        desc: '反弹20%受到的伤害',
+        tier: 'normal',
+        price: 90,
+        effect: { thornsPct: 20 }
+    },
+
+    // 功能类天赋
+    magnet: {
+        id: 'magnet',
+        name: '磁铁',
+        icon: '🧲',
+        desc: '自动拾取范围翻倍',
+        tier: 'normal',
+        price: 50,
+        effect: { pickupRange: 2 }
+    },
+    greed: {
+        id: 'greed',
+        name: '贪婪',
+        icon: '💰',
+        desc: '金币掉落+50%',
+        tier: 'normal',
+        price: 60,
+        effect: { goldPct: 50 }
+    },
+    treasure_hunter: {
+        id: 'treasure_hunter',
+        name: '寻宝者',
+        icon: '🗝️',
+        desc: '装备掉落率+30%',
+        tier: 'rare',
+        price: 160,
+        effect: { dropRatePct: 30 }
+    },
+    swift: {
+        id: 'swift',
+        name: '迅捷',
+        icon: '💨',
+        desc: '移动速度+25%',
+        tier: 'normal',
+        price: 70,
+        effect: { speedPct: 25 }
+    },
+    mana_flow: {
+        id: 'mana_flow',
+        name: '法力涌动',
+        icon: '🔮',
+        desc: '最大法力+50，法力恢复+50%',
+        tier: 'rare',
+        price: 120,
+        effect: { maxMp: 50, mpRegenPct: 50 }
+    },
+
+    // 特殊/传说天赋
+    gambler: {
+        id: 'gambler',
+        name: '赌徒',
+        icon: '🎰',
+        desc: '伤害随机×0.5~×2.0',
+        tier: 'epic',
+        price: 100,
+        effect: { gamblerDamage: true }
+    },
+    glass_cannon: {
+        id: 'glass_cannon',
+        name: '玻璃大炮',
+        icon: '💣',
+        desc: '伤害+100%，最大生命-30%',
+        tier: 'legendary',
+        price: 250,
+        effect: { dmgPct: 100, maxHpPct: -30 }
+    },
+    phoenix: {
+        id: 'phoenix',
+        name: '凤凰',
+        icon: '🔥',
+        desc: '死亡时复活一次（50%生命）',
+        tier: 'legendary',
+        price: 500,
+        effect: { phoenixRevive: true }
+    },
+    bloodlust: {
+        id: 'bloodlust',
+        name: '嗜血',
+        icon: '🩸',
+        desc: '击杀敌人时恢复5%最大生命',
+        tier: 'rare',
+        price: 140,
+        effect: { onKillHealPct: 5 }
+    }
+};
+
+// 天赋稀有度价格倍率
+const TALENT_TIER_MULT = {
+    normal: 1,
+    rare: 1,
+    epic: 1,
+    legendary: 1
+};
+
+// 天赋稀有度颜色
+const TALENT_TIER_COLORS = {
+    normal: '#ffffff',
+    rare: '#4850b8',
+    epic: '#a335ee',
+    legendary: '#ff8000'
+};
+
 let gameActive = false;
 let lastTime = 0;
 let particles = [];
@@ -401,7 +609,12 @@ const player = {
     freezeImmuneTimer: 0,  // 冰冻免疫时间
     // 掉落系统 - 累积幸运机制
     luckAccumulator: 0,       // 累积幸运值（每杀怪没掉好东西+1）
-    killsSincePotion: 0       // 自上次掉落消耗品后的击杀数
+    killsSincePotion: 0,      // 自上次掉落消耗品后的击杀数
+    // 天赋商店系统
+    talents: [],              // 当前激活的天赋ID数组
+    talentShop: [],           // 当前商店刷新的天赋（3个）
+    phoenixUsed: false,       // 凤凰天赋是否已使用（每次进入地牢重置）
+    lastTalentFloor: 0        // 上次显示天赋商店的楼层（防止重复触发）
 };
 
 const spriteSheet = new Image();
@@ -2895,6 +3108,12 @@ function startGame() {
         if (player.luckAccumulator === undefined) player.luckAccumulator = 0;
         if (player.killsSincePotion === undefined) player.killsSincePotion = 0;
 
+        // 向后兼容：旧存档没有天赋系统
+        if (!player.talents) player.talents = [];
+        if (!player.talentShop) player.talentShop = [];
+        if (player.phoenixUsed === undefined) player.phoenixUsed = false;
+        if (player.lastTalentFloor === undefined) player.lastTalentFloor = 0;
+
         // ========== 属性系统迁移 v3.9 ==========
         // 将旧的基础属性(str/dex/vit/ene)转换为直接效果属性
         migrateItemStats();
@@ -2915,6 +3134,7 @@ function startGame() {
     document.getElementById('chk-auto-scroll').checked = player.autoPickup.scroll;
 
     updateStats(); enterFloor(player.floor, 'start'); renderInventory(); updateStatsUI(); updateSkillsUI(); updateUI(); updateBeltUI(); updateQuestUI(); updateMenuIndicators();
+    updateTalentHUD(); // 更新天赋HUD显示
     gameActive = true; gameLoop(0); spawnEnemyTimer();
 }
 
@@ -2964,6 +3184,9 @@ function enterFloor(f, spawnAt = 'start') {
         if (player.isInHell) {
             player.isInHell = false;
         }
+
+        // 进入罗格营地时重置天赋（天赋只在一次探险中有效）
+        resetTalents();
 
         document.getElementById('floor-display').innerText = "罗格营地";
         generateTown();
@@ -3226,8 +3449,23 @@ function gameLoop(ts) {
 }
 
 function update(dt) {
+    // 天赋商店打开时暂停游戏（不更新敌人和战斗）
+    if (talentShopOpen) return;
+
     mouse.worldX = mouse.x + camera.x; mouse.worldY = mouse.y + camera.y;
-    if (player.hp < player.maxHp) player.hp += 0.5 * dt; if (player.mp < player.maxMp) player.mp += 1.5 * dt;
+    // 基础生命/法力恢复
+    let hpRegen = 0.5;
+    let mpRegen = 1.5;
+    // 再生天赋：每秒额外恢复2%最大生命
+    if (hasTalent('regeneration')) {
+        hpRegen += player.maxHp * 0.02;
+    }
+    // 法力涌动天赋：法力恢复+50%
+    if (hasTalent('mana_flow')) {
+        mpRegen *= 1.5;
+    }
+    if (player.hp < player.maxHp) player.hp += hpRegen * dt;
+    if (player.mp < player.maxMp) player.mp += mpRegen * dt;
     if (player.attackCooldown > 0) player.attackCooldown -= dt;
     if (player.attackAnim > 0) player.attackAnim -= dt * 5;
     for (let k in player.skillCooldowns) if (player.skillCooldowns[k] > 0) player.skillCooldowns[k] -= dt;
@@ -3684,10 +3922,25 @@ function updateEnemies(dt) {
                     }
                 }
 
+                // 狂战士天赋：受到伤害+20%
+                const damageTakenPct = getTalentEffect('damageTakenPct', 0);
+                if (damageTakenPct > 0) {
+                    totalDmg *= (1 + damageTakenPct / 100);
+                }
+
                 player.hp -= totalDmg;
                 e.cooldown = 1.5;
                 createDamageNumber(player.x, player.y - 20, Math.floor(totalDmg), '#ff0000');
                 AudioSys.play('hit');
+
+                // 荆棘天赋：反弹20%伤害
+                const thornsPct = getTalentEffect('thornsPct', 0);
+                if (thornsPct > 0 && !e.dead) {
+                    const thornsDmg = Math.floor(totalDmg * thornsPct / 100);
+                    e.hp -= thornsDmg;
+                    createDamageNumber(e.x, e.y - 10, thornsDmg, '#88ff88');
+                    if (e.hp <= 0) e.dead = true;
+                }
 
                 // 自动战斗：记录攻击者，立即反击
                 AutoBattle.onPlayerDamaged(e);
@@ -4616,6 +4869,42 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         totalDamage += (dmg.poison || 0);
     }
 
+    // ========== 天赋效果应用 ==========
+    // 基础伤害加成天赋
+    const talentDmgPct = getTalentEffect('dmgPct', 0);
+    if (talentDmgPct > 0) {
+        totalDamage *= (1 + talentDmgPct / 100);
+    }
+
+    // 处刑者：对低血量敌人伤害加倍
+    if (hasTalent('executioner')) {
+        const threshold = TALENTS.executioner.effect.executeThreshold;
+        if (e.hp / e.maxHp < threshold) {
+            totalDamage *= 2;
+            createDamageNumber(e.x, e.y - 25, "处刑!", '#ff4444');
+        }
+    }
+
+    // 赌徒：伤害随机浮动
+    if (hasTalent('gambler')) {
+        const mult = 0.5 + Math.random() * 1.5; // 0.5 ~ 2.0
+        totalDamage *= mult;
+        if (mult > 1.5) createDamageNumber(e.x, e.y - 25, "幸运!", '#ffff00');
+        else if (mult < 0.7) createDamageNumber(e.x, e.y - 25, "倒霉...", '#888888');
+    }
+
+    // 烈焰之魂：附加火焰伤害
+    if (hasTalent('flame_soul')) {
+        const fireDmg = totalDamage * 0.3;
+        totalDamage += fireDmg;
+    }
+
+    // 淬毒之刃：附加毒素伤害
+    if (hasTalent('poison_blade')) {
+        const poisonDmg = totalDamage * 0.25;
+        totalDamage += poisonDmg;
+    }
+
     // 应用精英词缀效果
     if (e.eliteAffixes && e.eliteAffixes.length > 0) {
         // 魔法抗性：技能伤害减免70%
@@ -4638,6 +4927,37 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         // 怪物死亡
         e.dead = true;
         player.kills++;
+
+        // ========== 击杀相关天赋效果 ==========
+        // 嗜血：击杀恢复生命
+        if (hasTalent('bloodlust')) {
+            const healAmt = player.maxHp * 0.05;
+            player.hp = Math.min(player.maxHp, player.hp + healAmt);
+            createDamageNumber(player.x, player.y - 30, `+${Math.floor(healAmt)}`, '#00ff00');
+        }
+
+        // 连锁闪电：击杀时电击周围敌人
+        if (hasTalent('thunder_chain')) {
+            const chainRange = 150;
+            const chainDamage = totalDamage * 0.3;
+            enemies.forEach(other => {
+                if (!other.dead && other !== e) {
+                    const dist = Math.hypot(other.x - e.x, other.y - e.y);
+                    if (dist < chainRange) {
+                        other.hp -= chainDamage;
+                        createDamageNumber(other.x, other.y, Math.floor(chainDamage), '#88ffff');
+                        // 创建闪电视觉效果
+                        particles.push({
+                            x: e.x, y: e.y,
+                            tx: other.x, ty: other.y,
+                            type: 'chain_lightning',
+                            life: 0.3
+                        });
+                        if (other.hp <= 0) other.dead = true;
+                    }
+                }
+            });
+        }
 
         // 触发精英词缀的死亡效果
         if (e.eliteAffixes && e.eliteAffixes.length > 0) {
@@ -4698,6 +5018,261 @@ function takeDamage(e, dmg, isSkillDamage = false) {
 function showNotification(msg) {
     const el = document.getElementById('notification-area');
     el.innerText = msg; el.style.opacity = 1; setTimeout(() => el.style.opacity = 0, 2000);
+}
+
+// ========== 天赋商店系统逻辑 ==========
+
+// 检查玩家是否拥有某个天赋
+function hasTalent(talentId) {
+    return player.talents.includes(talentId);
+}
+
+// 获取天赋效果值
+function getTalentEffect(effectKey, defaultValue = 0) {
+    let total = defaultValue;
+    for (const talentId of player.talents) {
+        const talent = TALENTS[talentId];
+        if (talent && talent.effect && talent.effect[effectKey] !== undefined) {
+            total += talent.effect[effectKey];
+        }
+    }
+    return total;
+}
+
+// 随机刷新天赋商店（3个天赋）
+function generateTalentShop() {
+    const allTalentIds = Object.keys(TALENTS);
+    const availableTalents = allTalentIds.filter(id => !player.talents.includes(id));
+
+    // 随机选择3个（或更少，如果可用天赋不足3个）
+    const shopTalents = [];
+    const shuffled = availableTalents.sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i < Math.min(3, shuffled.length); i++) {
+        shopTalents.push(shuffled[i]);
+    }
+
+    player.talentShop = shopTalents;
+    return shopTalents;
+}
+
+// 待进入的下一层信息（天赋商店确认后使用）
+let pendingNextFloor = null;
+// 天赋商店是否打开（打开时暂停游戏）
+let talentShopOpen = false;
+
+// 天赋上限
+const MAX_TALENTS = 5;
+
+// 显示天赋商店（在下楼前调用）
+// nextFloor: 即将进入的楼层号
+// isHell: 是否是地狱模式
+function showTalentShop(nextFloor, isHell = false) {
+    // 第1层不显示商店（刚从营地出来）
+    if (nextFloor === 1 && !isHell) {
+        proceedToNextFloor(nextFloor, isHell);
+        return;
+    }
+
+    // 地狱第1层也不显示（刚进入地狱）
+    if (nextFloor === 1 && isHell) {
+        proceedToNextFloor(nextFloor, isHell);
+        return;
+    }
+
+    // 天赋已满，直接进入下一层
+    if (player.talents.length >= MAX_TALENTS) {
+        proceedToNextFloor(nextFloor, isHell);
+        return;
+    }
+
+    // 保存待进入的楼层信息
+    pendingNextFloor = { floor: nextFloor, isHell: isHell };
+
+    // 生成商店天赋
+    generateTalentShop();
+
+    // 更新UI
+    const overlay = document.getElementById('talent-shop-overlay');
+    const floorEl = document.getElementById('talent-shop-floor');
+    const goldEl = document.getElementById('talent-shop-gold');
+    const gridEl = document.getElementById('talent-grid');
+
+    floorEl.innerText = isHell ? `即将进入 地狱${nextFloor}层` : `即将进入 第${nextFloor}层`;
+    goldEl.innerText = player.gold;
+
+    // 生成天赋卡片
+    gridEl.innerHTML = '';
+    for (const talentId of player.talentShop) {
+        const talent = TALENTS[talentId];
+        if (!talent) continue;
+
+        const isOwned = player.talents.includes(talentId);
+        const canAfford = player.gold >= talent.price;
+
+        const card = document.createElement('div');
+        card.className = `talent-card tier-${talent.tier}`;
+        if (isOwned) card.classList.add('owned');
+        if (!canAfford && !isOwned) card.classList.add('cant-afford');
+
+        card.innerHTML = `
+            <div class="talent-card-icon">${talent.icon}</div>
+            <div class="talent-card-name" style="color: ${TALENT_TIER_COLORS[talent.tier]}">${talent.name}</div>
+            <div class="talent-card-desc">${talent.desc}</div>
+            <div class="talent-price">${talent.price} 金</div>
+        `;
+
+        if (!isOwned) {
+            card.onclick = () => buyTalent(talentId);
+        }
+
+        gridEl.appendChild(card);
+    }
+
+    // 显示商店
+    overlay.classList.add('active');
+    talentShopOpen = true;  // 暂停游戏
+    AudioSys.play('pickup');
+}
+
+// 确认进入下一层
+function proceedToNextFloor(floor, isHell) {
+    if (isHell) {
+        player.isInHell = true;
+        enterFloor(floor, 'start');
+    } else {
+        enterFloor(floor, 'start');
+    }
+}
+
+// 购买天赋
+function buyTalent(talentId) {
+    const talent = TALENTS[talentId];
+    if (!talent) return;
+
+    // 检查是否已拥有
+    if (player.talents.includes(talentId)) {
+        showNotification('你已经拥有这个天赋了！');
+        return;
+    }
+
+    // 检查金币是否足够
+    if (player.gold < talent.price) {
+        showNotification('金币不足！');
+        AudioSys.play('hit');
+        return;
+    }
+
+    // 扣除金币
+    player.gold -= talent.price;
+
+    // 添加天赋
+    player.talents.push(talentId);
+
+    // 播放音效和通知
+    AudioSys.play('levelup');
+    showNotification(`获得天赋：${talent.name}！`);
+
+    // 更新HUD
+    updateTalentHUD();
+
+    // 保存游戏
+    SaveSystem.save();
+
+    // 每层只能买1个，买完直接进入下一层
+    closeTalentShop();
+}
+
+// 刷新天赋商店（花费30金币）
+function refreshTalentShop() {
+    const refreshCost = 30;
+
+    if (player.gold < refreshCost) {
+        showNotification('金币不足！');
+        AudioSys.play('hit');
+        return;
+    }
+
+    player.gold -= refreshCost;
+    generateTalentShop();
+
+    // 重新渲染商店
+    const goldEl = document.getElementById('talent-shop-gold');
+    const gridEl = document.getElementById('talent-grid');
+
+    goldEl.innerText = player.gold;
+
+    // 生成天赋卡片
+    gridEl.innerHTML = '';
+    for (const talentId of player.talentShop) {
+        const talent = TALENTS[talentId];
+        if (!talent) continue;
+
+        const isOwned = player.talents.includes(talentId);
+        const canAfford = player.gold >= talent.price;
+
+        const card = document.createElement('div');
+        card.className = `talent-card tier-${talent.tier}`;
+        if (isOwned) card.classList.add('owned');
+        if (!canAfford && !isOwned) card.classList.add('cant-afford');
+
+        card.innerHTML = `
+            <div class="talent-card-icon">${talent.icon}</div>
+            <div class="talent-card-name" style="color: ${TALENT_TIER_COLORS[talent.tier]}">${talent.name}</div>
+            <div class="talent-card-desc">${talent.desc}</div>
+            <div class="talent-price">${talent.price} 金</div>
+        `;
+
+        if (!isOwned) {
+            card.onclick = () => buyTalent(talentId);
+        }
+
+        gridEl.appendChild(card);
+    }
+
+    AudioSys.play('pickup');
+}
+
+// 关闭天赋商店并进入下一层
+function closeTalentShop() {
+    talentShopOpen = false;  // 恢复游戏
+    const overlay = document.getElementById('talent-shop-overlay');
+    overlay.classList.remove('active');
+
+    // 进入待进入的楼层
+    if (pendingNextFloor) {
+        proceedToNextFloor(pendingNextFloor.floor, pendingNextFloor.isHell);
+        pendingNextFloor = null;
+    }
+}
+
+// 更新天赋HUD显示
+function updateTalentHUD() {
+    const hudEl = document.getElementById('talent-hud');
+    if (!hudEl) return;
+
+    hudEl.innerHTML = '';
+
+    for (const talentId of player.talents) {
+        const talent = TALENTS[talentId];
+        if (!talent) continue;
+
+        const icon = document.createElement('div');
+        icon.className = `talent-hud-icon tier-${talent.tier}`;
+        icon.innerText = talent.icon;
+        icon.title = `${talent.name}: ${talent.desc}`;
+
+        hudEl.appendChild(icon);
+    }
+}
+
+// 重置天赋（回城/死亡时调用）
+function resetTalents() {
+    player.talents = [];
+    player.talentShop = [];
+    player.phoenixUsed = false;
+    player.lastTalentFloor = 0;
+    updateTalentHUD();
 }
 
 // 显示传送门层数选择对话框
@@ -5034,6 +5609,26 @@ function createFloatingText(x, y, text, color = '#ffff00', duration = 2) {
 function createParticle(x, y, color, size = 3) { particles.push({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size }); }
 function checkPlayerDeath() {
     if (player.hp <= 0) {
+        // 凤凰天赋：死亡时复活一次
+        if (hasTalent('phoenix') && !player.phoenixUsed) {
+            player.phoenixUsed = true;
+            player.hp = player.maxHp * 0.5;
+            createFloatingText(player.x, player.y - 50, "凤凰涅槃！", '#ff8800', 2);
+            AudioSys.play('levelup');
+            // 创建复活特效
+            for (let i = 0; i < 20; i++) {
+                particles.push({
+                    x: player.x, y: player.y,
+                    color: '#ff8800',
+                    vx: (Math.random() - 0.5) * 200,
+                    vy: (Math.random() - 0.5) * 200,
+                    life: 1,
+                    size: 5
+                });
+            }
+            return; // 不执行死亡逻辑
+        }
+
         // 标记玩家曾经死亡
         player.died = true;
 
@@ -5186,6 +5781,12 @@ function dropLoot(monster) {
     if (isBoss) goldAmount *= 3;
     else if (isElite) goldAmount *= 1.5;
 
+    // 贪婪天赋：金币+50%
+    const greedBonus = getTalentEffect('goldPct', 0);
+    if (greedBonus > 0) {
+        goldAmount = Math.floor(goldAmount * (1 + greedBonus / 100));
+    }
+
     groundItems.push({
         type: 'gold', val: Math.floor(goldAmount),
         x: x + Math.random() * 20 - 10, y: y + Math.random() * 20 - 10,
@@ -5213,6 +5814,9 @@ function dropLoot(monster) {
     // 累积幸运加成：每次没掉好东西+1，最高50
     const luckBonus = Math.min((player.luckAccumulator || 0) * 0.01, 0.3);  // 最高+30%
 
+    // 寻宝者天赋：掉落率+30%
+    const treasureHunterBonus = getTalentEffect('dropRatePct', 0) / 100;
+
     // 计算最终掉落参数
     let dropChance, dropCount, qualityBonus;
 
@@ -5221,11 +5825,11 @@ function dropLoot(monster) {
         dropCount = 2;  // BOSS固定2件，减少数量提高质量
         qualityBonus = 0.35 + floorQualityBonus;  // BOSS基础+35%品质
     } else if (isElite) {
-        dropChance = 0.6 + floorDropBonus + luckBonus;
+        dropChance = 0.6 + floorDropBonus + luckBonus + treasureHunterBonus;
         dropCount = 1;
         qualityBonus = 0.15 + floorQualityBonus + luckBonus;
     } else {
-        dropChance = 0.35 + floorDropBonus + luckBonus;
+        dropChance = 0.35 + floorDropBonus + luckBonus + treasureHunterBonus;
         dropCount = 1;
         qualityBonus = floorQualityBonus + luckBonus;
     }
@@ -6090,6 +6694,30 @@ function updateStats() {
     player.damageReduction = damageReduction;
     player.critDamage = critDamage;
 
+    // ========== 天赋效果加成 ==========
+    // 吸血鬼天赋：+8%生命偷取
+    player.lifeSteal += getTalentEffect('lifeSteal', 0);
+    // 暴击大师天赋：+15%暴击率, +30%暴击伤害
+    player.critChance = Math.min(100, player.critChance + getTalentEffect('critChance', 0));
+    player.critDamage += getTalentEffect('critDamage', 0);
+    // 铁壁天赋：+80防御
+    player.armor += getTalentEffect('def', 0);
+    // 元素护盾天赋：+25%所有抗性
+    const talentAllRes = getTalentEffect('allRes', 0);
+    if (talentAllRes > 0) {
+        player.resistances.fire += talentAllRes;
+        player.resistances.cold += talentAllRes;
+        player.resistances.lightning += talentAllRes;
+        player.resistances.poison += talentAllRes;
+    }
+    // 法力涌动天赋：+50最大法力
+    player.maxMp += getTalentEffect('maxMp', 0);
+    // 玻璃大炮天赋：最大生命-30%
+    const maxHpPct = getTalentEffect('maxHpPct', 0);
+    if (maxHpPct !== 0) {
+        player.maxHp = Math.floor(player.maxHp * (1 + maxHpPct / 100));
+    }
+
     // 检查套装成就
     checkSetAchievements();
 }
@@ -6436,13 +7064,13 @@ window.addEventListener('keydown', e => {
             if (interactionTarget.type === 'next') {
                 const isInHell = player.isInHell || false;
                 if (isInHell) {
-                    // 在地狱中，进入下一层
+                    // 在地狱中，进入下一层（先显示天赋商店）
                     if (player.hellFloor < 10) {
-                        enterFloor(player.hellFloor + 1, 'start');
+                        showTalentShop(player.hellFloor + 1, true);
                     }
                 } else {
-                    // 普通地牢，正常进入下一层
-                    enterFloor(player.floor + 1, 'start');
+                    // 普通地牢，进入下一层（先显示天赋商店）
+                    showTalentShop(player.floor + 1, false);
                 }
             }
             else if (interactionTarget.type === 'prev') {

@@ -1669,6 +1669,261 @@
             }
         }
 
+        /* ========== 天赋商店系统样式 ========== */
+        #talent-shop-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            pointer-events: auto;
+        }
+
+        #talent-shop-overlay.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        #talent-shop {
+            background: linear-gradient(135deg, rgba(20, 20, 25, 0.98) 0%, rgba(10, 10, 15, 0.98) 100%);
+            border: 2px solid #4a3b2a;
+            border-radius: 8px;
+            padding: 15px 18px;
+            min-width: 340px;
+            max-width: 380px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.9);
+        }
+
+        .talent-shop-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #4a3b2a;
+        }
+
+        .talent-shop-title {
+            font-size: 15px;
+            color: #c7b377;
+            font-weight: bold;
+        }
+
+        .talent-shop-floor {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .talent-shop-gold {
+            text-align: center;
+            font-size: 13px;
+            color: gold;
+            margin-bottom: 10px;
+        }
+
+        .talent-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .talent-card {
+            background: rgba(30, 30, 35, 0.9);
+            border: 2px solid #444;
+            border-radius: 5px;
+            padding: 8px 6px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            min-height: 90px;
+        }
+
+        .talent-card:hover {
+            transform: translateY(-3px);
+            border-color: #c7b377;
+            box-shadow: 0 5px 20px rgba(199, 179, 119, 0.2);
+        }
+
+        .talent-card.owned {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-color: #333;
+        }
+
+        .talent-card.owned::after {
+            content: '已拥有';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-15deg);
+            font-size: 14px;
+            color: #888;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 5px 15px;
+            border-radius: 3px;
+        }
+
+        .talent-card.cant-afford {
+            opacity: 0.6;
+        }
+
+        .talent-card.cant-afford .talent-price {
+            color: #ff4444;
+        }
+
+        .talent-card-icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        .talent-card-name {
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .talent-card-desc {
+            font-size: 9px;
+            color: #aaa;
+            margin-bottom: 6px;
+            line-height: 1.3;
+        }
+
+        .talent-price {
+            font-size: 11px;
+            color: gold;
+            font-weight: bold;
+        }
+
+        /* 天赋稀有度边框 */
+        .talent-card.tier-normal {
+            border-color: #555;
+        }
+
+        .talent-card.tier-rare {
+            border-color: #4850b8;
+        }
+
+        .talent-card.tier-epic {
+            border-color: #a335ee;
+            box-shadow: inset 0 0 20px rgba(163, 53, 238, 0.1);
+        }
+
+        .talent-card.tier-legendary {
+            border-color: #ff8000;
+            box-shadow: inset 0 0 20px rgba(255, 128, 0, 0.15);
+            animation: legendaryPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes legendaryPulse {
+
+            0%,
+            100% {
+                box-shadow: inset 0 0 20px rgba(255, 128, 0, 0.15);
+            }
+
+            50% {
+                box-shadow: inset 0 0 30px rgba(255, 128, 0, 0.3);
+            }
+        }
+
+        .talent-shop-actions {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .talent-btn {
+            padding: 5px 12px;
+            font-family: 'Cinzel', serif;
+            font-size: 11px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .talent-btn-refresh {
+            background: #2a2a30;
+            color: #aaa;
+        }
+
+        .talent-btn-refresh:hover {
+            background: #3a3a40;
+            border-color: #c7b377;
+            color: #c7b377;
+        }
+
+        .talent-btn-skip {
+            background: #1a1a20;
+            color: #888;
+        }
+
+        .talent-btn-skip:hover {
+            background: #2a2a30;
+            color: #ccc;
+        }
+
+        .refresh-cost {
+            font-size: 11px;
+            color: gold;
+            margin-left: 5px;
+        }
+
+        /* 天赋HUD（显示已拥有的天赋） */
+        #talent-hud {
+            position: absolute;
+            top: 60px;
+            right: 180px;
+            display: flex;
+            gap: 5px;
+            z-index: 50;
+            pointer-events: auto;
+        }
+
+        .talent-hud-icon {
+            width: 32px;
+            height: 32px;
+            background: rgba(20, 20, 25, 0.9);
+            border: 2px solid #444;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .talent-hud-icon:hover {
+            transform: scale(1.1);
+            border-color: #c7b377;
+        }
+
+        .talent-hud-icon.tier-normal {
+            border-color: #555;
+        }
+
+        .talent-hud-icon.tier-rare {
+            border-color: #4850b8;
+        }
+
+        .talent-hud-icon.tier-epic {
+            border-color: #a335ee;
+        }
+
+        .talent-hud-icon.tier-legendary {
+            border-color: #ff8000;
+            animation: legendaryPulse 2s ease-in-out infinite;
+        }
+
         /* Checkbox Styles (Global) */
         .checkbox-label {
             position: relative;
