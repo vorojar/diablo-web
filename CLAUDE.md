@@ -118,24 +118,51 @@ const AutoBattle = {
 ### 套装系统数据结构
 
 ```javascript
-// 套装物品数据库
+// 套装物品数据库（v3.9 简化属性系统）
 const SET_ITEMS = {
     'tals_set': {           // 塔拉夏的外袍 - 法师套装
         name: "塔拉夏的外袍",
         pieces: { helm, body, belt, gloves, boots, amulet },
         bonuses: {
-            2: { stats: { ene: 10, mp: 50 } },
-            4: { stats: { fireDamage: 20, allResist: 15 } },
-            6: { stats: { critChance: 15, critDamage: 0.5 } }
+            2: { stats: { allRes: 50 } },
+            4: { stats: { mpRegen: 100, maxMp: 60 } },
+            6: { stats: { fireDmg: 200, mpRegen: 50, critChance: 10 } }
         }
     },
-    'immortal_king': {...}, // 不朽之王 - 战士套装
-    'shadow_dancer': {...}  // 暗影舞者 - 刺客套装
+    'immortal_king': {      // 不朽之王 - 战士套装
+        bonuses: {
+            2: { stats: { maxHp: 100 } },
+            4: { stats: { lifeSteal: 10, attackSpeed: 30 } },
+            6: { stats: { dmgPct: 450, def: 150 } }
+        }
+    },
+    'shadow_dancer': {      // 暗影舞者 - 刺客套装
+        bonuses: {
+            2: { stats: { attackSpeed: 30 } },
+            4: { stats: { critDamage: 75, critChance: 10 } },
+            6: { stats: { critChance: 35, dmgPct: 150, def: 40 } }
+        }
+    }
 };
 
 // 物品稀有度
 // rarity: 0-普通(白), 1-白色, 2-魔法(蓝), 3-稀有(黄), 4-暗金(金), 5-套装(绿)
 ```
+
+### 属性系统（v3.9 简化版）
+
+装备不再提供基础属性（+力量/敏捷/体力/精力），改为直接效果：
+
+| 旧属性 | 新属性 | 转换比例 |
+|--------|--------|----------|
+| `+10 力量` | `+50% 伤害` | str × 5 = dmgPct |
+| `+10 体力` | `+50 HP` | vit × 5 = maxHp |
+| `+10 精力` | `+30 MP` | ene × 3 = maxMp |
+| `+10 敏捷` | `+10 防御 +5% 暴击` | dex = def, dex × 0.5 = critChance |
+
+**设计理念**：属性点只通过升级获得，装备直接显示效果（如 `+50% 伤害`），更直观易懂。
+
+**存档迁移**：加载旧存档时，`migrateItemStats()` 函数自动将旧属性转换为新属性。
 
 ### 游戏世界数据结构
 

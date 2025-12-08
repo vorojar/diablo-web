@@ -2171,6 +2171,69 @@ function toggleAutoPickup(itemType) {
     showNotification(`自动拾取${itemType === 'gold' ? '金币' : itemType === 'potion' ? '药水' : '卷轴'}：${checkbox.checked ? '开启' : '关闭'}`);
 }
 
+// ========== 属性系统迁移函数 ==========
+// 将旧版本的基础属性(str/dex/vit/ene)转换为直接效果属性
+function migrateItemStats() {
+    let migratedCount = 0;
+
+    // 迁移单个物品
+    function migrateItem(item) {
+        if (!item || !item.stats) return false;
+        let migrated = false;
+
+        // str → dmgPct (×5)
+        if (item.stats.str) {
+            item.stats.dmgPct = (item.stats.dmgPct || 0) + item.stats.str * 5;
+            delete item.stats.str;
+            migrated = true;
+        }
+
+        // vit → maxHp (×5)
+        if (item.stats.vit) {
+            item.stats.maxHp = (item.stats.maxHp || 0) + item.stats.vit * 5;
+            delete item.stats.vit;
+            migrated = true;
+        }
+
+        // ene → maxMp (×3)
+        if (item.stats.ene) {
+            item.stats.maxMp = (item.stats.maxMp || 0) + item.stats.ene * 3;
+            delete item.stats.ene;
+            migrated = true;
+        }
+
+        // dex → def (×1) + critChance (×0.5)
+        if (item.stats.dex) {
+            item.stats.def = (item.stats.def || 0) + item.stats.dex;
+            item.stats.critChance = (item.stats.critChance || 0) + Math.floor(item.stats.dex * 0.5);
+            delete item.stats.dex;
+            migrated = true;
+        }
+
+        return migrated;
+    }
+
+    // 迁移背包物品
+    player.inventory.forEach(item => {
+        if (migrateItem(item)) migratedCount++;
+    });
+
+    // 迁移仓库物品
+    player.stash.forEach(item => {
+        if (migrateItem(item)) migratedCount++;
+    });
+
+    // 迁移已装备物品
+    Object.values(player.equipment).forEach(item => {
+        if (migrateItem(item)) migratedCount++;
+    });
+
+    if (migratedCount > 0) {
+        console.log(`[属性迁移] 已转换 ${migratedCount} 件物品的旧属性`);
+        showNotification(`已自动升级 ${migratedCount} 件装备属性`);
+    }
+}
+
 const SaveSystem = {
     init: function () {
         const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -2426,7 +2489,7 @@ const AFFIXES = {
     prefixes: [
         // 基础属性
         { name: '残忍的', stat: 'dmgPct', min: 10, max: 30 },
-        { name: '野蛮的', stat: 'str', min: 3, max: 8 },
+        { name: '野蛮的', stat: 'dmgPct', min: 15, max: 40 },
         { name: '坚固的', stat: 'def', min: 5, max: 15 },
         { name: '吸血的', stat: 'lifeSteal', min: 3, max: 5 },
         { name: '急速的', stat: 'attackSpeed', min: 5, max: 15 },
@@ -2448,12 +2511,12 @@ const AFFIXES = {
         { name: '连击的', stat: 'doubleHit', min: 10, max: 20 }
     ],
     suffixes: [
-        // 基础属性
-        { name: '之熊', stat: 'vit', min: 5, max: 10 },
-        { name: '之鹰', stat: 'dex', min: 5, max: 10 },
+        // 基础属性（已转换为直接效果）
+        { name: '之熊', stat: 'maxHp', min: 25, max: 50 },
+        { name: '之鹰', stat: 'critChance', min: 3, max: 5 },
         { name: '之吸血', stat: 'lifeSteal', min: 3, max: 6 },
         { name: '之急速', stat: 'attackSpeed', min: 5, max: 10 },
-        { name: '之力量', stat: 'str', min: 3, max: 6 },
+        { name: '之力量', stat: 'dmgPct', min: 15, max: 30 },
         // 抗性类
         { name: '之抗火', stat: 'fireRes', min: 10, max: 25 },
         { name: '之抗冰', stat: 'coldRes', min: 10, max: 25 },
@@ -2483,20 +2546,20 @@ const SET_ITEMS = {
                 icon: '🪖',
                 type: 'helm',
                 def: 15,
-                stats: { ene: 10, mpRegen: 50, allRes: 10 }
+                stats: { maxMp: 30, mpRegen: 50, allRes: 10 }
             },
             body: {
                 name: "塔拉夏的外袍",
                 icon: '🛡️',
                 type: 'armor',
                 def: 120,
-                stats: { vit: 10, ene: 15, allRes: 15 }
+                stats: { maxHp: 50, maxMp: 45, allRes: 15 }
             },
             amulet: {
                 name: "塔拉夏的裁决",
                 icon: '📿',
                 type: 'amulet',
-                stats: { ene: 15, fireDmg: 25, lightningDmg: 25 }
+                stats: { maxMp: 45, fireDmg: 25, lightningDmg: 25 }
             },
             mainhand: {
                 name: "塔拉夏的永恒权杖",
@@ -2504,21 +2567,21 @@ const SET_ITEMS = {
                 type: 'weapon',
                 minDmg: 15,
                 maxDmg: 35,
-                stats: { ene: 20, fireDmg: 40 }
+                stats: { maxMp: 60, fireDmg: 40 }
             },
             belt: {
                 name: "塔拉夏的束带",
                 icon: '🎗️',
                 type: 'belt',
                 def: 10,
-                stats: { ene: 10, maxMp: 30, fireDmg: 15 }
+                stats: { maxMp: 60, fireDmg: 15 }
             },
             gloves: {
                 name: "塔拉夏的灵巧",
                 icon: '🧤',
                 type: 'gloves',
                 def: 8,
-                stats: { ene: 12, attackSpeed: 20, lightningDmg: 20 }
+                stats: { maxMp: 36, attackSpeed: 20, lightningDmg: 20 }
             }
         },
         bonuses: {
@@ -2527,8 +2590,8 @@ const SET_ITEMS = {
                 stats: { allRes: 50 }
             },
             4: {
-                desc: "法力恢复速度 +100%，能量 +20",
-                stats: { mpRegen: 100, ene: 20 }
+                desc: "法力恢复速度 +100%，最大法力 +60",
+                stats: { mpRegen: 100, maxMp: 60 }
             },
             6: {
                 desc: "火焰伤害 +200，法力回复 +50%，暴击率 +10%",
@@ -2546,21 +2609,21 @@ const SET_ITEMS = {
                 icon: '🪖',
                 type: 'helm',
                 def: 20,
-                stats: { str: 10, vit: 10 }
+                stats: { dmgPct: 50, maxHp: 50 }
             },
             body: {
                 name: "不朽之王的灵魂牢笼",
                 icon: '🛡️',
                 type: 'armor',
                 def: 200,
-                stats: { str: 15, vit: 20, def: 50 }
+                stats: { dmgPct: 75, maxHp: 100, def: 50 }
             },
             boots: {
                 name: "不朽之王的践踏",
                 icon: '👢',
                 type: 'boots',
                 def: 15,
-                stats: { str: 10, vit: 10 }
+                stats: { dmgPct: 50, maxHp: 50 }
             },
             mainhand: {
                 name: "不朽之王的石碎器",
@@ -2568,83 +2631,83 @@ const SET_ITEMS = {
                 type: 'weapon',
                 minDmg: 30,
                 maxDmg: 60,
-                stats: { str: 25, dmgPct: 50 }
+                stats: { dmgPct: 175 }
             },
             belt: {
                 name: "不朽之王的细节",
                 icon: '🥋',
                 type: 'belt',
                 def: 18,
-                stats: { str: 12, vit: 15, def: 25 }
+                stats: { dmgPct: 60, maxHp: 75, def: 25 }
             },
             gloves: {
                 name: "不朽之王的钢铁之握",
                 icon: '🧤',
                 type: 'gloves',
                 def: 12,
-                stats: { str: 15, attackSpeed: 15, dmgPct: 30 }
+                stats: { dmgPct: 105, attackSpeed: 15 }
             }
         },
         bonuses: {
             2: {
                 desc: "+100 最大生命",
-                stats: { vit: 20 }
+                stats: { maxHp: 100 }
             },
             4: {
                 desc: "生命偷取 +10%，攻击速度 +30%",
                 stats: { lifeSteal: 10, attackSpeed: 30 }
             },
             6: {
-                desc: "物理伤害 +300%，防御 +150，力量 +30",
-                stats: { dmgPct: 300, def: 150, str: 30 }
+                desc: "物理伤害 +450%，防御 +150",
+                stats: { dmgPct: 450, def: 150 }
             }
         }
     },
 
     'shadow_dancer': {
         name: "暗影舞者",
-        description: "刺客专属套装，强化敏捷和暴击",
+        description: "刺客专属套装，强化暴击和攻速",
         pieces: {
             helm: {
                 name: "暗影舞者的面罩",
                 icon: '🪖',
                 type: 'helm',
-                def: 12,
-                stats: { dex: 15, attackSpeed: 10 }
+                def: 27,
+                stats: { critChance: 8, attackSpeed: 10 }
             },
             body: {
                 name: "暗影舞者的披风",
                 icon: '🛡️',
                 type: 'armor',
-                def: 80,
-                stats: { dex: 20, attackSpeed: 15 }
+                def: 100,
+                stats: { critChance: 10, attackSpeed: 15 }
             },
             gloves: {
                 name: "暗影舞者的利爪",
                 icon: '🧤',
                 type: 'gloves',
-                def: 8,
-                stats: { dex: 15, attackSpeed: 20 }
+                def: 23,
+                stats: { critChance: 8, attackSpeed: 20 }
             },
             boots: {
                 name: "暗影舞者的迅捷",
                 icon: '👢',
                 type: 'boots',
-                def: 10,
-                stats: { dex: 15, attackSpeed: 15 }
+                def: 25,
+                stats: { critChance: 8, attackSpeed: 15 }
             },
             belt: {
                 name: "暗影舞者的束缚",
                 icon: '🎗️',
                 type: 'belt',
-                def: 9,
-                stats: { dex: 12, attackSpeed: 12, critDamage: 20 }
+                def: 21,
+                stats: { critChance: 6, attackSpeed: 12, critDamage: 20 }
             },
             amulet: {
                 name: "暗影舞者的徽记",
                 icon: '📿',
                 type: 'amulet',
-                stats: { dex: 18, critDamage: 30, dmgPct: 25 }
+                stats: { critChance: 9, critDamage: 30, dmgPct: 25 }
             }
         },
         bonuses: {
@@ -2653,12 +2716,12 @@ const SET_ITEMS = {
                 stats: { attackSpeed: 30 }
             },
             4: {
-                desc: "暴击伤害 +75%，敏捷 +20",
-                stats: { critDamage: 75, dex: 20 }
+                desc: "暴击伤害 +75%，暴击率 +10%",
+                stats: { critDamage: 75, critChance: 10 }
             },
             6: {
-                desc: "敏捷 +40，伤害 +150%，暴击率 +15%",
-                stats: { dex: 40, dmgPct: 150, critChance: 15 }
+                desc: "暴击率 +20%，伤害 +150%，防御 +40",
+                stats: { critChance: 35, dmgPct: 150, def: 40 }
             }
         }
     }
@@ -2807,6 +2870,10 @@ function startGame() {
         // 向后兼容：旧存档没有掉落系统幸运值
         if (player.luckAccumulator === undefined) player.luckAccumulator = 0;
         if (player.killsSincePotion === undefined) player.killsSincePotion = 0;
+
+        // ========== 属性系统迁移 v3.9 ==========
+        // 将旧的基础属性(str/dex/vit/ene)转换为直接效果属性
+        migrateItemStats();
     }
     else {
         addItemToInventory(createItem('短剑', 0)); addItemToInventory(createItem('治疗药剂', 0)); addItemToInventory(createItem('回城卷轴', 0));
@@ -4654,7 +4721,7 @@ function createItem(baseName, level) {
         const s = AFFIXES.suffixes[Math.floor(Math.random() * AFFIXES.suffixes.length)];
         item.displayName += s.name; item.stats[s.stat] = (item.stats[s.stat] || 0) + Math.floor(Math.random() * (s.max - s.min)) + s.min;
     }
-    if (item.rarity === 4) { item.displayName = "暗金·" + item.name; item.stats.allSkills = 1; item.stats.str = 10; item.stats.lifeSteal = 5; }
+    if (item.rarity === 4) { item.displayName = "暗金·" + item.name; item.stats.allSkills = 1; item.stats.dmgPct = 50; item.stats.lifeSteal = 5; }
 
     // 计算并添加装备需求
     const requirements = calculateItemRequirements(item, level || 1, item.rarity);
@@ -5136,7 +5203,7 @@ function dropLoot(monster) {
                 if (item.rarity === 4 && !item.displayName.startsWith('暗金')) {
                     item.displayName = "暗金·" + item.name;
                     item.stats.allSkills = (item.stats.allSkills || 0) + 1;
-                    item.stats.str = (item.stats.str || 0) + 10;
+                    item.stats.dmgPct = (item.stats.dmgPct || 0) + 50;
                     item.stats.lifeSteal = (item.stats.lifeSteal || 0) + 5;
                 }
             }
@@ -5718,7 +5785,7 @@ function gambleItem(type) {
             const s = AFFIXES.suffixes[Math.floor(Math.random() * AFFIXES.suffixes.length)];
             item.displayName += s.name; item.stats[s.stat] = (item.stats[s.stat] || 0) + Math.floor(Math.random() * (s.max - s.min)) + s.min;
         }
-        if (rarity === 4) { item.displayName = "暗金·" + item.name; item.stats = { allSkills: 1, str: 10, lifeSteal: 5 }; }
+        if (rarity === 4) { item.displayName = "暗金·" + item.name; item.stats = { allSkills: 1, dmgPct: 50, lifeSteal: 5 }; }
 
         if (!addItemToInventory(item)) {
             player.gold += cost; // 返还金币
@@ -5807,8 +5874,8 @@ function calculateEquippedSets() {
 }
 
 function updateStats() {
-    let str = player.str, dex = player.dex, vit = player.vit, ene = player.ene;
-    // Fixed: Stats scaling fix (Str 5%, Dex 1 Armor + 0.5% Crit)
+    // 基础属性只来自玩家手动分配的点数
+    const str = player.str, dex = player.dex, vit = player.vit, ene = player.ene;
     let baseDmg = 2, armor = 0, ls = 0, ias = 0;
 
     // 重置抗性和元素伤害
@@ -5818,17 +5885,17 @@ function updateStats() {
     // 初始化新属性
     let hpRegen = 0, mpRegen = 0, blockChance = 0, reflectDamage = 0;
     let damageReduction = 0, critDamage = 0, allRes = 0, bonusCritChance = 0;
-    let dmgPct = 0;  // 百分比伤害加成（词缀"残忍的"）
+    let dmgPct = 0;  // 百分比伤害加成
+    let bonusHp = 0, bonusMp = 0;  // 装备直接加的HP/MP
 
     Object.values(player.equipment).forEach(i => {
         if (!i) return;
         if (i.stats) {
-            str += (i.stats.str || 0);
-            vit += (i.stats.vit || 0);
-            dex += (i.stats.dex || 0);
-            ene += (i.stats.ene || 0);  // 能量（套装加成）
+            // 直接效果属性（不再读取str/dex/vit/ene）
             ls += (i.stats.lifeSteal || 0);
             ias += (i.stats.attackSpeed || 0);
+            bonusHp += (i.stats.maxHp || 0);  // 直接加HP
+            bonusMp += (i.stats.maxMp || 0);  // 直接加MP
 
             // 抗性
             player.resistances.fire += (i.stats.fireRes || 0);
@@ -5849,13 +5916,13 @@ function updateStats() {
             reflectDamage += (i.stats.reflectDamage || 0);
             damageReduction += (i.stats.damageReduction || 0);
             critDamage += (i.stats.critDamage || 0);
-            dmgPct += (i.stats.dmgPct || 0);  // 百分比伤害（词缀"残忍的"）
+            dmgPct += (i.stats.dmgPct || 0);  // 百分比伤害
             bonusCritChance += (i.stats.critChance || 0);  // 暴击率加成
         }
         if (i.minDmg) baseDmg = i.minDmg;
         if (i.def) armor += i.def;
-        // 词缀和套装加的防御（存在stats.def中）
-        armor += (i.stats.def || 0);
+        // 词缀和套装加的防御
+        if (i.stats) armor += (i.stats.def || 0);
     });
 
     // 应用全能抗性
@@ -5871,27 +5938,6 @@ function updateStats() {
     player.resistances.cold = Math.max(-100, Math.min(75, player.resistances.cold));
     player.resistances.lightning = Math.max(-100, Math.min(75, player.resistances.lightning));
     player.resistances.poison = Math.max(-100, Math.min(75, player.resistances.poison));
-
-    // New Formula（包含词缀dmgPct加成）
-    const dmgMultiplier = 1 + dmgPct / 100;  // 词缀"残忍的"百分比伤害
-    player.damage = [
-        Math.floor((baseDmg + Math.floor(str / 5)) * (1 + str * 0.05) * dmgMultiplier),
-        Math.floor((baseDmg + 3 + Math.floor(str / 5)) * (1 + str * 0.05) * dmgMultiplier)
-    ];
-    player.maxHp = vit * 5;
-    player.maxMp = ene * 3;
-    player.armor = armor + dex; // 1 Dex = 1 Armor
-    player.lifeSteal = ls;
-    player.attackSpeed = ias;
-    player.critChance = Math.min(100, 5 + dex * 0.5 + bonusCritChance); // 5% Base + 0.5% per Dex + 装备加成
-
-    // 保存新属性到player对象（供后续使用）
-    player.hpRegen = hpRegen;
-    player.mpRegen = mpRegen;
-    player.blockChance = blockChance;
-    player.reflectDamage = reflectDamage;
-    player.damageReduction = damageReduction;
-    player.critDamage = critDamage;
 
     // ========== 套装加成系统 ==========
     // 计算当前穿戴的套装件数
@@ -5909,14 +5955,12 @@ function updateStats() {
             if (pieceCount >= parseInt(requiredPieces)) {
                 const bonusStats = setData.bonuses[requiredPieces].stats;
 
-                // 应用套装加成的属性
-                str += (bonusStats.str || 0);
-                vit += (bonusStats.vit || 0);
-                dex += (bonusStats.dex || 0);
-                ene += (bonusStats.ene || 0);
+                // 应用套装加成的直接效果（不再使用str/dex/vit/ene）
                 ls += (bonusStats.lifeSteal || 0);
                 ias += (bonusStats.attackSpeed || 0);
                 armor += (bonusStats.def || 0);
+                bonusHp += (bonusStats.maxHp || 0);
+                bonusMp += (bonusStats.maxMp || 0);
 
                 // 抗性加成
                 if (bonusStats.allRes) {
@@ -5939,11 +5983,7 @@ function updateStats() {
                 damageReduction += (bonusStats.damageReduction || 0);
                 critDamage += (bonusStats.critDamage || 0);
                 bonusCritChance += (bonusStats.critChance || 0);
-
-                // 百分比加成（需要重新计算）
-                if (bonusStats.dmgPct) {
-                    baseDmg = Math.floor(baseDmg * (1 + bonusStats.dmgPct / 100));
-                }
+                dmgPct += (bonusStats.dmgPct || 0);  // 百分比伤害加成
             }
         }
     }
@@ -5954,13 +5994,14 @@ function updateStats() {
     player.resistances.lightning = Math.max(-100, Math.min(75, player.resistances.lightning));
     player.resistances.poison = Math.max(-100, Math.min(75, player.resistances.poison));
 
-    // 重新计算最终属性（包含套装加成和词缀dmgPct）
+    // 重新计算最终属性（包含套装加成）
+    const finalDmgMultiplier = 1 + dmgPct / 100;  // 包含装备和套装的百分比加成
     player.damage = [
-        Math.floor((baseDmg + Math.floor(str / 5)) * (1 + str * 0.05) * dmgMultiplier),
-        Math.floor((baseDmg + 3 + Math.floor(str / 5)) * (1 + str * 0.05) * dmgMultiplier)
+        Math.floor((baseDmg + Math.floor(str / 5)) * (1 + str * 0.05) * finalDmgMultiplier),
+        Math.floor((baseDmg + 3 + Math.floor(str / 5)) * (1 + str * 0.05) * finalDmgMultiplier)
     ];
-    player.maxHp = vit * 5;
-    player.maxMp = ene * 3;
+    player.maxHp = vit * 5 + bonusHp;  // 基础 + 装备/套装加成
+    player.maxMp = ene * 3 + bonusMp;  // 基础 + 装备/套装加成
     player.armor = armor + dex;
     player.lifeSteal = ls;
     player.attackSpeed = ias;
