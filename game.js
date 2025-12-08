@@ -1750,8 +1750,8 @@ const AutoBattle = {
                 }
             }
             else if (it.name === '法力药剂' && player.autoPickup.potion && dist < 400) {
-                if (canStack || !inventoryFull) {
-                    // 没有蓝药时提升优先级
+                // 没有蓝药时，可以丢弃低价值装备腾空间（和套装同等重要）
+                if (canStack || !inventoryFull || (!hasManaPotion && canMakeRoom(true))) {
                     if (!hasManaPotion) urgentPotions.push({ item: it, dist });
                     else consumables.push({ item: it, dist });
                 }
@@ -3420,9 +3420,47 @@ function update(dt) {
                     } else {
                         // 拾取物品到背包
                         if (!addItemToInventory(item)) {
-                            createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
-                            player.targetItem = null;
-                            return; // 不要移除地面物品
+                            // 背包满了，检查是否是高优先级物品（套装、暗金、紧急药水）需要腾空间
+                            const isHighPriority = item.isSet || item.rarity >= 4 ||
+                                (item.name === '法力药剂' && !player.inventory.find(i => i && i.name === '法力药剂')) ||
+                                (item.name === '治疗药剂' && !player.inventory.find(i => i && i.name === '治疗药剂'));
+
+                            if (isHighPriority && AutoBattle.enabled) {
+                                // 尝试丢弃低价值装备腾空间
+                                const forSet = item.isSet || item.name === '法力药剂' || item.name === '治疗药剂';
+                                let dropped = false;
+                                for (let i = 0; i < player.inventory.length; i++) {
+                                    const it = player.inventory[i];
+                                    if (!it) continue;
+                                    // 永远不丢：套装、暗金、药水、卷轴
+                                    if (it.isSet || it.rarity >= 4 || it.name === '治疗药剂' || it.name === '法力药剂' || it.name === '回城卷轴') continue;
+                                    // 为高优先级物品腾空间时，稀有(黄)也可以丢
+                                    if (forSet || it.rarity < 3) {
+                                        // 丢弃这件装备
+                                        groundItems.push({ ...it, x: player.x + (Math.random() - 0.5) * 40, y: player.y + (Math.random() - 0.5) * 40 });
+                                        player.inventory[i] = null;
+                                        showNotification(`丢弃 ${it.displayName || it.name} 腾出空间`);
+                                        dropped = true;
+                                        break;
+                                    }
+                                }
+                                if (dropped) {
+                                    // 再次尝试拾取
+                                    if (!addItemToInventory(item)) {
+                                        createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
+                                        player.targetItem = null;
+                                        return;
+                                    }
+                                } else {
+                                    createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
+                                    player.targetItem = null;
+                                    return;
+                                }
+                            } else {
+                                createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
+                                player.targetItem = null;
+                                return; // 不要移除地面物品
+                            }
                         }
                     }
 
@@ -3849,9 +3887,22 @@ function draw() {
     enemies.forEach(e => {
         if (e.dead) { ctx.fillStyle = '#330000'; ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2); ctx.fill(); return; }
 
+        // BOSS脚下光环
+        if (e.isBoss) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(e.x, e.y, (e.radius + 5) / 2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(180, 0, 0, 0.25)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 50, 50, 0.5)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.restore();
+        }
+
         if (spritesLoaded && processedSpriteSheet && e.frameIndex !== undefined) {
             const frame = getMonsterFrame(e.frameIndex);
-            const renderHeight = 44;
+            const renderHeight = e.isBoss ? 44 * 1.5 : 44;  // BOSS 1.5倍大
             const renderWidth = renderHeight * frame.width / frame.height;
             ctx.drawImage(processedSpriteSheet, frame.x, frame.y, frame.width, frame.height,
                 e.x - renderWidth / 2, e.y - renderHeight, renderWidth, renderHeight);
@@ -3866,7 +3917,7 @@ function draw() {
         ctx.fillStyle = e.isBoss ? '#f33' : (e.rarity > 0 ? '#fa0' : '#ccc');
         ctx.font = '10px Cinzel';
         ctx.textAlign = 'center';
-        ctx.fillText(e.name, e.x, e.y - e.radius - 35);
+        ctx.fillText(e.isBoss ? '☠️ ' + e.name : e.name, e.x, e.y - e.radius - 35);
 
         // 渲染精英词缀
         if (e.eliteAffixes && e.eliteAffixes.length > 0) {
