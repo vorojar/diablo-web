@@ -62,25 +62,12 @@
                 </video>
                 <div id="welcome-back"></div>
                 <button class="start-btn" onclick="startGame()">踏入庇护所</button>
-                <div class="settings-box">
-                    <label class="setting-item"><input type="checkbox" id="chk-bgm" checked
-                            onchange="AudioSys.toggleSetting('bgm', this.checked)"> 背景音乐</label>
-                    <label class="setting-item"><input type="checkbox" id="chk-sfx" checked
-                            onchange="AudioSys.toggleSetting('sfx', this.checked)"> 音效</label>
-                    <hr style="border-color: #555; margin: 10px 0;">
-                    <label class="setting-item"><input type="checkbox" id="chk-auto-gold" checked
-                            onchange="toggleAutoPickup('gold')"> 自动拾取金币</label>
-                    <label class="setting-item"><input type="checkbox" id="chk-auto-potion" checked
-                            onchange="toggleAutoPickup('potion')"> 自动拾取药水</label>
-                    <label class="setting-item"><input type="checkbox" id="chk-auto-scroll" checked
-                            onchange="toggleAutoPickup('scroll')"> 自动拾取卷轴</label>
-                </div>
+
                 <div id="save-status" style="color: #fff; font-size: 12px; margin-top: 20px;">
                     正在检查存档...
                     <span onclick="confirmResetSave()"
                         style="color: #ff4444; text-decoration: underline; cursor: pointer; margin-left: 10px; font-size: 11px;">清除存档</span>
                 </div>
-                <p style="color: #fff; margin-top: 10px;">[C] 角色 [I] 物品 [T] 技能 [J] 任务 [Alt] 显示物品</p>
                 <p style="color: #888; font-size: 11px; margin-top: 10px;">v3.7</p>
             </div>
 
@@ -297,79 +284,141 @@
 
             <div id="auto-battle-panel" class="panel">
                 <div class="panel-close" onclick="togglePanel('auto-battle')">X</div>
-                <div class="panel-header">自动战斗设置</div>
-                <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
-                    <span>战斗策略</span>
+                <div class="panel-header">系统设置</div>
+
+                <!-- Tabs -->
+                <div class="settings-tabs">
+                    <button class="tab-btn active" id="tab-btn-combat"
+                        onclick="switchSettingsTab('combat')">挂机策略</button>
+                    <button class="tab-btn" id="tab-btn-general" onclick="switchSettingsTab('general')">通用设置</button>
                 </div>
 
-                <div class="stat-row">
-                    <span>优先使用技能</span>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="auto-use-skill" checked onchange="updateAutoBattleSettings()">
-                        <span class="checkmark"></span>
-                    </label>
-                </div>
+                <!-- Tab 1: Combat Strategy -->
+                <div id="tab-combat" class="tab-content" style="display: block;">
+                    <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
+                        <span>战斗策略</span>
+                    </div>
 
-                <div class="stat-row">
-                    <span>保持距离 (远程)</span>
-                    <div>
-                        <input type="range" id="auto-keep-distance" min="50" max="300" value="150" step="10"
-                            onchange="updateAutoBattleSettings(); updateDistanceDisplay()">
-                        <span id="distance-display" style="color: #88ff88; font-size: 12px;">150</span>
+                    <div class="stat-row">
+                        <span>优先使用技能</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="auto-use-skill" checked onchange="updateAutoBattleSettings()">
+                            <span class="checkmark"></span>
+                        </label>
+                    </div>
+
+                    <div class="stat-row">
+                        <span>保持距离 (远程)</span>
+                        <div>
+                            <input type="range" id="auto-keep-distance" min="50" max="300" value="150" step="10"
+                                onchange="updateAutoBattleSettings(); updateDistanceDisplay()">
+                            <span id="distance-display" style="color: #88ff88; font-size: 12px;">150</span>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: #333; margin: 15px 0;">
+                    <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
+                        <span>生存设置</span>
+                    </div>
+
+                    <div class="stat-row">
+                        <span>喝红药阈值</span>
+                        <div>
+                            <input type="range" id="auto-hp-threshold" min="10" max="80" value="30" step="5"
+                                onchange="updateAutoBattleSettings(); updateHpDisplay()">
+                            <span id="hp-threshold-display" style="color: #ff4444; font-size: 12px;">30%</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-row">
+                        <span>喝蓝药阈值</span>
+                        <div>
+                            <input type="range" id="auto-mp-threshold" min="10" max="50" value="20" step="5"
+                                onchange="updateAutoBattleSettings(); updateMpDisplay()">
+                            <span id="mp-threshold-display" style="color: #4444ff; font-size: 12px;">20%</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-row">
+                        <span>紧急回城阈值</span>
+                        <div>
+                            <input type="range" id="auto-emergency-hp" min="5" max="30" value="15" step="5"
+                                onchange="updateAutoBattleSettings(); updateEmergencyDisplay()">
+                            <span id="emergency-display" style="color: #ff0000; font-size: 12px;">15%</span>
+                        </div>
+                    </div>
+
+                    <hr style="border-color: #333; margin: 15px 0;">
+                    <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
+                        <span>高级拾取</span>
+                    </div>
+
+                    <div class="stat-row">
+                        <span>自动拾取暗金</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="auto-pickup-unique" checked
+                                onchange="updateAutoBattleSettings()">
+                            <span class="checkmark"></span>
+                        </label>
+                    </div>
+
+                    <div class="stat-row">
+                        <span>自动拾取套装</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="auto-pickup-set" checked onchange="updateAutoBattleSettings()">
+                            <span class="checkmark"></span>
+                        </label>
                     </div>
                 </div>
 
-                <hr style="border-color: #333; margin: 15px 0;">
-                <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
-                    <span>生存设置</span>
-                </div>
-
-                <div class="stat-row">
-                    <span>喝红药阈值</span>
-                    <div>
-                        <input type="range" id="auto-hp-threshold" min="10" max="80" value="30" step="5"
-                            onchange="updateAutoBattleSettings(); updateHpDisplay()">
-                        <span id="hp-threshold-display" style="color: #ff4444; font-size: 12px;">30%</span>
+                <!-- Tab 2: General Settings -->
+                <div id="tab-general" class="tab-content" style="display: none;">
+                    <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
+                        <span>音效设置</span>
                     </div>
-                </div>
-
-                <div class="stat-row">
-                    <span>喝蓝药阈值</span>
-                    <div>
-                        <input type="range" id="auto-mp-threshold" min="10" max="50" value="20" step="5"
-                            onchange="updateAutoBattleSettings(); updateMpDisplay()">
-                        <span id="mp-threshold-display" style="color: #4444ff; font-size: 12px;">20%</span>
+                    <div class="stat-row">
+                        <span>背景音乐</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="chk-bgm" checked
+                                onchange="AudioSys.toggleSetting('bgm', this.checked)">
+                            <span class="checkmark"></span>
+                        </label>
                     </div>
-                </div>
-
-                <div class="stat-row">
-                    <span>紧急回城阈值</span>
-                    <div>
-                        <input type="range" id="auto-emergency-hp" min="5" max="30" value="15" step="5"
-                            onchange="updateAutoBattleSettings(); updateEmergencyDisplay()">
-                        <span id="emergency-display" style="color: #ff0000; font-size: 12px;">15%</span>
+                    <div class="stat-row">
+                        <span>音效</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="chk-sfx" checked
+                                onchange="AudioSys.toggleSetting('sfx', this.checked)">
+                            <span class="checkmark"></span>
+                        </label>
                     </div>
-                </div>
 
-                <hr style="border-color: #333; margin: 15px 0;">
-                <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
-                    <span>拾取设置</span>
-                </div>
+                    <hr style="border-color: #333; margin: 15px 0;">
+                    <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
+                        <span>基础拾取</span>
+                    </div>
 
-                <div class="stat-row">
-                    <span>自动拾取暗金</span>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="auto-pickup-unique" checked onchange="updateAutoBattleSettings()">
-                        <span class="checkmark"></span>
-                    </label>
-                </div>
-
-                <div class="stat-row">
-                    <span>自动拾取套装</span>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="auto-pickup-set" checked onchange="updateAutoBattleSettings()">
-                        <span class="checkmark"></span>
-                    </label>
+                    <div class="stat-row">
+                        <span>自动拾取金币</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="chk-auto-gold" checked onchange="toggleAutoPickup('gold')">
+                            <span class="checkmark"></span>
+                        </label>
+                    </div>
+                    <div class="stat-row">
+                        <span>自动拾取药水</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="chk-auto-potion" checked onchange="toggleAutoPickup('potion')">
+                            <span class="checkmark"></span>
+                        </label>
+                    </div>
+                    <div class="stat-row">
+                        <span>自动拾取卷轴</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="chk-auto-scroll" checked onchange="toggleAutoPickup('scroll')">
+                            <span class="checkmark"></span>
+                        </label>
+                    </div>
                 </div>
             </div>
 

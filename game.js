@@ -6243,7 +6243,7 @@ window.addEventListener('keydown', e => {
                         // 直接传送（lastFloor 和 maxFloor 相同，或只有一个有效）
                         // 优先级：lastFloor > maxFloor > townPortal.returnFloor
                         const targetFloor = player.lastFloor > 0 ? player.lastFloor :
-                                           (player.maxFloor > 0 ? player.maxFloor : townPortal.returnFloor);
+                            (player.maxFloor > 0 ? player.maxFloor : townPortal.returnFloor);
                         enterFloor(targetFloor, 'portal');
                     }
                 }
@@ -6574,6 +6574,20 @@ function updateMpDisplay() {
 function updateEmergencyDisplay() {
     const val = document.getElementById('auto-emergency-hp').value;
     document.getElementById('emergency-display').textContent = val + '%';
+}
+
+
+function switchSettingsTab(tabName) {
+    // Hide all contents
+    document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+    // Show selected content
+    const content = document.getElementById(`tab-${tabName}`);
+    if (content) content.style.display = 'block';
+
+    // Update buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    const btn = document.getElementById(`tab-btn-${tabName}`);
+    if (btn) btn.classList.add('active');
 }
 
 initDragging();
