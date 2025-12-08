@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- ========== 发布版本号：3.7 （更新时修改此处，然后全局替换 ?v=旧版本 为 ?v=新版本）========== -->
+<!-- 使用 Service Worker 网络优先策略，无需手动更新版本号 -->
 <html lang="zh-CN">
 
 <head>
@@ -27,7 +27,7 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=3.7">
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
@@ -500,16 +500,21 @@
         </div>
     </div>
 
-    <script src="game.js?v=3.7"></script>
-    </script>
+    <script src="game.js"></script>
     <script src="pocketbase.umd.js"></script>
-    <script src="online.js?v=3.7"></script>
-    </script>
+    <script src="online.js"></script>
     <script>
         // 显示欢迎回来信息
         const savedNickname = localStorage.getItem('pb_nickname');
         if (savedNickname) {
             document.getElementById('welcome-back').textContent = `欢迎回来，${savedNickname}`;
+        }
+
+        // 注册 Service Worker（网络优先策略，自动获取最新代码）
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/diablo/sw.js')
+                .then(() => console.log('SW registered'))
+                .catch(err => console.log('SW registration failed:', err));
         }
     </script>
 </body>

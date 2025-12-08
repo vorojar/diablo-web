@@ -94,6 +94,53 @@ let enemies = [];
 let groundItems = [];
 let projectiles = [];
 let npcs = [];
+
+// 敌人对象池系统 - 复用对象减少GC压力
+const EnemyPool = {
+    pool: [],           // 可复用的敌人对象
+    maxPoolSize: 100,   // 池最大容量
+
+    // 从池中获取或创建新敌人对象
+    acquire(props) {
+        let enemy;
+        if (this.pool.length > 0) {
+            enemy = this.pool.pop();
+        } else {
+            enemy = {};
+        }
+        // 重置所有属性
+        Object.assign(enemy, {
+            x: 0, y: 0, hp: 0, maxHp: 0, dmg: 0, speed: 0, radius: 12,
+            dead: false, cooldown: 0, name: '', rarity: 0, xpValue: 0,
+            frameIndex: 0, ai: 'chase', isBoss: false, isQuestTarget: false,
+            eliteAffixes: null, frozenTimer: 0, damageReduction: 0,
+            ...props
+        });
+        return enemy;
+    },
+
+    // 回收敌人对象到池中
+    release(enemy) {
+        if (this.pool.length < this.maxPoolSize) {
+            // 清理引用防止内存泄漏
+            enemy.eliteAffixes = null;
+            this.pool.push(enemy);
+        }
+    },
+
+    // 获取池状态（调试用，控制台输入 EnemyPool.getStats() 查看）
+    getStats() {
+        const alive = enemies.filter(e => !e.dead).length;
+        const dead = enemies.filter(e => e.dead).length;
+        return {
+            poolSize: this.pool.length,      // 对象池中可复用的对象数
+            totalInArray: enemies.length,    // 数组中总敌人数
+            aliveEnemies: alive,             // 活着的敌人数
+            deadBodies: dead,                // 尸体数（等待回收）
+            reuseRate: this.pool.length > 0 ? '对象池有效' : '池为空'
+        };
+    }
+};
 let autoSaveTimer = 0;
 let cleanupTimer = 0;
 let isAltPressed = false;
@@ -2797,6 +2844,8 @@ function enterFloor(f, spawnAt = 'start') {
         });
     }
 
+    // 回收所有敌人到对象池
+    enemies.forEach(e => EnemyPool.release(e));
     enemies = []; groundItems = []; projectiles = []; npcs = [];
 
     // 清空A*寻路缓存（新楼层需要重新计算路径）
@@ -2898,12 +2947,12 @@ function enterFloor(f, spawnAt = 'start') {
             let speed = Math.floor(baseSpeed * difficulty.monsterSpeedMult);
             let xpValue = Math.floor(baseXp * difficulty.xpMult);
 
-            enemies.push({
+            enemies.push(EnemyPool.acquire({
                 x, y, hp, maxHp: hp, dmg, speed, radius: 12,
                 dead: false, cooldown: 0, name: isInHell ? "地狱沉沦魔" : "沉沦魔",
                 rarity: Math.random() < 0.1 ? 1 : 0, xpValue: xpValue,
                 frameIndex: MONSTER_FRAMES.melee
-            });
+            }));
         }
         // 无限层级BOSS生成逻辑
         const bossData = getBossSpawnInfo(f);
@@ -2936,7 +2985,7 @@ function enterFloor(f, spawnAt = 'start') {
                 xpValue = Math.floor(xpValue * 1.5);
             }
 
-            enemies.push({
+            enemies.push(EnemyPool.acquire({
                 x, y, hp, maxHp: hp, dmg, speed, radius: 30,
                 dead: false, cooldown: 0, name: bossData.name,
                 isBoss: true,
@@ -2946,7 +2995,7 @@ function enterFloor(f, spawnAt = 'start') {
                 frameIndex: getBossFrameIndex(bossData.originalName),
                 // 赋予一些精英词缀
                 eliteAffixes: isInHell || f > 10 ? [ELITE_AFFIXES[Math.floor(Math.random() * ELITE_AFFIXES.length)]] : []
-            });
+            }));
 
             const noticeText = isQuestTarget ? `警告：发现了 ${bossData.name}！` : `遭遇强敌：${bossData.name}！`;
             showNotification(noticeText);
@@ -3086,11 +3135,23 @@ function update(dt) {
     if (player.attackAnim > 0) player.attackAnim -= dt * 5;
     for (let k in player.skillCooldowns) if (player.skillCooldowns[k] > 0) player.skillCooldowns[k] -= dt;
 
-    // 定期清理死亡敌人（每10秒）
+    // 定期清理死亡敌人（每3秒，使用对象池回收）
     cleanupTimer += dt;
-    if (cleanupTimer > 10) {
+    if (cleanupTimer > 3) {
         cleanupTimer = 0;
-        enemies = enemies.filter(e => !e.dead);
+        // 使用原地过滤算法，避免创建新数组
+        let writeIdx = 0;
+        for (let readIdx = 0; readIdx < enemies.length; readIdx++) {
+            const e = enemies[readIdx];
+            // 保留活着的敌人，以及200像素内的尸体（用于复活者AI）
+            if (!e.dead || Math.hypot(e.x - player.x, e.y - player.y) < 200) {
+                enemies[writeIdx++] = e;
+            } else {
+                // 回收到对象池
+                EnemyPool.release(e);
+            }
+        }
+        enemies.length = writeIdx; // 截断数组
 
         // 清理过期地面物品
         const now = Date.now();
@@ -3376,8 +3437,7 @@ function update(dt) {
     damageNumbers.forEach((d, i) => { d.life -= dt; d.y -= 20 * dt; if (d.life <= 0) damageNumbers.splice(i, 1); });
     slashEffects.forEach((s, i) => { s.life -= dt * 5; if (s.life <= 0) slashEffects.splice(i, 1); });
 
-    // 定期清理死亡的怪物，防止数组无限增长
-    enemies = enemies.filter(e => !e.dead || (e.dead && Math.hypot(e.x - player.x, e.y - player.y) < 500));
+    // 敌人清理已移至定期清理（每3秒），使用对象池回收
 
     updateUI();
 }
@@ -4363,12 +4423,12 @@ function spawnEnemyTimer() {
             }
         }
 
-        const enemy = {
+        const enemy = EnemyPool.acquire({
             x, y, hp, maxHp: hp, dmg, speed, radius: 12,
             dead: false, cooldown: 0, name, rarity: isElite ? 1 : 0, xpValue: xp,
             ai: ai, frameIndex: frameIndex,
             eliteAffixes: eliteAffixes  // 精英词缀列表
-        };
+        });
 
         // 应用精英词缀效果
         if (eliteAffixes.length > 0) {
@@ -5337,7 +5397,7 @@ function castSkill(skillName) {
     }
 }
 
-function spawnBoss(x, y) { enemies.push({ x, y, hp: 500, maxHp: 500, dmg: 20, speed: 100, isBoss: true, radius: 30, dead: false, cooldown: 0, xpValue: 5000, name: "屠夫" }); }
+function spawnBoss(x, y) { enemies.push(EnemyPool.acquire({ x, y, hp: 500, maxHp: 500, dmg: 20, speed: 100, isBoss: true, radius: 30, dead: false, cooldown: 0, xpValue: 5000, name: "屠夫" })); }
 
 // 检查物品需求是否满足
 function meetsRequirements(item) {
