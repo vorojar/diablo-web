@@ -452,7 +452,31 @@ const SPRITE_CONFIG = {
 const itemSpriteSheet = new Image();
 itemSpriteSheet.src = 'items.png';
 let itemSpritesLoaded = false;
-itemSpriteSheet.onload = () => { itemSpritesLoaded = true; };
+let processedItemSprites = null; // 去除黑底后的精灵图
+
+itemSpriteSheet.onload = () => {
+    // 预处理：去除黑色背景
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = itemSpriteSheet.width;
+    tempCanvas.height = itemSpriteSheet.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(itemSpriteSheet, 0, 0);
+
+    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const data = imageData.data;
+
+    // 将黑色/近黑色像素变透明（阈值30）
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        if (r < 30 && g < 30 && b < 30) {
+            data[i + 3] = 0; // 设置 alpha 为 0（透明）
+        }
+    }
+
+    tempCtx.putImageData(imageData, 0, 0);
+    processedItemSprites = tempCanvas;
+    itemSpritesLoaded = true;
+};
 
 const wallTiles = new Image();
 wallTiles.src = 'wall_tiles.png';
@@ -3774,22 +3798,22 @@ function draw() {
             return; // 跳过低品质物品的渲染
         }
 
-        if (itemSpritesLoaded) {
+        if (itemSpritesLoaded && processedItemSprites) {
             const coords = getItemSpriteCoords(i);
             const size = 32; // draw size
-            const spriteSize = itemSpriteSheet.width / 4;
+            const spriteSize = processedItemSprites.width / 4;
 
-            // Draw Item Sprite
-            ctx.drawImage(itemSpriteSheet,
+            // Draw Item Sprite (使用去除黑底的精灵图)
+            ctx.drawImage(processedItemSprites,
                 coords.col * spriteSize, coords.row * spriteSize, spriteSize, spriteSize,
                 i.x - size / 2, i.y - size / 2, size, size
             );
 
-            // Rarity Name
+            // Rarity Name (显示在物品上方)
             if (isAltPressed || i.rarity >= 3) {
                 ctx.fillStyle = getItemColor(i.rarity); ctx.textAlign = 'center';
                 ctx.font = '12px Cinzel';
-                ctx.fillText(i.displayName || i.name, i.x, i.y - 20);
+                ctx.fillText(i.displayName || i.name, i.x, i.y - 22);
             }
         } else {
             ctx.beginPath(); ctx.fillStyle = getItemColor(i.rarity); ctx.textAlign = 'center';
@@ -4005,7 +4029,7 @@ function draw() {
 function updateLabelsPosition() {
     groundItems.forEach(i => {
         if (i.el) {
-            const sx = i.x - camera.x, sy = i.y - camera.y;
+            const sx = i.x - camera.x, sy = i.y - camera.y - 25; // 标签显示在物品上方
             if (sx > 0 && sx < canvas.width && sy > 0 && sy < canvas.height) {
                 i.el.style.display = 'block'; i.el.style.left = sx + 'px'; i.el.style.top = sy + 'px';
             } else i.el.style.display = 'none';
