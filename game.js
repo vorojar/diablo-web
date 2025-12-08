@@ -5638,7 +5638,7 @@ function renderInventory() {
         }
         c.appendChild(s);
     });
-    ['mainhand', 'offhand', 'body', 'ring'].forEach(sn => {
+    ['mainhand', 'body', 'ring'].forEach(sn => {
         const el = document.getElementById('slot-' + sn), i = player.equipment[sn];
         el.innerHTML = `<span style="color:#333;font-size:10px;position:absolute;bottom:2px;">${sn}</span>`;
         // 清除之前的稀有度 class
