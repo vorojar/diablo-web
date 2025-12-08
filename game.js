@@ -345,6 +345,9 @@ const player = {
     defeatedBaal: false,  // 是否击败巴尔（同时用于解锁地狱模式）
     isInHell: false,      // 当前是否在地狱中
     hellFloor: 1,         // 地狱层数（独立于地牢层数）
+    // 传送门层数记忆
+    maxFloor: 0,          // 到达过的最高层
+    lastFloor: 0,         // 上次回城时的层数
     // 冰冻状态
     frozen: false,
     frozenTimer: 0,
@@ -2748,6 +2751,9 @@ function startGame() {
         }
         if (isNaN(player.xp)) player.xp = 0;
         if (isNaN(player.xpNext) || player.xpNext <= 0) player.xpNext = 100 * Math.pow(1.5, player.lvl - 1);
+        // 向后兼容：旧存档没有 maxFloor/lastFloor
+        if (player.maxFloor === undefined) player.maxFloor = player.floor || 0;
+        if (player.lastFloor === undefined) player.lastFloor = player.floor || 0;
     }
     else {
         addItemToInventory(createItem('短剑', 0)); addItemToInventory(createItem('治疗药剂', 0)); addItemToInventory(createItem('回城卷轴', 0));
@@ -2775,6 +2781,10 @@ function enterFloor(f, spawnAt = 'start') {
         player.hellFloor = f;
     } else {
         player.floor = f;
+        // 更新最高层记录（仅普通地牢，地狱模式不计入）
+        if (f > player.maxFloor) {
+            player.maxFloor = f;
+        }
     }
 
     // 提交排行榜（进入新楼层时更新）
@@ -3159,7 +3169,7 @@ function update(dt) {
     if (townPortal && townPortal.activeFloor === player.floor && !player.isInHell) {
         const distPortal = Math.hypot(player.x - townPortal.x, player.y - townPortal.y);
         if (distPortal < 60) {
-            const label = player.floor === 0 ? `传送至地牢 ${townPortal.returnFloor}层` : '回到罗格营地';
+            const label = player.floor === 0 ? '进入传送门' : '回到罗格营地';
             interactionTarget = { type: 'portal', label: label };
         }
     }
@@ -3544,8 +3554,8 @@ function draw() {
                         );
 
                         // 阴影
-                        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-                        ctx.fillRect(x, y + TILE_SIZE - 6, TILE_SIZE, 6);
+                        //ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                        //ctx.fillRect(x, y + TILE_SIZE - 6, TILE_SIZE, 6);
                     } else {
                         ctx.fillStyle = COLORS.wall;
                         ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
@@ -3619,7 +3629,7 @@ function draw() {
     if (townPortal && townPortal.activeFloor === player.floor && !player.isInHell) {
         ctx.fillStyle = '#4d94ff'; ctx.beginPath(); ctx.arc(townPortal.x, townPortal.y, 10, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#fff'; ctx.stroke();
-        let label = player.floor === 0 ? `传送门 (去往 ${townPortal.returnFloor}层)` : "传送门 (回罗格营地)";
+        let label = player.floor === 0 ? '传送门' : '传送门 (回罗格营地)';
         ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(label, townPortal.x, townPortal.y - 20);
     }
 
@@ -4480,6 +4490,31 @@ function takeDamage(e, dmg, isSkillDamage = false) {
 function showNotification(msg) {
     const el = document.getElementById('notification-area');
     el.innerText = msg; el.style.opacity = 1; setTimeout(() => el.style.opacity = 0, 2000);
+}
+
+// 显示传送门层数选择对话框
+function showPortalFloorChoice(lastFloor, maxFloor) {
+    const dialogBox = document.getElementById('dialog-box');
+    const dialogName = document.getElementById('dialog-name');
+    const dialogText = document.getElementById('dialog-text');
+    const dialogOptions = document.getElementById('dialog-options');
+
+    dialogName.innerText = '传送门';
+    dialogText.innerText = '选择要前往的层数：';
+
+    dialogOptions.innerHTML = `
+        <button class="dialog-btn" onclick="selectPortalFloor(${lastFloor})">第 ${lastFloor} 层 (上次离开)</button>
+        <button class="dialog-btn" onclick="selectPortalFloor(${maxFloor})">第 ${maxFloor} 层 (最高记录)</button>
+        <button class="dialog-btn" onclick="closeDialog()">取消</button>
+    `;
+
+    dialogBox.style.display = 'block';
+}
+
+// 选择传送门目标层数
+function selectPortalFloor(floor) {
+    closeDialog();
+    enterFloor(floor, 'portal');
 }
 
 // 计算装备需求
@@ -5440,6 +5475,8 @@ function useOrEquipItem(idx) {
             return;
         }
         if (player.floor !== 0) {
+            // 记录上次离开的层数
+            player.lastFloor = player.floor;
             // 验证并修正传送门位置，确保在罗格营地的安全区域
             const safePortalPos = validateAndFixPortalPosition(player.x, player.y);
             townPortal = { returnFloor: player.floor, x: safePortalPos.x, y: safePortalPos.y, activeFloor: 0 };
@@ -6192,13 +6229,23 @@ window.addEventListener('keydown', e => {
             }
             else if (interactionTarget.type === 'portal') {
                 if (player.floor === 0) {
-                    // 从罗格营地返回地牢时，验证传送门位置
+                    // 从罗格营地返回地牢时
                     if (townPortal) {
                         const safeDungeonPos = validateAndFixDungeonPortalPosition(townPortal.x, townPortal.y);
                         townPortal.x = safeDungeonPos.x;
                         townPortal.y = safeDungeonPos.y;
                     }
-                    enterFloor(townPortal.returnFloor, 'portal');
+                    // 检查是否需要选择层数
+                    if (player.lastFloor > 0 && player.maxFloor > 0 && player.lastFloor !== player.maxFloor) {
+                        // 显示选择对话框
+                        showPortalFloorChoice(player.lastFloor, player.maxFloor);
+                    } else {
+                        // 直接传送（lastFloor 和 maxFloor 相同，或只有一个有效）
+                        // 优先级：lastFloor > maxFloor > townPortal.returnFloor
+                        const targetFloor = player.lastFloor > 0 ? player.lastFloor :
+                                           (player.maxFloor > 0 ? player.maxFloor : townPortal.returnFloor);
+                        enterFloor(targetFloor, 'portal');
+                    }
                 }
                 else enterFloor(0, 'portal');
             }
