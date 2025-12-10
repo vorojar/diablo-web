@@ -2338,6 +2338,74 @@ const AudioSys = {
                 osc.start(t);
                 osc.stop(t + 1.5);
             });
+        } else if (type === 'drop_unique') {
+            // 暗金掉落音效 - 史诗感的金属共鸣 + 天堂之音
+            // 1. 金属撞击声
+            const osc1 = this.ctx.createOscillator();
+            const gain1 = this.ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(880, t);
+            osc1.frequency.exponentialRampToValueAtTime(440, t + 0.3);
+            gain1.gain.setValueAtTime(0.3, t);
+            gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+            osc1.connect(gain1);
+            gain1.connect(this.sfxGain);
+            osc1.start(t);
+            osc1.stop(t + 0.5);
+
+            // 2. 天堂和弦 (C-E-G-C)
+            [523, 659, 784, 1047].forEach((f, i) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(f, t + i * 0.08);
+                gain.gain.setValueAtTime(0.15, t + i * 0.08);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
+                osc.connect(gain);
+                gain.connect(this.sfxGain);
+                osc.start(t + i * 0.08);
+                osc.stop(t + 1);
+            });
+
+            // 3. 低频共鸣
+            const osc3 = this.ctx.createOscillator();
+            const gain3 = this.ctx.createGain();
+            osc3.type = 'triangle';
+            osc3.frequency.setValueAtTime(110, t);
+            gain3.gain.setValueAtTime(0.2, t);
+            gain3.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+            osc3.connect(gain3);
+            gain3.connect(this.sfxGain);
+            osc3.start(t);
+            osc3.stop(t + 0.6);
+        } else if (type === 'drop_set') {
+            // 套装掉落音效 - 神秘的绿色能量
+            // 1. 神秘的低音脉冲
+            const osc1 = this.ctx.createOscillator();
+            const gain1 = this.ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(165, t);
+            osc1.frequency.linearRampToValueAtTime(220, t + 0.3);
+            gain1.gain.setValueAtTime(0.25, t);
+            gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+            osc1.connect(gain1);
+            gain1.connect(this.sfxGain);
+            osc1.start(t);
+            osc1.stop(t + 0.5);
+
+            // 2. 魔法音阶 (小调神秘感)
+            [330, 392, 440, 523].forEach((f, i) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(f, t + i * 0.1);
+                gain.gain.setValueAtTime(0.12, t + i * 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.7);
+                osc.connect(gain);
+                gain.connect(this.sfxGain);
+                osc.start(t + i * 0.1);
+                osc.stop(t + 0.9);
+            });
         }
     },
     playFireballExplosion: function (level) {
@@ -4242,9 +4310,31 @@ function update(dt) {
         if (p.life <= 0) projectiles.splice(i, 1);
     });
 
-    particles.forEach((p, i) => { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.life <= 0) particles.splice(i, 1) });
+    particles.forEach((p, i) => {
+        p.life -= dt;
+        // 处理不同类型的粒子
+        if (p.type === 'drop_beam') {
+            // 光柱不移动，只减少生命
+        } else if (p.type === 'rising_spark') {
+            // 上升光点
+            p.y += p.vy * dt;
+            p.vy += 50 * dt;  // 轻微减速
+        } else {
+            // 普通粒子
+            if (p.vx) p.x += p.vx * dt;
+            if (p.vy) p.y += p.vy * dt;
+            if (p.gravity) p.vy += p.gravity * dt;  // 重力
+        }
+        if (p.life <= 0) particles.splice(i, 1);
+    });
     damageNumbers.forEach((d, i) => { d.life -= dt; d.y -= 20 * dt; if (d.life <= 0) damageNumbers.splice(i, 1); });
     slashEffects.forEach((s, i) => { s.life -= dt * 5; if (s.life <= 0) slashEffects.splice(i, 1); });
+
+    // 震屏效果更新
+    if (screenShake.duration > 0) {
+        screenShake.duration -= dt;
+        screenShake.intensity *= 0.9;  // 逐渐减弱
+    }
 
     // 敌人清理已移至定期清理（每3秒），使用对象池回收
 
@@ -4416,7 +4506,15 @@ function updateEnemies(dt) {
 // --- Rendering ---
 function draw() {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.save(); ctx.translate(-Math.floor(camera.x), -Math.floor(camera.y));
+
+    // 震屏效果
+    let shakeX = 0, shakeY = 0;
+    if (screenShake.duration > 0) {
+        shakeX = (Math.random() - 0.5) * screenShake.intensity * 2;
+        shakeY = (Math.random() - 0.5) * screenShake.intensity * 2;
+    }
+
+    ctx.save(); ctx.translate(-Math.floor(camera.x) + shakeX, -Math.floor(camera.y) + shakeY);
 
     const sc = Math.floor(camera.x / TILE_SIZE), ec = sc + (canvas.width / TILE_SIZE) + 1;
     const sr = Math.floor(camera.y / TILE_SIZE), er = sr + (canvas.height / TILE_SIZE) + 1;
@@ -4736,6 +4834,53 @@ function draw() {
             ctx.shadowBlur = 10;
             ctx.shadowColor = p.color;
             ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1.0;
+        } else if (p.type === 'drop_beam') {
+            // 渲染掉落光柱
+            const fadeIn = Math.min(1, (p.maxLife - p.life) / 0.2);  // 0.2秒淡入
+            const fadeOut = Math.min(1, p.life / 0.3);               // 0.3秒淡出
+            const alpha = fadeIn * fadeOut;
+
+            // 光柱主体（渐变）
+            const gradient = ctx.createLinearGradient(p.x, p.y, p.x, p.y - p.height);
+            gradient.addColorStop(0, p.glowColor);
+            gradient.addColorStop(0.3, p.color);
+            gradient.addColorStop(0.7, p.color);
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+
+            ctx.globalAlpha = alpha * 0.7;
+            ctx.fillStyle = gradient;
+            const beamWidth = p.width * (0.8 + 0.2 * Math.sin(Date.now() / 100));  // 脉动效果
+            ctx.fillRect(p.x - beamWidth / 2, p.y - p.height, beamWidth, p.height);
+
+            // 发光效果
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = p.color;
+            ctx.fillRect(p.x - beamWidth / 4, p.y - p.height, beamWidth / 2, p.height);
+            ctx.shadowBlur = 0;
+
+            // 底部光晕
+            ctx.beginPath();
+            const glowRadius = p.width * 1.5 * (0.8 + 0.2 * Math.sin(Date.now() / 80));
+            const glowGradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowRadius);
+            glowGradient.addColorStop(0, p.color);
+            glowGradient.addColorStop(0.5, p.glowColor);
+            glowGradient.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = glowGradient;
+            ctx.arc(p.x, p.y, glowRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.globalAlpha = 1.0;
+        } else if (p.type === 'rising_spark') {
+            // 渲染上升光点
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+            ctx.fill();
             ctx.shadowBlur = 0;
             ctx.globalAlpha = 1.0;
         } else {
@@ -6400,6 +6545,84 @@ function createFloatingText(x, y, text, color = '#ffff00', duration = 2) {
     animate();
 }
 function createParticle(x, y, color, size = 3) { particles.push({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size }); }
+
+// ========== 掉落特效系统 ==========
+let screenShake = { intensity: 0, duration: 0 };
+
+// 震屏效果
+function triggerScreenShake(intensity = 10, duration = 0.3) {
+    screenShake.intensity = intensity;
+    screenShake.duration = duration;
+}
+
+// 创建掉落光柱特效
+function createDropBeam(x, y, rarity) {
+    const isUnique = rarity === 4;
+    const isSet = rarity === 5;
+
+    if (!isUnique && !isSet) return;
+
+    // 光柱颜色
+    const beamColor = isUnique ? '#ffd700' : '#00ff88';
+    const glowColor = isUnique ? 'rgba(255, 215, 0, 0.6)' : 'rgba(0, 255, 136, 0.6)';
+
+    // 创建光柱粒子
+    particles.push({
+        type: 'drop_beam',
+        x: x,
+        y: y,
+        color: beamColor,
+        glowColor: glowColor,
+        life: 1.5,           // 持续1.5秒
+        maxLife: 1.5,
+        height: 200,         // 光柱高度
+        width: isUnique ? 40 : 30,
+        isUnique: isUnique
+    });
+
+    // 火花粒子
+    const sparkCount = isUnique ? 25 : 15;
+    for (let i = 0; i < sparkCount; i++) {
+        const angle = (Math.PI * 2 / sparkCount) * i + Math.random() * 0.3;
+        const speed = 80 + Math.random() * 120;
+        const sparkColor = isUnique ?
+            ['#ffd700', '#ffaa00', '#ff8800', '#ffffff'][Math.floor(Math.random() * 4)] :
+            ['#00ff88', '#00ffaa', '#88ffcc', '#ffffff'][Math.floor(Math.random() * 4)];
+
+        particles.push({
+            x: x,
+            y: y - 20,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 100,  // 向上偏移
+            color: sparkColor,
+            life: 0.6 + Math.random() * 0.4,
+            size: 2 + Math.random() * 3,
+            gravity: 150  // 重力效果
+        });
+    }
+
+    // 上升光点
+    for (let i = 0; i < 10; i++) {
+        particles.push({
+            type: 'rising_spark',
+            x: x + (Math.random() - 0.5) * 30,
+            y: y,
+            vy: -150 - Math.random() * 100,
+            color: beamColor,
+            life: 1.0 + Math.random() * 0.5,
+            size: 3 + Math.random() * 2
+        });
+    }
+
+    // 播放音效和震屏
+    if (isUnique) {
+        AudioSys.play('drop_unique');
+        triggerScreenShake(8, 0.25);
+    } else {
+        AudioSys.play('drop_set');
+        triggerScreenShake(5, 0.2);
+    }
+}
 function checkPlayerDeath() {
     if (player.hp <= 0) {
         // 凤凰天赋：死亡时复活一次
@@ -6684,6 +6907,11 @@ function dropLoot(monster) {
             item.y = y + Math.random() * 30 - 15;
             item.dropTime = Date.now();
             groundItems.push(item);
+
+            // 暗金/套装掉落特效
+            if (item.rarity === 4 || item.rarity === 5) {
+                createDropBeam(item.x, item.y, item.rarity);
+            }
         }
     }
 
