@@ -15,7 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 核心架构
 
 ### 单文件架构
-所有游戏逻辑集中在 `game.js` 中（约6200行），采用函数式编程风格，主要系统包括：
+所有游戏逻辑集中在 `game.js` 中（约8000+行），采用函数式编程风格，主要系统包括：
 
 1. **游戏循环系统**: `gameLoop()` → `update(dt)` → `draw()`
 2. **状态管理**: 全局 `player` 对象维护玩家所有状态
@@ -29,19 +29,63 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | 对象 | 行号 | 用途 |
 |------|------|------|
-| `panelManager` | 1 | UI面板管理系统 |
-| `player` | 202 | 玩家状态和数据 |
-| `AutoBattle` | 627 | 自动战斗AI系统 |
-| `AudioSys` | 1704 | 音效和背景音乐 |
-| `SaveSystem` | 2034 | IndexedDB存档系统 |
-| `SET_ITEMS` | 2317 | 套装装备数据定义 |
-| `enterFloor()` | 2666 | 进入楼层/地图生成 |
-| `takeDamage()` | 4197 | 伤害计算和死亡处理 |
+| `RARITY` | 3 | 物品稀有度常量 |
+| `panelManager` | 49 | UI面板管理系统 |
+| `GAME_CONFIG` | 225 | 游戏配置常量集合 |
+| `EnemyPool` | 489 | 敌人对象池系统 |
+| `player` | 748 | 玩家状态和数据 |
+| `AutoBattle` | 1220 | 自动战斗AI系统 |
+| `AudioSys` | 2312 | 音效和背景音乐 |
+| `SaveSystem` | 2780 | IndexedDB存档系统 |
+| `SET_ITEMS` | 3082 | 套装装备数据定义 |
+| `enterFloor()` | 3840 | 进入楼层/地图生成 |
+| `takeDamage()` | 5683 | 伤害计算和死亡处理 |
+| `dropLoot()` | 7110 | 物品掉落系统 |
+
+### 常量系统 (v4.7+)
+
+游戏使用统一的常量系统管理配置，修改平衡只需调整常量值：
+
+```javascript
+// 稀有度常量 (game.js:3)
+const RARITY = {
+    COMMON: 0, NORMAL: 1, MAGIC: 2, RARE: 3, UNIQUE: 4, SET: 5
+};
+
+// 物品类型 (game.js:13)
+const ITEM_TYPE = { WEAPON, ARMOR, HELM, BELT, GLOVES, BOOTS, RING, AMULET, POTION, SCROLL, GOLD };
+
+// 消耗品名称 (game.js:27)
+const CONSUMABLE_NAME = { HEALTH_POTION: '治疗药剂', MANA_POTION: '法力药剂', TOWN_PORTAL: '回城卷轴' };
+
+// 技能配置 (game.js:194)
+const SKILL_CONFIG = {
+    fireball: { baseMana: 10, range: 450, cooldown: 0.5, explosionLevel: 5 },
+    thunder: { baseMana: 8, manaPerLevel: 0.5, range: 190, cooldown: 0.8 },
+    multishot: { baseMana: 10, range: 500, cooldown: 1.0 }
+};
+
+// 游戏配置 (game.js:225) - 包含40+个常量
+const GAME_CONFIG = {
+    ELITE_SPAWN_RATE: 0.1,          // 精英怪概率
+    MAX_ENEMIES: 20,                // 最大怪物数
+    INTERACTION_RANGE: 60,          // 交互距离
+    AUTO_SAVE_INTERVAL: 30,         // 自动存档间隔(秒)
+    LOW_HP_THRESHOLD: 0.2,          // 低血量警告阈值
+    // ... 更多配置
+};
+```
+
+**工具函数**:
+- `isProtectedItem(item)`: 检查是否为受保护物品（暗金/套装/药水/卷轴）
+- `isInTown()`: 检查是否在城镇
+- `getRarityColor(rarity)`: 根据稀有度获取颜色
+- `getSkillManaCost(skillName, level)`: 计算技能法力消耗
 
 ### 关键全局对象
 
 ```javascript
-// 玩家状态 - 存储所有游戏数据 (game.js:202)
+// 玩家状态 - 存储所有游戏数据 (game.js:748)
 const player = {
     // 位置和移动
     x, y, radius, speed, direction,
@@ -97,7 +141,7 @@ const panelManager = {
     calculatePosition(panelId)
 };
 
-// 自动战斗系统
+// 自动战斗系统 (game.js:1220)
 const AutoBattle = {
     enabled: false,              // 是否启用
     settings: {
@@ -195,7 +239,7 @@ let damageNumbers = [];    // 伤害数字显示
 2. **'ranged'** (远程): 骷髅弓箭手，距离150内后退，150-400发射箭矢
 3. **'revive'** (复活): 沉沦魔巫师，可以复活死去的怪物
 
-敌人属性在 `game.js:3259` 的 `enemies.forEach()` 循环中更新（update函数内）。
+敌人属性在 `update()` 函数内的 `enemies.forEach()` 循环中更新。
 
 ### 战斗系统
 - **物理攻击**: 主角点击敌人触发，计算距离和视线检测（防止隔墙攻击）
@@ -203,7 +247,7 @@ let damageNumbers = [];    // 伤害数字显示
   - 火球术 (Q): 发射单体远程火球，中等射程（约300像素），Lv5+解锁爆炸效果
   - 雷电术 (W): 单体雷电攻击，Lv2+解锁闪电链效果
   - 多重射击 (E): 扇形箭矢，远程（约500像素）
-- **伤害计算**: `takeDamage(e, dmg, isSkillDamage)` 函数（`game.js:4197`）处理所有敌人受伤逻辑
+- **伤害计算**: `takeDamage(e, dmg, isSkillDamage)` 函数（`game.js:5683`）处理所有敌人受伤逻辑
 
 ### 物品系统
 物品品质等级：
@@ -217,7 +261,7 @@ let damageNumbers = [];    // 伤害数字显示
 物品生成流程：`generateItem(type, rarity, level)` → 随机词缀 → 添加到背包/地面
 套装物品生成：`createSetItem(setId, pieceSlot, level)` 或 `generateRandomSetItem(level)`
 
-### 掉落系统 (`dropLoot()` 函数，`game.js:5023`)
+### 掉落系统 (`dropLoot()` 函数，`game.js:7110`)
 
 掉落系统采用**层数加成**和**累积幸运**机制，确保玩家进度感。
 
@@ -308,7 +352,7 @@ player.killsSincePotion   // 距离下次保底消耗品的击杀数
 ## 常见修改场景
 
 ### 调整游戏平衡
-- **怪物属性**: 在 `enterFloor()` 函数中的敌人生成逻辑（`game.js:2666`）
+- **怪物属性**: 在 `enterFloor()` 函数中的敌人生成逻辑（`game.js:3840`）
 - **BOSS强度**: `enterFloor()` 函数中的 `isBoss` 分支处理BOSS属性计算，支持无限层级循环
 - **技能数值**: 搜索技能名称（如 `'fireball'`）找到对应的伤害、法力消耗、射程等参数
 - **掉落率**: `dropLoot()` 函数控制物品掉落
@@ -334,15 +378,15 @@ player.killsSincePotion   // 距离下次保底消耗品的击杀数
 ### 开发注意事项
 1. **不要修改怪物受伤时的移动逻辑**: 已移除受伤瞬移，避免重新引入
 2. **chase AI 的追击距离**: 当前限制为400像素，如需修改在敌人AI更新循环中调整
-3. **存档兼容性**: 修改 `player` 对象结构时，需要在 `SaveSystem.load()`（`game.js:2034`）中添加向后兼容代码
+3. **存档兼容性**: 修改 `player` 对象结构时，需要在 `SaveSystem.load()`（`game.js:2780`）中添加向后兼容代码
 4. **音频播放**: Web Audio API 需要用户交互后才能播放，已在 `startGame()` 中处理
-5. **套装系统**: 添加新套装时需更新 `SET_ITEMS`（`game.js:2317`）和 `COLORS.setGreen`，装备/卸下时需调用 `checkSetAchievements()`
-6. **自动战斗设置**: `AutoBattle.settings`（`game.js:627`）会保存到 IndexedDB，修改设置结构需保持向后兼容
+5. **套装系统**: 添加新套装时需更新 `SET_ITEMS`（`game.js:3082`）和 `COLORS.setGreen`，装备/卸下时需调用 `checkSetAchievements()`
+6. **自动战斗设置**: `AutoBattle.settings`（`game.js:1220`）会保存到 IndexedDB，修改设置结构需保持向后兼容
 7. **无限层级BOSS**: 11层及以上BOSS属性按周目循环增强，修改时注意 `enterFloor()` 中的周目计算逻辑
 
 ## 性能优化建议
 - 粒子系统和伤害数字有自动清理机制（生命周期结束后删除）
-- **敌人对象池系统** (`EnemyPool`，`game.js:98-142`)：
+- **敌人对象池系统** (`EnemyPool`，`game.js:489`)：
   - 敌人死亡后回收到对象池，新敌人优先从池中获取
   - 每3秒定期清理死亡敌人，使用原地过滤算法避免创建新数组
   - 保留玩家200像素内的尸体（供复活者AI使用）
