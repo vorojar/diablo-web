@@ -620,8 +620,25 @@ const player = {
         pending: 0,           // 待领取次数（0-3）
         obtained: []          // 已获得赐福列表
     },
-    lastBlessingLevel: 0      // 上次触发赐福的等级（防止重复）
+    lastBlessingLevel: 0,     // 上次触发赐福的等级（防止重复）
+    // 每日登录奖励系统
+    dailyLogin: {
+        lastLoginDate: null,  // 上次登录日期 (YYYY-MM-DD)
+        consecutiveDays: 0,   // 连续登录天数
+        claimedToday: false   // 今日是否已领取
+    }
 };
+
+// ========== 每日登录奖励配置 ==========
+const DAILY_LOGIN_REWARDS = [
+    { day: 1, icon: '💰', name: '100 金币', type: 'gold', amount: 100 },
+    { day: 2, icon: '❤️', name: '生命药水 x3', type: 'potion_hp', amount: 3 },
+    { day: 3, icon: '🌟', name: '赐福机会 +1', type: 'blessing', amount: 1 },
+    { day: 4, icon: '💎', name: '300 金币', type: 'gold', amount: 300 },
+    { day: 5, icon: '💙', name: '法力药水 x3', type: 'potion_mp', amount: 3 },
+    { day: 6, icon: '📜', name: '回城卷轴 x5', type: 'scroll_tp', amount: 5 },
+    { day: 7, icon: '🏆', name: '暗金装备', type: 'unique_item', amount: 1 }
+];
 
 // ========== 天神赐福词条池（复用天赋商店属性key，数值约为1/3） ==========
 const DIVINE_BLESSING_POOL = [
@@ -3526,6 +3543,9 @@ function startGame() {
         if (!player.divineBlessing) player.divineBlessing = { pending: 0, obtained: [] };
         if (player.lastBlessingLevel === undefined) player.lastBlessingLevel = Math.floor(player.lvl / 5) * 5;
 
+        // 向后兼容：旧存档没有每日登录系统
+        if (!player.dailyLogin) player.dailyLogin = { lastLoginDate: null, consecutiveDays: 0, claimedToday: false };
+
         // ========== 属性系统迁移 v3.9 ==========
         // 将旧的基础属性(str/dex/vit/ene)转换为直接效果属性
         migrateItemStats();
@@ -3548,6 +3568,7 @@ function startGame() {
     updateStats(); enterFloor(player.floor, 'start'); renderInventory(); updateStatsUI(); updateSkillsUI(); updateUI(); updateBeltUI(); updateQuestUI(); updateMenuIndicators();
     updateTalentHUD(); // 更新天赋HUD显示
     updateDivineBlessingHUD(); // 更新天神赐福HUD
+    checkDailyLogin(); // 检查每日登录奖励
     gameActive = true; gameLoop(0); spawnEnemyTimer();
 }
 
@@ -5902,6 +5923,151 @@ function closeDivineBlessingListUI() {
     document.getElementById('divine-blessing-list-panel').style.display = 'none';
 }
 
+// ========== 每日登录奖励系统 ==========
+
+// 获取今日日期字符串 (YYYY-MM-DD)
+function getTodayDateString() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+// 检查并更新登录状态
+function checkDailyLogin() {
+    const today = getTodayDateString();
+    const login = player.dailyLogin;
+
+    if (login.lastLoginDate === today) {
+        // 今天已登录过，不弹窗但可以手动打开查看
+        return;
+    }
+
+    // 新的一天
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+
+    if (login.lastLoginDate === yesterdayStr) {
+        // 连续登录
+        login.consecutiveDays = (login.consecutiveDays % 7) + 1;
+    } else {
+        // 断签，重新开始
+        login.consecutiveDays = 1;
+    }
+
+    login.lastLoginDate = today;
+    login.claimedToday = false;
+    SaveSystem.save();
+
+    // 延迟弹出面板，等游戏加载完成
+    setTimeout(() => showDailyLoginPanel(), 500);
+}
+
+// 显示每日登录面板
+function showDailyLoginPanel() {
+    const panel = document.getElementById('daily-login-panel');
+    const infoEl = document.getElementById('daily-login-info');
+    const gridEl = document.getElementById('daily-login-grid');
+    const claimBtn = document.getElementById('btn-claim-daily');
+
+    const login = player.dailyLogin;
+    const currentDay = login.consecutiveDays || 1;
+
+    infoEl.innerHTML = `连续登录 <span style="font-size:20px;">${currentDay}</span> 天`;
+
+    // 生成7天奖励格子
+    gridEl.innerHTML = DAILY_LOGIN_REWARDS.map((reward, idx) => {
+        const day = idx + 1;
+        let stateClass = '';
+        if (day < currentDay) {
+            stateClass = 'claimed'; // 已领取
+        } else if (day === currentDay) {
+            stateClass = login.claimedToday ? 'claimed' : 'current'; // 今日
+        } else {
+            stateClass = 'locked'; // 未解锁
+        }
+        const day7Class = day === 7 ? 'day7' : '';
+        return `<div class="daily-reward-card ${stateClass} ${day7Class}">
+            <div class="daily-reward-day">Day ${day}</div>
+            <div class="daily-reward-icon">${reward.icon}</div>
+            <div class="daily-reward-name">${reward.name}</div>
+            ${stateClass === 'claimed' ? '<div class="daily-reward-check">✓</div>' : ''}
+        </div>`;
+    }).join('');
+
+    // 更新按钮状态
+    if (login.claimedToday) {
+        claimBtn.disabled = true;
+        claimBtn.innerText = '今日已领取';
+    } else {
+        claimBtn.disabled = false;
+        claimBtn.innerText = '领取奖励';
+    }
+
+    panel.style.display = 'block';
+    panel.style.zIndex = 1001;
+}
+
+// 关闭每日登录面板
+function closeDailyLoginPanel() {
+    document.getElementById('daily-login-panel').style.display = 'none';
+}
+
+// 领取每日奖励
+function claimDailyReward() {
+    const login = player.dailyLogin;
+    if (login.claimedToday) return;
+
+    const currentDay = login.consecutiveDays || 1;
+    const reward = DAILY_LOGIN_REWARDS[currentDay - 1];
+    if (!reward) return;
+
+    // 发放奖励
+    switch (reward.type) {
+        case 'gold':
+            player.gold += reward.amount;
+            break;
+        case 'potion_hp':
+            for (let i = 0; i < reward.amount; i++) {
+                addItemToInventory({ type: 'potion_hp', name: '治疗药剂', rarity: 0, stackable: true, count: 1 });
+            }
+            break;
+        case 'potion_mp':
+            for (let i = 0; i < reward.amount; i++) {
+                addItemToInventory({ type: 'potion_mp', name: '法力药剂', rarity: 0, stackable: true, count: 1 });
+            }
+            break;
+        case 'scroll_tp':
+            for (let i = 0; i < reward.amount; i++) {
+                addItemToInventory({ type: 'scroll_tp', name: '回城卷轴', rarity: 0, stackable: true, count: 1 });
+            }
+            break;
+        case 'blessing':
+            player.divineBlessing.pending = Math.min(3, player.divineBlessing.pending + reward.amount);
+            updateDivineBlessingHUD();
+            break;
+        case 'unique_item':
+            // 生成一个随机暗金装备
+            const slots = ['mainhand', 'body', 'helm', 'gloves', 'boots', 'belt', 'ring', 'amulet'];
+            const randomSlot = slots[Math.floor(Math.random() * slots.length)];
+            const uniqueItem = generateItem(randomSlot, 4, player.lvl);
+            addItemToInventory(uniqueItem);
+            break;
+    }
+
+    login.claimedToday = true;
+
+    // 特效
+    createDamageNumber(player.x, player.y - 70, `${reward.icon} ${reward.name}`, '#ffd700');
+    showNotification(`领取成功：${reward.name}`);
+    AudioSys.play('cash');
+
+    // 更新UI
+    updateUI();
+    renderInventory();
+    showDailyLoginPanel(); // 刷新面板显示
+    SaveSystem.save();
+}
+
 // 显示传送门层数选择对话框
 function showPortalFloorChoice(lastFloor, maxFloor) {
     const dialogBox = document.getElementById('dialog-box');
@@ -6434,12 +6600,12 @@ function dropLoot(monster) {
     }
 
     // ========== 装备掉落系统 ==========
-    // 层数加成：每层+4%掉落率，+2%品质提升
-    const floorDropBonus = Math.min(f * 0.04, 0.4);      // 最高+40%
-    const floorQualityBonus = Math.min(f * 0.02, 0.25);  // 最高+25%
+    // 层数加成：每层+2%掉落率，+1%品质提升（降低加成幅度）
+    const floorDropBonus = Math.min(f * 0.02, 0.25);      // 最高+25%
+    const floorQualityBonus = Math.min(f * 0.01, 0.15);   // 最高+15%
 
-    // 累积幸运加成：每次没掉好东西+1，最高50
-    const luckBonus = Math.min((player.luckAccumulator || 0) * 0.01, 0.3);  // 最高+30%
+    // 累积幸运加成：每次没掉好东西+1，最高50（降低影响）
+    const luckBonus = Math.min((player.luckAccumulator || 0) * 0.005, 0.15);  // 最高+15%
 
     // 寻宝者天赋+天神赐福：掉落率加成
     const treasureHunterBonus = (getTalentEffect('dropRatePct', 0) + (player.dropRatePct || 0)) / 100;
@@ -6449,14 +6615,14 @@ function dropLoot(monster) {
 
     if (isBoss) {
         dropChance = 1.0;
-        dropCount = 2;  // BOSS固定2件，减少数量提高质量
-        qualityBonus = 0.35 + floorQualityBonus;  // BOSS基础+35%品质
+        dropCount = 2;  // BOSS固定2件
+        qualityBonus = 0.20 + floorQualityBonus;  // BOSS基础+20%品质（降低）
     } else if (isElite) {
-        dropChance = 0.6 + floorDropBonus + luckBonus + treasureHunterBonus;
+        dropChance = 0.45 + floorDropBonus + luckBonus + treasureHunterBonus;  // 45%起步（降低）
         dropCount = 1;
-        qualityBonus = 0.15 + floorQualityBonus + luckBonus;
+        qualityBonus = 0.10 + floorQualityBonus + luckBonus;  // 降低
     } else {
-        dropChance = 0.35 + floorDropBonus + luckBonus + treasureHunterBonus;
+        dropChance = 0.25 + floorDropBonus + luckBonus + treasureHunterBonus;  // 25%起步（降低）
         dropCount = 1;
         qualityBonus = floorQualityBonus + luckBonus;
     }
@@ -6468,10 +6634,10 @@ function dropLoot(monster) {
             let item = null;
 
             // ========== 套装掉落 ==========
-            // 套装是稀有物品，概率要低：BOSS 10-15%, 精英 2-3%, 普通怪 0.3-0.5%
-            const setBaseChance = isBoss ? 0.10 : (isElite ? 0.015 : 0.003);
-            const setFloorBonus = f >= 5 ? 0.02 : 0;  // 5层以上+2%
-            const setLuckBonus = luckBonus * 0.1;      // 幸运值影响降低到10%
+            // 套装是稀有物品，大幅降低概率：BOSS 5%, 精英 0.5%, 普通怪 0.1%
+            const setBaseChance = isBoss ? 0.05 : (isElite ? 0.005 : 0.001);
+            const setFloorBonus = f >= 10 ? 0.01 : 0;  // 10层以上+1%
+            const setLuckBonus = luckBonus * 0.05;     // 幸运值影响降到5%
             const setChance = setBaseChance + setFloorBonus + setLuckBonus;
             if (Math.random() < setChance) {
                 item = generateRandomSetItem(f);
@@ -6487,21 +6653,21 @@ function dropLoot(monster) {
                 const adjustedRoll = qualityRoll - qualityBonus;  // 加成越高，越容易出好东西
 
                 if (isBoss) {
-                    // BOSS保底蓝装，高概率黄装
-                    if (adjustedRoll < 0.08) { item.rarity = 4; droppedGoodItem = true; }       // 8%+加成 暗金
-                    else if (adjustedRoll < 0.45) { item.rarity = 3; droppedGoodItem = true; }  // 37%+加成 稀有
+                    // BOSS保底蓝装，降低暗金概率
+                    if (adjustedRoll < 0.03) { item.rarity = 4; droppedGoodItem = true; }       // 3%+加成 暗金
+                    else if (adjustedRoll < 0.25) { item.rarity = 3; droppedGoodItem = true; }  // 22%+加成 稀有
                     else { item.rarity = 2; droppedGoodItem = true; }                           // 保底魔法
                 } else if (isElite) {
                     // 精英怪
-                    if (adjustedRoll < 0.05) { item.rarity = 4; droppedGoodItem = true; }
-                    else if (adjustedRoll < 0.25) { item.rarity = 3; droppedGoodItem = true; }
-                    else if (adjustedRoll < 0.60) { item.rarity = 2; droppedGoodItem = true; }
+                    if (adjustedRoll < 0.015) { item.rarity = 4; droppedGoodItem = true; }      // 1.5% 暗金
+                    else if (adjustedRoll < 0.12) { item.rarity = 3; droppedGoodItem = true; }  // 10.5% 稀有
+                    else if (adjustedRoll < 0.45) { item.rarity = 2; droppedGoodItem = true; }  // 33% 魔法
                     else item.rarity = 1;
                 } else {
                     // 普通怪
-                    if (adjustedRoll < 0.02) { item.rarity = 4; droppedGoodItem = true; }
-                    else if (adjustedRoll < 0.12) { item.rarity = 3; droppedGoodItem = true; }
-                    else if (adjustedRoll < 0.40) { item.rarity = 2; droppedGoodItem = true; }
+                    if (adjustedRoll < 0.005) { item.rarity = 4; droppedGoodItem = true; }      // 0.5% 暗金
+                    else if (adjustedRoll < 0.04) { item.rarity = 3; droppedGoodItem = true; }  // 3.5% 稀有
+                    else if (adjustedRoll < 0.20) { item.rarity = 2; droppedGoodItem = true; }  // 16% 魔法
                     else item.rarity = 1;
                 }
 

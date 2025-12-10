@@ -1989,6 +1989,80 @@
         #divine-blessing-list::-webkit-scrollbar-thumb:hover { background: #777; }
         #divine-blessing-list { scrollbar-width: thin; scrollbar-color: #555 rgba(0, 0, 0, 0.3); }
 
+        /* ========== 每日登录奖励样式 ========== */
+        .daily-reward-card {
+            width: 52px;
+            padding: 8px 4px;
+            background: rgba(30, 30, 35, 0.95);
+            border: 2px solid #444;
+            border-radius: 6px;
+            text-align: center;
+            position: relative;
+            transition: all 0.2s;
+        }
+        .daily-reward-card.current {
+            border-color: #ffd700;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+            animation: dailyPulse 1.5s ease-in-out infinite;
+        }
+        .daily-reward-card.claimed {
+            border-color: #555;
+            opacity: 0.6;
+        }
+        .daily-reward-card.locked {
+            border-color: #333;
+            opacity: 0.4;
+        }
+        .daily-reward-card.day7 {
+            border-color: #ff8c00;
+            background: linear-gradient(135deg, rgba(50, 40, 20, 0.95), rgba(80, 60, 20, 0.95));
+        }
+        .daily-reward-card.day7:not(.claimed) {
+            animation: day7Glow 2s ease-in-out infinite;
+        }
+        @keyframes day7Glow {
+            0%, 100% { box-shadow: 0 0 8px rgba(255, 140, 0, 0.4); }
+            50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 30px rgba(255, 140, 0, 0.4); }
+        }
+        .daily-reward-card.day7 .daily-reward-day { color: #ffd700; }
+        .daily-reward-card.day7 .daily-reward-name { color: #ffd700; }
+        @keyframes dailyPulse {
+            0%, 100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.3); }
+            50% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.7); }
+        }
+        .daily-reward-day {
+            font-size: 10px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+        .daily-reward-card.current .daily-reward-day { color: #ffd700; }
+        .daily-reward-icon {
+            font-size: 22px;
+            margin-bottom: 4px;
+        }
+        .daily-reward-name {
+            font-size: 9px;
+            color: #aaa;
+            line-height: 1.2;
+        }
+        .daily-reward-check {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 18px;
+            height: 18px;
+            background: #4a4;
+            border-radius: 50%;
+            font-size: 12px;
+            line-height: 18px;
+            color: #fff;
+        }
+        #btn-claim-daily:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+
         /* Checkbox Styles (Global) */
         .checkbox-label {
             position: relative;

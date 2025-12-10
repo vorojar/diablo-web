@@ -27,7 +27,7 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=202512101452">
+    <link rel="stylesheet" href="style.css?v=202512101535">
 </head>
 
 <body>
@@ -471,6 +471,17 @@
                 <div id="divine-blessing-summary" style="border-top:1px solid #444; margin-top:10px; padding-top:10px;"></div>
             </div>
 
+            <!-- 每日登录奖励面板 -->
+            <div id="daily-login-panel" class="panel" style="display:none; left:50%; top:50%; transform:translate(-50%,-50%); width:420px;">
+                <div class="panel-close" onclick="closeDailyLoginPanel()">X</div>
+                <div class="panel-header">📅 每日登录奖励</div>
+                <div id="daily-login-info" style="text-align:center; color:#ffd700; margin-bottom:10px;"></div>
+                <div id="daily-login-grid" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center;"></div>
+                <div style="text-align:center; margin-top:15px;">
+                    <button class="dialog-btn" id="btn-claim-daily" onclick="claimDailyReward()">领取奖励</button>
+                </div>
+            </div>
+
             <div class="menu-btns" id="menu-btns">
                 <button class="sys-btn db-btn" id="btn-divine-blessing" onclick="onDivineBlessingBtnClick()" style="display:none">🌟 赐福<span class="db-count-badge">0</span></button>
                 <button class="sys-btn" id="btn-stats" onclick="togglePanel('stats')">角色 (C)<span
@@ -543,7 +554,7 @@
         </div>
     </div>
 
-    <script src="game.js?v=202512101505"></script>
+    <script src="game.js?v=202512101545"></script>
     <script src="pocketbase.umd.js"></script>
     <script src="online.js?v=202512081630"></script>
     <script>
