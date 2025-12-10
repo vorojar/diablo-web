@@ -1,3 +1,50 @@
+// ========== 全局常量定义 ==========
+// 稀有度等级
+const RARITY = {
+    COMMON: 0,      // 普通(白)
+    NORMAL: 1,      // 普通强化(白)
+    MAGIC: 2,       // 魔法(蓝)
+    RARE: 3,        // 稀有(黄)
+    UNIQUE: 4,      // 暗金(金)
+    SET: 5          // 套装(绿)
+};
+
+// 物品类型
+const ITEM_TYPE = {
+    WEAPON: 'weapon',
+    ARMOR: 'armor',
+    HELM: 'helm',
+    BELT: 'belt',
+    GLOVES: 'gloves',
+    BOOTS: 'boots',
+    RING: 'ring',
+    AMULET: 'amulet',
+    POTION: 'potion',
+    SCROLL: 'scroll',
+    GOLD: 'gold'
+};
+
+// 消耗品名称
+const CONSUMABLE_NAME = {
+    HEALTH_POTION: '治疗药剂',
+    MANA_POTION: '法力药剂',
+    TOWN_PORTAL: '回城卷轴'
+};
+
+// 工具函数：检查是否为受保护物品（不可丢弃）
+function isProtectedItem(item) {
+    if (!item) return false;
+    return item.rarity >= RARITY.UNIQUE ||
+        item.name === CONSUMABLE_NAME.HEALTH_POTION ||
+        item.name === CONSUMABLE_NAME.MANA_POTION ||
+        item.name === CONSUMABLE_NAME.TOWN_PORTAL;
+}
+
+// 工具函数：检查是否在城镇
+function isInTown() {
+    return player.floor === 0 && !player.isInHell;
+}
+
 // 面板管理系统
 const panelManager = {
     panels: {
@@ -80,10 +127,145 @@ const MAP_WIDTH = 64;
 const MAP_HEIGHT = 64;
 
 const COLORS = {
-    white: '#ffffff', blue: '#4850b8', yellow: '#ffff00', gold: '#908858', red: '#c23b22', green: '#00ff00',
-    ice: '#00ccff', floor: '#0c0c0c', floorAlt: '#080808', wall: '#2C2C2C', townFloor: '#1a1a1a',
-    exit: '#0055aa', entrance: '#aa5500', setGreen: '#20ff20'  // 套装绿色
+    // 基础颜色
+    white: '#ffffff',
+    blue: '#4850b8',
+    yellow: '#ffff00',
+    gold: '#908858',
+    red: '#c23b22',
+    green: '#00ff00',
+    ice: '#00ccff',
+
+    // 地图元素
+    floor: '#0c0c0c',
+    floorAlt: '#080808',
+    wall: '#2C2C2C',
+    townFloor: '#1a1a1a',
+    exit: '#0055aa',
+    entrance: '#aa5500',
+
+    // 稀有度颜色（物品）
+    rarityCommon: '#ffffff',     // 白色
+    rarityMagic: '#4850b8',      // 蓝色
+    rarityRare: '#ffff00',       // 黄色
+    rarityUnique: '#908858',     // 暗金
+    raritySet: '#20ff20',        // 套装绿
+
+    // 战斗反馈
+    damage: '#ff0000',           // 伤害数字
+    critical: '#ffff00',         // 暴击
+    heal: '#00ff00',             // 治疗
+    thornsDamage: '#88ff88',     // 荆棘反伤
+    manaCost: '#0066ff',         // 法力消耗
+    revive: '#ff00ff',           // 复活
+
+    // 提示/警告
+    warning: '#ff4444',          // 警告（背包满等）
+    error: '#ff0000',            // 错误
+    success: '#00ff00',          // 成功
+    info: '#4d94ff',             // 信息
+
+    // 元素伤害
+    fire: '#ff4400',             // 火焰
+    lightning: '#ffff00',        // 闪电
+    cold: '#00ccff',             // 冰霜
+    poison: '#00ff00',           // 毒素
+
+    // NPC/敌人
+    npc: '#00ff00',              // NPC标记
+    enemy: '#ff0000',            // 敌人
+    boss: '#ff00ff',             // BOSS
+    elite: '#ffaa00'             // 精英怪
 };
+
+// 工具函数：根据稀有度获取颜色
+function getRarityColor(rarity) {
+    const colorMap = {
+        [RARITY.COMMON]: COLORS.rarityCommon,
+        [RARITY.NORMAL]: COLORS.rarityCommon,
+        [RARITY.MAGIC]: COLORS.rarityMagic,
+        [RARITY.RARE]: COLORS.rarityRare,
+        [RARITY.UNIQUE]: COLORS.rarityUnique,
+        [RARITY.SET]: COLORS.raritySet
+    };
+    return colorMap[rarity] || COLORS.white;
+}
+
+// ========== 技能配置 ==========
+const SKILL_CONFIG = {
+    fireball: {
+        baseMana: 10,
+        manaPerLevel: 0,        // 固定消耗
+        range: 450,
+        cooldown: 0.5,
+        explosionLevel: 5       // 5级解锁爆炸
+    },
+    thunder: {
+        baseMana: 8,
+        manaPerLevel: 0.5,
+        range: 190,
+        cooldown: 0.8
+    },
+    multishot: {
+        baseMana: 10,
+        manaPerLevel: 0,
+        range: 500,
+        cooldown: 1.0
+    }
+};
+
+// 工具函数：计算技能法力消耗
+function getSkillManaCost(skillName, level) {
+    const config = SKILL_CONFIG[skillName];
+    if (!config) return 10;
+    return config.baseMana + (level - 1) * config.manaPerLevel;
+}
+
+// ========== 游戏配置常量 ==========
+const GAME_CONFIG = {
+    // 怪物生成
+    ELITE_SPAWN_RATE: 0.1,              // 精英怪生成概率 10%
+    DOUBLE_AFFIX_RATE: 0.3,             // 双词缀概率 30%
+    MAX_ENEMIES: 20,                    // 最大怪物数量
+    ENEMY_SPAWN_INTERVAL: 2000,         // 怪物生成间隔(ms)
+    ENEMY_SPAWN_MIN_DISTANCE: 300,      // 怪物生成最小距离
+
+    // 赌博概率
+    GAMBLE_RARE_RATE: 0.3,              // 赌博稀有概率 30%
+    GAMBLE_UNIQUE_RATE: 0.05,           // 赌博暗金概率 5%
+
+    // 自动战斗阈值
+    AUTO_POTION_HP_THRESHOLD: 0.3,      // 30%喝红药
+    AUTO_POTION_MP_THRESHOLD: 0.2,      // 20%喝蓝药
+    AUTO_EMERGENCY_HP: 0.15,            // 15%紧急回城
+    AUTO_KEEP_DISTANCE: 150,            // 保持距离150
+
+    // 怪物AI距离
+    MONSTER_MELEE_RANGE: 30,            // 近战攻击距离
+    MONSTER_RANGED_RETREAT: 150,        // 远程后退距离
+    MONSTER_RANGED_MAX: 400,            // 远程最大攻击距离
+
+    // 交互距离
+    INTERACTION_RANGE: 60,              // 通用交互距离
+    NPC_INTERACTION_RANGE: 80,          // NPC交互距离
+    PORTAL_INTERACTION_RANGE: 60,       // 传送门交互距离
+
+    // 拾取距离
+    PICKUP_RANGE: 400,                  // 自动拾取检测距离
+    PICKUP_MOVE_RANGE: 40,              // 拾取移动到物品距离
+
+    // 自动存档
+    AUTO_SAVE_INTERVAL: 30,             // 自动存档间隔(秒)
+
+    // 物品消失时间
+    ITEM_DESPAWN_RARE: 5 * 60 * 1000,   // 稀有物品5分钟
+    ITEM_DESPAWN_COMMON: 2 * 60 * 1000, // 普通物品2分钟
+
+    // 视觉效果
+    LOW_HP_THRESHOLD: 0.2,              // 低血量警告阈值 20%
+    CAMERA_SMOOTH: 0.1                  // 相机平滑系数
+};
+
 
 // ========== 天赋商店系统 ==========
 // 天赋数据库 - 每层可购买的随机天赋
@@ -637,10 +819,10 @@ const player = {
 // ========== 每日登录奖励配置 ==========
 const DAILY_LOGIN_REWARDS = [
     { day: 1, icon: '💰', name: '100 金币', type: 'gold', amount: 100 },
-    { day: 2, icon: '❤️', name: '生命药水 x3', type: 'potion_hp', amount: 3 },
+    { day: 2, icon: '❤️', name: '治疗药剂 x3', type: 'potion', heal: 50, amount: 3 },
     { day: 3, icon: '⚡', name: '24小时双倍经验', type: 'buff_xp', amount: 24 },
     { day: 4, icon: '💎', name: '300 金币', type: 'gold', amount: 300 },
-    { day: 5, icon: '💙', name: '法力药水 x3', type: 'potion_mp', amount: 3 },
+    { day: 5, icon: '💙', name: '法力药剂 x3', type: 'potion', mana: 30, amount: 3 },
     { day: 6, icon: '📜', name: '回城卷轴 x5', type: 'scroll', amount: 5 },
     { day: 7, icon: '🏆', name: '暗金装备', type: 'unique_item', amount: 1 }
 ];
@@ -1038,13 +1220,13 @@ const DB_NAME = 'DiabloCloneDB'; const DB_VERSION = 8; let db;
 const AutoBattle = {
     enabled: false,
     settings: {
-        useSkill: true,          // 优先使用技能
-        keepDistance: 150,       // 保持距离（远程战术）
-        hpThreshold: 0.3,        // 喝红药阈值 (30%)
-        mpThreshold: 0.2,        // 喝蓝药阈值 (20%)
-        emergencyHp: 0.15,       // 紧急回城阈值 (15%)
-        pickupUnique: true,      // 自动拾取暗金
-        pickupSet: true          // 自动拾取套装
+        useSkill: true,                                     // 优先使用技能
+        keepDistance: GAME_CONFIG.AUTO_KEEP_DISTANCE,       // 保持距离（远程战术）
+        hpThreshold: GAME_CONFIG.AUTO_POTION_HP_THRESHOLD,  // 喝红药阈值
+        mpThreshold: GAME_CONFIG.AUTO_POTION_MP_THRESHOLD,  // 喝蓝药阈值
+        emergencyHp: GAME_CONFIG.AUTO_EMERGENCY_HP,         // 紧急回城阈值
+        pickupUnique: true,                                 // 自动拾取暗金
+        pickupSet: true                                     // 自动拾取套装
     },
     currentTarget: null,
     stuckTimer: 0,               // 卡死检测计时器
@@ -1263,7 +1445,7 @@ const AutoBattle = {
 
     // 快速寻找最近的敌人（优化性能）
     findTarget() {
-        if (!this.enabled || player.floor === 0) return null;
+        if (!this.enabled || isInTown()) return null;
 
         // 清理过期的黑名单
         const now = Date.now();
@@ -1328,7 +1510,7 @@ const AutoBattle = {
 
     // 决策行动（优化版）
     decideAction(dt) {
-        if (!this.enabled || player.floor === 0) return;
+        if (!this.enabled || isInTown()) return;
 
         // 0. 定期清理失败路径记录（每5秒清空，避免过时数据）
         this.pathCleanupTimer += dt;
@@ -1562,7 +1744,7 @@ const AutoBattle = {
                     // 看不见，绕墙
                     this.lastMoveDecision = 'navigate';
                     this.moveTowards(this.currentTarget);
-                } else if (dist < 80) {
+                } else if (dist < GAME_CONFIG.NPC_INTERACTION_RANGE) {
                     // 近战范围内，停止移动
                     this.lastMoveDecision = 'attack';
                     player.targetX = null;
@@ -1585,14 +1767,14 @@ const AutoBattle = {
     emergencyTownPortal() {
         // 紧急回城（调用前已确保有卷轴）
         useQuickItem('scroll');
-        createFloatingText(player.x, player.y - 60, '⚠️ 紧急回城！', '#ff0000', 2);
+        createFloatingText(player.x, player.y - 60, '⚠️ 紧急回城！', COLORS.error, 2);
     },
 
     // 喝药
     drinkPotion(type) {
         let itemName = '';
-        if (type === 'health') itemName = '治疗药剂';
-        if (type === 'mana') itemName = '法力药剂';
+        if (type === 'health') itemName = CONSUMABLE_NAME.HEALTH_POTION;
+        if (type === 'mana') itemName = CONSUMABLE_NAME.MANA_POTION;
 
         const hasPotion = player.inventory.some(it => it && it.name === itemName);
         if (hasPotion) {
@@ -1963,7 +2145,7 @@ const AutoBattle = {
                 const it = player.inventory[i];
                 if (!it) continue;
                 // 永远不丢：套装、暗金、药水、卷轴
-                if (it.isSet || it.rarity >= 4 || it.name === '治疗药剂' || it.name === '法力药剂' || it.name === '回城卷轴') continue;
+                if (isProtectedItem(it)) continue;
                 // 为套装腾空间时，稀有(黄, rarity=3)也可以丢
                 if (forSet) return true;
                 // 普通情况：只丢蓝装及以下
@@ -1981,8 +2163,8 @@ const AutoBattle = {
         let consumables = [];   // 药水/卷轴
 
         // 检查是否缺药水
-        const hasHealPotion = player.inventory.some(it => it && it.name === '治疗药剂');
-        const hasManaPotion = player.inventory.some(it => it && it.name === '法力药剂');
+        const hasHealPotion = player.inventory.some(it => it && it.name === CONSUMABLE_NAME.HEALTH_POTION);
+        const hasManaPotion = player.inventory.some(it => it && it.name === CONSUMABLE_NAME.MANA_POTION);
 
         for (let i = 0; i < groundItems.length; i++) {
             const it = groundItems[i];
@@ -2000,29 +2182,29 @@ const AutoBattle = {
             }
 
             // 可叠加物品检查（药水/卷轴）
-            const canStack = (it.name === '治疗药剂' || it.name === '法力药剂' || it.name === '回城卷轴') &&
+            const canStack = (it.name === CONSUMABLE_NAME.HEALTH_POTION || it.name === CONSUMABLE_NAME.MANA_POTION || it.name === CONSUMABLE_NAME.TOWN_PORTAL) &&
                 player.inventory.some(inv => inv && inv.name === it.name);
 
             // 药水/卷轴
-            if (it.name === '治疗药剂' && player.autoPickup.potion && dist < 400) {
+            if (it.name === CONSUMABLE_NAME.HEALTH_POTION && player.autoPickup.potion && dist < 400) {
                 if (canStack || !inventoryFull) {
                     // 没有红药时提升优先级
                     if (!hasHealPotion) urgentPotions.push({ item: it, dist });
                     else consumables.push({ item: it, dist });
                 }
             }
-            else if (it.name === '法力药剂' && player.autoPickup.potion && dist < 400) {
+            else if (it.name === CONSUMABLE_NAME.MANA_POTION && player.autoPickup.potion && dist < 400) {
                 // 没有蓝药时，可以丢弃低价值装备腾空间（和套装同等重要）
                 if (canStack || !inventoryFull || (!hasManaPotion && canMakeRoom(true))) {
                     if (!hasManaPotion) urgentPotions.push({ item: it, dist });
                     else consumables.push({ item: it, dist });
                 }
             }
-            else if (it.name === '回城卷轴' && player.autoPickup.scroll && dist < 400) {
+            else if (it.name === CONSUMABLE_NAME.TOWN_PORTAL && player.autoPickup.scroll && dist < 400) {
                 if (canStack || !inventoryFull) consumables.push({ item: it, dist });
             }
             // 套装：距离500内，最高优先级（可丢弃稀有装备腾空间）
-            else if (this.settings.pickupSet && it.isSet && dist < 500) {
+            else if (this.settings.pickupSet && it.rarity === 5 && dist < 500) {
                 if (!inventoryFull || canMakeRoom(true)) setItems.push({ item: it, dist });
             }
             // 暗金：距离500内，高优先级
@@ -2092,9 +2274,9 @@ const AutoBattle = {
 
         if (selected) {
             // 背包满且是重要物品，先丢弃低价值物品
-            if (inventoryFull && (selected.isSet || selected.rarity >= 3)) {
+            if (inventoryFull && selected.rarity >= 3) {
                 // 套装可以丢弃稀有装备，其他只丢蓝装及以下
-                this.dropLowestValueItem(selected.isSet);
+                this.dropLowestValueItem(selected.rarity === 5);
             }
             player.targetItem = selected;
             player.targetX = selected.x;
@@ -2110,7 +2292,7 @@ const AutoBattle = {
             const it = player.inventory[i];
             if (!it) continue;
             // 永远不丢：套装、暗金、药水、卷轴
-            if (it.isSet || it.rarity >= 4 || it.name === '治疗药剂' || it.name === '法力药剂' || it.name === '回城卷轴') continue;
+            if (isProtectedItem(it)) continue;
             // 非套装情况：也保护稀有(黄)装备
             if (!forSet && it.rarity >= 3) continue;
             const val = (it.rarity || 0) * 100 + (it.def || 0) + (it.minDmg || 0);
@@ -3960,7 +4142,7 @@ function gameLoop(ts) {
     if (!gameActive) return;
     const dt = Math.min((ts - lastTime) / 1000, 0.1); lastTime = ts;
     update(dt); draw();
-    autoSaveTimer += dt; if (autoSaveTimer > 30) { SaveSystem.save(); autoSaveTimer = 0; }
+    autoSaveTimer += dt; if (autoSaveTimer > GAME_CONFIG.AUTO_SAVE_INTERVAL) { SaveSystem.save(); autoSaveTimer = 0; }
     requestAnimationFrame(gameLoop);
 }
 
@@ -4038,11 +4220,11 @@ function update(dt) {
             if (!item.dropTime) return true; // 没有时间戳的物品保留（兼容旧存档）
             const age = now - item.dropTime;
             // 暗金(4)、套装(5)、金币 永不消失
-            if (item.rarity >= 4 || item.isSet || item.type === 'gold') return true;
+            if (item.rarity >= 4 || item.type === 'gold') return true;
             // 黄装(3) 5分钟后消失
-            if (item.rarity === 3) return age < 5 * 60 * 1000;
+            if (item.rarity === 3) return age < GAME_CONFIG.ITEM_DESPAWN_RARE;
             // 白/蓝装及其他 2分钟后消失
-            return age < 2 * 60 * 1000;
+            return age < GAME_CONFIG.ITEM_DESPAWN_COMMON;
         });
         if (groundItems.length < oldCount) {
             updateWorldLabels(); // 有物品被清理时更新标签
@@ -4076,7 +4258,7 @@ function update(dt) {
 
     interactionTarget = null;
     const distExit = Math.hypot(player.x - dungeonExit.x, player.y - dungeonExit.y);
-    if (distExit < 60) {
+    if (distExit < GAME_CONFIG.INTERACTION_RANGE) {
         const isInHell = player.isInHell || false;
         if (player.floor === 0) {
             interactionTarget = { type: 'next', label: '进入地牢 1层' };
@@ -4209,19 +4391,19 @@ function update(dt) {
                         // 拾取物品到背包
                         if (!addItemToInventory(item)) {
                             // 背包满了，检查是否是高优先级物品（套装、暗金、紧急药水）需要腾空间
-                            const isHighPriority = item.isSet || item.rarity >= 4 ||
-                                (item.name === '法力药剂' && !player.inventory.find(i => i && i.name === '法力药剂')) ||
-                                (item.name === '治疗药剂' && !player.inventory.find(i => i && i.name === '治疗药剂'));
+                            const isHighPriority = item.rarity >= 4 ||
+                                (item.name === CONSUMABLE_NAME.MANA_POTION && !player.inventory.find(i => i && i.name === CONSUMABLE_NAME.MANA_POTION)) ||
+                                (item.name === CONSUMABLE_NAME.HEALTH_POTION && !player.inventory.find(i => i && i.name === CONSUMABLE_NAME.HEALTH_POTION));
 
                             if (isHighPriority && AutoBattle.enabled) {
                                 // 尝试丢弃低价值装备腾空间
-                                const forSet = item.isSet || item.name === '法力药剂' || item.name === '治疗药剂';
+                                const forSet = item.rarity === 5 || item.name === CONSUMABLE_NAME.MANA_POTION || item.name === CONSUMABLE_NAME.HEALTH_POTION;
                                 let dropped = false;
                                 for (let i = 0; i < player.inventory.length; i++) {
                                     const it = player.inventory[i];
                                     if (!it) continue;
                                     // 永远不丢：套装、暗金、药水、卷轴
-                                    if (it.isSet || it.rarity >= 4 || it.name === '治疗药剂' || it.name === '法力药剂' || it.name === '回城卷轴') continue;
+                                    if (isProtectedItem(it)) continue;
                                     // 为高优先级物品腾空间时，稀有(黄)也可以丢
                                     if (forSet || it.rarity < 3) {
                                         // 丢弃这件装备
@@ -4235,17 +4417,17 @@ function update(dt) {
                                 if (dropped) {
                                     // 再次尝试拾取
                                     if (!addItemToInventory(item)) {
-                                        createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
+                                        createFloatingText(player.x, player.y - 40, "背包已满！", COLORS.warning, 1.5);
                                         player.targetItem = null;
                                         return;
                                     }
                                 } else {
-                                    createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
+                                    createFloatingText(player.x, player.y - 40, "背包已满！", COLORS.warning, 1.5);
                                     player.targetItem = null;
                                     return;
                                 }
                             } else {
-                                createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
+                                createFloatingText(player.x, player.y - 40, "背包已满！", COLORS.warning, 1.5);
                                 player.targetItem = null;
                                 return; // 不要移除地面物品
                             }
@@ -4278,7 +4460,7 @@ function update(dt) {
             if (Math.hypot(p.x - player.x, p.y - player.y) < player.radius + 10) {
                 player.hp -= Math.max(0, p.damage - player.armor * 0.1);
                 p.life = 0;
-                createDamageNumber(player.x, player.y - 20, Math.floor(p.damage), '#ff0000');
+                createDamageNumber(player.x, player.y - 20, Math.floor(p.damage), COLORS.damage);
                 AudioSys.play('hit');
 
                 // 自动战斗：记录远程攻击者
@@ -4455,7 +4637,7 @@ function updateEnemies(dt) {
                         }
                     }
 
-                    createDamageNumber(body.x, body.y - 20, "复活!", '#ff00ff');
+                    createDamageNumber(body.x, body.y - 20, "复活!", COLORS.revive);
                     e.cooldown = 5.0;
                     return;
                 }
@@ -4502,7 +4684,7 @@ function updateEnemies(dt) {
 
                 player.hp -= totalDmg;
                 e.cooldown = 1.5;
-                createDamageNumber(player.x, player.y - 20, Math.floor(totalDmg), '#ff0000');
+                createDamageNumber(player.x, player.y - 20, Math.floor(totalDmg), COLORS.damage);
                 AudioSys.play('hit');
 
                 // 荆棘天赋+天神赐福：反弹伤害
@@ -4510,7 +4692,7 @@ function updateEnemies(dt) {
                 if (thornsPct > 0 && !e.dead) {
                     const thornsDmg = Math.floor(totalDmg * thornsPct / 100);
                     e.hp -= thornsDmg;
-                    createDamageNumber(e.x, e.y - 10, thornsDmg, '#88ff88');
+                    createDamageNumber(e.x, e.y - 10, thornsDmg, COLORS.thornsDamage);
                     if (e.hp <= 0) e.dead = true;
                 }
 
@@ -4538,7 +4720,7 @@ function updateEnemies(dt) {
                         const manaBurned = Math.floor(Math.min(player.mp, totalDmg * 0.5));
                         player.mp -= manaBurned;
                         if (manaBurned > 0) {
-                            createDamageNumber(player.x, player.y - 50, "-" + manaBurned + " MP", '#0066ff');
+                            createDamageNumber(player.x, player.y - 50, "-" + manaBurned + " MP", COLORS.manaCost);
                         }
                     }
                 }
@@ -4617,7 +4799,7 @@ function draw() {
     }
 
     // Render Exits
-    if (player.floor === 0 && !player.isInHell) {
+    if (isInTown()) {
         // 罗格营地：只显示去地牢1层
         ctx.fillStyle = COLORS.exit; ctx.fillRect(dungeonExit.x - 15, dungeonExit.y - 15, 30, 30);
         ctx.strokeStyle = '#4d94ff'; ctx.strokeRect(dungeonExit.x - 15, dungeonExit.y - 15, 30, 30);
@@ -4655,7 +4837,7 @@ function draw() {
 
     // 传送门只在普通地牢中显示，地狱中不显示
     if (townPortal && townPortal.activeFloor === player.floor && !player.isInHell) {
-        ctx.fillStyle = '#4d94ff'; ctx.beginPath(); ctx.arc(townPortal.x, townPortal.y, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = COLORS.info; ctx.beginPath(); ctx.arc(townPortal.x, townPortal.y, 10, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#fff'; ctx.stroke();
         let label = player.floor === 0 ? '传送门' : '传送门 (回罗格营地)';
         ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(label, townPortal.x, townPortal.y - 20);
@@ -4701,7 +4883,7 @@ function draw() {
             ctx.drawImage(processedSpriteSheet, frame.x, frame.y, frame.width, frame.height,
                 n.x - renderWidth / 2, n.y - renderHeight, renderWidth, renderHeight);
         } else {
-            ctx.fillStyle = '#00ff00'; ctx.beginPath(); ctx.arc(n.x, n.y, 15, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = COLORS.npc; ctx.beginPath(); ctx.arc(n.x, n.y, 15, 0, Math.PI * 2); ctx.fill();
         }
 
         // Quest Indicators (above name)
@@ -5436,10 +5618,10 @@ function spawnEnemyTimer() {
         // 计算存活的怪物数量，而不是总的怪物数组长度
         const aliveEnemies = enemies.filter(e => !e.dead).length;
         // 只有在罗格营地才停止刷新怪物（地狱中继续刷新）
-        if (!gameActive || aliveEnemies > 20 || (player.floor === 0 && !player.isInHell)) return;
+        if (!gameActive || aliveEnemies > GAME_CONFIG.MAX_ENEMIES || isInTown()) return;
 
         let x, y, v = false; while (!v) { x = Math.random() * MAP_WIDTH * TILE_SIZE; y = Math.random() * MAP_HEIGHT * TILE_SIZE; if (!isWall(x, y)) v = true; }
-        if (Math.hypot(x - player.x, y - player.y) < 300) return;
+        if (Math.hypot(x - player.x, y - player.y) < GAME_CONFIG.ENEMY_SPAWN_MIN_DISTANCE) return;
 
         const f = player.floor;
         const hp = 30 + Math.floor(f * f * 5);
@@ -5456,7 +5638,7 @@ function spawnEnemyTimer() {
         if (f >= 3 && rand < 0.1) { type = 'shaman'; name = '沉沦魔巫师'; ai = 'revive'; speed = 60; }
 
         let frameIndex = MONSTER_FRAMES[type];
-        const isElite = Math.random() < 0.1;
+        const isElite = Math.random() < GAME_CONFIG.ELITE_SPAWN_RATE;
         let eliteAffixes = [];
 
         if (isElite || type === 'elite' || type === 'boss') {
@@ -5465,7 +5647,7 @@ function spawnEnemyTimer() {
 
             // 为精英怪添加随机词缀（1-2个）
             if (isElite) {
-                const affixCount = Math.random() < 0.3 ? 2 : 1;  // 30%概率获得2个词缀
+                const affixCount = Math.random() < GAME_CONFIG.DOUBLE_AFFIX_RATE ? 2 : 1;  // 双词缀概率
                 const availableAffixes = [...ELITE_AFFIXES];
 
                 for (let i = 0; i < affixCount; i++) {
@@ -5495,7 +5677,7 @@ function spawnEnemyTimer() {
         }
 
         enemies.push(enemy);
-    }, 2000);
+    }, GAME_CONFIG.ENEMY_SPAWN_INTERVAL);
 }
 
 function takeDamage(e, dmg, isSkillDamage = false) {
@@ -6326,14 +6508,13 @@ function claimDailyReward() {
         case 'gold':
             player.gold += reward.amount;
             break;
-        case 'potion_hp':
+        case 'potion':
             for (let i = 0; i < reward.amount; i++) {
-                addItemToInventory({ type: 'potion_hp', name: '治疗药剂', rarity: 0, stackable: true, count: 1 });
-            }
-            break;
-        case 'potion_mp':
-            for (let i = 0; i < reward.amount; i++) {
-                addItemToInventory({ type: 'potion_mp', name: '法力药剂', rarity: 0, stackable: true, count: 1 });
+                if (reward.heal) {
+                    addItemToInventory({ type: 'potion', name: '治疗药剂', heal: 50, rarity: 0, stackable: true, count: 1 });
+                } else if (reward.mana) {
+                    addItemToInventory({ type: 'potion', name: '法力药剂', mana: 30, rarity: 0, stackable: true, count: 1 });
+                }
             }
             break;
         case 'scroll':
@@ -6963,11 +7144,20 @@ function dropLoot(monster) {
     player.killsSincePotion = (player.killsSincePotion || 0) + 1;
     if (player.killsSincePotion >= 8 || isBoss) {
         // 每8只怪或击杀BOSS必掉消耗品
-        const potionType = Math.random() < 0.6 ? 'potion_hp' : (Math.random() < 0.7 ? 'potion_mp' : 'scroll');
-        const potionNames = { potion_hp: '生命药水', potion_mp: '法力药水', scroll: '回城卷轴' };
+        const rand = Math.random();
+        let dropItem;
+        if (rand < 0.6) {
+            dropItem = { type: 'potion', name: '治疗药剂', heal: 50, rarity: 0, stackable: true, count: 1 };
+        } else if (rand < 0.88) {
+            dropItem = { type: 'potion', name: '法力药剂', mana: 30, rarity: 0, stackable: true, count: 1 };
+        } else {
+            dropItem = { type: 'scroll', name: '回城卷轴', rarity: 0, stackable: true, count: 1 };
+        }
         groundItems.push({
-            type: potionType, x: x + Math.random() * 20 - 10, y: y + Math.random() * 20 - 10,
-            rarity: 0, name: potionNames[potionType], stackable: true, count: 1, dropTime: Date.now()
+            ...dropItem,
+            x: x + Math.random() * 20 - 10,
+            y: y + Math.random() * 20 - 10,
+            dropTime: Date.now()
         });
         player.killsSincePotion = 0;
     }
@@ -7107,7 +7297,7 @@ function updateWorldLabels() {
                 } else {
                     // 拾取物品到背包
                     if (!addItemToInventory(i)) {
-                        createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
+                        createFloatingText(player.x, player.y - 40, "背包已满！", COLORS.warning, 1.5);
                         return;
                     }
                 }
@@ -7131,8 +7321,8 @@ function updateWorldLabels() {
 }
 
 function getItemColor(r) {
-    // r=0:普通白, r=1:白色, r=2:蓝色, r=3:黄色稀有, r=4:暗金, r=5:套装绿色
-    return r === 0 ? COLORS.white : r === 1 ? COLORS.white : r === 2 ? COLORS.blue : r === 3 ? COLORS.yellow : r === 5 ? COLORS.setGreen : COLORS.gold;
+    // 直接使用 getRarityColor 函数
+    return getRarityColor(r);
 }
 function isWall(x, y) { const c = Math.floor(x / TILE_SIZE), r = Math.floor(y / TILE_SIZE); return c < 0 || r < 0 || c >= MAP_WIDTH || r >= MAP_HEIGHT || mapData[r][c] === 0; }
 
@@ -7221,7 +7411,7 @@ function performAttack(t) {
 
 function castSkill(skillName) {
     // 只有在罗格营地才禁用技能（地狱中可以使用）
-    if (player.floor === 0 && !player.isInHell) return;
+    if (isInTown()) return;
 
     // 检查是否选择了未学习的技能
     if (!player.skills[skillName] || player.skills[skillName] <= 0) {
@@ -7557,9 +7747,9 @@ function useOrEquipItem(idx) {
 
 function useQuickItem(type) {
     let targetName = "";
-    if (type === 'health') targetName = '治疗药剂';
-    if (type === 'mana') targetName = '法力药剂';
-    if (type === 'scroll') targetName = '回城卷轴';
+    if (type === 'health') targetName = CONSUMABLE_NAME.HEALTH_POTION;
+    if (type === 'mana') targetName = CONSUMABLE_NAME.MANA_POTION;
+    if (type === 'scroll') targetName = CONSUMABLE_NAME.TOWN_PORTAL;
 
     const idx = player.inventory.findIndex(i => i && i.name === targetName);
     if (idx !== -1) {
@@ -7617,7 +7807,7 @@ function gambleItem(type) {
     if (player.gold >= cost) {
         player.gold -= cost;
         let rarity = 2;
-        if (Math.random() < 0.3) rarity = 3; if (Math.random() < 0.05) rarity = 4;
+        if (Math.random() < GAME_CONFIG.GAMBLE_RARE_RATE) rarity = 3; if (Math.random() < GAME_CONFIG.GAMBLE_UNIQUE_RATE) rarity = 4;
 
         let baseName = type === 'weapon' ? '短剑' : (type === 'armor' ? '布甲' : '铜戒指');
         if (type === 'weapon' && Math.random() > 0.5) baseName = '巨斧';
@@ -7639,7 +7829,7 @@ function gambleItem(type) {
 
         if (!addItemToInventory(item)) {
             player.gold += cost; // 返还金币
-            createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
+            createFloatingText(player.x, player.y - 40, "背包已满！", COLORS.warning, 1.5);
         } else {
             createDamageNumber(player.x, player.y - 40, `-${cost}G`, 'gold');
             showNotification(`花费 ${cost} G`);
@@ -7653,9 +7843,9 @@ function gambleItem(type) {
 function buyItem(type) {
     let cost = 0;
     let itemName = "";
-    if (type === 'health') { cost = 50; itemName = '治疗药剂'; }
-    else if (type === 'mana') { cost = 50; itemName = '法力药剂'; }
-    else if (type === 'scroll') { cost = 100; itemName = '回城卷轴'; }
+    if (type === 'health') { cost = 50; itemName = CONSUMABLE_NAME.HEALTH_POTION; }
+    else if (type === 'mana') { cost = 50; itemName = CONSUMABLE_NAME.MANA_POTION; }
+    else if (type === 'scroll') { cost = 100; itemName = CONSUMABLE_NAME.TOWN_PORTAL; }
 
     if (player.gold >= cost) {
         const item = createItem(itemName, 0);
@@ -7665,7 +7855,7 @@ function buyItem(type) {
             showNotification(`花费 ${cost} G - 购买 ${itemName}`);
             renderInventory();
         } else {
-            createFloatingText(player.x, player.y - 40, "背包已满！", '#ff4444', 1.5);
+            createFloatingText(player.x, player.y - 40, "背包已满！", COLORS.warning, 1.5);
         }
     } else {
         showNotification("金币不足");
@@ -7682,7 +7872,7 @@ function dropItemFromInventory(idx) {
     if (!item) return;
 
     // 检查是否在罗格营地（地狱中可以丢弃）
-    if (player.floor === 0 && !player.isInHell) {
+    if (isInTown()) {
         showNotification("在罗格营地不能丢弃物品");
         return;
     }
@@ -7935,7 +8125,7 @@ function updateUI() {
     const vignette = document.getElementById('low-hp-vignette');
     if (vignette) {
         const hpPercent = player.hp / player.maxHp;
-        if (hpPercent < 0.2 && player.hp > 0) {
+        if (hpPercent < GAME_CONFIG.LOW_HP_THRESHOLD && player.hp > 0) {
             vignette.classList.add('active');
         } else {
             vignette.classList.remove('active');
@@ -8050,9 +8240,9 @@ function updateSkillsUI() {
     document.getElementById('bar-lvl-multishot').innerText = player.skills.multishot;
 
     // 更新雷电术法力消耗显示
-    const thunderCost = 8 + Math.max(0, player.skills.thunder - 1) * 0.5;
-    const thunderCostEl = document.getElementById('cost-thunder');
-    if (thunderCostEl) thunderCostEl.innerText = `法力: ${thunderCost}`;
+    const thunderCost = getSkillManaCost('thunder', player.skills.thunder);
+    const thunderCostEl = document.getElementById('thunder-mana-cost');
+    if (thunderCostEl) thunderCostEl.innerText = `法力: ${Math.ceil(thunderCost)}`;
 }
 
 function checkLevelUp() {
@@ -8590,7 +8780,7 @@ function toggleAutoBattle() {
     const icon = document.getElementById('auto-battle-icon');
 
     // 营地时拒绝开启
-    if (!AutoBattle.enabled && player.floor === 0) {
+    if (!AutoBattle.enabled && isInTown()) {
         showNotification('自动战斗仅在地牢中生效');
         return;
     }
