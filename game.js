@@ -1527,7 +1527,7 @@ const AutoBattle = {
                     this.moveTowards(this.currentTarget);
                 } else if (!canSeeTarget) {
                     // 被墙挡住，检查是否能用雷电术
-                    const thunderCost = 15 + (player.skills.thunder - 1) * 2;
+                    const thunderCost = 8 + (player.skills.thunder - 1) * 0.5;
                     const canReallyUseThunder = canUseThunder &&
                         player.skillCooldowns.thunder <= 0 &&
                         player.mp >= thunderCost;
@@ -1875,7 +1875,7 @@ const AutoBattle = {
         let minMpRequired = Infinity;
         if (this.settings.useSkill) {
             if (player.skills.thunder > 0) {
-                const thunderCost = 15 + (player.skills.thunder - 1) * 2;
+                const thunderCost = 8 + (player.skills.thunder - 1) * 0.5;
                 minMpRequired = Math.min(minMpRequired, thunderCost);
             }
             if (player.skills.multishot > 0) {
@@ -7251,7 +7251,7 @@ function castSkill(skillName) {
         });
         AudioSys.play('fireball');
     } else if (skillName === 'thunder') {
-        const cost = 10 + (player.skills.thunder - 1) * 1;
+        const cost = 8 + (player.skills.thunder - 1) * 0.5;
         if (player.mp < cost) {
             createFloatingText(player.x, player.y - 60, "法力不足!", '#55aaff');
             return;
@@ -8050,7 +8050,7 @@ function updateSkillsUI() {
     document.getElementById('bar-lvl-multishot').innerText = player.skills.multishot;
 
     // 更新雷电术法力消耗显示
-    const thunderCost = 10 + Math.max(0, player.skills.thunder - 1) * 1;
+    const thunderCost = 8 + Math.max(0, player.skills.thunder - 1) * 0.5;
     const thunderCostEl = document.getElementById('cost-thunder');
     if (thunderCostEl) thunderCostEl.innerText = `法力: ${thunderCost}`;
 }
