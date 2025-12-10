@@ -3996,26 +3996,16 @@ function update(dt) {
             const wasInHell = player.isInHell;
             player.isInHell = false;
 
-            // 移除灰度滤镜（只在状态变化时执行一次）
-            canvas.style.filter = '';
+            // 移除灰度滤镜
+            document.getElementById('game-container').classList.remove('dead-filter');
 
             // 传送回营地
             enterFloor(0);
             if (wasInHell) {
                 showNotification('已从地狱返回');
             }
-        } else {
-            // 添加灰度滤镜（仅在状态为死亡且未添加滤镜时执行）
-            if (canvas.style.filter !== 'grayscale(80%) brightness(0.7)') {
-                canvas.style.filter = 'grayscale(80%) brightness(0.7)';
-            }
         }
         return; // 死亡时不执行其他更新逻辑
-    } else {
-        // 确保非死亡状态移除滤镜
-        if (canvas.style.filter) {
-            canvas.style.filter = '';
-        }
     }
 
     // 定期清理死亡敌人（每3秒，使用对象池回收）
@@ -4949,7 +4939,10 @@ function draw() {
 
     // 死亡提示文字
     if (player.isDead) {
-        // 绘制死亡提示文字（无遮罩，灰度效果由canvas filter实现）
+        // 设置 canvas filter 为 none，覆盖父容器的灰度滤镜，确保文字颜色正常
+        ctx.filter = 'none';
+
+        // 绘制死亡提示文字
         ctx.save();
 
         // 红色发光效果
@@ -6715,6 +6708,9 @@ function checkPlayerDeath() {
         // 设置死亡状态和倒计时
         player.isDead = true;
         player.deathTimer = 5; // 5秒倒计时
+
+        // 添加死亡全屏灰度滤镜
+        document.getElementById('game-container').classList.add('dead-filter');
 
         // 提交排行榜（死亡时更新）
         if (typeof OnlineSystem !== 'undefined') {

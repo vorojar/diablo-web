@@ -48,6 +48,12 @@
             z-index: 50;
         }
 
+        /* 死亡滤镜 - 全屏灰度效果 */
+        .dead-filter {
+            filter: grayscale(80%) brightness(0.7) !important;
+            transition: filter 0.3s ease;
+        }
+
         #low-hp-vignette.active {
             opacity: 1;
             animation: lowHpPulse 1.2s ease-in-out infinite;
