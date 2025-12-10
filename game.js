@@ -254,7 +254,7 @@ const TALENTS = {
         icon: '💣',
         desc: '伤害+100%，最大生命-30%',
         tier: 'legendary',
-        price: 250,
+        price: 500,
         effect: { dmgPct: 100, maxHpPct: -30 }
     },
     phoenix: {
@@ -263,7 +263,7 @@ const TALENTS = {
         icon: '🔥',
         desc: '死亡时复活一次（50%生命）',
         tier: 'legendary',
-        price: 500,
+        price: 1000,
         effect: { phoenixRevive: true }
     },
     bloodlust: {
@@ -606,6 +606,7 @@ const player = {
     // 冰冻状态
     frozen: false,
     frozenTimer: 0,
+    slowedTimer: 0,        // 减速期时间（冰冻结束后进入）
     freezeImmuneTimer: 0,  // 冰冻免疫时间
     // 掉落系统 - 累积幸运机制
     luckAccumulator: 0,       // 累积幸运值（每杀怪没掉好东西+1）
@@ -614,7 +615,8 @@ const player = {
     talents: [],              // 当前激活的天赋ID数组
     talentShop: [],           // 当前商店刷新的天赋（3个）
     phoenixUsed: false,       // 凤凰天赋是否已使用（每次进入地牢重置）
-    lastTalentFloor: 0,       // 上次显示天赋商店的楼层（防止重复触发）
+    highestTalentFloor: 0,        // 普通模式已触发商店的最高层（防止刷商店）
+    highestHellTalentFloor: 0,    // 地狱模式已触发商店的最高层
     // 天神赐福系统（永久）
     divineBlessing: {
         pending: 0,           // 待领取次数（0-3）
@@ -636,7 +638,7 @@ const player = {
 const DAILY_LOGIN_REWARDS = [
     { day: 1, icon: '💰', name: '100 金币', type: 'gold', amount: 100 },
     { day: 2, icon: '❤️', name: '生命药水 x3', type: 'potion_hp', amount: 3 },
-    { day: 3, icon: '🌟', name: '赐福机会 +1', type: 'blessing', amount: 1 },
+    { day: 3, icon: '⚡', name: '24小时双倍经验', type: 'buff_xp', amount: 24 },
     { day: 4, icon: '💎', name: '300 金币', type: 'gold', amount: 300 },
     { day: 5, icon: '💙', name: '法力药水 x3', type: 'potion_mp', amount: 3 },
     { day: 6, icon: '📜', name: '回城卷轴 x5', type: 'scroll_tp', amount: 5 },
@@ -644,6 +646,8 @@ const DAILY_LOGIN_REWARDS = [
 ];
 
 // ========== 天神赐福词条池（复用天赋商店属性key，数值约为1/3） ==========
+const MAX_BLESSING_STACK = 3;  // 每种赐福最多获得3次
+
 const DIVINE_BLESSING_POOL = [
     // 攻击类（对应天赋商店）
     { id: 'db_flame', name: '烈焰之魂', icon: '🔥', effect: { fireDmgPct: 10 }, rareEffect: { fireDmgPct: 15 } },
@@ -657,7 +661,6 @@ const DIVINE_BLESSING_POOL = [
     { id: 'db_res', name: '元素护盾', icon: '🌈', effect: { allRes: 8 }, rareEffect: { allRes: 12 } },
     { id: 'db_thorns', name: '荆棘', icon: '🌵', effect: { thornsPct: 6 }, rareEffect: { thornsPct: 10 } },
     // 功能类
-    { id: 'db_speed', name: '迅捷', icon: '💨', effect: { speedPct: 8 }, rareEffect: { speedPct: 12 } },
     { id: 'db_mana', name: '法力涌动', icon: '🔮', effect: { maxMp: 15, mpRegenPct: 3 }, rareEffect: { maxMp: 25, mpRegenPct: 5 } },  // 从15/25%降到3/5%
     { id: 'db_gold', name: '贪婪', icon: '💰', effect: { goldPct: 15 }, rareEffect: { goldPct: 25 } },
     { id: 'db_drop', name: '寻宝者', icon: '🗝️', effect: { dropRatePct: 10 }, rareEffect: { dropRatePct: 15 } },
@@ -3614,7 +3617,9 @@ function startGame() {
         if (!player.talents) player.talents = [];
         if (!player.talentShop) player.talentShop = [];
         if (player.phoenixUsed === undefined) player.phoenixUsed = false;
-        if (player.lastTalentFloor === undefined) player.lastTalentFloor = 0;
+        if (player.highestTalentFloor === undefined) player.highestTalentFloor = 0;
+        if (player.highestHellTalentFloor === undefined) player.highestHellTalentFloor = 0;
+        if (player.talentRefreshCount === undefined) player.talentRefreshCount = 0;
 
         // 向后兼容：旧存档没有天神赐福系统
         if (!player.divineBlessing) player.divineBlessing = { pending: 0, obtained: [] };
@@ -4044,12 +4049,19 @@ function update(dt) {
         }
     }
 
-    // 处理冰冻状态
+    // 处理冰冻状态（硬控0.5秒 → 减速1.5秒 → 免疫5秒）
     if (player.frozenTimer > 0) {
         player.frozenTimer -= dt;
         if (player.frozenTimer <= 0) {
             player.frozen = false;
-            player.freezeImmuneTimer = 3.0; // 冰冻结束后3秒免疫
+            player.slowedTimer = 1.5;  // 进入减速期1.5秒
+        }
+    }
+    // 处理减速期
+    if (player.slowedTimer > 0) {
+        player.slowedTimer -= dt;
+        if (player.slowedTimer <= 0) {
+            player.freezeImmuneTimer = 5.0; // 减速结束后5秒免疫
         }
     }
     // 处理冰冻免疫时间
@@ -4171,7 +4183,7 @@ function update(dt) {
             } else {
                 player.direction = dy > 0 ? 'front' : 'back';
             }
-            const speedMultiplier = player.frozen ? 0.3 : 1.0;  // 冰冻时速度降至30%
+            const speedMultiplier = player.frozen ? 0 : (player.slowedTimer > 0 ? 0.4 : 1.0);  // 冰冻时完全不能动，减速期40%速度
             const move = player.speed * dt * speedMultiplier;
             const nx = player.x + (dx / dist) * move, ny = player.y + (dy / dist) * move;
             if (!isWall(nx, player.y)) player.x = nx;
@@ -4514,10 +4526,10 @@ function updateEnemies(dt) {
                         createDamageNumber(e.x, e.y - 30, "+" + heal, COLORS.green);
                     }
 
-                    // 冰冻：减速玩家（免疫期内无效）
-                    if (e.freezeOnHit && !(player.freezeImmuneTimer > 0)) {
+                    // 冰冻：硬控玩家（免疫期内无效）
+                    if (e.freezeOnHit && !(player.freezeImmuneTimer > 0) && !(player.slowedTimer > 0)) {
                         player.frozen = true;
-                        player.frozenTimer = 2.0;  // 冰冻2秒
+                        player.frozenTimer = 0.5;  // 硬控0.5秒（之后进入1.5秒减速期）
                         createDamageNumber(player.x, player.y - 40, "冰冻!", COLORS.ice);
                     }
 
@@ -4749,6 +4761,13 @@ function draw() {
                 ctx.fillText(affix.name, e.x, e.y - e.radius + yOffset);
                 yOffset -= 12;
             });
+        }
+
+        // 冰冻怪头顶显示❄️图标警告
+        if (e.freezeOnHit) {
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('❄️', e.x, e.y - e.radius - 50);
         }
     });
 
@@ -5608,7 +5627,13 @@ function takeDamage(e, dmg, isSkillDamage = false) {
             trackAchievement('kill_specific_boss', { name: e.name });
         }
 
-        const xpGain = e.xpValue || 15; player.xp += xpGain; createDamageNumber(player.x, player.y - 50, "+" + xpGain + " XP", '#4d69cd');
+        // 计算经验（检查双倍经验buff）
+        let xpGain = e.xpValue || 15;
+        if (player.xpBuffExpiry && Date.now() < player.xpBuffExpiry) {
+            xpGain *= 2;  // 双倍经验
+        }
+        player.xp += xpGain;
+        createDamageNumber(player.x, player.y - 50, "+" + xpGain + " XP", '#4d69cd');
         dropLoot(e);
         checkLevelUp();
 
@@ -5675,8 +5700,16 @@ function getTalentEffect(effectKey, defaultValue = 0) {
 
 // 随机刷新天赋商店（3个天赋）
 function generateTalentShop() {
+    const currentFloor = player.isInHell ? player.hellFloor : player.floor;
     const allTalentIds = Object.keys(TALENTS);
-    const availableTalents = allTalentIds.filter(id => !player.talents.includes(id));
+
+    const availableTalents = allTalentIds.filter(id => {
+        // 已拥有的排除
+        if (player.talents.includes(id)) return false;
+        // 传奇天赋只在5层后出现
+        if (TALENTS[id].tier === 'legendary' && currentFloor < 5) return false;
+        return true;
+    });
 
     // 随机选择3个（或更少，如果可用天赋不足3个）
     const shopTalents = [];
@@ -5714,11 +5747,25 @@ function showTalentShop(nextFloor, isHell = false) {
         return;
     }
 
+    // 防止反复进出同一层刷商店：只有进入更高的层才触发
+    // 地狱和普通模式分开计算
+    const highestKey = isHell ? 'highestHellTalentFloor' : 'highestTalentFloor';
+    const currentHighest = player[highestKey] || 0;
+
+    if (nextFloor <= currentHighest) {
+        // 已经在这一层或更高层触发过商店，直接进入
+        proceedToNextFloor(nextFloor, isHell);
+        return;
+    }
+
     // 天赋已满，直接进入下一层
     if (player.talents.length >= MAX_TALENTS) {
         proceedToNextFloor(nextFloor, isHell);
         return;
     }
+
+    // 更新最高触发层数
+    player[highestKey] = nextFloor;
 
     // 保存待进入的楼层信息
     pendingNextFloor = { floor: nextFloor, isHell: isHell };
@@ -5766,6 +5813,14 @@ function showTalentShop(nextFloor, isHell = false) {
     // 显示商店
     overlay.classList.add('active');
     talentShopOpen = true;  // 暂停游戏
+
+    // 更新刷新费用显示
+    const refreshCostEl = document.getElementById('refresh-cost-display');
+    if (refreshCostEl) {
+        const nextRefreshCost = 30 * Math.pow(2, player.talentRefreshCount || 0);
+        refreshCostEl.innerText = `${nextRefreshCost}金`;
+    }
+
     AudioSys.play('pickup');
 }
 
@@ -5817,17 +5872,19 @@ function buyTalent(talentId) {
     closeTalentShop();
 }
 
-// 刷新天赋商店（花费30金币）
+// 刷新天赋商店（花费递增金币：30→60→120→240...）
 function refreshTalentShop() {
-    const refreshCost = 30;
+    const baseRefreshCost = 30;
+    const refreshCost = baseRefreshCost * Math.pow(2, player.talentRefreshCount || 0);
 
     if (player.gold < refreshCost) {
-        showNotification('金币不足！');
+        showNotification(`金币不足！需要 ${refreshCost} 金`);
         AudioSys.play('hit');
         return;
     }
 
     player.gold -= refreshCost;
+    player.talentRefreshCount = (player.talentRefreshCount || 0) + 1;
     generateTalentShop();
 
     // 重新渲染商店
@@ -5862,6 +5919,13 @@ function refreshTalentShop() {
         }
 
         gridEl.appendChild(card);
+    }
+
+    // 更新刷新费用显示（显示下次刷新的费用）
+    const refreshCostEl = document.getElementById('refresh-cost-display');
+    if (refreshCostEl) {
+        const nextRefreshCost = 30 * Math.pow(2, player.talentRefreshCount || 0);
+        refreshCostEl.innerText = `${nextRefreshCost}金`;
     }
 
     AudioSys.play('pickup');
@@ -5905,7 +5969,9 @@ function resetTalents() {
     player.talents = [];
     player.talentShop = [];
     player.phoenixUsed = false;
-    player.lastTalentFloor = 0;
+    player.highestTalentFloor = 0;      // 普通模式已触发商店的最高层
+    player.highestHellTalentFloor = 0;  // 地狱模式已触发商店的最高层
+    player.talentRefreshCount = 0;      // 重置刷新次数
     updateTalentHUD();
 }
 
@@ -5938,13 +6004,37 @@ function updateDivineBlessingHUD() {
 }
 
 // 生成3张随机赐福卡牌
+const BLESSING_RARE_CHANCE = 0.15;   // 基础稀有率 15%
+const BLESSING_PITY_THRESHOLD = 5;   // 连续5次普通后保底出稀有
+
 function generateDivineBlessingCards() {
-    const pool = [...DIVINE_BLESSING_POOL];
+    // 统计每种赐福已获得次数
+    const obtainedCount = {};
+    for (const b of player.divineBlessing.obtained) {
+        obtainedCount[b.id] = (obtainedCount[b.id] || 0) + 1;
+    }
+
+    // 过滤掉已达上限的赐福
+    const pool = DIVINE_BLESSING_POOL.filter(b =>
+        (obtainedCount[b.id] || 0) < MAX_BLESSING_STACK
+    );
+
     const cards = [];
-    for (let i = 0; i < 3 && pool.length > 0; i++) {
-        const idx = Math.floor(Math.random() * pool.length);
-        const blessing = pool.splice(idx, 1)[0];
-        const isRare = Math.random() < 0.3;
+    const availablePool = [...pool];
+
+    // 初始化保底计数器（如果不存在）
+    if (typeof player.divineBlessing.normalStreak === 'undefined') {
+        player.divineBlessing.normalStreak = 0;
+    }
+
+    for (let i = 0; i < 3 && availablePool.length > 0; i++) {
+        const idx = Math.floor(Math.random() * availablePool.length);
+        const blessing = availablePool.splice(idx, 1)[0];
+
+        // 保底逻辑：连续5次普通后必出稀有
+        const streak = player.divineBlessing.normalStreak || 0;
+        const isRare = (streak >= BLESSING_PITY_THRESHOLD) || (Math.random() < BLESSING_RARE_CHANCE);
+
         cards.push({
             ...blessing,
             rarity: isRare ? 1 : 0,
@@ -5970,7 +6060,7 @@ function showDivineBlessingUI() {
             const names = {
                 dmgPct: '伤害', lifeSteal: '生命偷取', critChance: '暴击率', critDamage: '暴击伤害',
                 maxHp: '最大生命', def: '护甲', allRes: '全抗', hpRegenPct: '生命回复/秒',
-                speedPct: '移速', maxMp: '最大法力', mpRegenPct: '法力回复', fireDmgPct: '火焰伤害',
+                maxMp: '最大法力', mpRegenPct: '法力回复', fireDmgPct: '火焰伤害',
                 poisonDmgPct: '毒素伤害', thornsPct: '荆棘反伤', goldPct: '金币掉落', dropRatePct: '装备掉落',
                 onKillHealPct: '击杀回血'
             };
@@ -6008,6 +6098,13 @@ function selectDivineBlessing(index) {
         level: player.lvl
     });
 
+    // 更新保底计数器
+    if (card.rarity === 1) {
+        player.divineBlessing.normalStreak = 0;  // 选到稀有，重置计数
+    } else {
+        player.divineBlessing.normalStreak = (player.divineBlessing.normalStreak || 0) + 1;
+    }
+
     player.divineBlessing.pending--;
     divineBlessingOpen = false;
 
@@ -6017,7 +6114,7 @@ function selectDivineBlessing(index) {
     const effectNames = {
         dmgPct: '伤害', lifeSteal: '生命偷取', critChance: '暴击率', critDamage: '暴击伤害',
         maxHp: '最大生命', def: '护甲', allRes: '全抗', hpRegenPct: '生命回复/秒',
-        speedPct: '移速', maxMp: '最大法力', mpRegenPct: '法力回复', fireDmgPct: '火焰伤害',
+        maxMp: '最大法力', mpRegenPct: '法力回复', fireDmgPct: '火焰伤害',
         poisonDmgPct: '毒素伤害', thornsPct: '荆棘反伤', goldPct: '金币掉落', dropRatePct: '装备掉落',
         onKillHealPct: '击杀回血'
     };
@@ -6073,7 +6170,7 @@ function showDivineBlessingListUI() {
     const effectNames = {
         dmgPct: '伤害', lifeSteal: '生命偷取', critChance: '暴击率', critDamage: '暴击伤害',
         maxHp: '最大生命', def: '护甲', allRes: '全抗', hpRegenPct: '生命回复/秒',
-        speedPct: '移速', maxMp: '最大法力', mpRegenPct: '法力回复', fireDmgPct: '火焰伤害',
+        maxMp: '最大法力', mpRegenPct: '法力回复', fireDmgPct: '火焰伤害',
         poisonDmgPct: '毒素伤害', thornsPct: '荆棘反伤', goldPct: '金币掉落', dropRatePct: '装备掉落',
         onKillHealPct: '击杀回血'
     };
@@ -6244,9 +6341,10 @@ function claimDailyReward() {
                 addItemToInventory({ type: 'scroll_tp', name: '回城卷轴', rarity: 0, stackable: true, count: 1 });
             }
             break;
-        case 'blessing':
-            player.divineBlessing.pending = Math.min(3, player.divineBlessing.pending + reward.amount);
-            updateDivineBlessingHUD();
+        case 'buff_xp':
+            // 24小时双倍经验buff
+            player.xpBuffExpiry = Date.now() + reward.amount * 60 * 60 * 1000;  // 小时转毫秒
+            showNotification('双倍经验已激活！持续24小时');
             break;
         case 'unique_item':
             // 生成一个随机暗金装备
@@ -7809,11 +7907,6 @@ function updateStats() {
         player.resistances.cold += dbAllRes;
         player.resistances.lightning += dbAllRes;
         player.resistances.poison += dbAllRes;
-    }
-    // 移速
-    const dbSpeedPct = getDivineBlessingEffect('speedPct', 0);
-    if (dbSpeedPct > 0) {
-        player.speed = player.speed * (1 + dbSpeedPct / 100);
     }
     // 生命恢复（百分比）- 与天赋一致
     player.hpRegenPct = (player.hpRegenPct || 0) + getDivineBlessingEffect('hpRegenPct', 0);

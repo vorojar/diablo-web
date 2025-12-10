@@ -68,7 +68,7 @@
                     <span onclick="confirmResetSave()"
                         style="color: #ff4444; text-decoration: underline; cursor: pointer; margin-left: 10px; font-size: 11px;">清除存档</span>
                 </div>
-                <p style="color: #888; font-size: 11px; margin-top: 10px;">v4.0</p>
+                <p style="color: #888; font-size: 11px; margin-top: 10px;">v4.6</p>
             </div>
 
             <div id="stats-panel" class="panel">
@@ -442,7 +442,7 @@
                     </div>
                     <div class="talent-shop-actions">
                         <button class="talent-btn talent-btn-refresh" onclick="refreshTalentShop()">
-                            🔄 刷新 <span class="refresh-cost">30金</span>
+                            🔄 刷新 <span class="refresh-cost" id="refresh-cost-display">30金</span>
                         </button>
                         <button class="talent-btn talent-btn-skip" onclick="closeTalentShop()">
                             不买
@@ -456,7 +456,8 @@
 
 
             <!-- 天神赐福选择弹窗 -->
-            <div id="divine-blessing-panel" class="panel" style="display:none; left:50%; top:50%; transform:translate(-50%,-50%); width:auto;">
+            <div id="divine-blessing-panel" class="panel"
+                style="display:none; left:50%; top:50%; transform:translate(-50%,-50%); width:auto;">
                 <div class="panel-close" onclick="closeDivineBlessingUI()">X</div>
                 <div class="panel-header">🌟 天神赐福</div>
                 <div style="text-align:center; color:#aaa; font-size:12px; margin-bottom:15px;">选择一项永久强化</div>
@@ -464,15 +465,18 @@
             </div>
 
             <!-- 已获得赐福列表面板 -->
-            <div id="divine-blessing-list-panel" class="panel" style="display:none; left:50%; top:50%; transform:translate(-50%,-50%); width:320px;">
+            <div id="divine-blessing-list-panel" class="panel"
+                style="display:none; left:50%; top:50%; transform:translate(-50%,-50%); width:320px;">
                 <div class="panel-close" onclick="closeDivineBlessingListUI()">X</div>
                 <div class="panel-header">🌟 已获得赐福</div>
                 <div id="divine-blessing-list" style="max-height:300px; overflow-y:auto;"></div>
-                <div id="divine-blessing-summary" style="border-top:1px solid #444; margin-top:10px; padding-top:10px;"></div>
+                <div id="divine-blessing-summary" style="border-top:1px solid #444; margin-top:10px; padding-top:10px;">
+                </div>
             </div>
 
             <!-- 每日登录奖励面板 -->
-            <div id="daily-login-panel" class="panel" style="display:none; left:50%; top:50%; transform:translate(-50%,-50%); width:420px;">
+            <div id="daily-login-panel" class="panel"
+                style="display:none; left:50%; top:50%; transform:translate(-50%,-50%); width:420px;">
                 <div class="panel-close" onclick="closeDailyLoginPanel()">X</div>
                 <div class="panel-header">📅 每日登录奖励</div>
                 <div id="daily-login-info" style="text-align:center; color:#ffd700; margin-bottom:10px;"></div>
@@ -483,7 +487,8 @@
             </div>
 
             <div class="menu-btns" id="menu-btns">
-                <button class="sys-btn db-btn" id="btn-divine-blessing" onclick="onDivineBlessingBtnClick()" style="display:none">🌟 赐福<span class="db-count-badge">0</span></button>
+                <button class="sys-btn db-btn" id="btn-divine-blessing" onclick="onDivineBlessingBtnClick()"
+                    style="display:none">🌟 赐福<span class="db-count-badge">0</span></button>
                 <button class="sys-btn" id="btn-stats" onclick="togglePanel('stats')">角色 (C)<span
                         class="notification-badge" id="badge-stats"></span></button>
                 <button class="sys-btn" id="btn-inventory" onclick="togglePanel('inventory')">物品 (I)</button>
@@ -554,7 +559,7 @@
         </div>
     </div>
 
-    <script src="game.js?v=202512101625"></script>
+    <script src="game.js?v=202512101907"></script>
     <script src="pocketbase.umd.js"></script>
     <script src="online.js?v=202512081630"></script>
     <script>
