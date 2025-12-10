@@ -2,6 +2,7 @@
 
 这是一个初始使用 Gemini 3.0 Pro，后续使用 Claude code（Claude Opus4.5、Sonnet4.5Kimi k2）开发的纯前端页游，完全使用Vibe Coding 模式，不看一行代码。
 基于 HTML5 Canvas 和原生 JavaScript 开发的动作角色扮演游戏 (ARPG)，致敬经典的《暗黑破坏神2》。游戏实现了核心的 ARPG 体验，包括随机无限地牢、地狱、装备系统、技能树、任务系统、成就、商店、以及实时战斗、自动战斗、存档系统、小地图、仓库、洗点、祝福等。
+![游戏界面](ScreenShot.jpg)
 
 ## 🎮 游戏特色
 
