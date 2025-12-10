@@ -641,7 +641,7 @@ const DAILY_LOGIN_REWARDS = [
     { day: 3, icon: '⚡', name: '24小时双倍经验', type: 'buff_xp', amount: 24 },
     { day: 4, icon: '💎', name: '300 金币', type: 'gold', amount: 300 },
     { day: 5, icon: '💙', name: '法力药水 x3', type: 'potion_mp', amount: 3 },
-    { day: 6, icon: '📜', name: '回城卷轴 x5', type: 'scroll_tp', amount: 5 },
+    { day: 6, icon: '📜', name: '回城卷轴 x5', type: 'scroll', amount: 5 },
     { day: 7, icon: '🏆', name: '暗金装备', type: 'unique_item', amount: 1 }
 ];
 
@@ -6336,9 +6336,9 @@ function claimDailyReward() {
                 addItemToInventory({ type: 'potion_mp', name: '法力药剂', rarity: 0, stackable: true, count: 1 });
             }
             break;
-        case 'scroll_tp':
+        case 'scroll':
             for (let i = 0; i < reward.amount; i++) {
-                addItemToInventory({ type: 'scroll_tp', name: '回城卷轴', rarity: 0, stackable: true, count: 1 });
+                addItemToInventory({ type: 'scroll', name: '回城卷轴', rarity: 0, stackable: true, count: 1 });
             }
             break;
         case 'buff_xp':
@@ -6963,8 +6963,8 @@ function dropLoot(monster) {
     player.killsSincePotion = (player.killsSincePotion || 0) + 1;
     if (player.killsSincePotion >= 8 || isBoss) {
         // 每8只怪或击杀BOSS必掉消耗品
-        const potionType = Math.random() < 0.6 ? 'potion_hp' : (Math.random() < 0.7 ? 'potion_mp' : 'scroll_tp');
-        const potionNames = { potion_hp: '生命药水', potion_mp: '法力药水', scroll_tp: '回城卷轴' };
+        const potionType = Math.random() < 0.6 ? 'potion_hp' : (Math.random() < 0.7 ? 'potion_mp' : 'scroll');
+        const potionNames = { potion_hp: '生命药水', potion_mp: '法力药水', scroll: '回城卷轴' };
         groundItems.push({
             type: potionType, x: x + Math.random() * 20 - 10, y: y + Math.random() * 20 - 10,
             rarity: 0, name: potionNames[potionType], stackable: true, count: 1, dropTime: Date.now()
