@@ -4945,18 +4945,13 @@ function draw() {
         // 绘制死亡提示文字
         ctx.save();
 
-        // 红色发光效果
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = '#ff0000';
-        ctx.fillStyle = '#ff0000';
-        ctx.font = 'bold 48px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('你已死亡', canvas.width / 2, canvas.height / 2 - 20);
+
 
         ctx.shadowBlur = 0;
         ctx.fillStyle = '#fff';
         ctx.font = '24px Arial';
-        ctx.fillText(`灵魂将在 ${Math.ceil(player.deathTimer)} 秒后返回罗格营地`, canvas.width / 2, canvas.height / 2 + 30);
+        ctx.textAlign = 'center';
+        ctx.fillText(`你已死亡，灵魂将在 ${Math.ceil(player.deathTimer)} 秒后返回罗格营地`, canvas.width / 2, canvas.height / 2 + 30);
         ctx.restore();
     }
 
@@ -5972,11 +5967,13 @@ function showDivineBlessingUI() {
     for (let i = 0; i < divineBlessingCards.length; i++) {
         const card = divineBlessingCards[i];
         const effectText = Object.entries(card.finalEffect).map(([k, v]) => {
-            const names = { dmgPct: '伤害', lifeSteal: '生命偷取', critChance: '暴击率', critDamage: '暴击伤害',
+            const names = {
+                dmgPct: '伤害', lifeSteal: '生命偷取', critChance: '暴击率', critDamage: '暴击伤害',
                 maxHp: '最大生命', def: '护甲', allRes: '全抗', hpRegenPct: '生命回复/秒',
                 speedPct: '移速', maxMp: '最大法力', mpRegenPct: '法力回复', fireDmgPct: '火焰伤害',
                 poisonDmgPct: '毒素伤害', thornsPct: '荆棘反伤', goldPct: '金币掉落', dropRatePct: '装备掉落',
-                onKillHealPct: '击杀回血' };
+                onKillHealPct: '击杀回血'
+            };
             return `+${v}${k.includes('Pct') || k.includes('Chance') || k === 'allRes' || k === 'lifeSteal' ? '%' : ''} ${names[k] || k}`;
         }).join(', ');
 
@@ -6017,11 +6014,13 @@ function selectDivineBlessing(index) {
     closeDivineBlessingUI();
 
     // 生成效果文字
-    const effectNames = { dmgPct: '伤害', lifeSteal: '生命偷取', critChance: '暴击率', critDamage: '暴击伤害',
+    const effectNames = {
+        dmgPct: '伤害', lifeSteal: '生命偷取', critChance: '暴击率', critDamage: '暴击伤害',
         maxHp: '最大生命', def: '护甲', allRes: '全抗', hpRegenPct: '生命回复/秒',
         speedPct: '移速', maxMp: '最大法力', mpRegenPct: '法力回复', fireDmgPct: '火焰伤害',
         poisonDmgPct: '毒素伤害', thornsPct: '荆棘反伤', goldPct: '金币掉落', dropRatePct: '装备掉落',
-        onKillHealPct: '击杀回血' };
+        onKillHealPct: '击杀回血'
+    };
     const effectText = Object.entries(card.finalEffect).map(([k, v]) => {
         const isPercent = k.includes('Pct') || k.includes('Chance') || k === 'allRes' || k === 'lifeSteal';
         return `+${v}${isPercent ? '%' : ''} ${effectNames[k] || k}`;
@@ -6071,11 +6070,13 @@ function showDivineBlessingListUI() {
     const summaryEl = document.getElementById('divine-blessing-summary');
 
     // 效果名称映射
-    const effectNames = { dmgPct: '伤害', lifeSteal: '生命偷取', critChance: '暴击率', critDamage: '暴击伤害',
+    const effectNames = {
+        dmgPct: '伤害', lifeSteal: '生命偷取', critChance: '暴击率', critDamage: '暴击伤害',
         maxHp: '最大生命', def: '护甲', allRes: '全抗', hpRegenPct: '生命回复/秒',
         speedPct: '移速', maxMp: '最大法力', mpRegenPct: '法力回复', fireDmgPct: '火焰伤害',
         poisonDmgPct: '毒素伤害', thornsPct: '荆棘反伤', goldPct: '金币掉落', dropRatePct: '装备掉落',
-        onKillHealPct: '击杀回血' };
+        onKillHealPct: '击杀回血'
+    };
 
     // 生成列表
     if (player.divineBlessing.obtained.length === 0) {
