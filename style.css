@@ -1924,6 +1924,71 @@
             animation: legendaryPulse 2s ease-in-out infinite;
         }
 
+        /* ========== 天神赐福系统样式 ========== */
+        .sys-btn.db-btn {
+            border-color: #ffd700;
+            color: #ffd700;
+            animation: blessingPulse 2s ease-in-out infinite;
+        }
+        .sys-btn.db-btn:hover {
+            border-color: #ffec80;
+            color: #ffec80;
+        }
+        .db-count-badge {
+            margin-left: 5px;
+            background: #ffd700;
+            color: #000;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        @keyframes blessingPulse {
+            0%, 100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.4); }
+            50% { box-shadow: 0 0 12px rgba(255, 215, 0, 0.8); }
+        }
+
+        .db-card {
+            width: 140px;
+            padding: 15px 12px;
+            background: rgba(20, 20, 25, 0.9);
+            border: 2px solid #555;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .db-card:hover { border-color: var(--text-gold); box-shadow: 0 0 10px rgba(199, 179, 119, 0.5); }
+        .db-card.normal { border-color: #666; }
+        .db-card.rare { border-color: var(--item-magic); }
+        .db-card-icon { font-size: 28px; margin-bottom: 6px; }
+        .db-card-name { font-size: 14px; font-weight: bold; margin-bottom: 8px; }
+        .db-card.normal .db-card-name { color: #fff; }
+        .db-card.rare .db-card-name { color: var(--item-magic); }
+        .db-card-effect { color: #88ff88; font-size: 12px; line-height: 1.4; }
+
+        /* 赐福按钮状态 */
+        .sys-btn.db-btn { border-color: #666; color: #999; animation: none; }
+        .sys-btn.db-btn.has-pending { border-color: #ffd700; color: #ffd700; animation: blessingPulse 2s ease-in-out infinite; }
+        .sys-btn.db-btn:not(.has-pending) .db-count-badge { background: #666; color: #ccc; }
+
+        /* 已获得赐福列表样式 */
+        .db-list-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid #333; }
+        .db-list-item:last-child { border-bottom: none; }
+        .db-list-item.rare { background: rgba(106, 136, 255, 0.1); }
+        .db-list-icon { font-size: 18px; width: 24px; text-align: center; }
+        .db-list-name { font-size: 13px; font-weight: bold; min-width: 70px; }
+        .db-list-item.normal .db-list-name { color: #fff; }
+        .db-list-item.rare .db-list-name { color: var(--item-magic); }
+        .db-list-effect { flex: 1; font-size: 11px; color: #88ff88; }
+        .db-list-level { font-size: 10px; color: #888; }
+        /* 赐福列表滚动条 */
+        #divine-blessing-list::-webkit-scrollbar { width: 6px; }
+        #divine-blessing-list::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.3); border-radius: 3px; }
+        #divine-blessing-list::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        #divine-blessing-list::-webkit-scrollbar-thumb:hover { background: #777; }
+        #divine-blessing-list { scrollbar-width: thin; scrollbar-color: #555 rgba(0, 0, 0, 0.3); }
+
         /* Checkbox Styles (Global) */
         .checkbox-label {
             position: relative;

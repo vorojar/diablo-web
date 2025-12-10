@@ -614,8 +614,35 @@ const player = {
     talents: [],              // 当前激活的天赋ID数组
     talentShop: [],           // 当前商店刷新的天赋（3个）
     phoenixUsed: false,       // 凤凰天赋是否已使用（每次进入地牢重置）
-    lastTalentFloor: 0        // 上次显示天赋商店的楼层（防止重复触发）
+    lastTalentFloor: 0,       // 上次显示天赋商店的楼层（防止重复触发）
+    // 天神赐福系统（永久）
+    divineBlessing: {
+        pending: 0,           // 待领取次数（0-3）
+        obtained: []          // 已获得赐福列表
+    },
+    lastBlessingLevel: 0      // 上次触发赐福的等级（防止重复）
 };
+
+// ========== 天神赐福词条池（复用天赋商店属性key，数值约为1/3） ==========
+const DIVINE_BLESSING_POOL = [
+    // 攻击类（对应天赋商店）
+    { id: 'db_flame', name: '烈焰之魂', icon: '🔥', effect: { fireDmgPct: 10 }, rareEffect: { fireDmgPct: 15 } },
+    { id: 'db_crit', name: '暴击大师', icon: '🎯', effect: { critChance: 5, critDamage: 10 }, rareEffect: { critChance: 8, critDamage: 15 } },
+    { id: 'db_dmg', name: '狂战士', icon: '😡', effect: { dmgPct: 15 }, rareEffect: { dmgPct: 25 } },
+    { id: 'db_poison', name: '淬毒之刃', icon: '☠️', effect: { poisonDmgPct: 8 }, rareEffect: { poisonDmgPct: 12 } },
+    // 防御类
+    { id: 'db_def', name: '铁壁', icon: '🛡️', effect: { def: 25 }, rareEffect: { def: 40 } },
+    { id: 'db_ls', name: '吸血鬼', icon: '🧛', effect: { lifeSteal: 3 }, rareEffect: { lifeSteal: 5 } },
+    { id: 'db_hpregen', name: '再生', icon: '💚', effect: { hpRegenPct: 0.5 }, rareEffect: { hpRegenPct: 1 } },
+    { id: 'db_res', name: '元素护盾', icon: '🌈', effect: { allRes: 8 }, rareEffect: { allRes: 12 } },
+    { id: 'db_thorns', name: '荆棘', icon: '🌵', effect: { thornsPct: 6 }, rareEffect: { thornsPct: 10 } },
+    // 功能类
+    { id: 'db_speed', name: '迅捷', icon: '💨', effect: { speedPct: 8 }, rareEffect: { speedPct: 12 } },
+    { id: 'db_mana', name: '法力涌动', icon: '🔮', effect: { maxMp: 15, mpRegenPct: 15 }, rareEffect: { maxMp: 25, mpRegenPct: 25 } },
+    { id: 'db_gold', name: '贪婪', icon: '💰', effect: { goldPct: 15 }, rareEffect: { goldPct: 25 } },
+    { id: 'db_drop', name: '寻宝者', icon: '🗝️', effect: { dropRatePct: 10 }, rareEffect: { dropRatePct: 15 } },
+    { id: 'db_blood', name: '嗜血', icon: '🩸', effect: { onKillHealPct: 2 }, rareEffect: { onKillHealPct: 3 } }
+];
 
 const spriteSheet = new Image();
 spriteSheet.src = 'sprites.png?v=3.5';
@@ -3495,6 +3522,10 @@ function startGame() {
         if (player.phoenixUsed === undefined) player.phoenixUsed = false;
         if (player.lastTalentFloor === undefined) player.lastTalentFloor = 0;
 
+        // 向后兼容：旧存档没有天神赐福系统
+        if (!player.divineBlessing) player.divineBlessing = { pending: 0, obtained: [] };
+        if (player.lastBlessingLevel === undefined) player.lastBlessingLevel = Math.floor(player.lvl / 5) * 5;
+
         // ========== 属性系统迁移 v3.9 ==========
         // 将旧的基础属性(str/dex/vit/ene)转换为直接效果属性
         migrateItemStats();
@@ -3516,6 +3547,7 @@ function startGame() {
 
     updateStats(); enterFloor(player.floor, 'start'); renderInventory(); updateStatsUI(); updateSkillsUI(); updateUI(); updateBeltUI(); updateQuestUI(); updateMenuIndicators();
     updateTalentHUD(); // 更新天赋HUD显示
+    updateDivineBlessingHUD(); // 更新天神赐福HUD
     gameActive = true; gameLoop(0); spawnEnemyTimer();
 }
 
@@ -3835,15 +3867,17 @@ function update(dt) {
 
     mouse.worldX = mouse.x + camera.x; mouse.worldY = mouse.y + camera.y;
     // 基础生命/法力恢复
-    let hpRegen = 0.5;
-    let mpRegen = 1.5;
-    // 再生天赋：每秒额外恢复2%最大生命
-    if (hasTalent('regeneration')) {
-        hpRegen += player.maxHp * 0.02;
+    let hpRegen = 0.5 + (player.hpRegen || 0); // 基础 + 装备固定值
+    let mpRegen = 1.5 + (player.mpRegen || 0);
+    // 再生天赋+天神赐福：每秒额外恢复X%最大生命
+    const hpRegenPct = getTalentEffect('hpRegenPct', 0) + (player.hpRegenPct || 0);
+    if (hpRegenPct > 0) {
+        hpRegen += player.maxHp * hpRegenPct / 100;
     }
-    // 法力涌动天赋：法力恢复+50%
-    if (hasTalent('mana_flow')) {
-        mpRegen *= 1.5;
+    // 法力涌动天赋+天神赐福：法力恢复+X%
+    const mpRegenPct = getTalentEffect('mpRegenPct', 0) + (player.mpRegenPct || 0);
+    if (mpRegenPct > 0) {
+        mpRegen *= (1 + mpRegenPct / 100);
     }
     if (player.hp < player.maxHp) player.hp += hpRegen * dt;
     if (player.mp < player.maxMp) player.mp += mpRegen * dt;
@@ -4314,8 +4348,8 @@ function updateEnemies(dt) {
                 createDamageNumber(player.x, player.y - 20, Math.floor(totalDmg), '#ff0000');
                 AudioSys.play('hit');
 
-                // 荆棘天赋：反弹20%伤害
-                const thornsPct = getTalentEffect('thornsPct', 0);
+                // 荆棘天赋+天神赐福：反弹伤害
+                const thornsPct = getTalentEffect('thornsPct', 0) + (player.thornsPct || 0);
                 if (thornsPct > 0 && !e.dead) {
                     const thornsDmg = Math.floor(totalDmg * thornsPct / 100);
                     e.hp -= thornsDmg;
@@ -5310,9 +5344,10 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         player.kills++;
 
         // ========== 击杀相关天赋效果 ==========
-        // 嗜血：击杀恢复生命
-        if (hasTalent('bloodlust')) {
-            const healAmt = player.maxHp * 0.05;
+        // 嗜血：击杀恢复生命（天赋+天神赐福）
+        const onKillHealPct = getTalentEffect('onKillHealPct', 0) + (player.onKillHealPct || 0);
+        if (onKillHealPct > 0) {
+            const healAmt = player.maxHp * onKillHealPct / 100;
             player.hp = Math.min(player.maxHp, player.hp + healAmt);
             createDamageNumber(player.x, player.y - 30, `+${Math.floor(healAmt)}`, '#00ff00');
         }
@@ -5654,6 +5689,217 @@ function resetTalents() {
     player.phoenixUsed = false;
     player.lastTalentFloor = 0;
     updateTalentHUD();
+}
+
+// ========== 天神赐福系统逻辑 ==========
+let divineBlessingOpen = false;
+let divineBlessingCards = [];
+
+// 更新天神赐福HUD图标（常驻显示）
+function updateDivineBlessingHUD() {
+    const btn = document.getElementById('btn-divine-blessing');
+    if (!btn) return;
+    btn.style.display = 'block'; // 始终显示
+    const badge = btn.querySelector('.db-count-badge');
+    if (player.divineBlessing.pending > 0) {
+        // 有待领取：金色动画 + 角标
+        btn.classList.add('has-pending');
+        badge.style.display = 'inline';
+        badge.innerText = player.divineBlessing.pending;
+    } else {
+        // 无待领取：静止状态，显示已获得数量
+        btn.classList.remove('has-pending');
+        const obtainedCount = player.divineBlessing.obtained.length;
+        if (obtainedCount > 0) {
+            badge.style.display = 'inline';
+            badge.innerText = obtainedCount;
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+// 生成3张随机赐福卡牌
+function generateDivineBlessingCards() {
+    const pool = [...DIVINE_BLESSING_POOL];
+    const cards = [];
+    for (let i = 0; i < 3 && pool.length > 0; i++) {
+        const idx = Math.floor(Math.random() * pool.length);
+        const blessing = pool.splice(idx, 1)[0];
+        const isRare = Math.random() < 0.3;
+        cards.push({
+            ...blessing,
+            rarity: isRare ? 1 : 0,
+            finalEffect: isRare ? blessing.rareEffect : blessing.effect
+        });
+    }
+    return cards;
+}
+
+// 显示天神赐福选择界面
+function showDivineBlessingUI() {
+    if (player.divineBlessing.pending <= 0) return;
+    divineBlessingCards = generateDivineBlessingCards();
+    divineBlessingOpen = true;
+
+    const panel = document.getElementById('divine-blessing-panel');
+    const gridEl = document.getElementById('divine-blessing-grid');
+    gridEl.innerHTML = '';
+
+    for (let i = 0; i < divineBlessingCards.length; i++) {
+        const card = divineBlessingCards[i];
+        const effectText = Object.entries(card.finalEffect).map(([k, v]) => {
+            const names = { dmgPct: '伤害', lifeSteal: '生命偷取', critChance: '暴击率', critDamage: '暴击伤害',
+                maxHp: '最大生命', def: '护甲', allRes: '全抗', hpRegenPct: '生命回复/秒',
+                speedPct: '移速', maxMp: '最大法力', mpRegenPct: '法力回复', fireDmgPct: '火焰伤害',
+                poisonDmgPct: '毒素伤害', thornsPct: '荆棘反伤', goldPct: '金币掉落', dropRatePct: '装备掉落',
+                onKillHealPct: '击杀回血' };
+            return `+${v}${k.includes('Pct') || k.includes('Chance') || k === 'allRes' || k === 'lifeSteal' ? '%' : ''} ${names[k] || k}`;
+        }).join(', ');
+
+        const cardEl = document.createElement('div');
+        cardEl.className = `db-card ${card.rarity === 1 ? 'rare' : 'normal'}`;
+        cardEl.innerHTML = `<div class="db-card-icon">${card.icon || '✨'}</div><div class="db-card-name">${card.name}</div><div class="db-card-effect">${effectText}</div>`;
+        cardEl.onclick = () => selectDivineBlessing(i);
+        gridEl.appendChild(cardEl);
+    }
+
+    panel.style.display = 'block';
+    panel.style.zIndex = 1000;
+}
+
+// 关闭天神赐福界面
+function closeDivineBlessingUI() {
+    divineBlessingOpen = false;
+    document.getElementById('divine-blessing-panel').style.display = 'none';
+}
+
+// 选择赐福
+function selectDivineBlessing(index) {
+    const card = divineBlessingCards[index];
+    if (!card) return;
+
+    // 添加到已获得列表
+    player.divineBlessing.obtained.push({
+        id: card.id,
+        name: card.name,
+        rarity: card.rarity,
+        effect: card.finalEffect,
+        level: player.lvl
+    });
+
+    player.divineBlessing.pending--;
+    divineBlessingOpen = false;
+
+    closeDivineBlessingUI();
+
+    // 生成效果文字
+    const effectNames = { dmgPct: '伤害', lifeSteal: '生命偷取', critChance: '暴击率', critDamage: '暴击伤害',
+        maxHp: '最大生命', def: '护甲', allRes: '全抗', hpRegenPct: '生命回复/秒',
+        speedPct: '移速', maxMp: '最大法力', mpRegenPct: '法力回复', fireDmgPct: '火焰伤害',
+        poisonDmgPct: '毒素伤害', thornsPct: '荆棘反伤', goldPct: '金币掉落', dropRatePct: '装备掉落',
+        onKillHealPct: '击杀回血' };
+    const effectText = Object.entries(card.finalEffect).map(([k, v]) => {
+        const isPercent = k.includes('Pct') || k.includes('Chance') || k === 'allRes' || k === 'lifeSteal';
+        return `+${v}${isPercent ? '%' : ''} ${effectNames[k] || k}`;
+    }).join(', ');
+
+    createDamageNumber(player.x, player.y - 70, `${effectText} (永久)`, '#ffd700');
+    showNotification(`${card.name}：${effectText} (永久)`);
+    AudioSys.play('cash');
+
+    updateStats();
+    updateStatsUI();
+    updateDivineBlessingHUD();
+    SaveSystem.save();
+
+    // 还有待领取的，继续弹出
+    if (player.divineBlessing.pending > 0) {
+        setTimeout(() => showDivineBlessingUI(), 500);
+    }
+}
+
+// 获取天神赐福效果值
+function getDivineBlessingEffect(effectKey, defaultValue = 0) {
+    let total = defaultValue;
+    for (const blessing of player.divineBlessing.obtained) {
+        if (blessing.effect && blessing.effect[effectKey] !== undefined) {
+            total += blessing.effect[effectKey];
+        }
+    }
+    return total;
+}
+
+// 赐福按钮点击处理
+function onDivineBlessingBtnClick() {
+    if (player.divineBlessing.pending > 0) {
+        // 已经打开选择界面时不重复触发（防止刷选项）
+        if (divineBlessingOpen) return;
+        showDivineBlessingUI();
+    } else {
+        showDivineBlessingListUI();
+    }
+}
+
+// 显示已获得赐福列表面板
+function showDivineBlessingListUI() {
+    const panel = document.getElementById('divine-blessing-list-panel');
+    const listEl = document.getElementById('divine-blessing-list');
+    const summaryEl = document.getElementById('divine-blessing-summary');
+
+    // 效果名称映射
+    const effectNames = { dmgPct: '伤害', lifeSteal: '生命偷取', critChance: '暴击率', critDamage: '暴击伤害',
+        maxHp: '最大生命', def: '护甲', allRes: '全抗', hpRegenPct: '生命回复/秒',
+        speedPct: '移速', maxMp: '最大法力', mpRegenPct: '法力回复', fireDmgPct: '火焰伤害',
+        poisonDmgPct: '毒素伤害', thornsPct: '荆棘反伤', goldPct: '金币掉落', dropRatePct: '装备掉落',
+        onKillHealPct: '击杀回血' };
+
+    // 生成列表
+    if (player.divineBlessing.obtained.length === 0) {
+        listEl.innerHTML = '<div style="color:#888; text-align:center; padding:20px;">暂无赐福<br><span style="font-size:11px;">每5级获得一次赐福机会</span></div>';
+    } else {
+        listEl.innerHTML = player.divineBlessing.obtained.map(b => {
+            const effectText = Object.entries(b.effect).map(([k, v]) => {
+                const isPercent = k.includes('Pct') || k.includes('Chance') || k === 'allRes' || k === 'lifeSteal';
+                return `+${v}${isPercent ? '%' : ''} ${effectNames[k] || k}`;
+            }).join(', ');
+            const rarityClass = b.rarity === 1 ? 'rare' : 'normal';
+            // 找到对应的图标
+            const poolItem = DIVINE_BLESSING_POOL.find(p => p.id === b.id);
+            const icon = poolItem ? poolItem.icon : '✨';
+            return `<div class="db-list-item ${rarityClass}">
+                <span class="db-list-icon">${icon}</span>
+                <span class="db-list-name">${b.name}</span>
+                <span class="db-list-effect">${effectText}</span>
+                <span class="db-list-level">Lv.${b.level}</span>
+            </div>`;
+        }).join('');
+    }
+
+    // 汇总所有效果
+    const totals = {};
+    for (const b of player.divineBlessing.obtained) {
+        for (const [k, v] of Object.entries(b.effect)) {
+            totals[k] = (totals[k] || 0) + v;
+        }
+    }
+    if (Object.keys(totals).length > 0) {
+        const summaryText = Object.entries(totals).map(([k, v]) => {
+            const isPercent = k.includes('Pct') || k.includes('Chance') || k === 'allRes' || k === 'lifeSteal';
+            return `<span style="color:#88ff88">+${v}${isPercent ? '%' : ''}</span> ${effectNames[k] || k}`;
+        }).join('、');
+        summaryEl.innerHTML = `<div style="color:#ffd700; font-size:12px; margin-bottom:5px;">累计加成</div><div style="font-size:11px; color:#ccc; line-height:1.6;">${summaryText}</div>`;
+    } else {
+        summaryEl.innerHTML = '';
+    }
+
+    panel.style.display = 'block';
+    panel.style.zIndex = 1000;
+}
+
+// 关闭已获得赐福列表面板
+function closeDivineBlessingListUI() {
+    document.getElementById('divine-blessing-list-panel').style.display = 'none';
 }
 
 // 显示传送门层数选择对话框
@@ -6162,8 +6408,8 @@ function dropLoot(monster) {
     if (isBoss) goldAmount *= 3;
     else if (isElite) goldAmount *= 1.5;
 
-    // 贪婪天赋：金币+50%
-    const greedBonus = getTalentEffect('goldPct', 0);
+    // 贪婪天赋+天神赐福：金币加成
+    const greedBonus = getTalentEffect('goldPct', 0) + (player.goldPct || 0);
     if (greedBonus > 0) {
         goldAmount = Math.floor(goldAmount * (1 + greedBonus / 100));
     }
@@ -6195,8 +6441,8 @@ function dropLoot(monster) {
     // 累积幸运加成：每次没掉好东西+1，最高50
     const luckBonus = Math.min((player.luckAccumulator || 0) * 0.01, 0.3);  // 最高+30%
 
-    // 寻宝者天赋：掉落率+30%
-    const treasureHunterBonus = getTalentEffect('dropRatePct', 0) / 100;
+    // 寻宝者天赋+天神赐福：掉落率加成
+    const treasureHunterBonus = (getTalentEffect('dropRatePct', 0) + (player.dropRatePct || 0)) / 100;
 
     // 计算最终掉落参数
     let dropChance, dropCount, qualityBonus;
@@ -7099,6 +7345,43 @@ function updateStats() {
         player.maxHp = Math.floor(player.maxHp * (1 + maxHpPct / 100));
     }
 
+    // ========== 天神赐福效果加成（永久，复用天赋key） ==========
+    player.damage[0] = Math.floor(player.damage[0] * (1 + getDivineBlessingEffect('dmgPct', 0) / 100));
+    player.damage[1] = Math.floor(player.damage[1] * (1 + getDivineBlessingEffect('dmgPct', 0) / 100));
+    player.lifeSteal += getDivineBlessingEffect('lifeSteal', 0);
+    player.critChance = Math.min(100, player.critChance + getDivineBlessingEffect('critChance', 0));
+    player.critDamage += getDivineBlessingEffect('critDamage', 0);
+    player.armor += getDivineBlessingEffect('def', 0);
+    player.maxMp += getDivineBlessingEffect('maxMp', 0);
+    // 元素伤害
+    player.elementalDamage.fire += getDivineBlessingEffect('fireDmgPct', 0);
+    player.elementalDamage.poison += getDivineBlessingEffect('poisonDmgPct', 0);
+    // 全抗
+    const dbAllRes = getDivineBlessingEffect('allRes', 0);
+    if (dbAllRes > 0) {
+        player.resistances.fire += dbAllRes;
+        player.resistances.cold += dbAllRes;
+        player.resistances.lightning += dbAllRes;
+        player.resistances.poison += dbAllRes;
+    }
+    // 移速
+    const dbSpeedPct = getDivineBlessingEffect('speedPct', 0);
+    if (dbSpeedPct > 0) {
+        player.speed = player.speed * (1 + dbSpeedPct / 100);
+    }
+    // 生命恢复（百分比）- 与天赋一致
+    player.hpRegenPct = (player.hpRegenPct || 0) + getDivineBlessingEffect('hpRegenPct', 0);
+    // 法力恢复（百分比）- 与天赋一致
+    player.mpRegenPct = (player.mpRegenPct || 0) + getDivineBlessingEffect('mpRegenPct', 0);
+    // 荆棘反伤
+    player.thornsPct = (player.thornsPct || 0) + getDivineBlessingEffect('thornsPct', 0);
+    // 金币掉落
+    player.goldPct = (player.goldPct || 0) + getDivineBlessingEffect('goldPct', 0);
+    // 装备掉落率
+    player.dropRatePct = (player.dropRatePct || 0) + getDivineBlessingEffect('dropRatePct', 0);
+    // 击杀回血
+    player.onKillHealPct = (player.onKillHealPct || 0) + getDivineBlessingEffect('onKillHealPct', 0);
+
     // 检查套装成就
     checkSetAchievements();
 }
@@ -7251,6 +7534,18 @@ function checkLevelUp() {
 
         createDamageNumber(player.x, player.y - 70, "升级了!", '#daa520');
         AudioSys.play('levelup');
+
+        // ========== 天神赐福触发检测 ==========
+        if (player.lvl % 5 === 0 && player.lvl > player.lastBlessingLevel && player.lvl <= 100) {
+            player.lastBlessingLevel = player.lvl;
+            if (player.divineBlessing.pending < 3) {
+                player.divineBlessing.pending++;
+                createDamageNumber(player.x, player.y - 100, "获得天神赐福!", '#ffd700');
+                updateDivineBlessingHUD();
+            } else {
+                createDamageNumber(player.x, player.y - 100, "赐福已满，请先领取", '#ff8800');
+            }
+        }
 
         // 提交排行榜
         if (typeof OnlineSystem !== 'undefined') {
