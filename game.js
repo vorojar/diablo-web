@@ -232,10 +232,10 @@ const TALENTS = {
         id: 'mana_flow',
         name: '法力涌动',
         icon: '🔮',
-        desc: '最大法力+50，法力恢复+50%',
+        desc: '最大法力+50，法力恢复+10%',
         tier: 'rare',
         price: 120,
-        effect: { maxMp: 50, mpRegenPct: 50 }
+        effect: { maxMp: 50, mpRegenPct: 10 }  // 从50%降到10%
     },
 
     // 特殊/传说天赋
@@ -626,7 +626,10 @@ const player = {
         lastLoginDate: null,  // 上次登录日期 (YYYY-MM-DD)
         consecutiveDays: 0,   // 连续登录天数
         claimedToday: false   // 今日是否已领取
-    }
+    },
+    // 死亡状态
+    isDead: false,        // 是否处于死亡状态
+    deathTimer: 0         // 死亡倒计时（秒）
 };
 
 // ========== 每日登录奖励配置 ==========
@@ -655,7 +658,7 @@ const DIVINE_BLESSING_POOL = [
     { id: 'db_thorns', name: '荆棘', icon: '🌵', effect: { thornsPct: 6 }, rareEffect: { thornsPct: 10 } },
     // 功能类
     { id: 'db_speed', name: '迅捷', icon: '💨', effect: { speedPct: 8 }, rareEffect: { speedPct: 12 } },
-    { id: 'db_mana', name: '法力涌动', icon: '🔮', effect: { maxMp: 15, mpRegenPct: 15 }, rareEffect: { maxMp: 25, mpRegenPct: 25 } },
+    { id: 'db_mana', name: '法力涌动', icon: '🔮', effect: { maxMp: 15, mpRegenPct: 3 }, rareEffect: { maxMp: 25, mpRegenPct: 5 } },  // 从15/25%降到3/5%
     { id: 'db_gold', name: '贪婪', icon: '💰', effect: { goldPct: 15 }, rareEffect: { goldPct: 25 } },
     { id: 'db_drop', name: '寻宝者', icon: '🗝️', effect: { dropRatePct: 10 }, rareEffect: { dropRatePct: 15 } },
     { id: 'db_blood', name: '嗜血', icon: '🩸', effect: { onKillHealPct: 2 }, rareEffect: { onKillHealPct: 3 } }
@@ -1413,11 +1416,15 @@ const AutoBattle = {
             }
         }
 
-        // 2. 紧急回城
+        // 2. 紧急回城（检查有卷轴才执行）
         const hpPercent = player.hp / player.maxHp;
         if (hpPercent < this.settings.emergencyHp) {
-            this.emergencyTownPortal();
-            return;
+            const hasScroll = player.inventory.some(it => it && it.type === 'scroll');
+            if (hasScroll) {
+                this.emergencyTownPortal();
+                return;
+            }
+            // 没有卷轴，不执行回城，继续执行后续逻辑（喝药等）
         }
 
         // 3. 生存优先：喝药
@@ -1573,14 +1580,9 @@ const AutoBattle = {
 
     // 紧急回城
     emergencyTownPortal() {
-        // 使用回城卷轴
-        const scrollCount = player.inventory.filter(it => it && it.type === 'scroll').length;
-        if (scrollCount > 0) {
-            useQuickItem('scroll');
-            createFloatingText(player.x, player.y - 60, '⚠️ 紧急回城！', '#ff0000', 2);
-        } else {
-            createFloatingText(player.x, player.y - 60, '没有回城卷轴！', '#ff8888', 1.5);
-        }
+        // 紧急回城（调用前已确保有卷轴）
+        useQuickItem('scroll');
+        createFloatingText(player.x, player.y - 60, '⚠️ 紧急回城！', '#ff0000', 2);
     },
 
     // 喝药
@@ -2559,6 +2561,13 @@ function migrateItemStats() {
             migrated = true;
         }
 
+        // mpRegen 迁移：旧版是固定值(30-100)，新版是百分比(3-10%)
+        // 检测：如果 > 20，说明是旧版固定值，除以10转为百分比
+        if (item.stats.mpRegen && item.stats.mpRegen > 20) {
+            item.stats.mpRegen = Math.round(item.stats.mpRegen / 10);
+            migrated = true;
+        }
+
         return migrated;
     }
 
@@ -2874,7 +2883,7 @@ const AFFIXES = {
         { name: '之守护', stat: 'allRes', min: 5, max: 12 },
         // 特殊效果
         { name: '之再生', stat: 'hpRegen', min: 3, max: 10 },
-        { name: '之冥想', stat: 'mpRegen', min: 30, max: 100 },
+        { name: '之冥想', stat: 'mpRegen', min: 3, max: 10 },  // 改为百分比（从30-100降到3-10%）
         { name: '之格挡', stat: 'blockChance', min: 10, max: 25 },
         { name: '之反射', stat: 'reflectDamage', min: 5, max: 15 },
         { name: '之神速', stat: 'attackSpeed', min: 10, max: 20 },
@@ -2895,7 +2904,7 @@ const SET_ITEMS = {
                 icon: '🪖',
                 type: 'helm',
                 def: 15,
-                stats: { maxMp: 30, mpRegen: 50, allRes: 10 }
+                stats: { maxMp: 30, mpRegen: 5, allRes: 10 }  // mpRegen改为百分比
             },
             body: {
                 name: "塔拉夏的外袍",
@@ -2939,12 +2948,12 @@ const SET_ITEMS = {
                 stats: { allRes: 50 }
             },
             4: {
-                desc: "法力恢复速度 +100%，最大法力 +60",
-                stats: { mpRegen: 100, maxMp: 60 }
+                desc: "法力恢复速度 +10%，最大法力 +60",
+                stats: { mpRegen: 10, maxMp: 60 }  // 从100%降到10%
             },
             6: {
-                desc: "火焰伤害 +200，法力回复 +50%，暴击率 +10%",
-                stats: { fireDmg: 200, mpRegen: 50, critChance: 10 }
+                desc: "火焰伤害 +200，法力回复 +5%，暴击率 +10%",
+                stats: { fireDmg: 200, mpRegen: 5, critChance: 10 }  // 从50%降到5%
             }
         }
     },
@@ -3240,7 +3249,7 @@ const SET_ITEMS = {
                 icon: '🎗️',
                 type: 'belt',
                 def: 8,
-                stats: { poisonDmg: 45, mpRegen: 50 }
+                stats: { poisonDmg: 45, mpRegen: 5 }  // mpRegen改为百分比
             },
             mainhand: {
                 name: "庄·欧的权杖",
@@ -3257,8 +3266,8 @@ const SET_ITEMS = {
                 stats: { poisonDmg: 100 }
             },
             4: {
-                desc: "法力回复 +150%，最大法力 +100",
-                stats: { mpRegen: 150, maxMp: 100 }
+                desc: "法力回复 +15%，最大法力 +100",
+                stats: { mpRegen: 15, maxMp: 100 }  // 从150%降到15%
             },
             6: {
                 desc: "毒素伤害 +300，敌人中毒持续时间翻倍",
@@ -3955,24 +3964,59 @@ function update(dt) {
     if (talentShopOpen) return;
 
     mouse.worldX = mouse.x + camera.x; mouse.worldY = mouse.y + camera.y;
-    // 基础生命/法力恢复
-    let hpRegen = 0.5 + (player.hpRegen || 0); // 基础 + 装备固定值
-    let mpRegen = 1.5 + (player.mpRegen || 0);
+    // 基础生命/法力恢复（大幅降低基础值，装备回复改为百分比加成）
+    let hpRegen = 0.5;  // 基础0.5/秒
+    let mpRegen = 1.0;  // 基础1/秒（从1.5降低）
     // 再生天赋+天神赐福：每秒额外恢复X%最大生命
-    const hpRegenPct = getTalentEffect('hpRegenPct', 0) + (player.hpRegenPct || 0);
+    const hpRegenPct = getTalentEffect('hpRegenPct', 0) + (player.hpRegenPct || 0) + (player.hpRegen || 0);
     if (hpRegenPct > 0) {
         hpRegen += player.maxHp * hpRegenPct / 100;
     }
-    // 法力涌动天赋+天神赐福：法力恢复+X%
-    const mpRegenPct = getTalentEffect('mpRegenPct', 0) + (player.mpRegenPct || 0);
+    // 法力涌动天赋+天神赐福+装备：法力恢复+X%（装备mpRegen现在也是百分比）
+    const mpRegenPct = getTalentEffect('mpRegenPct', 0) + (player.mpRegenPct || 0) + (player.mpRegen || 0);
     if (mpRegenPct > 0) {
-        mpRegen *= (1 + mpRegenPct / 100);
+        mpRegen += player.maxMp * mpRegenPct / 100;  // 改为基于最大法力的百分比
     }
     if (player.hp < player.maxHp) player.hp += hpRegen * dt;
     if (player.mp < player.maxMp) player.mp += mpRegen * dt;
     if (player.attackCooldown > 0) player.attackCooldown -= dt;
     if (player.attackAnim > 0) player.attackAnim -= dt * 5;
     for (let k in player.skillCooldowns) if (player.skillCooldowns[k] > 0) player.skillCooldowns[k] -= dt;
+
+    // 处理死亡倒计时
+    if (player.isDead) {
+        player.deathTimer -= dt;
+        if (player.deathTimer <= 0) {
+            // 倒计时结束，执行回城
+            player.isDead = false;
+            player.deathTimer = 0;
+            player.hp = player.maxHp;
+
+            // 重置地狱状态（死亡后回到普通世界）
+            const wasInHell = player.isInHell;
+            player.isInHell = false;
+
+            // 移除灰度滤镜（只在状态变化时执行一次）
+            canvas.style.filter = '';
+
+            // 传送回营地
+            enterFloor(0);
+            if (wasInHell) {
+                showNotification('已从地狱返回');
+            }
+        } else {
+            // 添加灰度滤镜（仅在状态为死亡且未添加滤镜时执行）
+            if (canvas.style.filter !== 'grayscale(80%) brightness(0.7)') {
+                canvas.style.filter = 'grayscale(80%) brightness(0.7)';
+            }
+        }
+        return; // 死亡时不执行其他更新逻辑
+    } else {
+        // 确保非死亡状态移除滤镜
+        if (canvas.style.filter) {
+            canvas.style.filter = '';
+        }
+    }
 
     // 定期清理死亡敌人（每3秒，使用对象池回收）
     cleanupTimer += dt;
@@ -4902,6 +4946,26 @@ function draw() {
     damageNumbers.forEach(d => { ctx.fillStyle = d.color; ctx.fillText(d.val, d.x, d.y); });
 
     ctx.restore();
+
+    // 死亡提示文字
+    if (player.isDead) {
+        // 绘制死亡提示文字（无遮罩，灰度效果由canvas filter实现）
+        ctx.save();
+
+        // 红色发光效果
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#ff0000';
+        ctx.fillStyle = '#ff0000';
+        ctx.font = 'bold 48px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('你已死亡', canvas.width / 2, canvas.height / 2 - 20);
+
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#fff';
+        ctx.font = '24px Arial';
+        ctx.fillText(`灵魂将在 ${Math.ceil(player.deathTimer)} 秒后返回罗格营地`, canvas.width / 2, canvas.height / 2 + 30);
+        ctx.restore();
+    }
 
     const g = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 200, canvas.width / 2, canvas.height / 2, canvas.width / 1.2);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.85)');
@@ -6648,6 +6712,10 @@ function checkPlayerDeath() {
         // 标记玩家曾经死亡
         player.died = true;
 
+        // 设置死亡状态和倒计时
+        player.isDead = true;
+        player.deathTimer = 5; // 5秒倒计时
+
         // 提交排行榜（死亡时更新）
         if (typeof OnlineSystem !== 'undefined') {
             OnlineSystem.submitScore({
@@ -6658,9 +6726,8 @@ function checkPlayerDeath() {
             });
         }
 
-        createFloatingText(player.x, player.y - 50, "你死了！灵魂回到了罗格营地", '#ff4444', 3);
-        player.hp = player.maxHp;
-        player.gold = Math.floor(player.gold / 2);
+        createFloatingText(player.x, player.y - 50, "你死了！", '#ff4444', 3);
+        AudioSys.play('hit'); // 播放死亡音效
 
         // 关闭自动战斗
         if (AutoBattle.enabled) {
@@ -6668,18 +6735,6 @@ function checkPlayerDeath() {
             document.getElementById('auto-battle-btn').classList.remove('active');
             document.getElementById('auto-battle-icon').textContent = '🛡️';
         }
-
-        // 重置地狱状态（死亡后回到普通世界）
-        const wasInHell = player.isInHell;
-        player.isInHell = false;
-
-        // 延迟1秒后传送回营地，让玩家看到死亡提示
-        setTimeout(() => {
-            enterFloor(0);
-            if (wasInHell) {
-                showNotification('已从地狱返回');
-            }
-        }, 1000);
     }
 }
 
