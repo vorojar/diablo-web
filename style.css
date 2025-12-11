@@ -1476,6 +1476,80 @@
             z-index: 50;
         }
 
+        /* ========== 排行榜样式 ========== */
+        .leaderboard-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            margin: 10px 0;
+            padding: 0 10px;
+        }
+
+        .lb-tab {
+            padding: 6px 16px;
+            background: rgba(40, 35, 30, 0.8);
+            border: 1px solid #3a3530;
+            color: #888;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        .lb-tab:hover {
+            background: rgba(60, 55, 50, 0.9);
+            color: #aaa;
+        }
+
+        .lb-tab.active {
+            background: rgba(80, 70, 50, 0.9);
+            border-color: #c7b377;
+            color: #c7b377;
+        }
+
+        .personal-best {
+            background: rgba(30, 28, 25, 0.9);
+            border: 1px solid #3a3530;
+            border-radius: 5px;
+            margin: 10px;
+            padding: 10px;
+        }
+
+        .pb-title {
+            color: #c7b377;
+            font-size: 13px;
+            text-align: center;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #3a3530;
+            padding-bottom: 5px;
+        }
+
+        .pb-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .pb-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 5px;
+            background: rgba(20, 18, 15, 0.6);
+            border-radius: 3px;
+        }
+
+        .pb-label {
+            font-size: 10px;
+            color: #666;
+        }
+
+        .pb-value {
+            font-size: 14px;
+            color: #ddd;
+            font-weight: bold;
+        }
+
         /* ========== 稀有度光效 - 暗金/套装物品呼吸光晕 ========== */
 
         /* 暗金物品光效 (rarity 3/4) - 金色呼吸光晕 */

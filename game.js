@@ -45,6 +45,42 @@ function isInTown() {
     return player.floor === 0 && !player.isInHell;
 }
 
+// 统计追踪：添加金币并更新统计
+function addGold(amount) {
+    player.gold += amount;
+    player.stats.totalGold += amount;
+    // 更新单次最高金币
+    if (player.gold > player.personalBest.maxGold) {
+        player.personalBest.maxGold = player.gold;
+    }
+}
+
+// 统计追踪：更新个人最佳记录
+function updatePersonalBest() {
+    if (player.lvl > player.personalBest.maxLevel) {
+        player.personalBest.maxLevel = player.lvl;
+    }
+    if (!player.isInHell && player.floor > player.personalBest.maxFloor) {
+        player.personalBest.maxFloor = player.floor;
+    }
+    if (player.isInHell && player.hellFloor > player.personalBest.maxHellFloor) {
+        player.personalBest.maxHellFloor = player.hellFloor;
+    }
+    if (player.kills > player.personalBest.maxKills) {
+        player.personalBest.maxKills = player.kills;
+    }
+}
+
+// 统计追踪：记录稀有物品发现
+function trackItemFound(item) {
+    if (!item) return;
+    if (item.rarity === RARITY.UNIQUE) {
+        player.stats.uniqueFound++;
+    } else if (item.rarity === RARITY.SET) {
+        player.stats.setFound++;
+    }
+}
+
 // 面板管理系统
 const panelManager = {
     panels: {
@@ -632,7 +668,7 @@ function claimQuestReward() {
     // 1. 金币 (解析字符串 "1500 金币")
     const goldMatch = q.reward.match(/(\d+)\s*金币/);
     if (goldMatch) {
-        player.gold += parseInt(goldMatch[1]);
+        addGold(parseInt(goldMatch[1]));
     }
     // 2. 技能点
     if (q.reward.includes('技能点')) {
@@ -650,8 +686,8 @@ function claimQuestReward() {
     // 兼容旧的硬编码奖励逻辑（如果是前10个任务）
     if (q.id <= 9) {
         // 这里只是为了保险，实际上上面的通用解析应该能覆盖大部分
-        if (q.reward.includes('500 金币') && !goldMatch) player.gold += 500;
-        if (q.reward.includes('1000 金币') && !goldMatch) player.gold += 1000;
+        if (q.reward.includes('500 金币') && !goldMatch) addGold(500);
+        if (q.reward.includes('1000 金币') && !goldMatch) addGold(1000);
     }
 
     // 完成任务
@@ -814,7 +850,26 @@ const player = {
     },
     // 死亡状态
     isDead: false,        // 是否处于死亡状态
-    deathTimer: 0         // 死亡倒计时（秒）
+    deathTimer: 0,        // 死亡倒计时（秒）
+    // 统计数据（用于排行榜）
+    stats: {
+        totalGold: 0,         // 累计获得金币
+        uniqueFound: 0,       // 发现的暗金数量
+        setFound: 0,          // 发现的套装数量
+        bossKills: 0,         // Boss击杀数
+        eliteKills: 0,        // 精英击杀数
+        maxKillStreak: 0,     // 最高连杀（不喝药）
+        currentStreak: 0      // 当前连杀
+    },
+    // 个人最佳记录
+    personalBest: {
+        maxLevel: 1,          // 最高等级
+        maxFloor: 0,          // 最高层数（普通）
+        maxHellFloor: 0,      // 最高层数（地狱）
+        maxKills: 0,          // 最高击杀数
+        maxGold: 0,           // 单次最高金币
+        fastestBaal: null     // 最快击杀巴尔（秒）
+    }
 };
 
 // ========== 每日登录奖励配置 ==========
@@ -3811,6 +3866,24 @@ function startGame() {
         // 向后兼容：旧存档没有每日登录系统
         if (!player.dailyLogin) player.dailyLogin = { lastLoginDate: null, consecutiveDays: 0, claimedToday: false };
 
+        // 向后兼容：旧存档没有统计和个人最佳系统 v4.9
+        if (!player.stats) {
+            player.stats = {
+                totalGold: 0, uniqueFound: 0, setFound: 0,
+                bossKills: 0, eliteKills: 0, maxKillStreak: 0, currentStreak: 0
+            };
+        }
+        if (!player.personalBest) {
+            player.personalBest = {
+                maxLevel: player.lvl || 1,
+                maxFloor: player.maxFloor || player.floor || 0,
+                maxHellFloor: player.hellFloor || 0,
+                maxKills: player.kills || 0,
+                maxGold: player.gold || 0,
+                fastestBaal: null
+            };
+        }
+
         // ========== 属性系统迁移 v3.9 ==========
         // 将旧的基础属性(str/dex/vit/ene)转换为直接效果属性
         migrateItemStats();
@@ -3849,6 +3922,9 @@ function enterFloor(f, spawnAt = 'start') {
             player.maxFloor = f;
         }
     }
+
+    // 更新个人最佳记录
+    updatePersonalBest();
 
     // 提交排行榜（进入新楼层时更新）
     if (typeof OnlineSystem !== 'undefined') {
@@ -4323,7 +4399,7 @@ function update(dt) {
 
             // 根据物品类型和设置判断是否拾取
             if (item.type === 'gold' && player.autoPickup.gold) {
-                player.gold += item.val;
+                addGold(item.val);
                 createDamageNumber(player.x, player.y - 40, `+${item.val} G`, 'gold');
                 AudioSys.play('gold');
                 shouldPickup = true;
@@ -4391,7 +4467,7 @@ function update(dt) {
                 if (finalDistance < 100) {
                     if (item.type === 'gold') {
                         // 拾取金币
-                        player.gold += item.val;
+                        addGold(item.val);
                         createDamageNumber(player.x, player.y - 40, "+" + item.val + "G", 'gold');
                         AudioSys.play('gold');
                     } else {
@@ -5243,9 +5319,9 @@ function interactNPC(npc) {
                         }
                         if (currentQ.reward.includes('金币')) {
                             if (currentQ.reward.includes('1000')) {
-                                player.gold += 1000;
+                                addGold(1000);
                             } else {
-                                player.gold += 500;
+                                addGold(500);
                             }
                         }
                         if (currentQ.reward.includes('装备') || currentQ.reward.includes('戒指') || currentQ.reward.includes('符文') || currentQ.reward.includes('饰品')) {
@@ -5770,6 +5846,14 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         // 怪物死亡
         e.dead = true;
         player.kills++;
+
+        // 更新击杀统计
+        player.stats.currentStreak++;
+        if (player.stats.currentStreak > player.stats.maxKillStreak) {
+            player.stats.maxKillStreak = player.stats.currentStreak;
+        }
+        if (e.isBoss) player.stats.bossKills++;
+        if (e.isElite) player.stats.eliteKills++;
 
         // ========== 击杀相关天赋效果 ==========
         // 嗜血：击杀恢复生命（天赋+天神赐福）
@@ -6515,7 +6599,7 @@ function claimDailyReward() {
     // 发放奖励
     switch (reward.type) {
         case 'gold':
-            player.gold += reward.amount;
+            addGold(reward.amount);
             break;
         case 'potion':
             for (let i = 0; i < reward.amount; i++) {
@@ -6725,6 +6809,9 @@ function addItemToInventory(i) {
         if (existing) { existing.quantity = (existing.quantity || 1) + 1; renderInventory(); updateBeltUI(); AudioSys.play('gold'); return true; }
     }
     const idx = player.inventory.findIndex(x => !x); if (idx < 0) return false; player.inventory[idx] = i; renderInventory(); updateBeltUI(); AudioSys.play('gold');
+
+    // 追踪稀有物品发现
+    trackItemFound(i);
 
     // 检查套装收藏成就
     if (i.setId) {
@@ -7303,7 +7390,7 @@ function updateWorldLabels() {
                 // 直接拾取
                 if (i.type === 'gold') {
                     // 拾取金币
-                    player.gold += i.val;
+                    addGold(i.val);
                     createDamageNumber(player.x, player.y - 40, "+" + i.val + "G", 'gold');
                     AudioSys.play('gold');
                 } else {
@@ -7683,7 +7770,7 @@ function useOrEquipItem(idx) {
     if (shop.style.display === 'block') {
         let val = 50;
         if (item.rarity > 1) val *= item.rarity * 2;
-        player.gold += val;
+        addGold(val);
 
         if (item.stackable && item.quantity > 1) {
             item.quantity--;
@@ -7702,7 +7789,10 @@ function useOrEquipItem(idx) {
     }
 
     if (item.type === 'potion') {
-        if (item.heal) player.hp = Math.min(player.maxHp, player.hp + item.heal);
+        if (item.heal) {
+            player.hp = Math.min(player.maxHp, player.hp + item.heal);
+            player.stats.currentStreak = 0; // 喝红药重置连杀
+        }
         if (item.mana) player.mp = Math.min(player.maxMp, player.mp + item.mana);
         AudioSys.play('potion'); // 播放喝药音效
 
@@ -8274,6 +8364,11 @@ function updateSkillsUI() {
 function checkLevelUp() {
     while (player.xp >= player.xpNext) {
         player.lvl++;
+
+        // 更新个人最佳等级
+        if (player.lvl > player.personalBest.maxLevel) {
+            player.personalBest.maxLevel = player.lvl;
+        }
 
         // 成就追踪：达到等级
         trackAchievement('reach_level', { level: player.lvl });

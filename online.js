@@ -229,27 +229,107 @@ const OnlineSystem = {
         this.leaderboardData = items;
     },
 
+    // 当前选中的榜单类型
+    currentTab: 'score',
+
     // 渲染排行榜内容
     renderLeaderboardContent(panel, items) {
         let html = '<div class="panel-close" onclick="togglePanel(\'leaderboard\')">X</div>';
         html += '<div class="panel-header">🏆 排行榜</div>';
 
+        // 个人最佳记录区域
+        html += this.renderPersonalBest();
+
+        // 榜单标签页
+        html += `<div class="leaderboard-tabs">
+            <span class="lb-tab ${this.currentTab === 'score' ? 'active' : ''}" onclick="OnlineSystem.switchTab('score')">综合</span>
+            <span class="lb-tab ${this.currentTab === 'kills' ? 'active' : ''}" onclick="OnlineSystem.switchTab('kills')">击杀</span>
+            <span class="lb-tab ${this.currentTab === 'floor' ? 'active' : ''}" onclick="OnlineSystem.switchTab('floor')">层数</span>
+        </div>`;
+
+        // 排行榜列表
         if (items.length === 0) {
             html += '<div style="color: #666; text-align: center; padding: 20px;">暂无数据</div>';
         } else {
-            items.forEach((item, i) => {
+            const sortedItems = this.sortByTab(items);
+            sortedItems.forEach((item, i) => {
                 const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
                 const isMe = item.user_id === this.userId;
-                const floorText = item.is_hell ? `地狱${item.max_floor}` : `${item.max_floor}层`;
+                const valueText = this.getValueText(item);
                 html += `<div class="stat-row" style="${isMe ? 'color: #ffff00; background: rgba(255,255,0,0.1);' : ''}">
                     <span>${medal} ${item.nickname}</span>
-                    <span style="color: #888;">Lv${item.level} ${floorText}</span>
+                    <span style="color: #888;">${valueText}</span>
                 </div>`;
             });
         }
 
         panel.innerHTML = html;
         this.bindPanelDrag(panel);
+    },
+
+    // 渲染个人最佳记录
+    renderPersonalBest() {
+        // 检查 player 对象是否存在
+        if (typeof player === 'undefined' || !player.personalBest) {
+            return '';
+        }
+        const pb = player.personalBest;
+        const stats = player.stats || {};
+
+        let html = '<div class="personal-best">';
+        html += '<div class="pb-title">我的记录</div>';
+        html += '<div class="pb-grid">';
+        html += `<div class="pb-item"><span class="pb-label">最高等级</span><span class="pb-value">Lv${pb.maxLevel || 1}</span></div>`;
+
+        // 显示最高层数（普通或地狱）
+        if (pb.maxHellFloor > 0) {
+            html += `<div class="pb-item"><span class="pb-label">地狱层数</span><span class="pb-value" style="color:#ff6600;">${pb.maxHellFloor}层</span></div>`;
+        } else {
+            html += `<div class="pb-item"><span class="pb-label">最高层数</span><span class="pb-value">${pb.maxFloor || 0}层</span></div>`;
+        }
+
+        html += `<div class="pb-item"><span class="pb-label">总击杀</span><span class="pb-value">${player.kills || 0}</span></div>`;
+        html += `<div class="pb-item"><span class="pb-label">Boss击杀</span><span class="pb-value" style="color:#ff4444;">${stats.bossKills || 0}</span></div>`;
+        html += '</div></div>';
+        return html;
+    },
+
+    // 切换榜单标签
+    switchTab(tab) {
+        this.currentTab = tab;
+        const panel = document.getElementById('leaderboard-panel');
+        if (panel && this.leaderboardData) {
+            this.renderLeaderboardContent(panel, this.leaderboardData);
+        }
+    },
+
+    // 根据当前标签排序
+    sortByTab(items) {
+        const sorted = [...items];
+        switch (this.currentTab) {
+            case 'kills':
+                return sorted.sort((a, b) => (b.kills || 0) - (a.kills || 0));
+            case 'floor':
+                return sorted.sort((a, b) => {
+                    const aFloor = a.is_hell ? (a.max_floor || 0) + 10 : (a.max_floor || 0);
+                    const bFloor = b.is_hell ? (b.max_floor || 0) + 10 : (b.max_floor || 0);
+                    return bFloor - aFloor;
+                });
+            default: // score
+                return sorted.sort((a, b) => (b.score || 0) - (a.score || 0));
+        }
+    },
+
+    // 根据当前标签获取显示文本
+    getValueText(item) {
+        switch (this.currentTab) {
+            case 'kills':
+                return `${item.kills || 0} 击杀`;
+            case 'floor':
+                return item.is_hell ? `地狱${item.max_floor}层` : `${item.max_floor}层`;
+            default:
+                return `Lv${item.level} ${item.is_hell ? '地狱' + item.max_floor : item.max_floor + '层'}`;
+        }
     },
 
     // 绑定面板拖动
