@@ -55,6 +55,7 @@ const panelManager = {
         'stash': { id: 'stash-panel', group: 'right', top: 15, baseTop: 15, opened: false, zIndex: 0 },
         'skills': { id: 'skills-panel', group: 'center', top: 15, baseTop: 15, opened: false, zIndex: 0, left: 340 },
         'shop': { id: 'shop-panel', group: 'center', top: 10, baseTop: 10, opened: false, zIndex: 0 },
+        'blacksmith': { id: 'blacksmith-panel', group: 'center', top: 15, baseTop: 15, opened: false, zIndex: 0 },
         'auto-battle': { id: 'auto-battle-panel', group: 'right', top: 10, baseTop: 10, opened: false, zIndex: 0 }
     },
     maxZIndex: 100,
@@ -3891,6 +3892,7 @@ function enterFloor(f, spawnAt = 'start') {
         npcs.push({ x: dungeonEntrance.x - 100, y: dungeonEntrance.y - 100, name: "基格", type: "merchant", radius: 20, frameIndex: 1 });
         npcs.push({ x: dungeonEntrance.x + 100, y: dungeonEntrance.y - 50, name: "阿卡拉", type: "healer", radius: 20, quest: 'q1', frameIndex: 2 });
         npcs.push({ x: dungeonEntrance.x, y: dungeonEntrance.y + 100, name: "瓦瑞夫", type: "stash", radius: 20, frameIndex: 0 });
+        npcs.push({ x: dungeonEntrance.x + 80, y: dungeonEntrance.y + 80, name: "恰西", type: "blacksmith", radius: 20, frameIndex: 5 });
 
         // 始终添加地狱守卫，但交互需要条件
         npcs.push({ x: dungeonEntrance.x - 150, y: dungeonEntrance.y + 50, name: "地狱守卫", type: "difficulty", radius: 20, frameIndex: 3 });
@@ -4348,8 +4350,13 @@ function update(dt) {
     if (mouse.leftDown && !isHoveringUI()) {
         const t = getEnemyAtCursor();
         const npc = getNPCAtCursor();
+        // NPC交互只在点击瞬间触发一次，避免面板闪烁
         if (npc && Math.hypot(npc.x - player.x, npc.y - player.y) < 60) {
-            player.targetX = null; interactNPC(npc);
+            if (mouse.leftClick) {
+                player.targetX = null;
+                interactNPC(npc);
+                mouse.leftClick = false; // 消费掉点击，避免重复触发
+            }
         } else if (t) {
             if (Math.hypot(t.x - player.x, t.y - player.y) < 50) { player.targetX = null; performAttack(t); }
             else { player.targetX = t.x; player.targetY = t.y; }
@@ -5206,6 +5213,8 @@ function interactNPC(npc) {
     } else if (npc.type === 'respec') {
         // 神秘贤者 - 洗点服务
         showRespecDialog();
+    } else if (npc.type === 'blacksmith') {
+        togglePanel('blacksmith');
     } else if (npc.type === 'healer') {
         const currentQ = getCurrentQuest();
 
@@ -7591,8 +7600,11 @@ function renderInventory() {
                 e.stopPropagation();
                 // 如果仓库面板打开，点击物品存入仓库
                 const stashPanel = document.getElementById('stash-panel');
-                if (stashPanel.style.display === 'block') {
+                const blacksmithPanel = document.getElementById('blacksmith-panel');
+                if (stashPanel && stashPanel.style.display === 'block') {
                     moveItemToStash(idx);
+                } else if (blacksmithPanel && blacksmithPanel.style.display === 'block') {
+                    moveItemToForge(idx);
                 } else {
                     useOrEquipItem(idx);
                 }
@@ -8311,7 +8323,8 @@ function togglePanel(id) {
             'quest': updateQuestUI,
             'achievements': renderAchievements,
             'shop': () => { },
-            'stash': () => { }
+            'stash': () => { },
+            'blacksmith': renderBlacksmithPanel
         };
 
         if (updateFunctions[id]) {
@@ -8435,10 +8448,18 @@ window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.cli
 window.addEventListener('mousedown', e => {
     // 任何鼠标交互时尝试自动启动BGM
     AudioSys.tryAutoStartBGM();
-    if (e.button === 0) mouse.leftDown = true;
+    if (e.button === 0) {
+        mouse.leftDown = true;
+        mouse.leftClick = true; // 标记为刚点击（单次触发）
+    }
     if (e.button === 2) { mouse.rightDown = true; castSkill(player.activeSkill); }
 });
-window.addEventListener('mouseup', e => { if (e.button === 0) mouse.leftDown = false; });
+window.addEventListener('mouseup', e => {
+    if (e.button === 0) {
+        mouse.leftDown = false;
+        mouse.leftClick = false;
+    }
+});
 window.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('keydown', e => {
     // 任何键盘交互时尝试自动启动BGM
@@ -8855,6 +8876,400 @@ function switchSettingsTab(tabName) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     const btn = document.getElementById(`tab-btn-${tabName}`);
     if (btn) btn.classList.add('active');
+}
+
+
+// ============= 铁匠铺系统 (Blacksmith System) =============
+
+let forgeState = {
+    main: null,
+    sub1: null,
+    sub2: null
+};
+
+function renderBlacksmithPanel() {
+    const slots = ['main', 'sub1', 'sub2'];
+    let mainItem = forgeState.main;
+
+    // 更新槽位显示
+    slots.forEach(slotKey => {
+        const item = forgeState[slotKey];
+        const elId = slotKey === 'main' ? 'forge-main-slot' : (slotKey === 'sub1' ? 'forge-sub-slot-1' : 'forge-sub-slot-2');
+        const el = document.getElementById(elId);
+
+        // 清除旧内容
+        el.innerHTML = '';
+        el.className = `forge-slot ${slotKey === 'main' ? 'main-slot' : 'sacrifice-slot'}`;
+        el.onclick = () => returnItemFromForge(slotKey);
+
+        if (item) {
+            el.classList.add('has-item');
+
+            // 创建图标容器
+            const iconDiv = document.createElement('div');
+            iconDiv.style.width = '100%';
+            iconDiv.style.height = '100%';
+            applyItemSpriteToElement(iconDiv, item);
+            iconDiv.style.border = 'none'; // 移除内部边框，使用槽位边框
+
+            // 稀有度颜色边框
+            const color = getItemColor(item.rarity);
+            el.style.borderColor = color;
+            el.style.boxShadow = `0 0 10px ${color}`;
+
+            // 强化等级角标
+            if (item.enhanceLvl > 0) {
+                const badge = document.createElement('div');
+                badge.className = 'item-count'; // 复用样式
+                badge.innerText = `+${item.enhanceLvl}`;
+                badge.style.right = '2px';
+                badge.style.bottom = '2px';
+                el.appendChild(badge);
+            }
+
+            el.appendChild(iconDiv);
+
+            // Tooltip
+            el.onmouseenter = (e) => showTooltip(item, e);
+            el.onmouseleave = hideTooltip;
+        } else {
+            el.style.borderColor = '#555';
+            el.style.boxShadow = 'inset 0 0 10px #000';
+            const placeholder = document.createElement('span');
+            placeholder.className = 'slot-placeholder';
+            placeholder.innerText = slotKey === 'main' ? '装备' : '祭品';
+            el.appendChild(placeholder);
+            el.onmouseenter = null;
+            el.onmouseleave = null;
+        }
+    });
+
+    // 更新信息显示
+    const previewText = document.getElementById('forge-preview-text');
+    const costDisplay = document.getElementById('forge-cost-display');
+    const btn = document.getElementById('btn-forge-action');
+    const goldCostEl = document.getElementById('forge-gold-cost');
+
+    if (mainItem) {
+        const currentLvl = mainItem.enhanceLvl || 0;
+        const nextLvl = currentLvl + 1;
+        const isMaxLevel = currentLvl >= 9;
+
+        if (isMaxLevel) {
+            previewText.innerHTML = `<span style="color:#d4af37">已达到最高强化等级 (+9)</span>`;
+            costDisplay.style.display = 'none';
+            btn.disabled = true;
+            btn.classList.remove('highlight-btn');
+            btn.innerText = '已满级';
+        } else {
+            // 计算成功率和花费
+            const successRate = Math.max(10, 100 - (currentLvl * 10)); // +0->+1: 100%, +8->+9: 20%
+            const goldCost = (currentLvl + 1) * 1000 + (mainItem.rarity * 500); // 随等级和稀有度增加
+
+            // 预览属性提升
+            // 假设每次强化提升 10% 基础属性 (防御/伤害)
+            const statIncrease = 10;
+
+            let previewHtml = `强化至 <span style="color:#00ff00">+${nextLvl}</span><br>`;
+            previewHtml += `成功率: <span style="color:${successRate >= 80 ? '#00ff00' : (successRate >= 50 ? '#ffff00' : '#ff4444')}">${successRate}%</span><br>`;
+            previewHtml += `基础属性提升约 ${statIncrease}%`;
+
+            if (currentLvl >= 6) {
+                previewHtml += `<br><span style="color:#ff4444; font-size:11px;">⚠️ 失败可能导致强化等级下降</span>`;
+            }
+
+            previewText.innerHTML = previewHtml;
+
+            // 更新花费
+            goldCostEl.innerText = goldCost;
+            costDisplay.style.display = 'block';
+
+            // 检查条件
+            const hasMaterials = forgeState.sub1 && forgeState.sub2;
+            const canAfford = player.gold >= goldCost;
+
+            if (hasMaterials && canAfford) {
+                btn.disabled = false;
+                btn.classList.add('highlight-btn');
+                btn.innerText = '开始强化';
+                btn.onclick = () => forgeItem(successRate, goldCost);
+            } else {
+                btn.disabled = true;
+                btn.classList.remove('highlight-btn');
+                btn.innerText = !hasMaterials ? '缺少祭品' : '金币不足';
+            }
+        }
+    } else {
+        previewText.innerHTML = `请放入需要强化的装备<br><span style="color:#888; font-size:12px;">(最高可强化至 +9)</span>`;
+        costDisplay.style.display = 'none';
+        btn.disabled = true;
+        btn.classList.remove('highlight-btn');
+        btn.innerText = '开始强化';
+    }
+}
+
+function moveItemToForge(inventoryIdx) {
+    const item = player.inventory[inventoryIdx];
+    if (!item) return;
+
+    // 装备判定
+    const isEquipment = ['weapon', 'helm', 'armor', 'gloves', 'boots', 'belt', 'shield', 'ring', 'amulet'].includes(item.type);
+    if (!isEquipment) {
+        showNotification("只能强化装备");
+        return;
+    }
+
+    if (!forgeState.main) {
+        // 放入主槽位
+        forgeState.main = item;
+        player.inventory[inventoryIdx] = null;
+        AudioSys.play('gold'); // 借用音效
+    } else {
+        // 尝试放入祭品槽位
+        // 祭品要求：同部位
+        if (item.type !== forgeState.main.type) {
+            showNotification(`祭品必须是同部位装备 (${forgeState.main.type})`);
+            return;
+        }
+        // 祭品要求：同稀有度 (或者更高? 这里严格要求同稀有度简化逻辑)
+        if (item.rarity !== forgeState.main.rarity) {
+            showNotification("祭品必须是相同稀有度");
+            return;
+        }
+
+        if (!forgeState.sub1) {
+            forgeState.sub1 = item;
+            player.inventory[inventoryIdx] = null;
+            AudioSys.play('gold');
+        } else if (!forgeState.sub2) {
+            forgeState.sub2 = item;
+            player.inventory[inventoryIdx] = null;
+            AudioSys.play('gold');
+        } else {
+            showNotification("槽位已满");
+            return;
+        }
+    }
+
+    renderInventory();
+    renderBlacksmithPanel();
+}
+
+function returnItemFromForge(slotKey) {
+    const item = forgeState[slotKey];
+    if (!item) return;
+
+    if (addItemToInventory(item)) {
+        forgeState[slotKey] = null;
+
+        // 如果取下主装备，祭品也一并退回 (为了防止误操作，或者单纯保留在上面也行？保留着比较方便)
+        // 这里选择保留祭品，但渲染时会重新检查
+
+        renderInventory();
+        renderBlacksmithPanel();
+    } else {
+        showNotification("背包已满");
+    }
+}
+
+function autoFillForgeMaterial() {
+    if (!forgeState.main) {
+        showNotification("请先放入主装备");
+        return;
+    }
+
+    const targetType = forgeState.main.type;
+    const targetRarity = forgeState.main.rarity;
+    let addedCount = 0;
+
+    // 填充sub1
+    if (!forgeState.sub1) {
+        const idx = player.inventory.findIndex(i => i && i.type === targetType && i.rarity === targetRarity);
+        if (idx !== -1) {
+            forgeState.sub1 = player.inventory[idx];
+            player.inventory[idx] = null;
+            addedCount++;
+        }
+    }
+
+    // 填充sub2
+    if (!forgeState.sub2) {
+        const idx = player.inventory.findIndex(i => i && i.type === targetType && i.rarity === targetRarity);
+        if (idx !== -1) {
+            forgeState.sub2 = player.inventory[idx];
+            player.inventory[idx] = null;
+            addedCount++;
+        }
+    }
+
+    if (addedCount > 0) {
+        renderInventory();
+        renderBlacksmithPanel();
+        showNotification(`自动填充了 ${addedCount} 个祭品`);
+        AudioSys.play('gold');
+    } else {
+        showNotification("没有找到匹配的祭品");
+    }
+}
+
+function forgeItem(successRate, cost) {
+    if (!forgeState.main || !forgeState.sub1 || !forgeState.sub2) return;
+    if (player.gold < cost) return;
+
+    player.gold -= cost;
+
+    // 消耗祭品
+    forgeState.sub1 = null;
+    forgeState.sub2 = null;
+
+    const mainItem = forgeState.main;
+    const roll = Math.random() * 100;
+    const isSuccess = roll < successRate;
+
+    const mainSlotEl = document.getElementById('forge-main-slot');
+
+    if (isSuccess) {
+        // 成功
+        mainItem.enhanceLvl = (mainItem.enhanceLvl || 0) + 1;
+
+        // 提升基础属性
+        // 简易实现：直接修 stats 对象里的属性，或者 def/minDmg
+        // 注意：这里需要确保只保留整数
+        if (mainItem.def) mainItem.def = Math.floor(mainItem.def * 1.1);
+        if (mainItem.minDmg) mainItem.minDmg = Math.floor(mainItem.minDmg * 1.1);
+        if (mainItem.maxDmg) mainItem.maxDmg = Math.floor(mainItem.maxDmg * 1.1);
+        // 对于 stats 里的百分比属性通常不提升，只提升数值类比较合理
+        // 但为了爽感，可以微调 stats
+        for (let key in mainItem.stats) {
+            // 只提升数值较大的属性，避免小数
+            if (mainItem.stats[key] > 5) {
+                mainItem.stats[key] = Math.ceil(mainItem.stats[key] * 1.05);
+            }
+        }
+
+        // 更新名称显示
+        if (!mainItem.originalName) mainItem.originalName = mainItem.displayName || mainItem.name;
+        mainItem.displayName = `${mainItem.originalName} +${mainItem.enhanceLvl}`;
+
+        // 成功特效
+        createUIForgeEffect('success');
+
+        mainSlotEl.classList.add('forge-success-anim');
+        setTimeout(() => mainSlotEl.classList.remove('forge-success-anim'), 1000);
+
+        // 特效粒子? (简化：用现有的 floating text)
+        createFloatingText(player.x, player.y - 60, "强化成功!", '#00ff00', 2);
+
+    } else {
+        // 失败
+        let msg = "强化失败...";
+        // +6及以上失败惩罚：降级
+        if ((mainItem.enhanceLvl || 0) >= 6) {
+            // 50% 概率降级
+            if (Math.random() > 0.5) {
+                mainItem.enhanceLvl--;
+                // 属性回退？这比较麻烦，简化处理：不回退属性只回退等级数字，或者稍微扣一点
+                // 暂时只扣等级数字和一点点属性
+                if (mainItem.def) mainItem.def = Math.floor(mainItem.def * 0.95);
+                if (mainItem.minDmg) mainItem.minDmg = Math.floor(mainItem.minDmg * 0.95);
+                if (mainItem.maxDmg) mainItem.maxDmg = Math.floor(mainItem.maxDmg * 0.95);
+
+                mainItem.displayName = `${mainItem.originalName} +${mainItem.enhanceLvl}`;
+                msg += " 等级下降!";
+            } else {
+                msg += " 物品保留";
+            }
+        }
+
+        // 失败特效
+        createUIForgeEffect('fail');
+
+        mainSlotEl.classList.add('forge-fail-anim');
+        setTimeout(() => mainSlotEl.classList.remove('forge-fail-anim'), 1000);
+        createFloatingText(player.x, player.y - 60, "强化失败", '#ff4444', 2);
+    }
+
+    renderInventory();
+    renderBlacksmithPanel();
+    updateStats(); // 可能影响已装备物品（如果允许强化身上物品，目前逻辑是必须在背包里，所以不用）
+}
+
+// UI粒子特效 (用于强化成功/失败，显示在面板之上)
+function createUIForgeEffect(type) {
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2 - 50; // 略微向上偏，对准主槽位
+    const container = document.body;
+
+    const count = type === 'success' ? 40 : 20;
+    const colors = type === 'success' ?
+        ['#ffd700', '#ffaa00', '#ffff00', '#ffffff'] :
+        ['#888888', '#555555', '#aaaaaa', '#000000'];
+
+    // 播放音效
+    if (type === 'success') {
+        AudioSys.play('drop_unique'); // 借用暗金掉落音效
+    } else {
+        AudioSys.play('hit');
+    }
+
+    for (let i = 0; i < count; i++) {
+        const p = document.createElement('div');
+        const size = Math.random() * 4 + 2;
+        p.style.width = size + 'px';
+        p.style.height = size + 'px';
+        p.style.position = 'absolute';
+        p.style.left = centerX + 'px';
+        p.style.top = centerY + 'px';
+        p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        p.style.borderRadius = '50%';
+        p.style.zIndex = '2000'; // 确保在面板之上
+        p.style.pointerEvents = 'none';
+        p.style.boxShadow = type === 'success' ? `0 0 ${size * 2}px ${p.style.backgroundColor}` : 'none';
+
+        container.appendChild(p);
+
+        // 动画参数
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = Math.random() * 100 + 50; // 速度
+        const life = 1.0 + Math.random() * 0.5; // 持续时间
+
+        // CSS transition
+        p.style.transition = `all ${life}s ease-out`;
+
+        // 下一帧触发移动
+        requestAnimationFrame(() => {
+            const destX = centerX + Math.cos(angle) * velocity * 2; // 扩散半径
+            const destY = centerY + Math.sin(angle) * velocity * 2 + (type === 'success' ? -100 : 100); // 成功向上飘，失败向下落
+
+            p.style.transform = `translate(${destX - centerX}px, ${destY - centerY}px)`;
+            p.style.opacity = '0';
+        });
+
+        // 清理
+        setTimeout(() => p.remove(), life * 1000);
+    }
+
+    // 成功时的额外闪光
+    if (type === 'success') {
+        const flash = document.createElement('div');
+        flash.style.position = 'fixed';
+        flash.style.left = '0';
+        flash.style.top = '0';
+        flash.style.width = '100%';
+        flash.style.height = '100%';
+        flash.style.backgroundColor = 'rgba(255, 215, 0, 0.3)';
+        flash.style.zIndex = '1999';
+        flash.style.pointerEvents = 'none';
+        flash.style.transition = 'opacity 0.5s ease-out';
+
+        container.appendChild(flash);
+
+        requestAnimationFrame(() => {
+            flash.style.opacity = '0';
+        });
+
+        setTimeout(() => flash.remove(), 500);
+    }
 }
 
 initDragging();

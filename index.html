@@ -455,6 +455,69 @@
             <div id="talent-hud"></div>
 
 
+            <!-- 铁匠铺面板 -->
+            <div id="blacksmith-panel" class="panel" style="display:none; width:360px;">
+                <div class="panel-close" onclick="togglePanel('blacksmith')">X</div>
+                <div class="panel-header">⚒️ 恰西的铁匠铺</div>
+
+                <div class="forge-container">
+                    <!-- 装备强化槽位 (品字形布局) -->
+                    <div class="forge-slots-area">
+                        <!-- 主槽位 (顶部居中) -->
+                        <div class="forge-main-slot-container">
+                            <div class="forge-slot main-slot" id="forge-main-slot" data-slot="main">
+                                <span class="slot-placeholder">装备</span>
+                            </div>
+                            <div class="slot-label">强化目标</div>
+                        </div>
+
+                        <!-- 祭品槽位 (下方左右) -->
+                        <div class="forge-sacrifices-container">
+                            <div class="sacrifice-wrapper">
+                                <div class="forge-slot sacrifice-slot" id="forge-sub-slot-1" data-slot="sub1">
+                                    <span class="slot-placeholder">祭品</span>
+                                </div>
+                            </div>
+                            <div class="sacrifice-wrapper">
+                                <div class="forge-slot sacrifice-slot" id="forge-sub-slot-2" data-slot="sub2">
+                                    <span class="slot-placeholder">祭品</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 辅助操作 -->
+                        <div class="forge-tools" style="text-align:center; margin-top:5px;">
+                            <button class="sys-btn small-btn" onclick="autoFillForgeMaterial()" title="自动填充背包中符合条件的装备">⚡
+                                一键填充</button>
+                        </div>
+                    </div>
+
+                    <!-- 属性预览与信息 -->
+                    <div class="forge-info-area">
+                        <div id="forge-preview-text" class="forge-preview">
+                            请放入需要强化的装备<br>
+                            <span style="color:#888; font-size:12px;">(最高可强化至 +9)</span>
+                        </div>
+                        <div id="forge-cost-display" class="forge-cost" style="display:none;">
+                            消耗: <span id="forge-gold-cost">0</span> G
+                        </div>
+                    </div>
+
+                    <!-- 操作按钮 -->
+                    <div class="forge-actions">
+                        <button class="sys-btn highlight-btn" id="btn-forge-action" onclick="forgeItem()"
+                            disabled>开始强化</button>
+                    </div>
+
+                    <!-- 规则说明 -->
+                    <div class="forge-rules">
+                        <p>• 消耗两件同部位同稀有度装备作为祭品</p>
+                        <p>• 强化成功提升基础属性</p>
+                        <p>• +6以上失败可能导致等级下降</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- 天神赐福选择弹窗 -->
             <div id="divine-blessing-panel" class="panel"
                 style="display:none; left:50%; top:50%; transform:translate(-50%,-50%); width:auto;">

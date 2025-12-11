@@ -1936,10 +1936,12 @@
             color: #ffd700;
             animation: blessingPulse 2s ease-in-out infinite;
         }
+
         .sys-btn.db-btn:hover {
             border-color: #ffec80;
             color: #ffec80;
         }
+
         .db-count-badge {
             margin-left: 5px;
             background: #ffd700;
@@ -1949,9 +1951,17 @@
             font-size: 11px;
             font-weight: bold;
         }
+
         @keyframes blessingPulse {
-            0%, 100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.4); }
-            50% { box-shadow: 0 0 12px rgba(255, 215, 0, 0.8); }
+
+            0%,
+            100% {
+                box-shadow: 0 0 5px rgba(255, 215, 0, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 12px rgba(255, 215, 0, 0.8);
+            }
         }
 
         .db-card {
@@ -1964,36 +1974,134 @@
             transition: all 0.2s;
             text-align: center;
         }
-        .db-card:hover { border-color: var(--text-gold); box-shadow: 0 0 10px rgba(199, 179, 119, 0.5); }
-        .db-card.normal { border-color: #666; }
-        .db-card.rare { border-color: var(--item-magic); }
-        .db-card-icon { font-size: 28px; margin-bottom: 6px; }
-        .db-card-name { font-size: 14px; font-weight: bold; margin-bottom: 8px; }
-        .db-card.normal .db-card-name { color: #fff; }
-        .db-card.rare .db-card-name { color: var(--item-magic); }
-        .db-card-effect { color: #88ff88; font-size: 12px; line-height: 1.4; }
+
+        .db-card:hover {
+            border-color: var(--text-gold);
+            box-shadow: 0 0 10px rgba(199, 179, 119, 0.5);
+        }
+
+        .db-card.normal {
+            border-color: #666;
+        }
+
+        .db-card.rare {
+            border-color: var(--item-magic);
+        }
+
+        .db-card-icon {
+            font-size: 28px;
+            margin-bottom: 6px;
+        }
+
+        .db-card-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .db-card.normal .db-card-name {
+            color: #fff;
+        }
+
+        .db-card.rare .db-card-name {
+            color: var(--item-magic);
+        }
+
+        .db-card-effect {
+            color: #88ff88;
+            font-size: 12px;
+            line-height: 1.4;
+        }
 
         /* 赐福按钮状态 */
-        .sys-btn.db-btn { border-color: #666; color: #999; animation: none; }
-        .sys-btn.db-btn.has-pending { border-color: #ffd700; color: #ffd700; animation: blessingPulse 2s ease-in-out infinite; }
-        .sys-btn.db-btn:not(.has-pending) .db-count-badge { background: #666; color: #ccc; }
+        .sys-btn.db-btn {
+            border-color: #666;
+            color: #999;
+            animation: none;
+        }
+
+        .sys-btn.db-btn.has-pending {
+            border-color: #ffd700;
+            color: #ffd700;
+            animation: blessingPulse 2s ease-in-out infinite;
+        }
+
+        .sys-btn.db-btn:not(.has-pending) .db-count-badge {
+            background: #666;
+            color: #ccc;
+        }
 
         /* 已获得赐福列表样式 */
-        .db-list-item { display: flex; align-items: center; gap: 8px; padding: 8px; border-bottom: 1px solid #333; }
-        .db-list-item:last-child { border-bottom: none; }
-        .db-list-item.rare { background: rgba(106, 136, 255, 0.1); }
-        .db-list-icon { font-size: 18px; width: 24px; text-align: center; }
-        .db-list-name { font-size: 13px; font-weight: bold; min-width: 70px; }
-        .db-list-item.normal .db-list-name { color: #fff; }
-        .db-list-item.rare .db-list-name { color: var(--item-magic); }
-        .db-list-effect { flex: 1; font-size: 11px; color: #88ff88; }
-        .db-list-level { font-size: 10px; color: #888; }
+        .db-list-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            border-bottom: 1px solid #333;
+        }
+
+        .db-list-item:last-child {
+            border-bottom: none;
+        }
+
+        .db-list-item.rare {
+            background: rgba(106, 136, 255, 0.1);
+        }
+
+        .db-list-icon {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+
+        .db-list-name {
+            font-size: 13px;
+            font-weight: bold;
+            min-width: 70px;
+        }
+
+        .db-list-item.normal .db-list-name {
+            color: #fff;
+        }
+
+        .db-list-item.rare .db-list-name {
+            color: var(--item-magic);
+        }
+
+        .db-list-effect {
+            flex: 1;
+            font-size: 11px;
+            color: #88ff88;
+        }
+
+        .db-list-level {
+            font-size: 10px;
+            color: #888;
+        }
+
         /* 赐福列表滚动条 */
-        #divine-blessing-list::-webkit-scrollbar { width: 6px; }
-        #divine-blessing-list::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.3); border-radius: 3px; }
-        #divine-blessing-list::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
-        #divine-blessing-list::-webkit-scrollbar-thumb:hover { background: #777; }
-        #divine-blessing-list { scrollbar-width: thin; scrollbar-color: #555 rgba(0, 0, 0, 0.3); }
+        #divine-blessing-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #divine-blessing-list::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 3px;
+        }
+
+        #divine-blessing-list::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 3px;
+        }
+
+        #divine-blessing-list::-webkit-scrollbar-thumb:hover {
+            background: #777;
+        }
+
+        #divine-blessing-list {
+            scrollbar-width: thin;
+            scrollbar-color: #555 rgba(0, 0, 0, 0.3);
+        }
 
         /* ========== 每日登录奖励样式 ========== */
         .daily-reward-card {
@@ -2006,51 +2114,85 @@
             position: relative;
             transition: all 0.2s;
         }
+
         .daily-reward-card.current {
             border-color: #ffd700;
             box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
             animation: dailyPulse 1.5s ease-in-out infinite;
         }
+
         .daily-reward-card.claimed {
             border-color: #555;
             opacity: 0.6;
         }
+
         .daily-reward-card.locked {
             border-color: #333;
             opacity: 0.4;
         }
+
         .daily-reward-card.day7 {
             border-color: #ff8c00;
             background: linear-gradient(135deg, rgba(50, 40, 20, 0.95), rgba(80, 60, 20, 0.95));
         }
+
         .daily-reward-card.day7:not(.claimed) {
             animation: day7Glow 2s ease-in-out infinite;
         }
+
         @keyframes day7Glow {
-            0%, 100% { box-shadow: 0 0 8px rgba(255, 140, 0, 0.4); }
-            50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 30px rgba(255, 140, 0, 0.4); }
+
+            0%,
+            100% {
+                box-shadow: 0 0 8px rgba(255, 140, 0, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 30px rgba(255, 140, 0, 0.4);
+            }
         }
-        .daily-reward-card.day7 .daily-reward-day { color: #ffd700; }
-        .daily-reward-card.day7 .daily-reward-name { color: #ffd700; }
+
+        .daily-reward-card.day7 .daily-reward-day {
+            color: #ffd700;
+        }
+
+        .daily-reward-card.day7 .daily-reward-name {
+            color: #ffd700;
+        }
+
         @keyframes dailyPulse {
-            0%, 100% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.3); }
-            50% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.7); }
+
+            0%,
+            100% {
+                box-shadow: 0 0 5px rgba(255, 215, 0, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+            }
         }
+
         .daily-reward-day {
             font-size: 10px;
             color: #888;
             margin-bottom: 4px;
         }
-        .daily-reward-card.current .daily-reward-day { color: #ffd700; }
+
+        .daily-reward-card.current .daily-reward-day {
+            color: #ffd700;
+        }
+
         .daily-reward-icon {
             font-size: 22px;
             margin-bottom: 4px;
         }
+
         .daily-reward-name {
             font-size: 9px;
             color: #aaa;
             line-height: 1.2;
         }
+
         .daily-reward-check {
             position: absolute;
             top: -5px;
@@ -2063,6 +2205,7 @@
             line-height: 18px;
             color: #fff;
         }
+
         #btn-claim-daily:disabled {
             background: #333;
             color: #666;
@@ -2123,4 +2266,239 @@
             border: solid white;
             border-width: 0 2px 2px 0;
             transform: rotate(45deg);
+        }
+
+        /* Blacksmith Panel Styles */
+        .forge-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding-top: 10px;
+        }
+
+        .forge-slots-area {
+            position: relative;
+            height: 180px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            border: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Triangle Layout Connection Lines */
+        .forge-slots-area::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 120px;
+            height: 60px;
+            border-left: 2px dashed #444;
+            border-right: 2px dashed #444;
+            transform: translate(-50%, -10px);
+            z-index: 0;
+            opacity: 0.5;
+            /* Create V shape lines */
+            border-bottom: none;
+            border-top: none;
+            background: linear-gradient(to bottom, transparent 0%, transparent 100%);
+        }
+
+        .forge-slots-area::after {
+            content: '';
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            width: 140px;
+            height: 2px;
+            background: transparent;
+            display: none;
+            /* Removed complex line drawing for simplicity, using CSS borders on elements if needed */
+        }
+
+        .forge-main-slot-container {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .forge-sacrifices-container {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 80px;
+            z-index: 10;
+        }
+
+        .sacrifice-wrapper {
+            position: relative;
+        }
+
+        .forge-slot {
+            width: 64px;
+            height: 64px;
+            background: #111;
+            border: 2px solid #555;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: inset 0 0 10px #000;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .forge-slot.main-slot {
+            width: 80px;
+            height: 80px;
+            border-color: var(--text-gold);
+            box-shadow: 0 0 15px rgba(199, 179, 119, 0.2), inset 0 0 10px #000;
+        }
+
+        .forge-slot:hover {
+            border-color: #fff;
+            filter: brightness(1.2);
+        }
+
+        .forge-slot.has-item {
+            background-size: 80%;
+            /* Smaller item icon */
+        }
+
+        .slot-placeholder {
+            color: #444;
+            font-size: 12px;
+            pointer-events: none;
+        }
+
+        .slot-label {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .forge-info-area {
+            text-align: center;
+            min-height: 40px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #333;
+        }
+
+        .forge-preview {
+            color: #aaa;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .forge-cost {
+            color: var(--text-gold);
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .forge-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+            /* Add some space */
+        }
+
+        .forge-tools {
+            margin-top: 8px;
+            margin-bottom: 5px;
+        }
+
+        .sys-btn.small-btn {
+            font-size: 11px;
+            padding: 4px 10px;
+            min-width: auto;
+            width: auto;
+            border-color: #666;
+            background: linear-gradient(to bottom, #444, #222);
+        }
+
+        .sys-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(100%);
+            border-color: #444;
+            color: #888;
+            background: #222;
+            box-shadow: none;
+        }
+
+        .forge-rules {
+            font-size: 11px;
+            color: #666;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        .forge-rules p {
+            margin: 2px 0;
+            padding-left: 10px;
+        }
+
+        /* Animation for successful forge */
+        @keyframes forgeSuccess {
+            0% {
+                box-shadow: 0 0 0 rgba(255, 215, 0, 0);
+                border-color: var(--text-gold);
+            }
+
+            50% {
+                box-shadow: 0 0 50px rgba(255, 215, 0, 0.8);
+                border-color: #fff;
+                background-color: rgba(255, 215, 0, 0.3);
+            }
+
+            100% {
+                box-shadow: 0 0 0 rgba(255, 215, 0, 0);
+                border-color: var(--text-gold);
+            }
+        }
+
+        /* Animation for failed forge */
+        @keyframes forgeFail {
+            0% {
+                box-shadow: 0 0 0 rgba(255, 0, 0, 0);
+                border-color: #555;
+            }
+
+            50% {
+                box-shadow: 0 0 50px rgba(255, 0, 0, 0.8);
+                border-color: #ff0000;
+                background-color: rgba(255, 0, 0, 0.3);
+            }
+
+            100% {
+                box-shadow: 0 0 0 rgba(255, 0, 0, 0);
+                border-color: #555;
+            }
+        }
+
+        .forge-success-anim {
+            animation: forgeSuccess 1s ease-out;
+        }
+
+        .forge-fail-anim {
+            animation: forgeFail 1s ease-out;
         }
