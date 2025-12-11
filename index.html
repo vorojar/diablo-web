@@ -27,7 +27,7 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=202512112230">
+    <link rel="stylesheet" href="style.css?v=202512112325">
 </head>
 
 <body>
@@ -68,7 +68,23 @@
                     <span onclick="confirmResetSave()"
                         style="color: #ff4444; text-decoration: underline; cursor: pointer; margin-left: 10px; font-size: 11px;">清除存档</span>
                 </div>
-                <p style="color: #888; font-size: 11px; margin-top: 10px;">v4.8</p>
+                <p style="color: #888; font-size: 11px; margin-top: 10px;">v4.8
+                    <span id="changelog-link" onclick="showChangelogPanel()"
+                        style="color: #ffd700; text-decoration: underline; cursor: pointer; margin-left: 8px;">更新公告</span>
+                </p>
+            </div>
+
+            <!-- 更新公告面板 -->
+            <div id="changelog-panel" class="changelog-panel" style="display: none;">
+                <div class="changelog-header">
+                    <span>📜 更新公告</span>
+                </div>
+                <div class="changelog-content" id="changelog-content">
+                    <!-- 动态生成 -->
+                </div>
+                <div class="changelog-footer">
+                    <button class="changelog-confirm-btn" onclick="closeChangelogPanel()">确定</button>
+                </div>
             </div>
 
             <div id="stats-panel" class="panel">
@@ -622,7 +638,8 @@
         </div>
     </div>
 
-    <script src="game.js?v=202512120122"></script>
+    <script src="changelog.js?v=202512112330"></script>
+    <script src="game.js?v=202512112330"></script>
     <script src="pocketbase.umd.js"></script>
     <script src="online.js?v=202512120046"></script>
     <script>

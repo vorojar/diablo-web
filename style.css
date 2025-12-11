@@ -2586,3 +2586,137 @@
         .forge-fail-anim {
             animation: forgeFail 1s ease-out;
         }
+
+        /* ========== 更新公告面板样式 ========== */
+        .changelog-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 420px;
+            max-height: 70vh;
+            background: rgba(10, 10, 12, 0.98);
+            border: 2px solid var(--ui-border);
+            border-radius: 8px;
+            z-index: 250;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            box-shadow:
+                0 0 30px rgba(0, 0, 0, 0.9),
+                0 10px 50px rgba(0, 0, 0, 0.8),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .changelog-header {
+            padding: 15px 20px;
+            text-align: center;
+            font-size: 18px;
+            color: var(--text-gold);
+            border-bottom: 1px solid var(--ui-border);
+            font-weight: bold;
+        }
+
+        .changelog-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px 20px;
+            max-height: 45vh;
+        }
+
+        /* 复用滚动条样式 */
+        .changelog-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .changelog-content::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        .changelog-content::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+            border: 1px solid #666;
+        }
+
+        .changelog-content::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        .changelog-content {
+            scrollbar-width: thin;
+            scrollbar-color: #444 rgba(0, 0, 0, 0.3);
+        }
+
+        .changelog-item {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #333;
+        }
+
+        .changelog-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .changelog-version {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .changelog-version-num {
+            background: linear-gradient(135deg, #4a3b2a, #6a5b4a);
+            color: var(--text-gold);
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .changelog-version-title {
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .changelog-highlights {
+            margin: 0;
+            padding-left: 20px;
+            color: #aaa;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .changelog-highlights li {
+            margin-bottom: 3px;
+        }
+
+        .changelog-footer {
+            padding: 15px 20px;
+            border-top: 1px solid var(--ui-border);
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .changelog-confirm-btn {
+            background: linear-gradient(135deg, #4a3b2a, #6a5b4a);
+            border: 1px solid var(--text-gold);
+            color: var(--text-gold);
+            padding: 8px 30px;
+            font-family: 'Cinzel', serif;
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .changelog-confirm-btn:hover {
+            background: linear-gradient(135deg, #5a4b3a, #7a6b5a);
+            box-shadow: 0 0 10px rgba(199, 179, 119, 0.3);
+        }

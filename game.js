@@ -4094,7 +4094,12 @@ function enterFloor(f, spawnAt = 'start') {
         }
         // 无限层级BOSS生成逻辑
         const bossData = getBossSpawnInfo(f);
-        if (bossData) {
+        // 检查该层BOSS是否在刷新冷却中
+        const now = Date.now();
+        const nextRespawn = player.bossRespawn[f] || 0;
+        const bossCanSpawn = now >= nextRespawn;
+
+        if (bossData && bossCanSpawn) {
             const currentQ = getCurrentQuest();
             const isQuestTarget = currentQ && player.questState === 1 && currentQ.floor === f;
 
@@ -5956,6 +5961,10 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         if (e.isBoss || e.isQuestTarget) {
             trackAchievement('kill_boss', { isBoss: true, isQuestTarget: e.isQuestTarget, name: e.name });
             trackAchievement('kill_specific_boss', { name: e.name });
+
+            // 设置该层 Boss 刷新计时（5 分钟）
+            const cooldown = 5 * 60 * 1000;
+            player.bossRespawn[player.floor] = Date.now() + cooldown;
         }
 
         // 计算经验（检查双倍经验buff）
@@ -5994,9 +6003,6 @@ function takeDamage(e, dmg, isSkillDamage = false) {
                     trackAchievement('kill_baal', { name: e.name });
                     showNotification('地狱之门已开启！');
                     AudioSys.play('quest');
-                    // 设置该层 Boss 刷新计时（默认 5 分钟）
-                    const cooldown = 5 * 60 * 1000;
-                    player.bossRespawn[player.floor] = Date.now() + cooldown;
                 }
             }
 
@@ -9493,3 +9499,71 @@ function createUIForgeEffect(type) {
 
 initDragging();
 init();
+
+// ========== 更新公告系统 ==========
+const CHANGELOG_MAX_DISPLAY = 30; // 最多显示的版本数
+
+// 检查是否需要显示更新公告
+function checkChangelog() {
+    if (typeof CHANGELOG === 'undefined' || CHANGELOG.length === 0) return;
+
+    const lastReadVersion = localStorage.getItem('changelog_read_version');
+    const currentVersion = CURRENT_VERSION;
+
+    // 如果没有读过 或 有新版本，则自动弹出
+    if (!lastReadVersion || lastReadVersion !== currentVersion) {
+        showChangelogPanel();
+    }
+}
+
+// 显示更新公告面板
+function showChangelogPanel() {
+    const panel = document.getElementById('changelog-panel');
+    const content = document.getElementById('changelog-content');
+
+    if (!panel || !content) return;
+
+    // 清空并加载最多10条
+    content.innerHTML = '';
+    const displayCount = Math.min(CHANGELOG_MAX_DISPLAY, CHANGELOG.length);
+
+    for (let i = 0; i < displayCount; i++) {
+        const item = CHANGELOG[i];
+        const div = document.createElement('div');
+        div.className = 'changelog-item';
+
+        const highlightsHtml = item.highlights
+            .map(h => `<li>${h}</li>`)
+            .join('');
+
+        div.innerHTML = `
+            <div class="changelog-version">
+                <span class="changelog-version-num">v${item.version}</span>
+                <span class="changelog-version-title">${item.title}</span>
+            </div>
+            <ul class="changelog-highlights">${highlightsHtml}</ul>
+        `;
+        content.appendChild(div);
+    }
+
+    panel.style.display = 'flex';
+}
+
+// 关闭更新公告面板
+function closeChangelogPanel() {
+    const panel = document.getElementById('changelog-panel');
+    if (panel) {
+        panel.style.display = 'none';
+    }
+
+    // 记录已读版本
+    if (typeof CURRENT_VERSION !== 'undefined') {
+        localStorage.setItem('changelog_read_version', CURRENT_VERSION);
+    }
+}
+
+// 在页面加载完成后检查是否需要显示公告
+document.addEventListener('DOMContentLoaded', () => {
+    // 延迟检查，等待首屏加载完成
+    setTimeout(checkChangelog, 500);
+});
