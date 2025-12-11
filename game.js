@@ -851,6 +851,8 @@ const player = {
     // 死亡状态
     isDead: false,        // 是否处于死亡状态
     deathTimer: 0,        // 死亡倒计时（秒）
+    lastDamageSource: null, // 最后伤害来源（用于显示死因）
+    invincibleTimer: 0,   // 无敌帧计时器
     // 统计数据（用于排行榜）
     stats: {
         totalGold: 0,         // 累计获得金币
@@ -1514,13 +1516,19 @@ const AutoBattle = {
 
         // 优先反击最近攻击我的敌人（即使超出正常搜索范围）
         // 但如果当前目标快死了（血量<30%），坚持打死它再切换
+        // 或者当前目标还活着且在攻击范围内，不切换（防止被多个远程怪夹击时频繁切换目标）
         const currentTargetLowHp = this.currentTarget &&
             !this.currentTarget.dead &&
             (this.currentTarget.hp / this.currentTarget.maxHp) < 0.3;
 
-        if (!currentTargetLowHp && this.lastDamagedBy && !this.lastDamagedBy.dead && !isBlacklisted(this.lastDamagedBy)) {
+        const currentTargetInRange = this.currentTarget &&
+            !this.currentTarget.dead &&
+            Math.hypot(this.currentTarget.x - player.x, this.currentTarget.y - player.y) < 500;
+
+        // 只有当前目标无效或太远时才考虑切换到攻击者
+        if (!currentTargetLowHp && !currentTargetInRange && this.lastDamagedBy && !this.lastDamagedBy.dead && !isBlacklisted(this.lastDamagedBy)) {
             const timeSinceAttacked = Date.now() - this.lastDamagedTime;
-            if (timeSinceAttacked < 5000) { // 5秒内被攻击，优先反击（延长时间）
+            if (timeSinceAttacked < 3000) { // 缩短到3秒，减少干扰
                 const dist = Math.hypot(this.lastDamagedBy.x - player.x, this.lastDamagedBy.y - player.y);
                 // 只有能看到攻击者时才锁定（防止隔墙被弓箭手射中后傻跑）
                 if (dist < 800 && hasLineOfSight(player.x, player.y, this.lastDamagedBy.x, this.lastDamagedBy.y)) {
@@ -1807,6 +1815,10 @@ const AutoBattle = {
                 } else if (allSkillsOnCD && dist > 80) {
                     // 技能全在CD中且普攻打不到，主动靠近而不是傻站
                     this.lastMoveDecision = 'close_in';
+                    this.moveTowards(this.currentTarget);
+                } else if (player.hp / player.maxHp < 0.5 && dist > 100) {
+                    // 血量低于50%时，快速冲向目标（被远程夹击时尽快击杀一个）
+                    this.lastMoveDecision = 'rush';
                     this.moveTowards(this.currentTarget);
                 } else {
                     // 距离合适且有技能可用，缓慢靠近
@@ -3009,12 +3021,16 @@ const ELITE_AFFIXES = [
         onDeath: (enemy) => {
             // 火焰爆炸
             const explosionRadius = 150;
-            const explosionDamage = enemy.maxHp * 0.3;
+            // 伤害改为15%血量，且上限200
+            const explosionDamage = Math.min(enemy.maxHp * 0.15, 200);
             const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
-            if (dist < explosionRadius) {
+            if (dist < explosionRadius && player.invincibleTimer <= 0) {
                 const dmg = explosionDamage * (1 - dist / explosionRadius);
-                player.hp -= dmg * (1 - player.resistances.fire / 100);
-                createDamageNumber(player.x, player.y - 30, Math.floor(dmg), '#ff4400');
+                const finalDmg = dmg * (1 - player.resistances.fire / 100);
+                player.hp -= finalDmg;
+                player.lastDamageSource = enemy.name + '的火焰爆炸';
+                player.invincibleTimer = 0.3;  // 0.3秒无敌帧
+                createDamageNumber(player.x, player.y - 30, Math.floor(finalDmg), '#ff4400');
                 showNotification('火焰爆炸！');
                 updateUI(); checkPlayerDeath();
             }
@@ -4272,6 +4288,7 @@ function update(dt) {
     if (player.mp < player.maxMp) player.mp += mpRegen * dt;
     if (player.attackCooldown > 0) player.attackCooldown -= dt;
     if (player.attackAnim > 0) player.attackAnim -= dt * 5;
+    if (player.invincibleTimer > 0) player.invincibleTimer -= dt;  // 无敌帧倒计时
     for (let k in player.skillCooldowns) if (player.skillCooldowns[k] > 0) player.skillCooldowns[k] -= dt;
 
     // 处理死亡倒计时
@@ -4566,10 +4583,13 @@ function update(dt) {
 
         // 如果投射物有owner（怪物发射的），检测是否击中玩家
         if (p.owner && p.owner !== player) {
-            if (Math.hypot(p.x - player.x, p.y - player.y) < player.radius + 10) {
-                player.hp -= Math.max(0, p.damage - player.armor * 0.1);
+            if (Math.hypot(p.x - player.x, p.y - player.y) < player.radius + 10 && player.invincibleTimer <= 0) {
+                const dmg = Math.max(0, p.damage - player.armor * 0.1);
+                player.hp -= dmg;
+                player.lastDamageSource = p.owner.name + '的远程攻击';
+                player.invincibleTimer = 0.3;  // 0.3秒无敌帧
                 p.life = 0;
-                createDamageNumber(player.x, player.y - 20, Math.floor(p.damage), COLORS.damage);
+                createDamageNumber(player.x, player.y - 20, Math.floor(dmg), COLORS.damage);
                 AudioSys.play('hit');
 
                 // 自动战斗：记录远程攻击者
@@ -4761,7 +4781,7 @@ function updateEnemies(dt) {
                 const nx = e.x + ((player.x - e.x) / dist) * e.speed * dt, ny = e.y + ((player.y - e.y) / dist) * e.speed * dt;
                 if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
             }
-            if (dist <= 40 && e.cooldown <= 0) {
+            if (dist <= 40 && e.cooldown <= 0 && player.invincibleTimer <= 0) {
                 // 计算物理伤害（受护甲影响）
                 let physicalDmg = e.ignoreArmor ? e.dmg : Math.max(1, e.dmg - player.armor * 0.1);
 
@@ -4793,6 +4813,8 @@ function updateEnemies(dt) {
                 }
 
                 player.hp -= totalDmg;
+                player.lastDamageSource = e.name;
+                player.invincibleTimer = 0.3;  // 0.3秒无敌帧
                 e.cooldown = 1.5;
                 createDamageNumber(player.x, player.y - 20, Math.floor(totalDmg), COLORS.damage);
                 AudioSys.play('hit');
@@ -5060,6 +5082,13 @@ function draw() {
             ctx.font = '16px Arial';
             ctx.textAlign = 'center';
             ctx.fillText('❄️', e.x, e.y - e.radius - 50);
+        }
+
+        // 火焰强化怪头顶显示🔥图标警告
+        if (e.eliteAffixes && e.eliteAffixes.some(a => a.id === 'fire_enchanted')) {
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('🔥', e.x + (e.freezeOnHit ? 18 : 0), e.y - e.radius - 50);
         }
     });
 
@@ -7125,7 +7154,10 @@ function checkPlayerDeath() {
             });
         }
 
-        createFloatingText(player.x, player.y - 50, "你死了！", '#ff4444', 3);
+        // 显示死亡原因
+        const deathMsg = player.lastDamageSource ? `被 ${player.lastDamageSource} 击杀` : "你死了！";
+        createFloatingText(player.x, player.y - 50, deathMsg, '#ff4444', 3);
+        showNotification(deathMsg);
         AudioSys.play('hit'); // 播放死亡音效
 
         // 关闭自动战斗
