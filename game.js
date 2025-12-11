@@ -1522,17 +1522,19 @@ const AutoBattle = {
             const timeSinceAttacked = Date.now() - this.lastDamagedTime;
             if (timeSinceAttacked < 5000) { // 5秒内被攻击，优先反击（延长时间）
                 const dist = Math.hypot(this.lastDamagedBy.x - player.x, this.lastDamagedBy.y - player.y);
-                // 即使敌人很远，只要在800像素内就锁定（弓箭手可能在远处）
-                if (dist < 800) {
+                // 只有能看到攻击者时才锁定（防止隔墙被弓箭手射中后傻跑）
+                if (dist < 800 && hasLineOfSight(player.x, player.y, this.lastDamagedBy.x, this.lastDamagedBy.y)) {
                     return this.lastDamagedBy;
                 }
             }
         }
 
-        let nearestEnemy = null;
-        let minDist = Infinity;
+        let nearestVisible = null;    // 有视线的最近敌人
+        let minVisibleDist = Infinity;
+        let nearestAny = null;         // 任意最近敌人（备选）
+        let minAnyDist = Infinity;
 
-        // 快速遍历，不做复杂计算
+        // 遍历敌人，优先选择有视线的
         for (let i = 0; i < enemies.length; i++) {
             const e = enemies[i];
             if (e.dead) continue;
@@ -1543,13 +1545,23 @@ const AutoBattle = {
             const dist = Math.hypot(e.x - player.x, e.y - player.y);
 
             // 扩大搜索范围到600像素（应对远程敌人）
-            if (dist < 600 && dist < minDist) {
-                nearestEnemy = e;
-                minDist = dist;
+            if (dist < 600) {
+                // 记录任意最近敌人作为备选
+                if (dist < minAnyDist) {
+                    nearestAny = e;
+                    minAnyDist = dist;
+                }
+
+                // 检查视线，优先选择能看到的敌人
+                if (dist < minVisibleDist && hasLineOfSight(player.x, player.y, e.x, e.y)) {
+                    nearestVisible = e;
+                    minVisibleDist = dist;
+                }
             }
         }
 
-        return nearestEnemy;
+        // 优先返回有视线的敌人，否则返回最近的（会通过A*绕路）
+        return nearestVisible || nearestAny;
     },
 
     // 记录被攻击
@@ -1683,10 +1695,16 @@ const AutoBattle = {
 
         // 4. 寻找目标（保持锁定：已有有效目标时不切换）
         const isBlacklisted = (e) => this.blacklistedTargets.some(entry => entry.target === e);
+        const targetDist = this.currentTarget ? Math.hypot(this.currentTarget.x - player.x, this.currentTarget.y - player.y) : Infinity;
+        const canSeeCurrentTarget = this.currentTarget && hasLineOfSight(player.x, player.y, this.currentTarget.x, this.currentTarget.y);
+
+        // 目标有效条件：活着、没被拉黑、距离<800
+        // 但如果看不到目标且距离>300，更积极地寻找新目标（避免傻跑绕路）
         const currentValid = this.currentTarget &&
             !this.currentTarget.dead &&
             !isBlacklisted(this.currentTarget) &&
-            Math.hypot(this.currentTarget.x - player.x, this.currentTarget.y - player.y) < 800;
+            targetDist < 800 &&
+            (canSeeCurrentTarget || targetDist < 300);  // 看不到但很近时保持锁定
 
         if (!currentValid) {
             this.currentTarget = this.findTarget();
@@ -1750,6 +1768,12 @@ const AutoBattle = {
                 canAffordRangedSkills = player.mp >= minMpCost;
             }
 
+            // 检查所有技能是否都在CD中
+            const allSkillsOnCD =
+                (player.skills.thunder <= 0 || player.skillCooldowns.thunder > 0) &&
+                (player.skills.fireball <= 0 || player.skillCooldowns.fireball > 0) &&
+                (player.skills.multishot <= 0 || player.skillCooldowns.multishot > 0);
+
             if (hasRangedSkill && this.settings.useSkill && canAffordRangedSkills) {
                 // 远程模式（添加滞后区间防止抖动）
                 if (dist < 60) {
@@ -1780,8 +1804,12 @@ const AutoBattle = {
                         this.lastMoveDecision = 'navigate';
                         this.moveTowards(this.currentTarget);
                     }
+                } else if (allSkillsOnCD && dist > 80) {
+                    // 技能全在CD中且普攻打不到，主动靠近而不是傻站
+                    this.lastMoveDecision = 'close_in';
+                    this.moveTowards(this.currentTarget);
                 } else {
-                    // 距离合适，缓慢靠近
+                    // 距离合适且有技能可用，缓慢靠近
                     this.lastMoveDecision = 'approach';
                     const moveAngle = Math.atan2(this.currentTarget.y - player.y, this.currentTarget.x - player.x);
                     player.targetX = player.x + Math.cos(moveAngle) * 40;
@@ -4685,7 +4713,8 @@ function updateEnemies(dt) {
             }
         } else if (e.ai === 'revive') {
             if (e.cooldown <= 0) {
-                const body = enemies.find(other => other.dead && Math.hypot(other.x - e.x, other.y - e.y) < 200);
+                // 复活附近的尸体，但不能复活 Boss
+                const body = enemies.find(other => other.dead && !other.isBoss && Math.hypot(other.x - e.x, other.y - e.y) < 200);
                 if (body) {
                     body.dead = false; body.hp = body.maxHp;
 
@@ -7473,7 +7502,9 @@ function performAttack(t) {
     if (player.attackCooldown > 0) return;
 
     // 检查视线 - 如果玩家和目标之间有墙，则不能攻击
-    if (player.floor > 0 && !hasLineOfSight(player.x, player.y, t.x, t.y)) {
+    // 但近距离(<50像素)跳过视线检测，允许攻击贴墙角的怪物
+    const dist = Math.hypot(t.x - player.x, t.y - player.y);
+    if (player.floor > 0 && dist >= 50 && !hasLineOfSight(player.x, player.y, t.x, t.y)) {
         return;
     }
 
