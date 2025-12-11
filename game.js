@@ -3993,17 +3993,15 @@ function enterFloor(f, spawnAt = 'start') {
 
         document.getElementById('floor-display').innerText = "罗格营地";
         generateTown();
-        npcs.push({ x: dungeonEntrance.x - 100, y: dungeonEntrance.y - 100, name: "基格", type: "merchant", radius: 20, frameIndex: 1 });
+        npcs.push({ x: dungeonEntrance.x - 100, y: dungeonEntrance.y - 100, name: "基格商人", type: "merchant", radius: 20, frameIndex: 1 });
         npcs.push({ x: dungeonEntrance.x + 100, y: dungeonEntrance.y - 50, name: "阿卡拉", type: "healer", radius: 20, quest: 'q1', frameIndex: 2 });
-        npcs.push({ x: dungeonEntrance.x, y: dungeonEntrance.y + 100, name: "瓦瑞夫", type: "stash", radius: 20, frameIndex: 0 });
-        npcs.push({ x: dungeonEntrance.x + 80, y: dungeonEntrance.y + 80, name: "恰西", type: "blacksmith", radius: 20, frameIndex: 5 });
+        npcs.push({ x: dungeonEntrance.x, y: dungeonEntrance.y + 100, name: "瓦瑞夫（仓库）", type: "stash", radius: 20, frameIndex: 0 });
+        npcs.push({ x: dungeonEntrance.x + 80, y: dungeonEntrance.y + 80, name: "恰西铁匠", type: "blacksmith", radius: 20, frameIndex: 5 });
 
         // 始终添加地狱守卫，但交互需要条件
         npcs.push({ x: dungeonEntrance.x - 150, y: dungeonEntrance.y + 50, name: "地狱守卫", type: "difficulty", radius: 20, frameIndex: 3 });
 
         // 洗点师 - 神秘贤者
-        // frameIndex: 1 = 临时使用阿卡拉图像（当前）
-        // frameIndex: 4 = 使用自定义图像（添加sprites.png后改为4）
         npcs.push({ x: dungeonEntrance.x + 150, y: dungeonEntrance.y + 50, name: "神秘贤者", type: "respec", radius: 20, frameIndex: 4 });
 
         showNotification("欢迎回到罗格营地");
@@ -7987,6 +7985,10 @@ function gambleItem(type) {
     }
 }
 
+// 长按购买系统
+let buyHoldInterval = null;
+let buyHoldTimeout = null;
+
 function buyItem(type) {
     let cost = 0;
     let itemName = "";
@@ -8001,13 +8003,58 @@ function buyItem(type) {
             createDamageNumber(player.x, player.y - 40, `-${cost}G`, 'gold');
             showNotification(`花费 ${cost} G - 购买 ${itemName}`);
             renderInventory();
+            return true;  // 购买成功
         } else {
             createFloatingText(player.x, player.y - 40, "背包已满！", COLORS.warning, 1.5);
+            return false;  // 背包满
         }
     } else {
         showNotification("金币不足");
+        return false;  // 金币不足
     }
 }
+
+// 开始长按购买
+function startBuyHold(type, event) {
+    if (event) event.preventDefault();  // 阻止默认行为
+    buyItem(type);  // 先买一个
+    // 延迟300ms后开始连续购买（避免误触）
+    buyHoldTimeout = setTimeout(() => {
+        buyHoldInterval = setInterval(() => {
+            if (!buyItem(type)) {
+                stopBuyHold();  // 买不了就停止
+            }
+        }, 80);  // 每80ms买一个
+    }, 300);
+}
+
+// 停止长按购买
+function stopBuyHold() {
+    if (buyHoldTimeout) {
+        clearTimeout(buyHoldTimeout);
+        buyHoldTimeout = null;
+    }
+    if (buyHoldInterval) {
+        clearInterval(buyHoldInterval);
+        buyHoldInterval = null;
+    }
+}
+
+// 初始化购买按钮的长按事件
+function initBuyButtons() {
+    document.querySelectorAll('.buy-slot').forEach(slot => {
+        const type = slot.dataset.type;
+        slot.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startBuyHold(type, e);
+        });
+        slot.addEventListener('mouseup', stopBuyHold);
+        slot.addEventListener('mouseleave', stopBuyHold);
+    });
+}
+
+// 页面加载后初始化
+document.addEventListener('DOMContentLoaded', initBuyButtons);
 
 function unequipItem(s) {
     const i = player.equipment[s]; if (!i) return;

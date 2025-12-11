@@ -206,17 +206,17 @@
                 <div class="panel-header">基格商店</div>
                 <div class="shop-section-title">物资补给</div>
                 <div class="gamble-grid" style="margin-top:0;">
-                    <div class="gamble-slot" onclick="buyItem('health')">
+                    <div class="gamble-slot buy-slot" data-type="health">
                         <div class="shop-item-icon" style="background-position: 33.333% 0%"></div>
                         <div>治疗药剂</div>
                         <div class="gamble-price">50 G</div>
                     </div>
-                    <div class="gamble-slot" onclick="buyItem('mana')">
+                    <div class="gamble-slot buy-slot" data-type="mana">
                         <div class="shop-item-icon" style="background-position: 66.666% 0%"></div>
                         <div>法力药剂</div>
                         <div class="gamble-price">50 G</div>
                     </div>
-                    <div class="gamble-slot" onclick="buyItem('scroll')">
+                    <div class="gamble-slot buy-slot" data-type="scroll">
                         <div class="shop-item-icon" style="background-position: 100% 0%"></div>
                         <div>回城卷轴</div>
                         <div class="gamble-price">100 G</div>
@@ -622,7 +622,7 @@
         </div>
     </div>
 
-    <script src="game.js?v=202512120110"></script>
+    <script src="game.js?v=202512120115"></script>
     <script src="pocketbase.umd.js"></script>
     <script src="online.js?v=202512120046"></script>
     <script>
