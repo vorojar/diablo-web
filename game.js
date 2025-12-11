@@ -851,7 +851,7 @@ const DIVINE_BLESSING_POOL = [
 ];
 
 const spriteSheet = new Image();
-spriteSheet.src = 'sprites.png?v=3.5';
+spriteSheet.src = 'sprites.png?v=4.8';
 
 let spritesLoaded = false;
 let processedSpriteSheet = null;
@@ -7050,6 +7050,9 @@ function renderStash() {
             if (item.quantity && item.quantity > 1) {
                 slot.innerHTML += `<span class="item-count">${item.quantity}</span>`;
             }
+            if (item.enhanceLvl > 0) {
+                slot.innerHTML += `<span class="enhance-level">+${item.enhanceLvl}</span>`;
+            }
 
             slot.onclick = (e) => {
                 e.stopPropagation();
@@ -7596,6 +7599,9 @@ function renderInventory() {
             if (i.quantity && i.quantity > 1) {
                 s.innerHTML += `<span class="item-count">${i.quantity}</span>`;
             }
+            if (i.enhanceLvl > 0) {
+                s.innerHTML += `<span class="enhance-level">+${i.enhanceLvl}</span>`;
+            }
             s.onclick = (e) => {
                 e.stopPropagation();
                 // 如果仓库面板打开，点击物品存入仓库
@@ -7631,7 +7637,11 @@ function renderInventory() {
             applyItemSpriteToElement(ic, i);
             ic.style.border = 'none'; // Remove border for inner div as slot has border
             el.style.borderColor = getItemColor(i.rarity); // Set slot border instead
-            el.appendChild(ic); el.onmouseenter = (e) => showTooltip(i, e); el.onmouseleave = hideTooltip;
+            el.appendChild(ic);
+            if (i.enhanceLvl > 0) {
+                el.innerHTML += `<span class="enhance-level">+${i.enhanceLvl}</span>`;
+            }
+            el.onmouseenter = (e) => showTooltip(i, e); el.onmouseleave = hideTooltip;
             el.onmousedown = (e) => e.stopPropagation();
         } else { el.onmouseenter = null; el.onmouseleave = null; }
     });
@@ -7654,7 +7664,11 @@ function renderInventory() {
             applyItemSpriteToElement(ic, i);
             ic.style.border = 'none';
             el.style.borderColor = getItemColor(i.rarity);
-            el.appendChild(ic); el.onmouseenter = (e) => showTooltip(i, e); el.onmouseleave = hideTooltip;
+            el.appendChild(ic);
+            if (i.enhanceLvl > 0) {
+                el.innerHTML += `<span class="enhance-level">+${i.enhanceLvl}</span>`;
+            }
+            el.onmouseenter = (e) => showTooltip(i, e); el.onmouseleave = hideTooltip;
             el.onmousedown = (e) => e.stopPropagation();
         } else { el.onmouseenter = null; el.onmouseleave = null; }
     });

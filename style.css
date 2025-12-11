@@ -617,6 +617,16 @@
             text-shadow: 1px 1px 0 #000;
         }
 
+        .enhance-level {
+            position: absolute;
+            top: 1px;
+            right: 2px;
+            color: #0f0;
+            font-size: 10px;
+            font-weight: bold;
+            text-shadow: 1px 1px 0 #000, -1px -1px 0 #000;
+        }
+
         #skills-panel {
             top: 15%;
             left: 340px;
