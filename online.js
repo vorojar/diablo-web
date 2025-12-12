@@ -21,8 +21,53 @@ const OnlineSystem = {
         }
 
         this.loadOnlineCount();
-        this.loadLeaderboard();
+        // 创建排行榜按钮（数据延迟加载）
+        this.createLeaderboardUI();
     },
+
+    // 创建排行榜按钮和面板（不加载数据）
+    createLeaderboardUI() {
+        let leftBtns = document.getElementById('left-menu-btns');
+        if (!leftBtns) {
+            leftBtns = document.createElement('div');
+            leftBtns.id = 'left-menu-btns';
+            leftBtns.className = 'menu-btns';
+            leftBtns.style.cssText = 'left: 20px; right: auto;';
+            leftBtns.onmousedown = (e) => e.stopPropagation();
+            document.querySelector('.ui-layer')?.appendChild(leftBtns);
+        }
+
+        let btn = document.getElementById('btn-leaderboard');
+        if (!btn) {
+            btn = document.createElement('button');
+            btn.id = 'btn-leaderboard';
+            btn.className = 'sys-btn';
+            btn.innerHTML = '🏆 排行榜';
+            btn.onclick = () => {
+                togglePanel('leaderboard');
+                // 点击时才加载数据
+                this.loadLeaderboard();
+            };
+            btn.onmousedown = (e) => e.stopPropagation();
+            leftBtns.appendChild(btn);
+        }
+
+        let panel = document.getElementById('leaderboard-panel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'leaderboard-panel';
+            panel.className = 'panel';
+            panel.style.cssText = 'top: 15%; left: 20px; width: 320px;';
+            panel.onmousedown = (e) => e.stopPropagation();
+            panel.innerHTML = '<div class="panel-close" onclick="togglePanel(\'leaderboard\')">X</div><div class="panel-header">🏆 排行榜</div><div style="color: #666; text-align: center; padding: 20px;">加载中...</div>';
+            document.querySelector('.ui-layer')?.appendChild(panel);
+        }
+    },
+
+    // 排行榜缓存
+    leaderboardCache: null,
+    leaderboardCacheTime: 0,
+    CACHE_DURATION: 5 * 60 * 1000,  // 5分钟缓存
 
     // 显示昵称输入框
     showNicknameDialog() {
@@ -173,22 +218,32 @@ const OnlineSystem = {
             if (records.items.length > 0) {
                 if (scoreData.score > records.items[0].score) {
                     await pb.collection('leaderboard').update(records.items[0].id, scoreData);
+                    this.loadLeaderboard(true);  // 强制刷新
                 }
             } else {
                 await pb.collection('leaderboard').create(scoreData);
+                this.loadLeaderboard(true);  // 强制刷新
             }
-
-            this.loadLeaderboard();
         } catch (e) { }
     },
 
-    // 加载排行榜
-    async loadLeaderboard() {
+    // 加载排行榜（带缓存）
+    async loadLeaderboard(forceRefresh = false) {
+        const now = Date.now();
+
+        // 使用缓存（5分钟内不重复请求）
+        if (!forceRefresh && this.leaderboardCache && (now - this.leaderboardCacheTime) < this.CACHE_DURATION) {
+            this.updateLeaderboardDisplay(this.leaderboardCache);
+            return;
+        }
+
         try {
             const records = await pb.collection('leaderboard').getList(1, 10, {
                 sort: '-score'
             });
-            this.updateLeaderboardDisplay(records.items || []);
+            this.leaderboardCache = records.items || [];
+            this.leaderboardCacheTime = now;
+            this.updateLeaderboardDisplay(this.leaderboardCache);
         } catch (e) { }
     },
 

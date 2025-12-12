@@ -1501,75 +1501,44 @@ const AutoBattle = {
         return null;
     },
 
-    // 快速寻找最近的敌人（优化性能）
+    // 寻找目标 - 优先近的能看到的，其次远的任意怪
     findTarget() {
         if (!this.enabled || isInTown()) return null;
 
-        // 清理过期的黑名单
-        const now = Date.now();
-        this.blacklistedTargets = this.blacklistedTargets.filter(entry => entry.until > now);
-
-        // 检查目标是否在黑名单中
-        const isBlacklisted = (enemy) => {
-            return this.blacklistedTargets.some(entry => entry.target === enemy);
-        };
-
-        // 优先反击最近攻击我的敌人（即使超出正常搜索范围）
-        // 但如果当前目标快死了（血量<30%），坚持打死它再切换
-        // 或者当前目标还活着且在攻击范围内，不切换（防止被多个远程怪夹击时频繁切换目标）
-        const currentTargetLowHp = this.currentTarget &&
-            !this.currentTarget.dead &&
-            (this.currentTarget.hp / this.currentTarget.maxHp) < 0.3;
-
-        const currentTargetInRange = this.currentTarget &&
-            !this.currentTarget.dead &&
-            Math.hypot(this.currentTarget.x - player.x, this.currentTarget.y - player.y) < 500;
-
-        // 只有当前目标无效或太远时才考虑切换到攻击者
-        if (!currentTargetLowHp && !currentTargetInRange && this.lastDamagedBy && !this.lastDamagedBy.dead && !isBlacklisted(this.lastDamagedBy)) {
-            const timeSinceAttacked = Date.now() - this.lastDamagedTime;
-            if (timeSinceAttacked < 3000) { // 缩短到3秒，减少干扰
-                const dist = Math.hypot(this.lastDamagedBy.x - player.x, this.lastDamagedBy.y - player.y);
-                // 只有能看到攻击者时才锁定（防止隔墙被弓箭手射中后傻跑）
-                if (dist < 800 && hasLineOfSight(player.x, player.y, this.lastDamagedBy.x, this.lastDamagedBy.y)) {
-                    return this.lastDamagedBy;
-                }
-            }
-        }
-
-        let nearestVisible = null;    // 有视线的最近敌人
+        let nearestVisible = null;   // 能看到的最近的怪
         let minVisibleDist = Infinity;
-        let nearestAny = null;         // 任意最近敌人（备选）
+        let nearestClose = null;     // 近距离的怪（即使在墙角）
+        let minCloseDist = Infinity;
+        let nearestAny = null;       // 任意最近的怪（用于绕路）
         let minAnyDist = Infinity;
 
-        // 遍历敌人，优先选择有视线的
         for (let i = 0; i < enemies.length; i++) {
             const e = enemies[i];
             if (e.dead) continue;
 
-            // 跳过黑名单中的敌人
-            if (isBlacklisted(e)) continue;
-
             const dist = Math.hypot(e.x - player.x, e.y - player.y);
 
-            // 扩大搜索范围到600像素（应对远程敌人）
-            if (dist < 600) {
-                // 记录任意最近敌人作为备选
-                if (dist < minAnyDist) {
-                    nearestAny = e;
-                    minAnyDist = dist;
-                }
+            // 近距离的怪（<100）：即使在墙角也要打，最高优先
+            if (dist < 100 && dist < minCloseDist) {
+                nearestClose = e;
+                minCloseDist = dist;
+            }
 
-                // 检查视线，优先选择能看到的敌人
-                if (dist < minVisibleDist && hasLineOfSight(player.x, player.y, e.x, e.y)) {
-                    nearestVisible = e;
-                    minVisibleDist = dist;
-                }
+            // 能看到的怪：优先选，范围600
+            if (dist < 600 && dist < minVisibleDist && hasLineOfSight(player.x, player.y, e.x, e.y)) {
+                nearestVisible = e;
+                minVisibleDist = dist;
+            }
+
+            // 任意怪：范围扩大到1500（整个屏幕），用于绕路追击
+            if (dist < 1500 && dist < minAnyDist) {
+                nearestAny = e;
+                minAnyDist = dist;
             }
         }
 
-        // 优先返回有视线的敌人，否则返回最近的（会通过A*绕路）
-        return nearestVisible || nearestAny;
+        // 优先级：近距离怪 > 能看到的 > 任意怪
+        return nearestClose || nearestVisible || nearestAny;
     },
 
     // 记录被攻击
@@ -1584,100 +1553,11 @@ const AutoBattle = {
         }
     },
 
-    // 决策行动（优化版）
+    // 决策行动 - 极简版
     decideAction(dt) {
         if (!this.enabled || isInTown()) return;
 
-        // 0. 定期清理失败路径记录（每5秒清空，避免过时数据）
-        this.pathCleanupTimer += dt;
-        if (this.pathCleanupTimer > 5) {
-            this.failedPaths = [];
-            this.pathCleanupTimer = 0;
-        }
-
-        // 1. 实时卡墙检测（包括静止和摇摆两种情况）
-        const posChanged = Math.hypot(player.x - this.lastPos.x, player.y - this.lastPos.y);
-
-        // 1a. 静止检测
-        if (posChanged < 10) {  // 提高阈值到10像素，排除原地微动
-            // 位置几乎没变化，可能卡墙了
-            this.stuckTimer += dt;
-            if (this.stuckTimer > 0.5) {  // 卡住超过0.5秒
-                // 尝试脱困：随机移动到附近空地
-                this.escapeFromStuck();
-                this.stuckTimer = 0;
-                this.lastPos = { x: player.x, y: player.y };
-                return;
-            }
-        } else {
-            // 位置有变化，重置卡墙计时器
-            this.stuckTimer = 0;
-            this.lastPos = { x: player.x, y: player.y };
-        }
-
-        // 1b. 摇摆检测（每0.2秒检查一次）
-        this.oscillationDetector.lastCheck += dt;
-        if (this.oscillationDetector.lastCheck > 0.2) {
-            this.oscillationDetector.lastCheck = 0;
-            this.oscillationDetector.positions.push({ x: player.x, y: player.y });
-
-            // 保留最近5个位置
-            if (this.oscillationDetector.positions.length > 5) {
-                this.oscillationDetector.positions.shift();
-            }
-
-            // 如果5个位置的平均移动距离很小，判定为摇摆
-            if (this.oscillationDetector.positions.length === 5) {
-                // 如果正在攻击范围内的目标，不触发摇摆检测（站桩攻击是正常行为）
-                if (this.currentTarget && !this.currentTarget.dead) {
-                    const distToTarget = Math.hypot(this.currentTarget.x - player.x, this.currentTarget.y - player.y);
-                    const attackRange = 60; // 近战攻击范围
-                    if (distToTarget <= attackRange) {
-                        // 正在近战攻击，跳过摇摆检测
-                        this.oscillationDetector.positions = [];
-                        return;
-                    }
-                }
-
-                const avgX = this.oscillationDetector.positions.reduce((sum, p) => sum + p.x, 0) / 5;
-                const avgY = this.oscillationDetector.positions.reduce((sum, p) => sum + p.y, 0) / 5;
-                const maxDist = Math.max(...this.oscillationDetector.positions.map(p =>
-                    Math.hypot(p.x - avgX, p.y - avgY)
-                ));
-
-                // 【问题9修复】增加摇摆检测阈值（30px→50px），减少窄走廊误判
-                if (maxDist < 50) {
-                    this.targetFailCount++;
-                    //createFloatingText(player.x, player.y - 70, `⚠️ 摇摆卡墙 (${this.targetFailCount}/3)`, '#ff8800', 1.5);
-
-                    // 连续失败3次，放弃当前目标
-                    if (this.targetFailCount >= 3) {
-                        //createFloatingText(player.x, player.y - 80, '❌ 放弃当前目标，寻找新路线', '#ff4444', 2);
-
-                        // 【问题10修复】缩短黑名单时间（10秒→5秒），允许更快重试
-                        if (this.currentTarget) {
-                            this.blacklistedTargets.push({
-                                target: this.currentTarget,
-                                until: Date.now() + 5000  // 黑名单持续5秒
-                            });
-                        }
-
-                        this.currentTarget = null;  // 清空目标
-                        this.targetFailCount = 0;
-                        this.lastTargetId = null;
-                        this.oscillationDetector.positions = [];
-                        this.moveToCenter();  // 移动到随机位置
-                        return;
-                    }
-
-                    this.escapeFromStuck();
-                    this.oscillationDetector.positions = [];
-                    return;
-                }
-            }
-        }
-
-        // 2. 紧急回城（检查有卷轴才执行）
+        // 1. 生存：紧急回城
         const hpPercent = player.hp / player.maxHp;
         if (hpPercent < this.settings.emergencyHp) {
             const hasScroll = player.inventory.some(it => it && it.type === 'scroll');
@@ -1685,177 +1565,45 @@ const AutoBattle = {
                 this.emergencyTownPortal();
                 return;
             }
-            // 没有卷轴，不执行回城，继续执行后续逻辑（喝药等）
         }
 
-        // 3. 生存优先：喝药
+        // 2. 生存：喝药
         if (hpPercent < this.settings.hpThreshold) {
             this.drinkPotion('health');
         }
-
-        const mpPercent = player.mp / player.maxMp;
-        if (mpPercent < this.settings.mpThreshold) {
+        if (player.mp / player.maxMp < this.settings.mpThreshold) {
             this.drinkPotion('mana');
         }
 
-        // 3. 拾取附近的物品（优先级高）
+        // 3. 拾取物品
         this.autoPickupItems();
 
-        // 4. 寻找目标（保持锁定：已有有效目标时不切换）
-        const isBlacklisted = (e) => this.blacklistedTargets.some(entry => entry.target === e);
-        const targetDist = this.currentTarget ? Math.hypot(this.currentTarget.x - player.x, this.currentTarget.y - player.y) : Infinity;
-        const canSeeCurrentTarget = this.currentTarget && hasLineOfSight(player.x, player.y, this.currentTarget.x, this.currentTarget.y);
-
-        // 目标有效条件：活着、没被拉黑、距离<800
-        // 但如果看不到目标且距离>300，更积极地寻找新目标（避免傻跑绕路）
-        const currentValid = this.currentTarget &&
-            !this.currentTarget.dead &&
-            !isBlacklisted(this.currentTarget) &&
-            targetDist < 800 &&
-            (canSeeCurrentTarget || targetDist < 300);  // 看不到但很近时保持锁定
-
-        if (!currentValid) {
-            this.currentTarget = this.findTarget();
-        }
-
-        // 检测目标是否切换，切换则重置失败计数
-        if (this.currentTarget !== this.lastTargetId) {
-            this.targetFailCount = 0;
-            this.lastTargetId = this.currentTarget;
-        }
+        // 4. 选目标：最近的能看到的怪
+        this.currentTarget = this.findTarget();
 
         if (!this.currentTarget) {
-            // 没有敌人，探索地图
+            // 没敌人，随机走走探索
             this.stuckTimer += dt;
-            if (this.stuckTimer > 0.5) {  // 缩短等待时间从3秒到0.5秒
+            if (this.stuckTimer > 1) {
                 this.moveToCenter();
                 this.stuckTimer = 0;
             }
             return;
         }
-
         this.stuckTimer = 0;
-        const dist = Math.hypot(this.currentTarget.x - player.x, this.currentTarget.y - player.y);
 
-        // 检查是否有视线
-        const canSeeTarget = hasLineOfSight(player.x, player.y, this.currentTarget.x, this.currentTarget.y);
-
-        // 雷电术可以隔墙使用，但射程只有200（留10像素余地）
-        const hasThunder = player.skills.thunder > 0;
-        const thunderRange = 190;
-        const canUseThunder = hasThunder && dist <= thunderRange;
-
-        // 5. 移动决策稳定性（每0.1秒更新一次移动决策，更快响应）
-        this.moveDecisionTimer += dt;
-        const shouldUpdateMove = this.moveDecisionTimer > 0.1;
-
-        // 如果有拾取目标，优先去拾取，跳过战斗移动逻辑（但仍然攻击）
-        const skipMoveForPickup = player.targetItem !== null;
-
-        if (shouldUpdateMove && !skipMoveForPickup) {
-            this.moveDecisionTimer = 0;
-
-            // 决定移动策略
-            const hasRangedSkill = player.skills.fireball > 0 || player.skills.thunder > 0 || player.skills.multishot > 0;
-
-            // 【问题6修复】检测法力是否足以支持远程战斗
-            let canAffordRangedSkills = true;
-            if (hasRangedSkill && this.settings.useSkill) {
-                // 计算最低技能消耗
-                let minMpCost = Infinity;
-                if (player.skills.thunder > 0) {
-                    minMpCost = Math.min(minMpCost, 15 + (player.skills.thunder - 1) * 2);
-                }
-                if (player.skills.fireball > 0) {
-                    minMpCost = Math.min(minMpCost, 10);
-                }
-                if (player.skills.multishot > 0) {
-                    minMpCost = Math.min(minMpCost, 10);
-                }
-                // 如果法力不足以释放任何技能，强制使用近战模式
-                canAffordRangedSkills = player.mp >= minMpCost;
-            }
-
-            // 检查所有技能是否都在CD中
-            const allSkillsOnCD =
-                (player.skills.thunder <= 0 || player.skillCooldowns.thunder > 0) &&
-                (player.skills.fireball <= 0 || player.skillCooldowns.fireball > 0) &&
-                (player.skills.multishot <= 0 || player.skillCooldowns.multishot > 0);
-
-            if (hasRangedSkill && this.settings.useSkill && canAffordRangedSkills) {
-                // 远程模式（添加滞后区间防止抖动）
-                if (dist < 60) {
-                    // 太近，后退
-                    this.lastMoveDecision = 'retreat';
-                    this.retreatFrom(this.currentTarget);
-                } else if (dist > 480) {
-                    // 太远，追击（提高阈值到480，应对远程敌人）
-                    this.lastMoveDecision = 'chase';
-                    this.moveTowards(this.currentTarget);
-                } else if (this.lastMoveDecision === 'chase' && dist > 380) {
-                    // 维持追击状态，直到进入更近的范围（滞后效应）
-                    this.moveTowards(this.currentTarget);
-                } else if (!canSeeTarget) {
-                    // 被墙挡住，检查是否能用雷电术
-                    const thunderCost = 8 + (player.skills.thunder - 1) * 0.5;
-                    const canReallyUseThunder = canUseThunder &&
-                        player.skillCooldowns.thunder <= 0 &&
-                        player.mp >= thunderCost;
-
-                    if (canReallyUseThunder) {
-                        // 可以用雷电术隔墙攻击，站定不动
-                        this.lastMoveDecision = 'thunder_attack';
-                        player.targetX = null;
-                        player.targetY = null;
-                    } else {
-                        // 无法使用雷电术（CD中/法力不足/距离太远），绕墙
-                        this.lastMoveDecision = 'navigate';
-                        this.moveTowards(this.currentTarget);
-                    }
-                } else if (allSkillsOnCD && dist > 80) {
-                    // 技能全在CD中且普攻打不到，主动靠近而不是傻站
-                    this.lastMoveDecision = 'close_in';
-                    this.moveTowards(this.currentTarget);
-                } else if (player.hp / player.maxHp < 0.5 && dist > 100) {
-                    // 血量低于50%时，快速冲向目标（被远程夹击时尽快击杀一个）
-                    this.lastMoveDecision = 'rush';
-                    this.moveTowards(this.currentTarget);
-                } else {
-                    // 距离合适且有技能可用，缓慢靠近
-                    this.lastMoveDecision = 'approach';
-                    const moveAngle = Math.atan2(this.currentTarget.y - player.y, this.currentTarget.x - player.x);
-                    player.targetX = player.x + Math.cos(moveAngle) * 40;
-                    player.targetY = player.y + Math.sin(moveAngle) * 40;
-                }
+        // 5. 移动：没在拾取东西就走向目标
+        if (player.targetItem === null) {
+            const dist = Math.hypot(this.currentTarget.x - player.x, this.currentTarget.y - player.y);
+            if (dist > 60) {
+                this.moveTowards(this.currentTarget);
             } else {
-                // 近战模式（添加滞后区间） - 无技能或法力不足时使用
-                if (dist > 250) {
-                    // 太远，冲锋（提高阈值，以便追击远程敌人）
-                    this.lastMoveDecision = 'chase';
-                    this.moveTowards(this.currentTarget);
-                } else if (this.lastMoveDecision === 'chase' && dist > 180) {
-                    // 维持冲锋，直到足够近（滞后效应）
-                    this.moveTowards(this.currentTarget);
-                } else if (!canSeeTarget) {
-                    // 看不见，绕墙
-                    this.lastMoveDecision = 'navigate';
-                    this.moveTowards(this.currentTarget);
-                } else if (dist < GAME_CONFIG.NPC_INTERACTION_RANGE) {
-                    // 近战范围内，停止移动
-                    this.lastMoveDecision = 'attack';
-                    player.targetX = null;
-                    player.targetY = null;
-                } else {
-                    // 距离合适，缓慢靠近
-                    this.lastMoveDecision = 'approach';
-                    const moveAngle = Math.atan2(this.currentTarget.y - player.y, this.currentTarget.x - player.x);
-                    player.targetX = player.x + Math.cos(moveAngle) * 30;
-                    player.targetY = player.y + Math.sin(moveAngle) * 30;
-                }
+                player.targetX = null;
+                player.targetY = null;
             }
         }
 
-        // 无论如何都尝试攻击
+        // 6. 攻击
         this.attackTarget(this.currentTarget);
     },
 
@@ -2149,57 +1897,34 @@ const AutoBattle = {
         // 检查视线
         const hasLOS = hasLineOfSight(player.x, player.y, target.x, target.y);
 
-        // 计算可用技能的最低法力消耗
-        let minMpRequired = Infinity;
+        // 使用技能
         if (this.settings.useSkill) {
-            if (player.skills.thunder > 0) {
-                const thunderCost = 8 + (player.skills.thunder - 1) * 0.5;
-                minMpRequired = Math.min(minMpRequired, thunderCost);
-            }
-            if (player.skills.multishot > 0) {
-                minMpRequired = Math.min(minMpRequired, 10);
-            }
-            if (player.skills.fireball > 0) {
-                minMpRequired = Math.min(minMpRequired, 10);
-            }
-        }
-
-        // 法力不足以释放任何技能，直接使用物理攻击
-        const noManaForSkills = player.mp < minMpRequired;
-
-        // 优先使用技能（如果有法力）
-        if (this.settings.useSkill && !noManaForSkills) {
-            // 雷电术：可以隔墙使用！射程190（实际200，留余地）
-            if (player.skills.thunder > 0 && player.skillCooldowns.thunder <= 0 && dist <= 190) {
-                const cost = 15 + (player.skills.thunder - 1) * 2;
-                if (player.mp >= cost) {
-                    castSkill('thunder');
-                    return;
-                }
-            }
-
-            // 以下技能需要视线
+            // 有视线：火球/多重优先
             if (hasLOS) {
-                // 多重射击：远程范围攻击
-                if (player.skills.multishot > 0 && player.skillCooldowns.multishot <= 0 && dist <= 500 && player.mp >= 10) {
-                    castSkill('multishot');
-                    return;
-                }
-
-                // 火球术：中程单体伤害
-                if (player.skills.fireball > 0 && player.skillCooldowns.fireball <= 0 && dist <= 450 && player.mp >= 10) {
+                const fireballCost = getSkillManaCost('fireball', player.skills.fireball);
+                if (player.skills.fireball > 0 && player.skillCooldowns.fireball <= 0 && dist <= 450 && player.mp >= fireballCost) {
                     castSkill('fireball');
                     return;
                 }
+
+                const multishotCost = getSkillManaCost('multishot', player.skills.multishot);
+                if (player.skills.multishot > 0 && player.skillCooldowns.multishot <= 0 && dist <= 500 && player.mp >= multishotCost) {
+                    castSkill('multishot');
+                    return;
+                }
+            }
+
+            // 雷电术：可以隔墙，射程190
+            const thunderCost = getSkillManaCost('thunder', player.skills.thunder);
+            if (player.skills.thunder > 0 && player.skillCooldowns.thunder <= 0 && dist <= 190 && player.mp >= thunderCost) {
+                castSkill('thunder');
+                return;
             }
         }
 
-        // 技能CD中、法力不足或已禁用技能，使用普通攻击
-        // 近距离(<100px)无需视线检测，可以攻击墙角的怪物
-        // 远距离需要视线
-        const canMeleeAttack = (dist < 60) || (hasLOS && dist < 80);
-
-        if (canMeleeAttack && player.attackCooldown <= 0) {
+        // 普攻：近战范围内，有视线或距离很近（墙角）
+        const canMelee = (hasLOS || dist < 80) && dist < 70;
+        if (canMelee && player.attackCooldown <= 0) {
             const baseDmg = player.damage[0] + Math.random() * (player.damage[1] - player.damage[0]);
             const strBonus = player.str * 0.1;
             const totalDmg = Math.floor((baseDmg + strBonus) * (1 + player.attackSpeed / 100));
@@ -2209,7 +1934,6 @@ const AutoBattle = {
             createSlashEffect(player.x, player.y, target.x, target.y, totalDmg);
             player.attackAnim = 1;
 
-            // 生命偷取
             if (player.lifeSteal > 0) {
                 const heal = Math.floor(totalDmg * player.lifeSteal / 100);
                 player.hp = Math.min(player.maxHp, player.hp + heal);
@@ -2898,16 +2622,7 @@ const SaveSystem = {
             autoBattleSettings: AutoBattle.settings
         };
         db.transaction(['saveData'], 'readwrite').objectStore('saveData').put(data);
-
-        // 提交排行榜
-        if (typeof OnlineSystem !== 'undefined') {
-            OnlineSystem.submitScore({
-                level: player.lvl,
-                kills: player.kills,
-                maxFloor: player.isInHell ? player.hellFloor + 10 : player.floor,
-                isHell: player.isInHell
-            });
-        }
+        // 排行榜提交已移至关键节点（进入新楼层、死亡、击杀Boss）
 
         showNotification("游戏已保存");
     },
