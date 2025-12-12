@@ -707,34 +707,44 @@ function claimQuestReward() {
     updateQuestTracker();
 }
 
+// 第2排：普通怪物帧索引
 const MONSTER_FRAMES = {
-    'melee': 0,      // 沉沦魔
-    'ranged': 1,     // 骷髅弓箭手
-    'shaman': 2,     // 黑暗萨满
-    'elite': 3,      // 精英怪物
-    'bloodRaven': 4, // Boss: 血鸟
-    'countess': 5,   // Boss: 女伯爵
-    'butcher': 6,    // Boss: 屠夫
-    'duriel': 7,     // Boss: 树头木拳
-    'diablo': 8,     // Boss: 暗黑破坏神
-    'baal': 9        // Boss: 巴尔
+    'melee': 0,       // 沉沦魔
+    'ranged': 1,      // 骷髅弓箭手
+    'shaman': 2,      // 沉沦魔巫师
+    'zombie': 3,      // 僵尸
+    'skeleton': 4,    // 骷髅战士
+    'ghost': 5,       // 幽灵鬼魂
+    'specter': 6,     // 闪电幽魂
+    'mummy': 7,       // 木乃伊
+    'vampire': 8      // 吸血鬼
 };
 
-// 根据Boss名称获取frameIndex
+// 第3排：BOSS帧索引
+const BOSS_FRAMES = {
+    'bloodRaven': 0,  // 血鸟
+    'countess': 1,    // 女伯爵
+    'butcher': 2,     // 屠夫
+    'duriel': 3,      // 树头木拳
+    'diablo': 4,      // 暗黑破坏神
+    'baal': 5         // 巴尔
+};
+
+// 根据Boss名称获取frameIndex（用于BOSS_FRAMES）
 function getBossFrameIndex(bossName) {
     // 移除"地狱"前缀
     const cleanName = bossName.replace('地狱', '');
 
     const bossFrameMap = {
-        '血鸟': MONSTER_FRAMES.bloodRaven,
-        '女伯爵': MONSTER_FRAMES.countess,
-        '屠夫': MONSTER_FRAMES.butcher,
-        '树头木拳': MONSTER_FRAMES.duriel,
-        '暗黑破坏神': MONSTER_FRAMES.diablo,
-        '巴尔': MONSTER_FRAMES.baal
+        '血鸟': BOSS_FRAMES.bloodRaven,
+        '女伯爵': BOSS_FRAMES.countess,
+        '屠夫': BOSS_FRAMES.butcher,
+        '树头木拳': BOSS_FRAMES.duriel,
+        '暗黑破坏神': BOSS_FRAMES.diablo,
+        '巴尔': BOSS_FRAMES.baal
     };
 
-    return bossFrameMap[cleanName] || MONSTER_FRAMES.elite; // 默认使用精英怪物图像
+    return bossFrameMap[cleanName] || BOSS_FRAMES.bloodRaven; // 默认使用血鸟
 }
 
 // 每层对应的 Boss 信息（名称与基础血量）
@@ -827,6 +837,11 @@ const player = {
     frozenTimer: 0,
     slowedTimer: 0,        // 减速期时间（冰冻结束后进入）
     freezeImmuneTimer: 0,  // 冰冻免疫时间
+    // 中毒状态
+    poisoned: false,
+    poisonTimer: 0,
+    poisonDamage: 0,
+    lastPoisonTick: 0,
     // 掉落系统 - 累积幸运机制
     luckAccumulator: 0,       // 累积幸运值（每杀怪没掉好东西+1）
     killsSincePotion: 0,      // 自上次掉落消耗品后的击杀数
@@ -871,6 +886,11 @@ const player = {
         maxKills: 0,          // 最高击杀数
         maxGold: 0,           // 单次最高金币
         fastestBaal: null     // 最快击杀巴尔（秒）
+    },
+    // 新手引导系统
+    tutorial: {
+        completed: false,     // 是否已完成引导
+        step: 0               // 当前步骤：0=进入地牢, 1=攻击怪物, 2=拾取物品, 3=打开背包, 4=使用技能
     }
 };
 
@@ -947,8 +967,9 @@ const SPRITE_CONFIG = {
     frameWidth: 256,
     frameHeight: 341,
     heroRow: 0,
-    monsterRow: 1,
-    npcRow: 2
+    monsterRow: 1,  // 第2排：普通怪物
+    bossRow: 2,     // 第3排：BOSS
+    npcRow: 3       // 第4排：NPC
 };
 
 // --- Item Sprites ---
@@ -1151,6 +1172,17 @@ function getNPCFrame(frameIndex) {
 function getMonsterFrame(frameIndex) {
     const frameX = frameIndex * SPRITE_CONFIG.frameWidth;
     const frameY = SPRITE_CONFIG.monsterRow * SPRITE_CONFIG.frameHeight;
+    return {
+        x: frameX,
+        y: frameY,
+        width: SPRITE_CONFIG.frameWidth,
+        height: SPRITE_CONFIG.frameHeight
+    };
+}
+
+function getBossFrame(frameIndex) {
+    const frameX = frameIndex * SPRITE_CONFIG.frameWidth;
+    const frameY = SPRITE_CONFIG.bossRow * SPRITE_CONFIG.frameHeight;
     return {
         x: frameX,
         y: frameY,
@@ -3643,12 +3675,23 @@ function startGame() {
             };
         }
 
+        // 向后兼容：旧存档没有新手引导系统，老玩家直接标记为完成
+        if (!player.tutorial) {
+            player.tutorial = { completed: true, step: 5 };
+        }
+
         // ========== 属性系统迁移 v3.9 ==========
         // 将旧的基础属性(str/dex/vit/ene)转换为直接效果属性
         migrateItemStats();
     }
     else {
-        addItemToInventory(createItem('短剑', 0)); addItemToInventory(createItem('治疗药剂', 0)); addItemToInventory(createItem('回城卷轴', 0));
+        // 新玩家初始装备：白色短剑（无等级需求）
+        const starterSword = createItem('短剑', 0);
+        starterSword.rarity = 1;  // 强制白色
+        starterSword.requirements = null;  // 移除需求限制
+        addItemToInventory(starterSword);
+        addItemToInventory(createItem('治疗药剂', 0));
+        addItemToInventory(createItem('回城卷轴', 0));
         player.floor = 0;
 
         // 新游戏初始化成就
@@ -3666,6 +3709,7 @@ function startGame() {
     updateTalentHUD(); // 更新天赋HUD显示
     updateDivineBlessingHUD(); // 更新天神赐福HUD
     checkDailyLogin(); // 检查每日登录奖励
+    checkTutorial(); // 检查新手引导
     gameActive = true; gameLoop(0); spawnEnemyTimer();
 }
 
@@ -3780,32 +3824,63 @@ function enterFloor(f, spawnAt = 'start') {
         for (let i = 0; i < 15; i++) {
             let x, y, v = false; while (!v) { x = Math.random() * MAP_WIDTH * TILE_SIZE; y = Math.random() * MAP_HEIGHT * TILE_SIZE; if (!isWall(x, y) && Math.hypot(x - dungeonEntrance.x, y - dungeonEntrance.y) > 300) v = true; }
 
-            // 在地狱中，生成更强大的怪物
+            // 构建当前层可用的怪物池
+            const monsterPool = [
+                { type: 'melee', name: '沉沦魔', ai: 'chase', speed: 80, hpMult: 1, dmgMult: 1, weight: 20 }
+            ];
+            if (f >= 1) monsterPool.push({ type: 'zombie', name: '僵尸', ai: 'chase', speed: 50, hpMult: 1.5, dmgMult: 0.8, weight: 20 });
+            if (f >= 2) {
+                monsterPool.push({ type: 'ranged', name: '骷髅弓箭手', ai: 'ranged', speed: 70, hpMult: 1, dmgMult: 1, weight: 20 });
+                monsterPool.push({ type: 'skeleton', name: '骷髅战士', ai: 'chase', speed: 85, hpMult: 1, dmgMult: 1, weight: 15 });
+            }
+            if (f >= 3) monsterPool.push({ type: 'shaman', name: '沉沦魔巫师', ai: 'revive', speed: 60, hpMult: 1, dmgMult: 1, weight: 10 });
+            if (f >= 4) monsterPool.push({ type: 'ghost', name: '幽灵鬼魂', ai: 'phase', speed: 90, hpMult: 0.6, dmgMult: 1.2, weight: 12 });
+            if (f >= 5) monsterPool.push({ type: 'specter', name: '闪电幽魂', ai: 'ranged', speed: 75, hpMult: 1, dmgMult: 1.3, weight: 10 });
+            if (f >= 6) monsterPool.push({ type: 'mummy', name: '木乃伊', ai: 'chase', speed: 55, hpMult: 1.3, dmgMult: 0.9, weight: 10 });
+            if (f >= 7) monsterPool.push({ type: 'vampire', name: '吸血鬼', ai: 'ranged', speed: 80, hpMult: 1.2, dmgMult: 1.1, weight: 10 });
+
+            // 按权重随机选择怪物
+            const totalWeight = monsterPool.reduce((sum, m) => sum + m.weight, 0);
+            let rand = Math.random() * totalWeight;
+            let selected = monsterPool[0];
+            for (const monster of monsterPool) {
+                rand -= monster.weight;
+                if (rand <= 0) { selected = monster; break; }
+            }
+
+            // 基础属性
             let baseHp = 30 + Math.floor(f * f * 5);
             let baseDmg = 5 + f * 2;
-            let baseSpeed = 80;
             let baseXp = 20 + f * 5;
 
             if (isInHell) {
-                // 在地狱中，怪物基础属性也更强
                 baseHp = 60 + Math.floor(f * f * 10);
                 baseDmg = 10 + f * 4;
-                baseSpeed = 100;
                 baseXp = 40 + f * 10;
             }
 
-            // 应用难度系数
-            let hp = Math.floor(baseHp * difficulty.monsterHpMult);
-            let dmg = Math.floor(baseDmg * difficulty.monsterDmgMult);
-            let speed = Math.floor(baseSpeed * difficulty.monsterSpeedMult);
+            // 应用难度系数和怪物类型倍率
+            let hp = Math.floor(baseHp * difficulty.monsterHpMult * selected.hpMult);
+            let dmg = Math.floor(baseDmg * difficulty.monsterDmgMult * selected.dmgMult);
+            let speed = Math.floor(selected.speed * difficulty.monsterSpeedMult);
             let xpValue = Math.floor(baseXp * difficulty.xpMult);
 
-            enemies.push(EnemyPool.acquire({
+            const enemy = EnemyPool.acquire({
                 x, y, hp, maxHp: hp, dmg, speed, radius: 12,
-                dead: false, cooldown: 0, name: isInHell ? "地狱沉沦魔" : "沉沦魔",
+                dead: false, cooldown: 0,
+                name: isInHell ? "地狱" + selected.name : selected.name,
                 rarity: Math.random() < 0.1 ? 1 : 0, xpValue: xpValue,
-                frameIndex: MONSTER_FRAMES.melee
-            }));
+                ai: selected.ai,
+                monsterType: selected.type,
+                frameIndex: MONSTER_FRAMES[selected.type]
+            });
+
+            // 为特殊怪物添加额外属性
+            if (selected.type === 'ghost') { enemy.phaseThrough = true; enemy.dodgeChance = 0.3; }
+            if (selected.type === 'mummy') { enemy.poisonOnHit = true; enemy.poisonDamage = Math.floor(dmg * 0.3); }
+            if (selected.type === 'vampire') { enemy.lifeSteal = 0.2; }
+
+            enemies.push(enemy);
         }
         // 无限层级BOSS生成逻辑
         const bossData = getBossSpawnInfo(f);
@@ -4090,6 +4165,25 @@ function update(dt) {
     // 处理冰冻免疫时间
     if (player.freezeImmuneTimer > 0) {
         player.freezeImmuneTimer -= dt;
+    }
+
+    // 处理中毒伤害
+    if (player.poisoned && player.poisonTimer > 0) {
+        player.poisonTimer -= dt;
+        // 每0.5秒造成一次毒伤
+        if (!player.lastPoisonTick) player.lastPoisonTick = 0;
+        player.lastPoisonTick += dt;
+        if (player.lastPoisonTick >= 0.5) {
+            player.lastPoisonTick = 0;
+            const poisonDmg = Math.max(1, Math.floor(player.poisonDamage * (1 - player.resistances.poison / 100)));
+            player.hp -= poisonDmg;
+            createDamageNumber(player.x, player.y - 20, poisonDmg, '#00ff00');
+            checkPlayerDeath();
+        }
+        if (player.poisonTimer <= 0) {
+            player.poisoned = false;
+            player.poisonDamage = 0;
+        }
     }
 
     // 自动战斗系统（营地不执行，面板打开时暂停）
@@ -4496,7 +4590,21 @@ function updateEnemies(dt) {
                 const nx = e.x + ((player.x - e.x) / dist) * e.speed * dt, ny = e.y + ((player.y - e.y) / dist) * e.speed * dt;
                 if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
             }
+        } else if (e.ai === 'phase') {
+            // 幽灵AI：可以穿墙，直线追击玩家
+            if (dist < 400 && dist > 35) {
+                e.x += ((player.x - e.x) / dist) * e.speed * dt;
+                e.y += ((player.y - e.y) / dist) * e.speed * dt;
+            }
+            if (dist <= 40 && e.cooldown <= 0 && player.invincibleTimer <= 0) {
+                let physicalDmg = e.ignoreArmor ? e.dmg : Math.max(1, e.dmg - player.armor * 0.1);
+                player.hp -= physicalDmg;
+                createDamageNumber(player.x, player.y - 30, Math.floor(physicalDmg), '#ff4444');
+                e.cooldown = 1.5;
+                AudioSys.play('hit');
+            }
         } else {
+            // 普通chase AI
             if (dist < 400 && dist > 35) {
                 const nx = e.x + ((player.x - e.x) / dist) * e.speed * dt, ny = e.y + ((player.y - e.y) / dist) * e.speed * dt;
                 if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
@@ -4551,29 +4659,34 @@ function updateEnemies(dt) {
                 // 自动战斗：记录攻击者，立即反击
                 AutoBattle.onPlayerDamaged(e);
 
-                // 应用精英词缀的攻击效果
-                if (e.eliteAffixes && e.eliteAffixes.length > 0) {
-                    // 吸血：恢复生命
-                    if (e.lifeSteal) {
-                        const heal = Math.floor(totalDmg * e.lifeSteal);
-                        e.hp = Math.min(e.maxHp, e.hp + heal);
-                        createDamageNumber(e.x, e.y - 30, "+" + heal, COLORS.green);
-                    }
+                // 吸血效果（吸血鬼或精英词缀）
+                if (e.lifeSteal) {
+                    const heal = Math.floor(totalDmg * e.lifeSteal);
+                    e.hp = Math.min(e.maxHp, e.hp + heal);
+                    createDamageNumber(e.x, e.y - 30, "+" + heal, COLORS.green);
+                }
 
-                    // 冰冻：硬控玩家（免疫期内无效）
-                    if (e.freezeOnHit && !(player.freezeImmuneTimer > 0) && !(player.slowedTimer > 0)) {
-                        player.frozen = true;
-                        player.frozenTimer = 0.5;  // 硬控0.5秒（之后进入1.5秒减速期）
-                        createDamageNumber(player.x, player.y - 40, "冰冻!", COLORS.ice);
-                    }
+                // 中毒效果（木乃伊或精英词缀）
+                if (e.poisonOnHit && e.poisonDamage) {
+                    player.poisoned = true;
+                    player.poisonTimer = 3.0;  // 持续3秒
+                    player.poisonDamage = e.poisonDamage;
+                    createDamageNumber(player.x, player.y - 45, "中毒!", '#00ff00');
+                }
 
-                    // 法力燃烧：消耗玩家法力
-                    if (e.manaBurn) {
-                        const manaBurned = Math.floor(Math.min(player.mp, totalDmg * 0.5));
-                        player.mp -= manaBurned;
-                        if (manaBurned > 0) {
-                            createDamageNumber(player.x, player.y - 50, "-" + manaBurned + " MP", COLORS.manaCost);
-                        }
+                // 冰冻：硬控玩家（免疫期内无效）
+                if (e.freezeOnHit && !(player.freezeImmuneTimer > 0) && !(player.slowedTimer > 0)) {
+                    player.frozen = true;
+                    player.frozenTimer = 0.5;  // 硬控0.5秒（之后进入1.5秒减速期）
+                    createDamageNumber(player.x, player.y - 40, "冰冻!", COLORS.ice);
+                }
+
+                // 法力燃烧：消耗玩家法力
+                if (e.manaBurn) {
+                    const manaBurned = Math.floor(Math.min(player.mp, totalDmg * 0.5));
+                    player.mp -= manaBurned;
+                    if (manaBurned > 0) {
+                        createDamageNumber(player.x, player.y - 50, "-" + manaBurned + " MP", COLORS.manaCost);
                     }
                 }
 
@@ -4768,7 +4881,8 @@ function draw() {
         }
 
         if (spritesLoaded && processedSpriteSheet && e.frameIndex !== undefined) {
-            const frame = getMonsterFrame(e.frameIndex);
+            // BOSS使用第3排，普通怪物使用第2排
+            const frame = e.isBoss ? getBossFrame(e.frameIndex) : getMonsterFrame(e.frameIndex);
             const renderHeight = e.isBoss ? 44 * 1.5 : 44;  // BOSS 1.5倍大
             const renderWidth = renderHeight * frame.width / frame.height;
             ctx.drawImage(processedSpriteSheet, frame.x, frame.y, frame.width, frame.height,
@@ -5021,6 +5135,7 @@ function draw() {
 
     updateLabelsPosition();
     drawMinimap();
+    updateTutorialBubble();
 }
 
 function updateLabelsPosition() {
@@ -5489,42 +5604,103 @@ function spawnEnemyTimer() {
         const dmg = 5 + f * 2;
         const xp = 20 + f * 5;
 
-        const rand = Math.random();
-        let type = 'melee';
-        let name = '沉沦魔';
-        let ai = 'chase';
-        let speed = 80;
+        // 构建当前层可用的怪物池
+        const monsterPool = [
+            { type: 'melee', name: '沉沦魔', ai: 'chase', speed: 80, hpMult: 1, dmgMult: 1, weight: 20 }
+        ];
 
-        if (f >= 2 && rand < 0.3) { type = 'ranged'; name = '骷髅弓箭手'; ai = 'ranged'; speed = 70; }
-        if (f >= 3 && rand < 0.1) { type = 'shaman'; name = '沉沦魔巫师'; ai = 'revive'; speed = 60; }
+        // 1层+: 僵尸
+        if (f >= 1) {
+            monsterPool.push({ type: 'zombie', name: '僵尸', ai: 'chase', speed: 50, hpMult: 1.5, dmgMult: 0.8, weight: 20 });
+        }
+        // 2层+: 骷髅弓箭手、骷髅战士
+        if (f >= 2) {
+            monsterPool.push({ type: 'ranged', name: '骷髅弓箭手', ai: 'ranged', speed: 70, hpMult: 1, dmgMult: 1, weight: 20 });
+            monsterPool.push({ type: 'skeleton', name: '骷髅战士', ai: 'chase', speed: 85, hpMult: 1, dmgMult: 1, weight: 15 });
+        }
+        // 3层+: 沉沦魔巫师
+        if (f >= 3) {
+            monsterPool.push({ type: 'shaman', name: '沉沦魔巫师', ai: 'revive', speed: 60, hpMult: 1, dmgMult: 1, weight: 10 });
+        }
+        // 4层+: 幽灵鬼魂
+        if (f >= 4) {
+            monsterPool.push({ type: 'ghost', name: '幽灵鬼魂', ai: 'phase', speed: 90, hpMult: 0.6, dmgMult: 1.2, weight: 12 });
+        }
+        // 5层+: 闪电幽魂
+        if (f >= 5) {
+            monsterPool.push({ type: 'specter', name: '闪电幽魂', ai: 'ranged', speed: 75, hpMult: 1, dmgMult: 1.3, weight: 10 });
+        }
+        // 6层+: 木乃伊
+        if (f >= 6) {
+            monsterPool.push({ type: 'mummy', name: '木乃伊', ai: 'chase', speed: 55, hpMult: 1.3, dmgMult: 0.9, weight: 10 });
+        }
+        // 7层+: 吸血鬼
+        if (f >= 7) {
+            monsterPool.push({ type: 'vampire', name: '吸血鬼', ai: 'ranged', speed: 80, hpMult: 1.2, dmgMult: 1.1, weight: 10 });
+        }
+
+        // 按权重随机选择怪物
+        const totalWeight = monsterPool.reduce((sum, m) => sum + m.weight, 0);
+        let rand = Math.random() * totalWeight;
+        let selected = monsterPool[0];
+        for (const monster of monsterPool) {
+            rand -= monster.weight;
+            if (rand <= 0) {
+                selected = monster;
+                break;
+            }
+        }
+
+        let type = selected.type;
+        let name = selected.name;
+        let ai = selected.ai;
+        let speed = selected.speed;
+        let hpMult = selected.hpMult;
+        let dmgMult = selected.dmgMult;
 
         let frameIndex = MONSTER_FRAMES[type];
         const isElite = Math.random() < GAME_CONFIG.ELITE_SPAWN_RATE;
         let eliteAffixes = [];
 
-        if (isElite || type === 'elite' || type === 'boss') {
-            frameIndex = MONSTER_FRAMES.elite;
-            name = isElite ? `精英${name}` : name;
+        if (isElite) {
+            // 精英怪保持原来的外观，只是名字加前缀
+            name = `精英${name}`;
 
             // 为精英怪添加随机词缀（1-2个）
-            if (isElite) {
-                const affixCount = Math.random() < GAME_CONFIG.DOUBLE_AFFIX_RATE ? 2 : 1;  // 双词缀概率
-                const availableAffixes = [...ELITE_AFFIXES];
+            const affixCount = Math.random() < GAME_CONFIG.DOUBLE_AFFIX_RATE ? 2 : 1;  // 双词缀概率
+            const availableAffixes = [...ELITE_AFFIXES];
 
-                for (let i = 0; i < affixCount; i++) {
-                    const idx = Math.floor(Math.random() * availableAffixes.length);
-                    const affix = availableAffixes.splice(idx, 1)[0];
-                    eliteAffixes.push(affix);
-                }
+            for (let i = 0; i < affixCount; i++) {
+                const idx = Math.floor(Math.random() * availableAffixes.length);
+                const affix = availableAffixes.splice(idx, 1)[0];
+                eliteAffixes.push(affix);
             }
         }
 
+        // 应用怪物类型的属性倍率
+        const finalHp = Math.floor(hp * hpMult);
+        const finalDmg = Math.floor(dmg * dmgMult);
+
         const enemy = EnemyPool.acquire({
-            x, y, hp, maxHp: hp, dmg, speed, radius: 12,
+            x, y, hp: finalHp, maxHp: finalHp, dmg: finalDmg, speed, radius: 12,
             dead: false, cooldown: 0, name, rarity: isElite ? 1 : 0, xpValue: xp,
             ai: ai, frameIndex: frameIndex,
-            eliteAffixes: eliteAffixes  // 精英词缀列表
+            monsterType: type,              // 怪物类型标识
+            eliteAffixes: eliteAffixes      // 精英词缀列表
         });
+
+        // 为特殊怪物添加额外属性
+        if (type === 'ghost') {
+            enemy.phaseThrough = true;      // 穿墙
+            enemy.dodgeChance = 0.3;        // 30%闪避
+        }
+        if (type === 'mummy') {
+            enemy.poisonOnHit = true;       // 中毒攻击
+            enemy.poisonDamage = Math.floor(finalDmg * 0.3);  // 30%伤害的毒
+        }
+        if (type === 'vampire') {
+            enemy.lifeSteal = 0.2;          // 20%吸血
+        }
 
         // 应用精英词缀效果
         if (eliteAffixes.length > 0) {
@@ -5542,6 +5718,12 @@ function spawnEnemyTimer() {
 }
 
 function takeDamage(e, dmg, isSkillDamage = false) {
+    // 幽灵闪避检测
+    if (e.dodgeChance && Math.random() < e.dodgeChance) {
+        createDamageNumber(e.x, e.y - 20, "闪避!", '#aaaaaa');
+        return;
+    }
+
     // 处理新的伤害系统：支持物理和元素伤害
     let totalDamage = 0;
 
@@ -5622,6 +5804,8 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         // 怪物死亡
         e.dead = true;
         player.kills++;
+        // 新手引导：步骤4 - 击杀第一只怪物
+        if (player.kills === 1) advanceTutorial(4);
 
         // 更新击杀统计
         player.stats.currentStreak++;
@@ -5883,6 +6067,10 @@ function proceedToNextFloor(floor, isHell) {
         enterFloor(floor, 'start');
     } else {
         enterFloor(floor, 'start');
+    }
+    // 新手引导：进入第1层时，显示战斗提示（如果已完成城镇教程）
+    if (floor === 1 && !isHell && !player.tutorial.completed && player.tutorial.step >= TUTORIAL_TOWN_STEPS.length) {
+        setTimeout(() => showTutorialTip(player.tutorial.step), 800);
     }
 }
 
@@ -8392,7 +8580,7 @@ window.addEventListener('mousedown', e => {
         mouse.leftDown = true;
         mouse.leftClick = true; // 标记为刚点击（单次触发）
     }
-    if (e.button === 2) { mouse.rightDown = true; castSkill(player.activeSkill); }
+    if (e.button === 2) { mouse.rightDown = true; castSkill(player.activeSkill); advanceTutorial(6); }
 });
 window.addEventListener('mouseup', e => {
     if (e.button === 0) {
@@ -8412,7 +8600,7 @@ window.addEventListener('keydown', e => {
     }
 
     if (e.key === 'c' || e.key === 'C') togglePanel('stats');
-    if (e.key === 'i' || e.key === 'I' || e.key === 'b' || e.key === 'B') togglePanel('inventory');
+    if (e.key === 'i' || e.key === 'I' || e.key === 'b' || e.key === 'B') { togglePanel('inventory'); advanceTutorial(5); }
     if (e.key === 't' || e.key === 'T') togglePanel('skills');
     if (e.key === 'q' || e.key === 'Q') selectSkill('fireball');
     if (e.key === 'w' || e.key === 'W') selectSkill('thunder');
@@ -8752,6 +8940,8 @@ function toggleAutoBattle() {
         btn.classList.add('active');
         icon.textContent = '⚔️';
         showNotification('自动战斗已开启');
+        // 新手引导：步骤7 - 开启自动战斗
+        advanceTutorial(7);
     } else {
         btn.classList.remove('active');
         icon.textContent = '🛡️';
@@ -9282,3 +9472,143 @@ document.addEventListener('DOMContentLoaded', () => {
     // 延迟检查，等待首屏加载完成
     setTimeout(checkChangelog, 500);
 });
+
+// ========== 新手引导系统 ==========
+// 城镇气泡引导（步骤0-3）
+const TUTORIAL_TOWN_STEPS = [
+    { id: 0, target: 'merchant', text: '在这里买卖装备' },
+    { id: 1, target: 'healer', text: '找她接取任务' },
+    { id: 2, target: 'stash', text: '存放你的装备' },
+    { id: 3, target: 'exit', text: '点击进入地牢' }
+];
+// 战斗引导（步骤4-7，顶部提示）
+const TUTORIAL_BATTLE_STEPS = [
+    { id: 4, text: '点击怪物进行攻击', key: null },
+    { id: 5, text: '按 I 打开背包，双击装备穿戴', key: 'I' },
+    { id: 6, text: '右键点击敌人释放火球术', key: '右键' },
+    { id: 7, text: '按 F 开启自动战斗，解放双手', key: 'F' }
+];
+
+// 获取城镇引导目标的世界坐标
+function getTutorialTargetPos(targetType) {
+    if (targetType === 'exit') {
+        return { x: dungeonExit.x, y: dungeonExit.y };
+    }
+    const npc = npcs.find(n => n.type === targetType);
+    if (npc) return { x: npc.x, y: npc.y };
+    return null;
+}
+
+// 更新城镇气泡位置（每帧调用）
+function updateTutorialBubble() {
+    if (player.tutorial.completed) return;
+    if (player.tutorial.step >= TUTORIAL_TOWN_STEPS.length) return;
+    if (player.floor !== 0) return; // 只在城镇显示
+
+    const step = TUTORIAL_TOWN_STEPS[player.tutorial.step];
+    if (!step) return;
+
+    const targetPos = getTutorialTargetPos(step.target);
+    if (!targetPos) return;
+
+    let bubble = document.getElementById('tutorial-bubble');
+    if (!bubble) {
+        bubble = document.createElement('div');
+        bubble.id = 'tutorial-bubble';
+        bubble.innerHTML = `
+            <span class="bubble-text"></span>
+            <button class="bubble-btn">知道了</button>
+            <div class="bubble-arrow"></div>
+        `;
+        // 阻止事件冒泡，防止触发游戏点击
+        bubble.onmousedown = (e) => e.stopPropagation();
+        bubble.onclick = (e) => e.stopPropagation();
+        // 按钮点击事件
+        bubble.querySelector('.bubble-btn').onclick = (e) => {
+            e.stopPropagation();
+            advanceTutorial(player.tutorial.step);
+        };
+        document.querySelector('.ui-layer').appendChild(bubble);
+    }
+
+    // 转换为屏幕坐标
+    const screenX = targetPos.x - camera.x;
+    // NPC名字在 y-70，气泡在名字上方需要-160；地牢入口需要-100
+    const yOffset = (step.target === 'exit') ? -100 : -160;
+    const screenY = targetPos.y - camera.y + yOffset;
+
+    bubble.querySelector('.bubble-text').textContent = step.text;
+    bubble.style.left = screenX + 'px';
+    bubble.style.top = screenY + 'px';
+    bubble.style.display = 'block';
+}
+
+// 隐藏城镇气泡
+function hideTutorialBubble() {
+    const bubble = document.getElementById('tutorial-bubble');
+    if (bubble) bubble.style.display = 'none';
+}
+
+// 显示战斗引导提示（顶部）
+function showTutorialTip(step) {
+    if (player.tutorial.completed) return;
+    if (step !== player.tutorial.step) return;
+
+    // 城镇引导用气泡，不用顶部提示
+    if (step < TUTORIAL_TOWN_STEPS.length) return;
+
+    const battleStep = TUTORIAL_BATTLE_STEPS.find(s => s.id === step);
+    if (!battleStep) return;
+
+    let el = document.getElementById('tutorial-tip');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'tutorial-tip';
+        document.querySelector('.ui-layer').appendChild(el);
+    }
+
+    el.innerHTML = `<span class="tutorial-text">${battleStep.text}</span>${battleStep.key ? `<span class="tutorial-key">${battleStep.key}</span>` : ''}`;
+    el.style.display = 'flex';
+    el.style.opacity = '0';
+    setTimeout(() => el.style.opacity = '1', 50);
+}
+
+// 隐藏顶部引导提示
+function hideTutorialTip() {
+    const el = document.getElementById('tutorial-tip');
+    if (el) {
+        el.style.opacity = '0';
+        setTimeout(() => el.style.display = 'none', 300);
+    }
+}
+
+// 完成当前引导步骤，进入下一步
+function advanceTutorial(completedStep) {
+    if (player.tutorial.completed) return;
+    if (completedStep !== player.tutorial.step) return;
+
+    hideTutorialTip();
+    hideTutorialBubble();
+    player.tutorial.step++;
+
+    const totalSteps = TUTORIAL_TOWN_STEPS.length + TUTORIAL_BATTLE_STEPS.length;
+    if (player.tutorial.step >= totalSteps) {
+        player.tutorial.completed = true;
+        showNotification('🎉 教程完成！祝你冒险愉快！');
+    } else if (player.tutorial.step >= TUTORIAL_TOWN_STEPS.length && player.floor > 0) {
+        // 进入战斗引导阶段，且已在地牢中，显示顶部提示
+        setTimeout(() => showTutorialTip(player.tutorial.step), 800);
+    }
+    // 城镇气泡会在 updateTutorialBubble 中自动更新
+}
+
+// 检查并启动引导（在 startGame 后调用）
+function checkTutorial() {
+    if (player.tutorial.completed) return;
+    // 如果玩家已经有进度（击杀数>0 或 层数>0），标记为完成
+    if (player.kills > 0 || player.floor > 0 || player.maxFloor > 0) {
+        player.tutorial.completed = true;
+        return;
+    }
+    // 新玩家，城镇气泡会在 updateTutorialBubble 中自动显示
+}

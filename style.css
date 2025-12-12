@@ -2296,6 +2296,112 @@
             cursor: not-allowed;
         }
 
+        /* ========== 新手引导样式 ========== */
+        /* 顶部战斗引导提示 */
+        #tutorial-tip {
+            position: fixed;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 24px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid var(--text-gold);
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(199, 179, 119, 0.3);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            animation: tutorial-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes tutorial-pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(199, 179, 119, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(199, 179, 119, 0.6); }
+        }
+
+        .tutorial-text {
+            color: #fff;
+            font-size: 16px;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        .tutorial-key {
+            display: inline-block;
+            padding: 4px 10px;
+            background: var(--text-gold);
+            color: #000;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        /* 城镇气泡引导 */
+        #tutorial-bubble {
+            position: absolute;
+            display: none;
+            transform: translateX(-50%);
+            padding: 10px 16px;
+            background: rgba(0, 0, 0, 0.92);
+            border: 2px solid var(--text-gold);
+            border-radius: 8px;
+            white-space: nowrap;
+            z-index: 500;
+            text-align: center;
+            pointer-events: auto;
+        }
+
+        .bubble-text {
+            display: block;
+            color: #fff;
+            font-size: 14px;
+            font-family: 'Roboto', sans-serif;
+            margin-bottom: 8px;
+        }
+
+        .bubble-btn {
+            background: var(--text-gold);
+            color: #000;
+            border: none;
+            padding: 4px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        .bubble-btn:hover {
+            background: #e0c987;
+        }
+
+        .bubble-arrow {
+            position: absolute;
+            bottom: -10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 10px solid var(--text-gold);
+        }
+
+        .bubble-arrow::after {
+            content: '';
+            position: absolute;
+            top: -12px;
+            left: -6px;
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid rgba(0, 0, 0, 0.92);
+        }
+
         /* Checkbox Styles (Global) */
         .checkbox-label {
             position: relative;

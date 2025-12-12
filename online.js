@@ -332,7 +332,7 @@ const OnlineSystem = {
         const stats = player.stats || {};
 
         let html = '<div class="personal-best">';
-        html += '<div class="pb-title">我的记录</div>';
+        html += `<div class="pb-title">欢迎你 ${OnlineSystem.nickname || '勇士'}</div>`;
         html += '<div class="pb-grid">';
         html += `<div class="pb-item"><span class="pb-label">最高等级</span><span class="pb-value">Lv${pb.maxLevel || 1}</span></div>`;
 
