@@ -6586,10 +6586,10 @@ function claimDailyReward() {
             showNotification('双倍经验已激活！持续24小时');
             break;
         case 'unique_item':
-            // 生成一个随机暗金装备
-            const baseNames = ['短剑', '巨斧', '布甲', '皮甲', '皮帽', '皮手套', '皮靴', '皮带', '铜戒指', '铜项链'];
-            const randomBase = baseNames[Math.floor(Math.random() * baseNames.length)];
-            const uniqueItem = createItem(randomBase, player.lvl);
+            // 生成一个随机暗金装备（从BASE_ITEMS中筛选可装备物品）
+            const equipableItems = BASE_ITEMS.filter(i => i.type !== 'potion' && i.type !== 'scroll');
+            const randomBase = equipableItems[Math.floor(Math.random() * equipableItems.length)];
+            const uniqueItem = createItem(randomBase.name, player.lvl);
             uniqueItem.rarity = 4;
             uniqueItem.displayName = "暗金·" + uniqueItem.name;
             uniqueItem.stats.allSkills = (uniqueItem.stats.allSkills || 0) + 1;
@@ -7967,11 +7967,10 @@ function gambleItem(type) {
         let rarity = 2;
         if (Math.random() < GAME_CONFIG.GAMBLE_RARE_RATE) rarity = 3; if (Math.random() < GAME_CONFIG.GAMBLE_UNIQUE_RATE) rarity = 4;
 
-        let baseName = type === 'weapon' ? '短剑' : (type === 'armor' ? '布甲' : '铜戒指');
-        if (type === 'weapon' && Math.random() > 0.5) baseName = '巨斧';
-        if (type === 'armor' && Math.random() > 0.5) baseName = '皮甲';
-        if (type === 'helm') baseName = '皮帽'; if (type === 'gloves') baseName = '皮手套';
-        if (type === 'boots') baseName = '皮靴'; if (type === 'belt') baseName = '轻扣带'; if (type === 'amulet') baseName = '护身符';
+        // 从BASE_ITEMS中按类型筛选并随机选择
+        const typeMap = { weapon: 'weapon', armor: 'armor', helm: 'helm', gloves: 'gloves', boots: 'boots', belt: 'belt', ring: 'ring', amulet: 'amulet' };
+        const candidates = BASE_ITEMS.filter(i => i.type === typeMap[type]);
+        const baseName = candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)].name : '短剑';
 
         let item = createItem(baseName, player.lvl);
         item.rarity = rarity;
