@@ -521,6 +521,7 @@ let enemies = [];
 let groundItems = [];
 let projectiles = [];
 let npcs = [];
+let bloodSplats = [];  // 地面血迹效果
 
 // 回城仪式状态
 let portalRitual = {
@@ -537,6 +538,24 @@ const PORTAL_RITUAL_DURATIONS = {
     effect: 0.4,     // 光效时间
     flash: 0.3,      // 白闪时间
     fadeIn: 0.5      // 淡入时间
+};
+
+// 飞行拾取粒子数组（类《幸存者》吸入效果）
+let flyingPickups = [];
+
+// 升级特效状态
+let levelUpEffect = {
+    active: false,
+    timer: 0,
+    flashAlpha: 0,
+    newLevel: 0
+};
+
+// 慢动作状态（Boss死亡时触发）
+let slowMotion = {
+    active: false,
+    timer: 0,
+    scale: 1.0  // 时间缩放倍率
 };
 
 // 敌人对象池系统 - 复用对象减少GC压力
@@ -2359,6 +2378,15 @@ const AudioSys = {
                 o.start(t + i * 0.05);
                 o.stop(t + i * 0.05 + 0.3);
             });
+        } else if (type === 'click') {
+            // 加点/确认音效 - 清脆的点击声
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, t);
+            osc.frequency.exponentialRampToValueAtTime(600, t + 0.05);
+            gain.gain.setValueAtTime(0.15, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
+            osc.start(t);
+            osc.stop(t + 0.1);
         } else if (type === 'fireball') {
             // 逼真的火球音效 - 三层叠加：爆发冲击 + 火焰燃烧 + 空气振动
 
@@ -4437,7 +4465,19 @@ function generateDungeon() {
 
 function gameLoop(ts) {
     if (!gameActive) return;
-    const dt = Math.min((ts - lastTime) / 1000, 0.1); lastTime = ts;
+    let dt = Math.min((ts - lastTime) / 1000, 0.1);
+    lastTime = ts;
+
+    // 应用慢动作时间缩放
+    if (slowMotion.active) {
+        dt *= slowMotion.scale;
+        slowMotion.timer -= 1 / 60; // 使用真实时间倒计时
+        if (slowMotion.timer <= 0) {
+            slowMotion.active = false;
+            slowMotion.scale = 1.0;
+        }
+    }
+
     update(dt); draw();
     autoSaveTimer += dt; if (autoSaveTimer > GAME_CONFIG.AUTO_SAVE_INTERVAL) { SaveSystem.save(); autoSaveTimer = 0; }
     requestAnimationFrame(gameLoop);
@@ -4696,7 +4736,7 @@ function update(dt) {
         promptEl.style.display = 'none';
     }
 
-    // 自动拾取系统：金币、药水、卷轴
+    // 自动拾取系统：金币、药水、卷轴（吸入效果）
     for (let i = groundItems.length - 1; i >= 0; i--) {
         let item = groundItems[i];
         const distance = Math.hypot(item.x - player.x, item.y - player.y);
@@ -4704,30 +4744,60 @@ function update(dt) {
         // 检查是否在拾取范围内（60像素）
         if (distance < 60) {
             let shouldPickup = false;
+            let pickupType = null;
 
             // 根据物品类型和设置判断是否拾取
             if (item.type === 'gold' && player.autoPickup.gold) {
-                addGold(item.val);
-                createDamageNumber(player.x, player.y - 40, `+${item.val} G`, 'gold');
-                AudioSys.play('gold');
                 shouldPickup = true;
+                pickupType = 'gold';
             } else if (item.type === 'potion' && player.autoPickup.potion) {
-                if (addItemToInventory(item)) {
-                    showNotification(`自动拾取：${item.displayName || item.name}`);
-                    shouldPickup = true;
-                }
+                shouldPickup = true;
+                pickupType = 'potion';
             } else if (item.type === 'scroll' && player.autoPickup.scroll) {
-                if (addItemToInventory(item)) {
-                    showNotification(`自动拾取：${item.displayName || item.name}`);
-                    shouldPickup = true;
-                }
+                shouldPickup = true;
+                pickupType = 'scroll';
             }
 
-            // 如果成功拾取，从地面移除
+            // 如果应该拾取，创建飞行粒子而不是立即拾取
             if (shouldPickup) {
+                createFlyingPickup(item, pickupType);
                 if (item.el) item.el.remove();
                 groundItems.splice(i, 1);
             }
+        }
+    }
+
+    // 更新飞行拾取粒子
+    for (let i = flyingPickups.length - 1; i >= 0; i--) {
+        const fp = flyingPickups[i];
+        fp.time += dt;
+
+        // 贝塞尔曲线插值：从起点经控制点到终点（玩家位置）
+        const t = Math.min(fp.time / fp.duration, 1);
+        const t2 = t * t;
+        const t3 = t2 * t;
+        // 三次贝塞尔曲线
+        fp.x = (1 - t) * (1 - t) * (1 - t) * fp.startX +
+            3 * (1 - t) * (1 - t) * t * fp.controlX1 +
+            3 * (1 - t) * t * t * fp.controlX2 +
+            t3 * player.x;
+        fp.y = (1 - t) * (1 - t) * (1 - t) * fp.startY +
+            3 * (1 - t) * (1 - t) * t * fp.controlY1 +
+            3 * (1 - t) * t * t * fp.controlY2 +
+            t3 * (player.y - 20); // 稍微向上偏移
+
+        // 到达玩家位置，执行实际拾取
+        if (t >= 1) {
+            if (fp.type === 'gold') {
+                addGold(fp.value);
+                createDamageNumber(player.x, player.y - 40, `+${fp.value} G`, 'gold');
+                AudioSys.play('gold');
+            } else if (fp.type === 'potion' || fp.type === 'scroll') {
+                if (addItemToInventory(fp.item)) {
+                    showNotification(`拾取：${fp.item.displayName || fp.item.name}`);
+                }
+            }
+            flyingPickups.splice(i, 1);
         }
     }
 
@@ -4844,6 +4914,37 @@ function update(dt) {
 
     projectiles.forEach((p, i) => {
         p.life -= dt; p.x += Math.cos(p.angle) * p.speed * dt; p.y += Math.sin(p.angle) * p.speed * dt;
+
+        // 火球拖尾粒子
+        if (p.type === 'fireball' && Math.random() < 0.6) {
+            const trailColors = ['#ff4400', '#ff6600', '#ff8800', '#ffaa00'];
+            particles.push({
+                x: p.x + (Math.random() - 0.5) * 10,
+                y: p.y + (Math.random() - 0.5) * 10,
+                vx: -Math.cos(p.angle) * 30 + (Math.random() - 0.5) * 40,
+                vy: -Math.sin(p.angle) * 30 + (Math.random() - 0.5) * 40 - 20,
+                color: trailColors[Math.floor(Math.random() * trailColors.length)],
+                life: 0.3 + Math.random() * 0.2,
+                size: 3 + Math.random() * 3,
+                gravity: -30  // 火焰向上飘
+            });
+        }
+
+        // 多重射击拖尾粒子
+        if (p.type === 'multishot' && Math.random() < 0.4) {
+            const trailColors = ['#aaff00', '#88ff44', '#ffff00', '#ccff88'];
+            particles.push({
+                x: p.x + (Math.random() - 0.5) * 6,
+                y: p.y + (Math.random() - 0.5) * 6,
+                vx: -Math.cos(p.angle) * 20 + (Math.random() - 0.5) * 20,
+                vy: -Math.sin(p.angle) * 20 + (Math.random() - 0.5) * 20,
+                color: trailColors[Math.floor(Math.random() * trailColors.length)],
+                life: 0.15 + Math.random() * 0.1,
+                size: 1.5 + Math.random() * 2,
+                gravity: 0
+            });
+        }
+
         if (isWall(p.x, p.y)) { p.life = 0; for (let j = 0; j < 3; j++)createParticle(p.x, p.y, '#aaa', 2); }
 
         // 如果投射物有owner（怪物发射的），检测是否击中玩家
@@ -4979,7 +5080,25 @@ function update(dt) {
         screenShake.intensity *= 0.9;  // 逐渐减弱
     }
 
+    // 升级特效更新
+    if (levelUpEffect.active) {
+        levelUpEffect.timer -= dt;
+        levelUpEffect.flashAlpha -= dt * 1.2;  // 渐渐消失
+        if (levelUpEffect.timer <= 0) {
+            levelUpEffect.active = false;
+            levelUpEffect.flashAlpha = 0;
+        }
+    }
+
     // 敌人清理已移至定期清理（每3秒），使用对象池回收
+
+    // 更新血迹生命周期
+    for (let i = bloodSplats.length - 1; i >= 0; i--) {
+        bloodSplats[i].life -= dt;
+        if (bloodSplats[i].life <= 0) {
+            bloodSplats.splice(i, 1);
+        }
+    }
 
     updateUI();
 }
@@ -5337,8 +5456,36 @@ function draw() {
         ctx.fillStyle = '#fff'; ctx.font = '12px Cinzel'; ctx.textAlign = 'center'; ctx.fillText(n.name, n.x, n.y - 70);
     });
 
+    // 绘制地面血迹（在敌人之前，让尸体覆盖在血迹上）
+    bloodSplats.forEach(splat => {
+        ctx.save();
+        ctx.translate(splat.x, splat.y);
+        ctx.rotate(splat.angle);
+        ctx.scale(splat.scaleX, splat.scaleY);
+
+        // 血迹透明度随时间减少
+        const fadeStart = 5; // 最后5秒开始淡出
+        let alpha = splat.alpha;
+        if (splat.life < fadeStart) {
+            alpha *= splat.life / fadeStart;
+        }
+
+        // 绘制血迹（深红色渐变）
+        const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, splat.radius);
+        gradient.addColorStop(0, `rgba(120, 0, 0, ${alpha})`);
+        gradient.addColorStop(0.5, `rgba(80, 0, 0, ${alpha * 0.8})`);
+        gradient.addColorStop(1, `rgba(50, 0, 0, 0)`);
+
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, splat.radius, splat.radius * 0.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    });
+
     enemies.forEach(e => {
-        if (e.dead) { ctx.fillStyle = '#330000'; ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2); ctx.fill(); return; }
+        if (e.dead) return; // 死亡的敌人不再显示，只留血迹
 
         // BOSS脚下光环
         if (e.isBoss) {
@@ -5484,8 +5631,45 @@ function draw() {
         ctx.fillStyle = p.color || '#fa0';
         ctx.lineWidth = 2;
 
-        // 箭矢投射物（怪物发射）- 画成线条
-        if (p.color === '#ffaa00' && p.owner !== player) {
+        // 多重射击 - 绘制箭矢
+        if (p.type === 'multishot') {
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.angle);
+
+            // 箭身（细长三角形）
+            ctx.fillStyle = '#aaff00';
+            ctx.beginPath();
+            ctx.moveTo(8, 0);    // 箭头尖端
+            ctx.lineTo(-12, -2); // 左侧尾部
+            ctx.lineTo(-8, 0);   // 尾部中心凹陷
+            ctx.lineTo(-12, 2);  // 右侧尾部
+            ctx.closePath();
+            ctx.fill();
+
+            // 箭头高光
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(8, 0);
+            ctx.lineTo(2, -1);
+            ctx.lineTo(2, 1);
+            ctx.closePath();
+            ctx.fill();
+
+            // 尾羽
+            ctx.strokeStyle = '#88ff44';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-10, -3);
+            ctx.lineTo(-14, -5);
+            ctx.moveTo(-10, 3);
+            ctx.lineTo(-14, 5);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+        // 怪物箭矢 - 画成线条
+        else if (p.color === '#ffaa00' && p.owner !== player) {
             const len = 15;
             const endX = p.x - Math.cos(p.angle) * len;
             const endY = p.y - Math.sin(p.angle) * len;
@@ -5517,20 +5701,41 @@ function draw() {
             ctx.stroke();
             ctx.shadowBlur = 0;
         } else if (p.type === 'lightning_chain') {
-            // 渲染闪电链
-            ctx.globalAlpha = p.alpha * (p.life / 0.3);  // 随时间淡出
+            // 渲染闪电链（增强版）
+            const alpha = p.life / (p.maxLife || 0.3);
+
             ctx.beginPath();
             ctx.moveTo(p.points[0].x, p.points[0].y);
             for (let j = 1; j < p.points.length; j++) {
                 ctx.lineTo(p.points[j].x, p.points[j].y);
             }
-            ctx.strokeStyle = p.color;
-            ctx.lineWidth = 2;
+
+            // 外层发光（蓝色光晕）
+            ctx.globalAlpha = alpha * 0.5;
+            ctx.strokeStyle = p.glowColor || '#88ccff';
+            ctx.lineWidth = (p.lineWidth || 2) + 6;
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = p.glowColor || '#88ccff';
             ctx.stroke();
-            // 发光效果
-            ctx.shadowBlur = 10;
+
+            // 中层（主体颜色）
+            ctx.globalAlpha = alpha * 0.8;
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = (p.lineWidth || 2) + 2;
+            ctx.shadowBlur = 15;
             ctx.shadowColor = p.color;
             ctx.stroke();
+
+            // 内核（白色高亮，主闪电才有）
+            if (p.isMain) {
+                ctx.globalAlpha = alpha;
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = p.lineWidth || 2;
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = '#ffffff';
+                ctx.stroke();
+            }
+
             ctx.shadowBlur = 0;
             ctx.globalAlpha = 1.0;
         } else if (p.type === 'drop_beam') {
@@ -5585,6 +5790,46 @@ function draw() {
         }
     });
     ctx.globalAlpha = 1;
+
+    // 绘制飞行拾取粒子（吸入效果）
+    flyingPickups.forEach(fp => {
+        ctx.save();
+        const progress = fp.time / fp.duration;
+        const alpha = 1 - progress * 0.3; // 渐变透明
+        const scale = 1 + progress * 0.5; // 逐渐放大
+
+        // 外发光
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = fp.color;
+
+        // 拖尾效果
+        ctx.globalAlpha = alpha * 0.3;
+        ctx.fillStyle = fp.color;
+        ctx.beginPath();
+        ctx.arc(fp.startX + (fp.x - fp.startX) * 0.3, fp.startY + (fp.y - fp.startY) * 0.3, fp.size * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.globalAlpha = alpha * 0.6;
+        ctx.beginPath();
+        ctx.arc(fp.startX + (fp.x - fp.startX) * 0.6, fp.startY + (fp.y - fp.startY) * 0.6, fp.size * 0.7, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 主体
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(fp.x, fp.y, fp.size * scale, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 内核高光
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#fff';
+        ctx.globalAlpha = alpha * 0.8;
+        ctx.beginPath();
+        ctx.arc(fp.x, fp.y - fp.size * 0.3, fp.size * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    });
 
     // 绘制斩击弧
     slashEffects.forEach(s => {
@@ -5656,6 +5901,22 @@ function draw() {
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
+        ctx.restore();
+    }
+
+    // 升级特效：金色闪光覆盖层
+    if (levelUpEffect.active && levelUpEffect.flashAlpha > 0) {
+        ctx.save();
+        // 金色径向渐变闪光
+        const gradient = ctx.createRadialGradient(
+            canvas.width / 2, canvas.height / 2, 0,
+            canvas.width / 2, canvas.height / 2, canvas.width * 0.8
+        );
+        gradient.addColorStop(0, `rgba(255, 215, 0, ${levelUpEffect.flashAlpha * 0.6})`);
+        gradient.addColorStop(0.5, `rgba(255, 180, 0, ${levelUpEffect.flashAlpha * 0.3})`);
+        gradient.addColorStop(1, `rgba(255, 150, 0, 0)`);
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.restore();
     }
 
@@ -6212,7 +6473,8 @@ function spawnEnemyTimer() {
             dead: false, cooldown: 0, hitFlashTimer: 0, name, rarity: isElite ? 1 : 0, xpValue: xp,
             ai: ai, frameIndex: frameIndex,
             monsterType: type,              // 怪物类型标识
-            eliteAffixes: eliteAffixes      // 精英词缀列表
+            eliteAffixes: eliteAffixes,     // 精英词缀列表
+            isElite: isElite                // 精英怪标记
         });
 
         // 为特殊怪物添加额外属性
@@ -6339,6 +6601,9 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         e.dead = true;
         triggerScreenShake(8, 0.25); // 死亡震动
 
+        // 创建地面血迹
+        createBloodSplat(e.x, e.y, e.radius);
+
         player.kills++;
         // 新手引导：步骤5 - 击杀第一只怪物
         if (player.kills === 1) advanceTutorial(5);
@@ -6348,8 +6613,16 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         if (player.stats.currentStreak > player.stats.maxKillStreak) {
             player.stats.maxKillStreak = player.stats.currentStreak;
         }
-        if (e.isBoss) player.stats.bossKills++;
-        if (e.isElite) player.stats.eliteKills++;
+        if (e.isBoss) {
+            player.stats.bossKills++;
+            // Boss死亡特效：慢动作 + 爆炸粒子 + 巨型伤害数字
+            triggerBossDeathEffect(e, totalDamage);
+        }
+        if (e.isElite) {
+            player.stats.eliteKills++;
+            // 精英怪死亡特效：比普通怪华丽，比Boss轻
+            triggerEliteDeathEffect(e, totalDamage);
+        }
 
         // ========== 击杀相关天赋效果 ==========
         // 嗜血：击杀恢复生命（天赋+天神赐福）
@@ -7442,11 +7715,12 @@ function findNearestEnemy(x, y, maxRange, excludeSet) {
     return nearest;
 }
 
-// 创建闪电链视觉效果（从一个目标到另一个目标）
+// 创建闪电链视觉效果（增强版：分叉 + 白色闪光 + 残影）
 function createLightningChain(fromX, fromY, toX, toY) {
-    const segments = 5;
+    const segments = 8;  // 更多分段让闪电更细腻
     const dx = toX - fromX;
     const dy = toY - fromY;
+    const dist = Math.hypot(dx, dy);
 
     const points = [{ x: fromX, y: fromY }];
 
@@ -7456,9 +7730,9 @@ function createLightningChain(fromX, fromY, toX, toY) {
         const baseY = fromY + dy * t;
 
         // 添加随机偏移让闪电看起来更自然
-        const offset = (Math.random() - 0.5) * 30;
-        const perpX = -dy / Math.hypot(dx, dy);
-        const perpY = dx / Math.hypot(dx, dy);
+        const offset = (Math.random() - 0.5) * 40;  // 增大偏移
+        const perpX = -dy / dist;
+        const perpY = dx / dist;
 
         points.push({
             x: baseX + perpX * offset,
@@ -7467,15 +7741,80 @@ function createLightningChain(fromX, fromY, toX, toY) {
     }
     points.push({ x: toX, y: toY });
 
-    // 添加到粒子系统中
+    // 主闪电
     particles.push({
         type: 'lightning_chain',
         points: points,
-        life: 0.3,  // 闪电链持续0.3秒
-        color: '#ffff00',
-        alpha: 1.0
+        life: 0.25,
+        maxLife: 0.25,
+        color: '#ffffff',  // 主体白色
+        glowColor: '#88ccff',  // 外发光蓝色
+        lineWidth: 3,
+        isMain: true
     });
+
+    // 电弧残影（稍微延迟消失）
+    particles.push({
+        type: 'lightning_chain',
+        points: points.map(p => ({ x: p.x, y: p.y })),
+        life: 0.4,
+        maxLife: 0.4,
+        color: '#4488ff',  // 残影蓝色
+        glowColor: '#2244aa',
+        lineWidth: 2,
+        isMain: false
+    });
+
+    // 分叉闪电（从中间点分出）
+    const branchChance = 0.4;  // 40%概率产生分叉
+    for (let i = 2; i < points.length - 2; i++) {
+        if (Math.random() < branchChance) {
+            const branchLength = 30 + Math.random() * 50;
+            const branchAngle = (Math.random() - 0.5) * Math.PI * 0.8;  // 随机角度
+            const baseAngle = Math.atan2(dy, dx);
+
+            const branchPoints = [{ x: points[i].x, y: points[i].y }];
+            const branchSegments = 3;
+
+            for (let j = 1; j <= branchSegments; j++) {
+                const t = j / branchSegments;
+                const angle = baseAngle + branchAngle;
+                branchPoints.push({
+                    x: points[i].x + Math.cos(angle) * branchLength * t + (Math.random() - 0.5) * 15,
+                    y: points[i].y + Math.sin(angle) * branchLength * t + (Math.random() - 0.5) * 15
+                });
+            }
+
+            particles.push({
+                type: 'lightning_chain',
+                points: branchPoints,
+                life: 0.15,
+                maxLife: 0.15,
+                color: '#aaddff',
+                glowColor: '#4488cc',
+                lineWidth: 1.5,
+                isMain: false
+            });
+        }
+    }
+
+    // 命中点火花
+    for (let i = 0; i < 8; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 80 + Math.random() * 60;
+        particles.push({
+            x: toX,
+            y: toY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            color: '#88ccff',
+            life: 0.3 + Math.random() * 0.2,
+            size: 2 + Math.random() * 2,
+            gravity: 50
+        });
+    }
 }
+
 
 
 function createNovaEffect(x, y, color) {
@@ -7698,6 +8037,323 @@ function createPortalBeam(x, y) {
             life: 1.0 + Math.random() * 0.5,
             size: 3 + Math.random() * 3
         });
+    }
+}
+
+// 创建飞行拾取粒子（类《幸存者》吸入效果）
+function createFlyingPickup(item, type) {
+    const startX = item.x;
+    const startY = item.y;
+
+    // 控制点：先向外飞再弧线吸入
+    const dirX = startX - player.x;
+    const dirY = startY - player.y;
+    const dist = Math.hypot(dirX, dirY);
+
+    // 控制点1：向外+向上抛
+    const controlX1 = startX + (dirX / dist) * 40 + (Math.random() - 0.5) * 60;
+    const controlY1 = startY - 50 - Math.random() * 30;
+
+    // 控制点2：靠近玩家
+    const controlX2 = player.x + (Math.random() - 0.5) * 30;
+    const controlY2 = player.y - 40;
+
+    // 颜色
+    let color = '#ffd700'; // 默认金色
+    if (type === 'potion') {
+        color = item.heal ? '#ff4444' : '#4499ff'; // 红药/蓝药
+    } else if (type === 'scroll') {
+        color = '#aaaaff';
+    }
+
+    flyingPickups.push({
+        type: type,
+        item: item,
+        value: item.val || 0,
+        x: startX,
+        y: startY,
+        startX: startX,
+        startY: startY,
+        controlX1: controlX1,
+        controlY1: controlY1,
+        controlX2: controlX2,
+        controlY2: controlY2,
+        time: 0,
+        duration: 0.25 + Math.random() * 0.1,  // 0.25-0.35秒飞行时间
+        color: color,
+        size: type === 'gold' ? 4 : 6
+    });
+}
+
+// 触发升级特效
+function triggerLevelUpEffect(newLevel) {
+    levelUpEffect.active = true;
+    levelUpEffect.timer = 1.5; // 1.5秒特效持续时间
+    levelUpEffect.flashAlpha = 0.8;
+    levelUpEffect.newLevel = newLevel;
+
+    // 震屏
+    triggerScreenShake(10, 0.4);
+
+    // 音效
+    AudioSys.play('levelup');
+
+    // 创建金色光柱
+    createLevelUpBeam(player.x, player.y);
+
+    // 创建大量金色粒子爆发
+    const particleCount = 40;
+    for (let i = 0; i < particleCount; i++) {
+        const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.2;
+        const speed = 150 + Math.random() * 200;
+        const sparkColor = ['#ffd700', '#ffaa00', '#ffcc44', '#ffffff'][Math.floor(Math.random() * 4)];
+
+        particles.push({
+            x: player.x,
+            y: player.y - 20,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 80,
+            color: sparkColor,
+            life: 1.0 + Math.random() * 0.5,
+            size: 3 + Math.random() * 4,
+            gravity: 100
+        });
+    }
+
+    // 创建上升的星星
+    for (let i = 0; i < 15; i++) {
+        particles.push({
+            type: 'rising_spark',
+            x: player.x + (Math.random() - 0.5) * 60,
+            y: player.y,
+            vy: -200 - Math.random() * 150,
+            color: '#ffd700',
+            life: 1.2 + Math.random() * 0.5,
+            size: 4 + Math.random() * 3
+        });
+    }
+
+    // 显示升级文字
+    createDamageNumber(player.x, player.y - 80, `🎉 Lv.${newLevel} 🎉`, '#ffd700');
+}
+
+// 创建升级光柱（金色版本）
+function createLevelUpBeam(x, y) {
+    const beamColor = '#ffd700';
+    const glowColor = 'rgba(255, 215, 0, 0.6)';
+
+    particles.push({
+        type: 'drop_beam',
+        x: x,
+        y: y,
+        color: beamColor,
+        glowColor: glowColor,
+        life: 1.5,
+        maxLife: 1.5,
+        height: 300,
+        width: 60,
+        isUnique: true
+    });
+}
+
+// Boss死亡特效：慢动作 + 爆炸粒子 + 巨型伤害数字
+function triggerBossDeathEffect(boss, damage) {
+    // 启动慢动作
+    slowMotion.active = true;
+    slowMotion.timer = 0.8;  // 0.8秒慢动作
+    slowMotion.scale = 0.15; // 15%速度（非常慢）
+
+    // 强力震屏
+    triggerScreenShake(20, 0.6);
+
+    // 播放专属音效（可以复用暗金掉落音效，更史诗）
+    AudioSys.play('drop_unique');
+
+    // 巨型伤害数字（红色，更大）
+    damageNumbers.push({
+        x: boss.x,
+        y: boss.y - 50,
+        val: `💀 ${Math.floor(damage)} 💀`,
+        color: '#ff0000',
+        life: 2.5,
+        fontSize: 48, // 巨大字体
+        vx: (Math.random() - 0.5) * 30,
+        vy: -80,
+        gravity: 60
+    });
+
+    // Boss名字显示
+    damageNumbers.push({
+        x: boss.x,
+        y: boss.y - 100,
+        val: `⚔️ ${boss.name} 已被击败 ⚔️`,
+        color: '#ffd700',
+        life: 3.0,
+        fontSize: 28,
+        vx: 0,
+        vy: -30,
+        gravity: 0
+    });
+
+    // 大量爆炸粒子
+    const particleCount = 60;
+    for (let i = 0; i < particleCount; i++) {
+        const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.3;
+        const speed = 200 + Math.random() * 300;
+        const sparkColor = ['#ff4400', '#ff8800', '#ffcc00', '#ffffff', '#ff0000'][Math.floor(Math.random() * 5)];
+
+        particles.push({
+            x: boss.x,
+            y: boss.y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 100,
+            color: sparkColor,
+            life: 1.5 + Math.random() * 1.0,
+            size: 4 + Math.random() * 6,
+            gravity: 150
+        });
+    }
+
+    // 创建红色光柱
+    particles.push({
+        type: 'drop_beam',
+        x: boss.x,
+        y: boss.y,
+        color: '#ff4400',
+        glowColor: 'rgba(255, 68, 0, 0.6)',
+        life: 1.5,
+        maxLife: 1.5,
+        height: 400,
+        width: 80,
+        isUnique: true
+    });
+
+    // 上升火焰
+    for (let i = 0; i < 20; i++) {
+        particles.push({
+            type: 'rising_spark',
+            x: boss.x + (Math.random() - 0.5) * 80,
+            y: boss.y,
+            vy: -250 - Math.random() * 200,
+            color: ['#ff4400', '#ff8800', '#ffcc00'][Math.floor(Math.random() * 3)],
+            life: 1.5 + Math.random() * 0.5,
+            size: 5 + Math.random() * 4
+        });
+    }
+}
+
+// 精英怪死亡特效：比普通怪华丽，比Boss轻
+function triggerEliteDeathEffect(elite, damage) {
+    // 轻微慢动作（比Boss短）
+    slowMotion.active = true;
+    slowMotion.timer = 0.3;  // 0.3秒慢动作
+    slowMotion.scale = 0.4;  // 40%速度
+
+    // 中等震屏
+    triggerScreenShake(12, 0.3);
+
+    // 音效
+    AudioSys.play('quest');
+
+    // 大伤害数字（紫色，中等大小）
+    damageNumbers.push({
+        x: elite.x,
+        y: elite.y - 40,
+        val: `⚔ ${Math.floor(damage)} ⚔`,
+        color: '#aa44ff',
+        life: 1.8,
+        fontSize: 32,
+        vx: (Math.random() - 0.5) * 20,
+        vy: -60,
+        gravity: 50
+    });
+
+    // 精英名字提示
+    damageNumbers.push({
+        x: elite.x,
+        y: elite.y - 70,
+        val: `${elite.name} 已击杀`,
+        color: '#ffaa00',
+        life: 2.0,
+        fontSize: 18,
+        vx: 0,
+        vy: -20,
+        gravity: 0
+    });
+
+    // 紫色爆炸粒子（比Boss少）
+    const particleCount = 25;
+    for (let i = 0; i < particleCount; i++) {
+        const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.3;
+        const speed = 120 + Math.random() * 180;
+        const sparkColor = ['#aa44ff', '#cc66ff', '#ff88ff', '#ffffff'][Math.floor(Math.random() * 4)];
+
+        particles.push({
+            x: elite.x,
+            y: elite.y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 60,
+            color: sparkColor,
+            life: 0.8 + Math.random() * 0.5,
+            size: 3 + Math.random() * 4,
+            gravity: 100
+        });
+    }
+
+    // 紫色光柱（比Boss矮）
+    particles.push({
+        type: 'drop_beam',
+        x: elite.x,
+        y: elite.y,
+        color: '#aa44ff',
+        glowColor: 'rgba(170, 68, 255, 0.5)',
+        life: 0.8,
+        maxLife: 0.8,
+        height: 200,
+        width: 40,
+        isUnique: false
+    });
+
+    // 上升光点
+    for (let i = 0; i < 10; i++) {
+        particles.push({
+            type: 'rising_spark',
+            x: elite.x + (Math.random() - 0.5) * 40,
+            y: elite.y,
+            vy: -150 - Math.random() * 100,
+            color: ['#aa44ff', '#cc66ff', '#ffaaff'][Math.floor(Math.random() * 3)],
+            life: 0.8 + Math.random() * 0.4,
+            size: 3 + Math.random() * 3
+        });
+    }
+}
+
+// 创建地面血迹
+function createBloodSplat(x, y, size) {
+    const splatCount = 2 + Math.floor(Math.random() * 3); // 2-4个血迹
+
+    for (let i = 0; i < splatCount; i++) {
+        const offsetX = (Math.random() - 0.5) * size * 2;
+        const offsetY = (Math.random() - 0.5) * size * 2;
+        const splatSize = (size * 0.5) + Math.random() * size;
+
+        bloodSplats.push({
+            x: x + offsetX,
+            y: y + offsetY,
+            radius: splatSize,
+            angle: Math.random() * Math.PI * 2,
+            scaleX: 0.8 + Math.random() * 0.4,
+            scaleY: 0.6 + Math.random() * 0.3,
+            life: 15 + Math.random() * 10,  // 15-25秒后消失
+            maxLife: 25,
+            alpha: 0.6 + Math.random() * 0.2
+        });
+    }
+
+    // 限制血迹数量，避免性能问题
+    const MAX_BLOOD_SPLATS = 100;
+    if (bloodSplats.length > MAX_BLOOD_SPLATS) {
+        bloodSplats.splice(0, bloodSplats.length - MAX_BLOOD_SPLATS);
     }
 }
 
@@ -8299,9 +8955,30 @@ function castSkill(skillName) {
         player.mp -= 8; player.skillCooldowns.multishot = 1;
         const base = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
         const cnt = 2 + player.skills.multishot;
+
+        // 发射特效：光芒扩散
+        for (let i = 0; i < 12; i++) {
+            const angle = base + (Math.random() - 0.5) * 0.8;
+            const speed = 100 + Math.random() * 100;
+            particles.push({
+                x: player.x,
+                y: player.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                color: ['#ffff00', '#aaff00', '#88ff44'][Math.floor(Math.random() * 3)],
+                life: 0.2 + Math.random() * 0.15,
+                size: 2 + Math.random() * 2,
+                gravity: 0
+            });
+        }
+
         for (let i = 0; i < cnt; i++) {
             const a = base - 0.3 + (0.6 / (cnt - 1)) * i;
-            projectiles.push({ x: player.x, y: player.y, angle: a, speed: 500, life: 1, damage: player.damage[0] * 0.8, color: '#ffff00', owner: player });
+            projectiles.push({
+                x: player.x, y: player.y, angle: a, speed: 500, life: 1,
+                damage: player.damage[0] * 0.8, color: '#aaff00', owner: player,
+                type: 'multishot'  // 标记类型用于拖尾粒子
+            });
         }
         AudioSys.play('attack');
     }
@@ -9091,8 +9768,8 @@ function checkLevelUp() {
         player.hp = player.maxHp;
         player.mp = player.maxMp;
 
-        createDamageNumber(player.x, player.y - 70, "升级了!", '#daa520');
-        AudioSys.play('levelup');
+        // 触发华丽升级特效
+        triggerLevelUpEffect(player.lvl);
 
         // ========== 天神赐福触发检测 ==========
         if (player.lvl % 5 === 0 && player.lvl > player.lastBlessingLevel && player.lvl <= 100) {
@@ -9162,8 +9839,26 @@ function togglePanel(id) {
     }
 }
 function selectSkill(k) { player.activeSkill = k; updateUI(); }
-function addStat(t) { if (player.points > 0) { player[t]++; player.points--; updateStats(); updateStatsUI(); updateMenuIndicators(); } }
-function upgradeSkill(t) { if (player.skillPoints > 0) { player.skills[t]++; player.skillPoints--; updateSkillsUI(); updateMenuIndicators(); } }
+function addStat(t) {
+    if (player.points > 0) {
+        player[t]++;
+        player.points--;
+        AudioSys.play('click');  // 加点音效
+        updateStats();
+        updateStatsUI();
+        updateMenuIndicators();
+    }
+}
+function upgradeSkill(t) {
+    if (player.skillPoints > 0) {
+        player.skills[t]++;
+        player.skillPoints--;
+        AudioSys.play('click');  // 加点音效
+        updateSkillsUI();
+        updateMenuIndicators();
+    }
+}
+
 
 function isHoveringUI() {
     if (mouse.y > window.innerHeight - 140) return true;
