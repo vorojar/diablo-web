@@ -27,7 +27,7 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=202512132228">
+    <link rel="stylesheet" href="style.css?v=202512132244">
 </head>
 
 <body>
@@ -637,7 +637,7 @@
     </div>
 
     <script src="changelog.js?v=202512132210"></script>
-    <script src="game.js?v=202512132228"></script>
+    <script src="game.js?v=202512132244"></script>
     <script src="pocketbase.umd.js"></script>
     <script src="online.js?v=202512122225"></script>
     <script>
@@ -661,12 +661,10 @@
     <!-- 存档选择面板 (放在body直接下面，避免pointer-events问题) -->
     <div id="slot-selection-overlay" class="slot-selection-overlay">
         <div class="slot-selection-panel">
+            <div class="panel-close" onclick="hideSlotSelection()">X</div>
             <div class="slot-selection-header">选择存档</div>
             <div class="slot-selection-grid" id="slot-selection-grid">
                 <!-- 动态生成3个存档槽位 -->
-            </div>
-            <div class="slot-selection-footer">
-                <button class="slot-back-btn" onclick="hideSlotSelection()">返回</button>
             </div>
         </div>
     </div>

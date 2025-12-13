@@ -2649,7 +2649,7 @@ const SaveSystem = {
     },
 
     // 迁移旧存档到槽位1
-    migrateOldSave: async function() {
+    migrateOldSave: async function () {
         return new Promise((resolve) => {
             if (!db) { resolve(); return; }
             const tx = db.transaction(['saveData'], 'readonly');
@@ -2679,7 +2679,7 @@ const SaveSystem = {
     },
 
     // 加载所有槽位的元数据（用于显示存档选择界面）
-    loadAllSlotsMeta: function() {
+    loadAllSlotsMeta: function () {
         if (!db) return;
         window.saveSlots = [null, null, null];  // 3个槽位
 
@@ -2712,7 +2712,7 @@ const SaveSystem = {
     },
 
     // 更新开始界面状态
-    updateStartScreenStatus: function() {
+    updateStartScreenStatus: function () {
         const statusEl = document.getElementById('save-status');
         const hasAnySave = window.saveSlots && window.saveSlots.some(s => s && s.hasData);
         if (hasAnySave) {
@@ -2747,7 +2747,7 @@ const SaveSystem = {
     },
 
     // 加载指定槽位
-    loadSlot: function(slotId) {
+    loadSlot: function (slotId) {
         return new Promise((resolve) => {
             if (!db) { resolve(null); return; }
             this.currentSlot = slotId;
@@ -2771,7 +2771,7 @@ const SaveSystem = {
     },
 
     // 删除指定槽位
-    deleteSlot: function(slotId) {
+    deleteSlot: function (slotId) {
         return new Promise((resolve) => {
             if (!db) { resolve(); return; }
             const tx = db.transaction(['saveData'], 'readwrite');
@@ -6036,8 +6036,8 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         // 怪物死亡
         e.dead = true;
         player.kills++;
-        // 新手引导：步骤4 - 击杀第一只怪物
-        if (player.kills === 1) advanceTutorial(4);
+        // 新手引导：步骤5 - 击杀第一只怪物
+        if (player.kills === 1) advanceTutorial(5);
 
         // 更新击杀统计
         player.stats.currentStreak++;
@@ -8903,7 +8903,7 @@ window.addEventListener('keydown', e => {
     }
 
     if (e.key === 'c' || e.key === 'C') togglePanel('stats');
-    if (e.key === 'i' || e.key === 'I' || e.key === 'b' || e.key === 'B') { togglePanel('inventory'); advanceTutorial(5); }
+    if (e.key === 'i' || e.key === 'I' || e.key === 'b' || e.key === 'B') { togglePanel('inventory'); advanceTutorial(0); }
     if (e.key === 't' || e.key === 'T') togglePanel('skills');
     if (e.key === 'q' || e.key === 'Q') selectSkill('fireball');
     if (e.key === 'w' || e.key === 'W') selectSkill('thunder');
@@ -9777,17 +9777,17 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ========== 新手引导系统 ==========
-// 城镇气泡引导（步骤0-3）
+// 城镇气泡引导（步骤0-4）
 const TUTORIAL_TOWN_STEPS = [
-    { id: 0, target: 'merchant', text: '在这里买卖装备' },
-    { id: 1, target: 'healer', text: '找她接取任务' },
-    { id: 2, target: 'stash', text: '存放你的装备' },
-    { id: 3, target: 'exit', text: '点击进入地牢' }
+    { id: 0, target: 'inventory-btn', text: '按 I 打开背包，装备武器', isUI: true },
+    { id: 1, target: 'merchant', text: '在这里买卖装备和药水' },
+    { id: 2, target: 'healer', text: '找她接取任务' },
+    { id: 3, target: 'stash', text: '存放你的装备' },
+    { id: 4, target: 'exit', text: '点击进入地牢' }
 ];
-// 战斗引导（步骤4-7，顶部提示）
+// 战斗引导（步骤5-8，顶部提示）
 const TUTORIAL_BATTLE_STEPS = [
-    { id: 4, text: '点击怪物进行攻击', key: null },
-    { id: 5, text: '按 I 打开背包，双击装备穿戴', key: 'I' },
+    { id: 5, text: '点击怪物进行物理攻击', key: null },
     { id: 6, text: '右键点击敌人释放火球术', key: '右键' },
     { id: 7, text: '按 F 开启自动战斗，解放双手', key: 'F' }
 ];
@@ -9811,9 +9811,6 @@ function updateTutorialBubble() {
     const step = TUTORIAL_TOWN_STEPS[player.tutorial.step];
     if (!step) return;
 
-    const targetPos = getTutorialTargetPos(step.target);
-    if (!targetPos) return;
-
     let bubble = document.getElementById('tutorial-bubble');
     if (!bubble) {
         bubble = document.createElement('div');
@@ -9834,6 +9831,30 @@ function updateTutorialBubble() {
         document.querySelector('.ui-layer').appendChild(bubble);
     }
 
+    // UI元素定位（如物品按钮）
+    if (step.isUI) {
+        const btnId = step.target === 'inventory-btn' ? 'btn-inventory' : step.target;
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+
+        const rect = btn.getBoundingClientRect();
+        // 气泡在按钮左边，箭头指向右边
+        const screenX = rect.left - 10;
+        const screenY = rect.top + rect.height / 2;
+
+        bubble.querySelector('.bubble-text').textContent = step.text;
+        bubble.style.left = screenX + 'px';
+        bubble.style.top = screenY + 'px';
+        bubble.style.display = 'block';
+        bubble.classList.add('arrow-right');  // 箭头朝右
+        bubble.classList.remove('arrow-down');
+        return;
+    }
+
+    // 世界坐标定位（NPC、出口等）
+    const targetPos = getTutorialTargetPos(step.target);
+    if (!targetPos) return;
+
     // 转换为屏幕坐标
     const screenX = targetPos.x - camera.x;
     // NPC名字在 y-70，气泡在名字上方需要-160；地牢入口需要-100
@@ -9844,6 +9865,7 @@ function updateTutorialBubble() {
     bubble.style.left = screenX + 'px';
     bubble.style.top = screenY + 'px';
     bubble.style.display = 'block';
+    bubble.classList.remove('arrow-right', 'arrow-down');  // 默认箭头朝下指向NPC
 }
 
 // 隐藏城镇气泡
