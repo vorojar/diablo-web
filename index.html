@@ -673,14 +673,16 @@
     <div id="delete-slot-confirm" class="delete-slot-confirm-overlay">
         <div class="delete-slot-confirm-dialog">
             <div class="delete-confirm-title">⚠️ 删除存档</div>
-            <div class="delete-confirm-text">确定要删除存档 <span id="delete-slot-num">1</span> 吗？<br>此操作<span style="color:#ff4444;">不可恢复</span>！</div>
+            <div class="delete-confirm-text">确定要删除存档 <span id="delete-slot-num">1</span> 吗？<br>此操作<span
+                    style="color:#ff4444;">不可恢复</span>！</div>
             <div class="delete-confirm-input">
                 <span>请输入"删除"以确认：</span>
                 <input type="text" id="delete-confirm-input" placeholder="删除" autocomplete="off">
             </div>
             <div class="delete-confirm-actions">
                 <button class="delete-cancel-btn" onclick="hideDeleteConfirm()">取消</button>
-                <button class="delete-confirm-btn" id="delete-confirm-btn" onclick="confirmDeleteSlot()" disabled>确认删除</button>
+                <button class="delete-confirm-btn" id="delete-confirm-btn" onclick="confirmDeleteSlot()"
+                    disabled>确认删除</button>
             </div>
         </div>
     </div>

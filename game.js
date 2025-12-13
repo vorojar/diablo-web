@@ -522,6 +522,23 @@ let groundItems = [];
 let projectiles = [];
 let npcs = [];
 
+// 回城仪式状态
+let portalRitual = {
+    active: false,       // 是否正在施法
+    phase: 0,            // 0=施法, 1=光效, 2=白闪, 3=淡入
+    timer: 0,            // 当前阶段计时
+    returnFloor: 0,      // 要返回的层数
+    scrollIdx: -1,       // 消耗的卷轴索引
+    flashAlpha: 0        // 白闪透明度
+};
+
+const PORTAL_RITUAL_DURATIONS = {
+    casting: 1.0,    // 施法读条时间
+    effect: 0.4,     // 光效时间
+    flash: 0.3,      // 白闪时间
+    fadeIn: 0.5      // 淡入时间
+};
+
 // 敌人对象池系统 - 复用对象减少GC压力
 const EnemyPool = {
     pool: [],           // 可复用的敌人对象
@@ -2630,6 +2647,57 @@ const AudioSys = {
         if (key === 'sfx' && this.sfxGain) {
             this.sfxGain.gain.setValueAtTime(val ? 1.0 : 0, this.ctx.currentTime);
         }
+    },
+    playPortalOpen: function () {
+        // 传送门打开音效：神秘的能量涌动
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+
+        // 1. 低频能量脉冲
+        const osc1 = this.ctx.createOscillator();
+        const gain1 = this.ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(80, t);
+        osc1.frequency.exponentialRampToValueAtTime(200, t + 0.5);
+        gain1.gain.setValueAtTime(0.3, t);
+        gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
+        osc1.connect(gain1);
+        gain1.connect(this.sfxGain);
+        osc1.start(t);
+        osc1.stop(t + 0.8);
+
+        // 2. 高频魔法音
+        [400, 500, 600, 800].forEach((f, i) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(f, t + i * 0.1);
+            gain.gain.setValueAtTime(0.1, t + i * 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
+            osc.connect(gain);
+            gain.connect(this.sfxGain);
+            osc.start(t + i * 0.1);
+            osc.stop(t + 0.8);
+        });
+    },
+    playPortalArrive: function () {
+        // 到达城镇音效：温暖的环境音
+        if (!this.ctx) return;
+        const t = this.ctx.currentTime;
+
+        // 和弦音
+        [262, 330, 392].forEach((f) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(f, t);
+            gain.gain.setValueAtTime(0.15, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 1.0);
+            osc.connect(gain);
+            gain.connect(this.sfxGain);
+            osc.start(t);
+            osc.stop(t + 1.0);
+        });
     }
 };
 
@@ -4396,6 +4464,72 @@ function update(dt) {
     // 更新低血量音效
     AudioSys.updateLowHpEffect(dt, player.hp / player.maxHp);
 
+    // 处理回城仪式
+    if (portalRitual.active) {
+        portalRitual.timer -= dt;
+
+        // 施法期间无敌
+        player.invincibleTimer = 0.5;
+
+        if (portalRitual.phase === 0) {
+            // 施法阶段（光柱已在开始时触发）
+            if (portalRitual.timer <= 0) {
+                portalRitual.phase = 1;
+                portalRitual.timer = PORTAL_RITUAL_DURATIONS.effect;
+            }
+        } else if (portalRitual.phase === 1) {
+            // 光效阶段
+            if (portalRitual.timer <= 0) {
+                portalRitual.phase = 2;
+                portalRitual.timer = PORTAL_RITUAL_DURATIONS.flash;
+                portalRitual.flashAlpha = 1.0;
+            }
+        } else if (portalRitual.phase === 2) {
+            // 白闪阶段 - 执行实际传送
+            if (portalRitual.timer <= PORTAL_RITUAL_DURATIONS.flash * 0.5 && portalRitual.returnFloor >= 0) {
+                // 在白闪最亮时切换场景
+                player.lastFloor = player.floor;
+                const safePortalPos = validateAndFixPortalPosition(player.x, player.y);
+                townPortal = { returnFloor: player.floor, x: safePortalPos.x, y: safePortalPos.y, activeFloor: 0 };
+                AutoBattle.currentTarget = null;
+                // 使用 'portal' 参数，使玩家出现在传送门位置
+                enterFloor(0, 'portal');
+                portalRitual.returnFloor = -1; // 标记已传送
+            }
+            if (portalRitual.timer <= 0) {
+                portalRitual.phase = 3;
+                portalRitual.timer = PORTAL_RITUAL_DURATIONS.fadeIn;
+                AudioSys.playPortalArrive();
+            }
+        } else if (portalRitual.phase === 3) {
+            // 淡入阶段
+            portalRitual.flashAlpha = portalRitual.timer / PORTAL_RITUAL_DURATIONS.fadeIn;
+            if (portalRitual.timer <= 0) {
+                portalRitual.active = false;
+                portalRitual.flashAlpha = 0;
+            }
+        }
+
+        // 施法期间继续更新粒子效果（让光柱动起来）
+        particles.forEach((p, i) => {
+            p.life -= dt;
+            if (p.type === 'drop_beam') {
+                // 光柱不移动，只减少生命
+            } else if (p.type === 'rising_spark') {
+                p.y += p.vy * dt;
+                p.vy += 50 * dt;
+            } else {
+                if (p.vx) p.x += p.vx * dt;
+                if (p.vy) p.y += p.vy * dt;
+                if (p.gravity) p.vy += p.gravity * dt;
+            }
+            if (p.life <= 0) particles.splice(i, 1);
+        });
+
+        // 施法期间不更新其他游戏逻辑
+        if (portalRitual.phase < 3) return;
+    }
+
     if (player.hp < player.maxHp) player.hp += hpRegen * dt;
     if (player.mp < player.maxMp) player.mp += mpRegen * dt;
     if (player.attackCooldown > 0) player.attackCooldown -= dt;
@@ -5493,6 +5627,37 @@ function draw() {
     const g = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 200, canvas.width / 2, canvas.height / 2, canvas.width / 1.2);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.85)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 回城仪式视觉效果
+    if (portalRitual.active) {
+        ctx.save();
+
+        if (portalRitual.phase === 0) {
+            // 施法阶段：只显示读条
+            const progress = 1 - (portalRitual.timer / PORTAL_RITUAL_DURATIONS.casting);
+
+            // 读条UI
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(canvas.width / 2 - 100, canvas.height - 80, 200, 20);
+            ctx.fillStyle = '#6699ff';
+            ctx.fillRect(canvas.width / 2 - 98, canvas.height - 78, 196 * progress, 16);
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('传送中...', canvas.width / 2, canvas.height - 65);
+
+        } else if (portalRitual.phase === 1) {
+            // 光效阶段：粒子系统已处理，这里只保留空处理
+        }
+
+        // 白闪覆盖层（phase 2 和 3）
+        if (portalRitual.flashAlpha > 0) {
+            ctx.fillStyle = `rgba(255, 255, 255, ${portalRitual.flashAlpha})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        ctx.restore();
+    }
 
     updateLabelsPosition();
     drawMinimap();
@@ -7482,6 +7647,60 @@ function createDropBeam(x, y, rarity) {
         triggerScreenShake(5, 0.2);
     }
 }
+
+// 创建传送门光柱特效（复用掉落光柱样式，蓝色主题）
+function createPortalBeam(x, y) {
+    // 光柱颜色：蓝紫色主题
+    const beamColor = '#6699ff';
+    const glowColor = 'rgba(100, 150, 255, 0.6)';
+
+    // 创建光柱粒子
+    particles.push({
+        type: 'drop_beam',
+        x: x,
+        y: y,
+        color: beamColor,
+        glowColor: glowColor,
+        life: 1.2,           // 持续1.2秒
+        maxLife: 1.2,
+        height: 250,         // 光柱更高
+        width: 50,
+        isUnique: true       // 使用更亮的效果
+    });
+
+    // 火花粒子（蓝色系）
+    const sparkCount = 30;
+    for (let i = 0; i < sparkCount; i++) {
+        const angle = (Math.PI * 2 / sparkCount) * i + Math.random() * 0.3;
+        const speed = 100 + Math.random() * 150;
+        const sparkColor = ['#6699ff', '#88aaff', '#aaccff', '#ffffff'][Math.floor(Math.random() * 4)];
+
+        particles.push({
+            x: x,
+            y: y - 20,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 120,  // 向上偏移
+            color: sparkColor,
+            life: 0.8 + Math.random() * 0.4,
+            size: 2 + Math.random() * 4,
+            gravity: 120  // 重力效果
+        });
+    }
+
+    // 上升光点
+    for (let i = 0; i < 15; i++) {
+        particles.push({
+            type: 'rising_spark',
+            x: x + (Math.random() - 0.5) * 40,
+            y: y,
+            vy: -180 - Math.random() * 120,
+            color: beamColor,
+            life: 1.0 + Math.random() * 0.5,
+            size: 3 + Math.random() * 3
+        });
+    }
+}
+
 function checkPlayerDeath() {
     if (player.hp <= 0) {
         // 凤凰天赋：死亡时复活一次
@@ -8243,15 +8462,23 @@ function useOrEquipItem(idx) {
             return;
         }
         if (player.floor !== 0) {
-            // 记录上次离开的层数
-            player.lastFloor = player.floor;
-            // 验证并修正传送门位置，确保在罗格营地的安全区域
-            const safePortalPos = validateAndFixPortalPosition(player.x, player.y);
-            townPortal = { returnFloor: player.floor, x: safePortalPos.x, y: safePortalPos.y, activeFloor: 0 };
-            // 清除自动战斗锁定目标，避免箭头残留在城镇
-            AutoBattle.currentTarget = null;
-            enterFloor(0);
+            // 启动回城仪式
+            portalRitual.active = true;
+            portalRitual.phase = 0;
+            portalRitual.timer = PORTAL_RITUAL_DURATIONS.casting;
+            portalRitual.returnFloor = player.floor;
+            portalRitual.scrollIdx = idx;
+            portalRitual.flashAlpha = 0;
+
+            // 消耗卷轴
             if (item.quantity > 1) item.quantity--; else player.inventory[idx] = null;
+
+            // 立刻触发光柱效果和音效（不等施法完成）
+            createPortalBeam(player.x, player.y);
+            AudioSys.playPortalOpen();
+            triggerScreenShake(4, 0.2);
+
+            showNotification("正在施法回城...");
         } else {
             showNotification("你已经在营地了");
         }
