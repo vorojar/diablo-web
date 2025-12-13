@@ -541,6 +541,7 @@ const EnemyPool = {
             dead: false, cooldown: 0, name: '', rarity: 0, xpValue: 0,
             frameIndex: 0, ai: 'chase', isBoss: false, isQuestTarget: false,
             eliteAffixes: null, frozenTimer: 0, damageReduction: 0,
+            hitFlashTimer: 0,  // 受击闪白计时器
             ...props
         });
         return enemy;
@@ -2158,7 +2159,9 @@ const AutoBattle = {
             return true;
         }
         return false;
-    }
+    },
+
+
 };
 
 const AudioSys = {
@@ -2166,8 +2169,14 @@ const AudioSys = {
     bgmEl: null,
     bgmUrl: "bg.mp3",
     masterGain: null, sfxGain: null,
+    bgmNode: null, bgmGainNode: null, bgmFilter: null, // BGM 音频节点
     bgmPlaying: false,
     bgmRetryNeeded: false,
+    // 金币连续拾取音调
+    goldPitch: 1.0,
+    lastGoldTime: 0,
+    // 心跳音效计时
+    heartbeatTimer: 0,
     init: function () {
         if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -2179,9 +2188,31 @@ const AudioSys = {
 
             this.sfxGain.gain.value = Settings.sfx ? 1.0 : 0;
 
+            // BGM 链路: source -> bgmGainNode -> bgmFilter -> masterGain
+            this.bgmFilter = this.ctx.createBiquadFilter();
+            this.bgmFilter.type = 'lowpass';
+            this.bgmFilter.frequency.value = 22000; // 默认全通
+            this.bgmFilter.connect(this.masterGain);
+
+            this.bgmGainNode = this.ctx.createGain();
+            this.bgmGainNode.gain.value = Settings.bgm ? 0.3 : 0;
+            this.bgmGainNode.connect(this.bgmFilter);
+
             this.bgmEl = new Audio(this.bgmUrl);
             this.bgmEl.loop = true;
-            this.bgmEl.volume = Settings.bgm ? 0.3 : 0;
+            // 注意：当使用 MediaElementSource 时，element.volume 也可以控制，但我们主要用 GainNode
+            this.bgmEl.volume = 1.0;
+
+            // 创建 MediaElementSource 需要在用户交互后或上下文 ready 时，但在 init 通常也可以
+            // 为了安全，我们只创建一次。注意：有些旧浏览器可能需要前缀，但现在通常不需要
+            try {
+                this.bgmNode = this.ctx.createMediaElementSource(this.bgmEl);
+                this.bgmNode.connect(this.bgmGainNode);
+            } catch (e) {
+                console.error("Error creating MediaElementSource:", e);
+                // 降级处理：如果不成功，至少让它响，虽然没有滤镜效果
+                this.bgmEl.volume = Settings.bgm ? 0.3 : 0;
+            }
 
             // 监听音频结束事件，确保循环播放
             this.bgmEl.addEventListener('ended', () => {
@@ -2250,9 +2281,31 @@ const AudioSys = {
         osc.connect(gain); gain.connect(this.sfxGain);
 
         if (type === 'gold') {
-            osc.type = 'sine'; osc.frequency.setValueAtTime(1800, t);
-            gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
-            osc.start(); osc.stop(t + 0.3);
+            // 连续拾取音调递增逻辑
+            const now = Date.now();
+            if (now - this.lastGoldTime < 1500) {
+                this.goldPitch = Math.min(this.goldPitch + 0.1, 2.0); // 最高 2.0 倍
+            } else {
+                this.goldPitch = 1.0;
+            }
+            this.lastGoldTime = now;
+
+            osc.type = 'sine';
+            // 基础频率 1800 * pitch
+            const freq = 1800 * this.goldPitch;
+            osc.frequency.setValueAtTime(freq, t);
+            gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15); //稍微缩短一点
+            osc.start(); osc.stop(t + 0.15);
+        } else if (type === 'heartbeat') {
+            // 心跳声：低频脉冲
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(60, t);
+            osc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
+
+            gain.gain.setValueAtTime(0.5, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+
+            osc.start(); osc.stop(t + 0.2);
         } else if (type === 'attack') {
             osc.type = 'triangle'; osc.frequency.setValueAtTime(100, t); osc.frequency.linearRampToValueAtTime(50, t + 0.1);
             gain.gain.setValueAtTime(0.1, t); gain.gain.linearRampToValueAtTime(0, t + 0.1);
@@ -2531,6 +2584,35 @@ const AudioSys = {
                 osc.start(t2);
                 osc.stop(t2 + 0.15);
             }, 150);
+        }
+    },
+    // 更新低血量音效（由 update 循环调用）
+    updateLowHpEffect: function (dt, hpPct) {
+        if (!this.ctx || !this.bgmFilter) return;
+
+        // 阈值 30%
+        if (hpPct < 0.3 && !player.isDead) {
+            // 目标频率：越低越闷，最低 200Hz
+            const targetFreq = 200 + hpPct * 1000;
+            // 平滑过渡
+            const currentFreq = this.bgmFilter.frequency.value;
+            this.bgmFilter.frequency.value = currentFreq + (targetFreq - currentFreq) * dt * 5;
+
+            // 心跳声
+            if (this.heartbeatTimer <= 0) {
+                this.play('heartbeat');
+                // 血越少心跳越快：30% -> 1秒, 0% -> 0.4秒
+                this.heartbeatTimer = 0.4 + hpPct * 2;
+            } else {
+                this.heartbeatTimer -= dt;
+            }
+        } else {
+            // 恢复正常
+            const currentFreq = this.bgmFilter.frequency.value;
+            if (currentFreq < 22000) {
+                this.bgmFilter.frequency.value = currentFreq + (22000 - currentFreq) * dt * 2;
+            }
+            this.heartbeatTimer = 0;
         }
     },
     toggleSetting: function (key, val) {
@@ -4292,7 +4374,7 @@ function gameLoop(ts) {
     autoSaveTimer += dt; if (autoSaveTimer > GAME_CONFIG.AUTO_SAVE_INTERVAL) { SaveSystem.save(); autoSaveTimer = 0; }
     requestAnimationFrame(gameLoop);
 }
-
+// Main Update Loop
 function update(dt) {
     // 天赋商店打开时暂停游戏（不更新敌人和战斗）
     if (talentShopOpen) return;
@@ -4311,6 +4393,9 @@ function update(dt) {
     if (mpRegenPct > 0) {
         mpRegen += player.maxMp * mpRegenPct / 100;  // 改为基于最大法力的百分比
     }
+    // 更新低血量音效
+    AudioSys.updateLowHpEffect(dt, player.hp / player.maxHp);
+
     if (player.hp < player.maxHp) player.hp += hpRegen * dt;
     if (player.mp < player.maxMp) player.mp += mpRegen * dt;
     if (player.attackCooldown > 0) player.attackCooldown -= dt;
@@ -4596,7 +4681,7 @@ function update(dt) {
                                 } else {
                                     createFloatingText(player.x, player.y - 40, "背包已满！", COLORS.warning, 1.5);
                                     player.targetItem = null;
-                                    return;
+                                    return; // 不要移除地面物品
                                 }
                             } else {
                                 createFloatingText(player.x, player.y - 40, "背包已满！", COLORS.warning, 1.5);
@@ -4637,6 +4722,7 @@ function update(dt) {
                 p.life = 0;
                 createDamageNumber(player.x, player.y - 20, Math.floor(dmg), COLORS.damage);
                 AudioSys.play('hit');
+                triggerScreenShake(2, 0.1); // 玩家被击中震动
 
                 // 自动战斗：记录远程攻击者
                 AutoBattle.onPlayerDamaged(p.owner);
@@ -4652,6 +4738,7 @@ function update(dt) {
                     takeDamage(e, p.damage, true);  // 第三个参数标记为技能伤害
                     p.life = 0;
                     hitTarget = e; // 记录被击中的目标
+                    triggerScreenShake(1, 0.05); // 投射物击中震动
                     if (p.freeze) { e.frozenTimer = p.freeze; createDamageNumber(e.x, e.y - 40, "冻结!", COLORS.ice); }
                     for (let j = 0; j < 5; j++)createParticle(p.x, p.y, p.color || '#ff4400');
                 }
@@ -4730,7 +4817,26 @@ function update(dt) {
         }
         if (p.life <= 0) particles.splice(i, 1);
     });
-    damageNumbers.forEach((d, i) => { d.life -= dt; d.y -= 20 * dt; if (d.life <= 0) damageNumbers.splice(i, 1); });
+
+    // 伤害数字物理更新
+    damageNumbers.forEach((d, i) => {
+        d.life -= dt;
+
+        // 应用物理效果
+        if (d.vx !== undefined) {
+            d.x += d.vx * dt;
+            d.y += d.vy * dt;
+            d.vy += d.gravity * dt; // 重力下坠
+
+            // 简单的边界反弹（可选，这里不需要）
+        } else {
+            // 兼容旧的简单上浮逻辑
+            d.y -= 20 * dt;
+        }
+
+        if (d.life <= 0) damageNumbers.splice(i, 1);
+    });
+
     slashEffects.forEach((s, i) => { s.life -= dt * 5; if (s.life <= 0) slashEffects.splice(i, 1); });
 
     // 震屏效果更新
@@ -4747,6 +4853,7 @@ function update(dt) {
 function updateEnemies(dt) {
     enemies.forEach(e => {
         if (e.dead) return;
+        if (e.hitFlashTimer > 0) e.hitFlashTimer -= dt; // 更新受击闪白
         if (e.frozenTimer > 0) { e.frozenTimer -= dt; return; }
         if (e.cooldown > 0) e.cooldown -= dt;
 
@@ -5119,8 +5226,24 @@ function draw() {
             const renderWidth = renderHeight * frame.width / frame.height;
             ctx.drawImage(processedSpriteSheet, frame.x, frame.y, frame.width, frame.height,
                 e.x - renderWidth / 2, e.y - renderHeight, renderWidth, renderHeight);
+
+            // 受击闪白效果
+            if (e.hitFlashTimer > 0) {
+                ctx.save();
+                ctx.globalAlpha = Math.min(1, e.hitFlashTimer * 5); // 闪烁效果
+                ctx.filter = 'brightness(500%) sepia(100%) saturate(0%) invert(0)'; // 极端亮度使其变白
+                // 重绘一遍精灵图，利用滤镜变白，且保留透明度
+                ctx.drawImage(processedSpriteSheet, frame.x, frame.y, frame.width, frame.height,
+                    e.x - renderWidth / 2, e.y - renderHeight, renderWidth, renderHeight);
+                ctx.restore();
+            }
         } else {
-            ctx.fillStyle = e.frozenTimer > 0 ? COLORS.ice : (e.rarity > 0 ? '#ffaa00' : (e.isBoss ? '#9000cc' : '#880000'));
+            // 优先级：受击闪白 > 冰冻 > 精英/Boss/普通颜色
+            if (e.hitFlashTimer > 0) {
+                ctx.fillStyle = '#ffffff'; // 受击闪白
+            } else {
+                ctx.fillStyle = e.frozenTimer > 0 ? COLORS.ice : (e.rarity > 0 ? '#ffaa00' : (e.isBoss ? '#9000cc' : '#880000'));
+            }
             if (e.isQuestTarget) ctx.fillStyle = '#ff00aa';
             ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2); ctx.fill();
         }
@@ -5338,8 +5461,14 @@ function draw() {
         ctx.stroke();
     });
 
-    ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center';
-    damageNumbers.forEach(d => { ctx.fillStyle = d.color; ctx.fillText(d.val, d.x, d.y); });
+    ctx.textAlign = 'center';
+    damageNumbers.forEach(d => {
+        // 动态字体大小
+        const size = d.fontSize || 16;
+        ctx.font = `bold ${size}px Arial`;
+        ctx.fillStyle = d.color;
+        ctx.fillText(d.val, d.x, d.y);
+    });
 
     ctx.restore();
 
@@ -5915,7 +6044,7 @@ function spawnEnemyTimer() {
 
         const enemy = EnemyPool.acquire({
             x, y, hp: finalHp, maxHp: finalHp, dmg: finalDmg, speed, radius: 12,
-            dead: false, cooldown: 0, name, rarity: isElite ? 1 : 0, xpValue: xp,
+            dead: false, cooldown: 0, hitFlashTimer: 0, name, rarity: isElite ? 1 : 0, xpValue: xp,
             ai: ai, frameIndex: frameIndex,
             monsterType: type,              // 怪物类型标识
             eliteAffixes: eliteAffixes      // 精英词缀列表
@@ -6029,12 +6158,22 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     }
 
     e.hp -= totalDamage;
+    e.hitFlashTimer = 0.1; // 触发受击闪白
+
+    // 暴击或大伤害的额外视觉
+    const isBigHit = totalDamage > player.maxHp * 0.2; // 超过玩家20%血量的伤害算大伤害
+    if (isBigHit) {
+        triggerScreenShake(3, 0.1);
+    }
+
     createDamageNumber(e.x, e.y, Math.floor(totalDamage), '#fff');
     AudioSys.play('hit');
 
     if (e.hp <= 0) {
-        // 怪物死亡
+        // 怪物死亡 - 强烈的果汁感
         e.dead = true;
+        triggerScreenShake(8, 0.25); // 死亡震动
+
         player.kills++;
         // 新手引导：步骤5 - 击杀第一只怪物
         if (player.kills === 1) advanceTutorial(5);
@@ -6679,7 +6818,7 @@ function showDivineBlessingListUI() {
     if (Object.keys(totals).length > 0) {
         const summaryText = Object.entries(totals).map(([k, v]) => {
             const isPercent = k.includes('Pct') || k.includes('Chance') || k === 'allRes' || k === 'lifeSteal';
-            return `<span style="color:#88ff88">+${v}${isPercent ? '%' : ''}</span> ${effectNames[k] || k}`;
+            return `<span style="color:#88ff88">+${v}${isPercent ? '%' : ''} ${effectNames[k] || k}`;
         }).join('、');
         summaryEl.innerHTML = `<div style="color:#ffd700; font-size:12px; margin-bottom:5px;">累计加成</div><div style="font-size:11px; color:#ccc; line-height:1.6;">${summaryText}</div>`;
     } else {
@@ -7191,7 +7330,25 @@ function createNovaEffect(x, y, color) {
     }
 }
 
-function createDamageNumber(x, y, val, color) { damageNumbers.push({ x, y, val, color, life: 1 }); }
+// 创建伤害数字（支持物理效果）
+// 创建伤害数字（支持物理效果）
+function createDamageNumber(x, y, val, color) {
+    const isCrit = color === COLORS.critical || val === "暴击!" || (typeof val === 'string' && val.includes('!'));
+
+    damageNumbers.push({
+        x, y, val, color,
+        life: 1,
+        // 物理属性：向两侧随机溅射，受到重力影响
+        // 暴击时溅射范围更大
+        vx: (Math.random() - 0.5) * (isCrit ? 200 : 120),
+        vy: -150 - Math.random() * (isCrit ? 150 : 100), // 向上跳起
+        gravity: 600,
+        fontSize: isCrit ? 24 : 16 // 暴击字体更大
+    });
+}
+
+
+// 触发震屏
 function createSlashEffect(fromX, fromY, toX, toY, damage = 50) {
     const angle = Math.atan2(toY - fromY, toX - fromX);
     const count = damage < 50 ? 1 : damage < 150 ? 2 : 3;
@@ -7755,7 +7912,10 @@ function performAttack(t) {
     let isCrit = Math.random() < player.dex * 0.01;
     if (isCrit) {
         dmg *= 2;
-        createDamageNumber(t.x, t.y - 40, "暴击!", '#ffff00');
+        triggerScreenShake(4, 0.15); // 暴击震动
+        createDamageNumber(t.x, t.y - 20, "暴击!", COLORS.critical);
+    } else {
+        triggerScreenShake(1, 0.05); // 普通攻击轻微震动
     }
 
     // 构建伤害对象（包含物理和元素伤害）
