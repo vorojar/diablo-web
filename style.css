@@ -2826,3 +2826,18 @@
             background: linear-gradient(135deg, #5a4b3a, #7a6b5a);
             box-shadow: 0 0 10px rgba(199, 179, 119, 0.3);
         }
+
+        /* ========== 每日奖励领取闪光动画 ========== */
+        @keyframes dailyFlash {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            40% {
+                opacity: 0.9;
+            }
+            100% {
+                opacity: 0;
+                transform: scale(1.2);
+            }
+        }

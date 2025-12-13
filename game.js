@@ -6587,25 +6587,97 @@ function claimDailyReward() {
             break;
         case 'unique_item':
             // 生成一个随机暗金装备
-            const slots = ['mainhand', 'body', 'helm', 'gloves', 'boots', 'belt', 'ring', 'amulet'];
-            const randomSlot = slots[Math.floor(Math.random() * slots.length)];
-            const uniqueItem = generateItem(randomSlot, 4, player.lvl);
+            const baseNames = ['短剑', '巨斧', '布甲', '皮甲', '皮帽', '皮手套', '皮靴', '皮带', '铜戒指', '铜项链'];
+            const randomBase = baseNames[Math.floor(Math.random() * baseNames.length)];
+            const uniqueItem = createItem(randomBase, player.lvl);
+            uniqueItem.rarity = 4;
+            uniqueItem.displayName = "暗金·" + uniqueItem.name;
+            uniqueItem.stats.allSkills = (uniqueItem.stats.allSkills || 0) + 1;
+            uniqueItem.stats.dmgPct = (uniqueItem.stats.dmgPct || 0) + 50;
+            uniqueItem.stats.lifeSteal = (uniqueItem.stats.lifeSteal || 0) + 5;
             addItemToInventory(uniqueItem);
             break;
     }
 
     login.claimedToday = true;
 
-    // 特效
-    createDamageNumber(player.x, player.y - 70, `${reward.icon} ${reward.name}`, '#ffd700');
-    showNotification(`领取成功：${reward.name}`);
-    AudioSys.play('cash');
+    // 华丽领取特效
+    playDailyRewardEffect(currentDay, reward);
 
     // 更新UI
     updateUI();
     renderInventory();
     showDailyLoginPanel(); // 刷新面板显示
     SaveSystem.save();
+}
+
+// 每日奖励领取特效
+function playDailyRewardEffect(day, reward) {
+    const isDay7 = day === 7;  // 第7天特殊大奖
+
+    // 1. 震屏效果
+    triggerScreenShake(isDay7 ? 12 : 6, isDay7 ? 0.4 : 0.25);
+
+    // 2. 全屏闪光效果
+    const flash = document.createElement('div');
+    flash.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: ${isDay7 ? 'radial-gradient(circle, rgba(255,215,0,0.8) 0%, rgba(255,165,0,0.4) 50%, transparent 100%)' : 'radial-gradient(circle, rgba(255,255,255,0.6) 0%, transparent 70%)'};
+        pointer-events: none; z-index: 9999;
+        animation: dailyFlash ${isDay7 ? '0.8s' : '0.5s'} ease-out forwards;
+    `;
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), isDay7 ? 800 : 500);
+
+    // 3. 粒子爆发
+    const colors = isDay7 ?
+        ['#ffd700', '#ffaa00', '#ff8800', '#ffffff', '#ffff00'] :
+        ['#87ceeb', '#98fb98', '#dda0dd', '#ffffff'];
+    const particleCount = isDay7 ? 40 : 20;
+
+    for (let i = 0; i < particleCount; i++) {
+        const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.5;
+        const speed = 100 + Math.random() * 150;
+        particles.push({
+            x: player.x,
+            y: player.y - 30,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 80,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            life: 0.8 + Math.random() * 0.4,
+            size: isDay7 ? 4 + Math.random() * 4 : 2 + Math.random() * 3,
+            gravity: 120
+        });
+    }
+
+    // 4. 上升星星效果（第7天特有）
+    if (isDay7) {
+        for (let i = 0; i < 15; i++) {
+            particles.push({
+                type: 'rising_spark',
+                x: player.x + (Math.random() - 0.5) * 60,
+                y: player.y,
+                vy: -180 - Math.random() * 100,
+                color: '#ffd700',
+                life: 1.2 + Math.random() * 0.5,
+                size: 4 + Math.random() * 3
+            });
+        }
+    }
+
+    // 5. 大字浮动文字
+    createFloatingText(player.x, player.y - 80, `${reward.icon} ${reward.name}`, isDay7 ? '#ffd700' : '#87ceeb', isDay7 ? 2.5 : 2);
+
+    // 6. 播放音效
+    if (isDay7) {
+        AudioSys.play('drop_unique');  // 暗金掉落音效
+        setTimeout(() => AudioSys.play('levelup'), 300);  // 叠加升级音效
+    } else {
+        AudioSys.play('quest');  // 任务完成音效
+    }
+
+    // 7. 显示通知
+    showNotification(`🎁 Day${day} 奖励领取成功：${reward.name}！`);
 }
 
 // 显示传送门层数选择对话框
