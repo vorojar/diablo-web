@@ -3239,6 +3239,16 @@
   color: #20ff20;
 }
 
+/* 等级里程碑公告 - 紫色 */
+.level-announcement {
+  color: #ff66ff;
+}
+
+/* 强化成功公告 - 橙色 */
+.enhance-announcement {
+  color: #ff8800;
+}
+
 /* 公告滚动动画 */
 @keyframes scrollAnnouncement {
   0% {

@@ -538,16 +538,32 @@ const OnlineSystem = {
     // 格式化公告文本
     formatAnnouncement(record) {
         const floorText = record.is_hell ? `地狱${record.floor}层` : `第${record.floor}层`;
-        if (record.type === 'boss_kill') {
-            return {
-                text: `${record.nickname} 在${floorText}击杀了 ${record.target_name}`,
-                type: 'boss'
-            };
-        } else {
-            return {
-                text: `${record.nickname} 在${floorText}获得了 ${record.target_name}`,
-                type: 'set'
-            };
+        switch (record.type) {
+            case 'boss_kill':
+                return {
+                    text: `${record.nickname} 在${floorText}击杀了 ${record.target_name}`,
+                    type: 'boss'
+                };
+            case 'set_drop':
+                return {
+                    text: `${record.nickname} 在${floorText}获得了 ${record.target_name}`,
+                    type: 'set'
+                };
+            case 'level_milestone':
+                return {
+                    text: `${record.nickname} 达到了 ${record.target_name} 级`,
+                    type: 'level'
+                };
+            case 'enhance_success':
+                return {
+                    text: `${record.nickname} 将 ${record.target_name} 强化成功`,
+                    type: 'enhance'
+                };
+            default:
+                return {
+                    text: `${record.nickname}: ${record.target_name}`,
+                    type: 'default'
+                };
         }
     },
 

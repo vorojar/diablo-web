@@ -10332,6 +10332,11 @@ function checkLevelUp() {
         // 成就追踪：达到等级
         trackAchievement('reach_level', { level: player.lvl });
 
+        // 全服公告：等级里程碑（10/20/30...）
+        if (player.lvl % 10 === 0 && typeof OnlineSystem !== 'undefined') {
+            OnlineSystem.announce('level_milestone', String(player.lvl));
+        }
+
         player.xp -= player.xpNext;
         player.xpNext = Math.floor(player.xpNext * 1.5);
         player.points += 5;
@@ -11247,6 +11252,11 @@ function forgeItem(successRate, cost) {
 
         // 特效粒子? (简化：用现有的 floating text)
         createFloatingText(player.x, player.y - 60, "强化成功!", '#00ff00', 2);
+
+        // 全服公告：强化+7以上成功
+        if (mainItem.enhanceLvl >= 7 && typeof OnlineSystem !== 'undefined') {
+            OnlineSystem.announce('enhance_success', mainItem.displayName);
+        }
 
     } else {
         // 失败
