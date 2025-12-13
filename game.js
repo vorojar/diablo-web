@@ -2630,61 +2630,172 @@ function migrateItemStats() {
 }
 
 const SaveSystem = {
+    currentSlot: 1,  // 当前使用的存档槽位
+    MAX_SLOTS: 3,    // 最大存档数
+
     init: function () {
         const req = indexedDB.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = e => {
             const db = e.target.result;
             if (!db.objectStoreNames.contains('saveData')) db.createObjectStore('saveData', { keyPath: 'id' });
         };
-        req.onsuccess = e => { db = e.target.result; this.load(); };
+        req.onsuccess = e => {
+            db = e.target.result;
+            this.migrateOldSave().then(() => {
+                this.loadAllSlotsMeta();
+            });
+        };
         req.onerror = e => { console.error("DB Init Failed", e); };
     },
-    save: function () {
+
+    // 迁移旧存档到槽位1
+    migrateOldSave: async function() {
+        return new Promise((resolve) => {
+            if (!db) { resolve(); return; }
+            const tx = db.transaction(['saveData'], 'readonly');
+            const store = tx.objectStore('saveData');
+
+            // 检查是否有旧格式存档
+            const oldReq = store.get('player1');
+            oldReq.onsuccess = (e) => {
+                const oldData = e.target.result;
+                if (oldData && !oldData.slotId) {
+                    // 旧存档存在且未迁移，迁移到槽位1
+                    const newData = { ...oldData, id: 'slot_1', slotId: 1 };
+                    const writeTx = db.transaction(['saveData'], 'readwrite');
+                    const writeStore = writeTx.objectStore('saveData');
+                    writeStore.put(newData);
+                    writeStore.delete('player1');  // 删除旧存档
+                    writeTx.oncomplete = () => {
+                        console.log('[存档迁移] 已将旧存档迁移到槽位1');
+                        resolve();
+                    };
+                } else {
+                    resolve();
+                }
+            };
+            oldReq.onerror = () => resolve();
+        });
+    },
+
+    // 加载所有槽位的元数据（用于显示存档选择界面）
+    loadAllSlotsMeta: function() {
+        if (!db) return;
+        window.saveSlots = [null, null, null];  // 3个槽位
+
+        const tx = db.transaction(['saveData'], 'readonly');
+        const store = tx.objectStore('saveData');
+
+        for (let i = 1; i <= this.MAX_SLOTS; i++) {
+            const req = store.get(`slot_${i}`);
+            req.onsuccess = (e) => {
+                if (e.target.result) {
+                    const data = e.target.result;
+                    const pb = data.personalBest || {};
+                    window.saveSlots[i - 1] = {
+                        slotId: i,
+                        level: data.lvl || 1,
+                        kills: data.kills || 0,
+                        gold: data.gold || 0,
+                        maxFloor: pb.maxFloor || data.floor || 0,
+                        maxHellFloor: pb.maxHellFloor || 0,
+                        lastPlayed: data.lastPlayed || Date.now(),
+                        hasData: true
+                    };
+                }
+                // 当所有槽位都检查完毕后，更新UI
+                if (i === this.MAX_SLOTS) {
+                    this.updateStartScreenStatus();
+                }
+            };
+        }
+    },
+
+    // 更新开始界面状态
+    updateStartScreenStatus: function() {
+        const statusEl = document.getElementById('save-status');
+        const hasAnySave = window.saveSlots && window.saveSlots.some(s => s && s.hasData);
+        if (hasAnySave) {
+            const filledSlots = window.saveSlots.filter(s => s && s.hasData).length;
+            statusEl.innerHTML = `发现 ${filledSlots} 个存档`;
+        } else {
+            statusEl.innerHTML = '';
+        }
+    },
+
+    // 保存到当前槽位
+    save: function (silent = false) {
         if (!db) return;
         const clean = i => { if (!i) return null; const { el, ...r } = i; return r; };
         const eq = {}; for (let k in player.equipment) eq[k] = clean(player.equipment[k]);
         const data = {
-            id: 'player1', ...player,
+            id: `slot_${this.currentSlot}`,
+            slotId: this.currentSlot,
+            ...player,
             inventory: player.inventory.map(clean),
             equipment: eq,
-            stash: player.stash.map(clean), // 保存仓库
-            targetItem: clean(player.targetItem), // 清理targetItem的DOM元素引用
+            stash: player.stash.map(clean),
+            targetItem: clean(player.targetItem),
             townPortal: townPortal,
             settings: Settings,
-            autoBattleSettings: AutoBattle.settings
+            autoBattleSettings: AutoBattle.settings,
+            lastPlayed: Date.now()
         };
         db.transaction(['saveData'], 'readwrite').objectStore('saveData').put(data);
-        // 排行榜提交已移至关键节点（进入新楼层、死亡、击杀Boss）
 
-        showNotification("游戏已保存");
+        if (!silent) showNotification("游戏已保存");
     },
-    load: function () {
-        if (!db) return;
-        db.transaction(['saveData']).objectStore('saveData').get('player1').onsuccess = e => {
-            if (e.target.result) {
-                window.pendingLoadData = e.target.result;
-                // 修复：正确显示地狱模式状态
-                let f;
-                if (e.target.result.floor === 0) {
-                    f = "罗格营地";
-                } else if (e.target.result.isInHell) {
-                    f = `地狱 ${e.target.result.hellFloor || 1}层`;
+
+    // 加载指定槽位
+    loadSlot: function(slotId) {
+        return new Promise((resolve) => {
+            if (!db) { resolve(null); return; }
+            this.currentSlot = slotId;
+            db.transaction(['saveData']).objectStore('saveData').get(`slot_${slotId}`).onsuccess = e => {
+                if (e.target.result) {
+                    window.pendingLoadData = e.target.result;
+
+                    // Load Settings
+                    if (e.target.result.settings) {
+                        Object.assign(Settings, e.target.result.settings);
+                        document.getElementById('chk-bgm').checked = Settings.bgm;
+                        document.getElementById('chk-sfx').checked = Settings.sfx;
+                    }
+                    resolve(e.target.result);
                 } else {
-                    f = `地牢 ${e.target.result.floor}层`;
+                    window.pendingLoadData = null;
+                    resolve(null);
                 }
-                const statusEl = document.getElementById('save-status');
-                statusEl.innerHTML = `发现存档: Lv${e.target.result.lvl} - ${f} <span onclick="confirmResetSave()" style="color: #ff4444; text-decoration: underline; cursor: pointer; margin-left: 10px; font-size: 11px;">清除存档</span>`;
-
-                // Load Settings
-                if (e.target.result.settings) {
-                    Object.assign(Settings, e.target.result.settings);
-                    document.getElementById('chk-bgm').checked = Settings.bgm;
-                    document.getElementById('chk-sfx').checked = Settings.sfx;
-                }
-            }
-        };
+            };
+        });
     },
-    reset: function () { if (db) db.transaction(['saveData'], 'readwrite').objectStore('saveData').delete('player1'); location.reload(); }
+
+    // 删除指定槽位
+    deleteSlot: function(slotId) {
+        return new Promise((resolve) => {
+            if (!db) { resolve(); return; }
+            const tx = db.transaction(['saveData'], 'readwrite');
+            tx.objectStore('saveData').delete(`slot_${slotId}`);
+            tx.oncomplete = () => {
+                if (window.saveSlots) window.saveSlots[slotId - 1] = null;
+                resolve();
+            };
+        });
+    },
+
+    // 兼容旧代码的load方法
+    load: function () {
+        this.loadAllSlotsMeta();
+    },
+
+    // 重置当前槽位
+    reset: function () {
+        if (db) {
+            this.deleteSlot(this.currentSlot).then(() => {
+                location.reload();
+            });
+        }
+    }
 };
 
 const ITEM_TYPES = {
@@ -3528,6 +3639,127 @@ function confirmResetSave() {
     if (confirm(message)) {
         SaveSystem.reset();
     }
+}
+
+// ========== 存档选择系统 ==========
+let pendingDeleteSlot = null;  // 待删除的槽位
+
+// 显示存档选择面板
+function showSlotSelection() {
+    const overlay = document.getElementById('slot-selection-overlay');
+    const grid = document.getElementById('slot-selection-grid');
+
+    // 渲染3个存档槽位
+    grid.innerHTML = '';
+    for (let i = 0; i < 3; i++) {
+        const slotData = window.saveSlots ? window.saveSlots[i] : null;
+        const slotNum = i + 1;
+
+        if (slotData && slotData.hasData) {
+            // 有存档的槽位
+            const floorText = slotData.maxHellFloor > 0 ? `地狱${slotData.maxHellFloor}层` : `${slotData.maxFloor}层`;
+            const lastPlayedText = formatLastPlayed(slotData.lastPlayed);
+            const goldText = slotData.gold >= 10000 ? `${(slotData.gold / 10000).toFixed(1)}万` : slotData.gold;
+
+            grid.innerHTML += `
+                <div class="slot-card" onclick="selectSlot(${slotNum})">
+                    <div class="slot-card-number">#${slotNum}</div>
+                    <div class="slot-card-delete" onclick="event.stopPropagation(); showDeleteConfirm(${slotNum})">✕</div>
+                    <div class="slot-level">Lv.${slotData.level}</div>
+                    <div class="slot-info">
+                        <div class="slot-info-row">
+                            <span class="slot-info-label">最高</span>
+                            <span class="slot-info-value">${floorText}</span>
+                        </div>
+                        <div class="slot-info-row">
+                            <span class="slot-info-label">击杀</span>
+                            <span class="slot-info-value">${slotData.kills}</span>
+                        </div>
+                        <div class="slot-info-row">
+                            <span class="slot-info-label">金币</span>
+                            <span class="slot-info-value" style="color:#ffd700">${goldText}</span>
+                        </div>
+                    </div>
+                    <div class="slot-last-played">${lastPlayedText}</div>
+                </div>
+            `;
+        } else {
+            // 空槽位
+            grid.innerHTML += `
+                <div class="slot-card empty" onclick="selectSlot(${slotNum})">
+                    <div class="slot-card-number">#${slotNum}</div>
+                    <div class="slot-empty-icon">+</div>
+                    <div class="slot-empty-text">新建角色</div>
+                </div>
+            `;
+        }
+    }
+
+    overlay.classList.add('active');
+}
+
+// 隐藏存档选择面板
+function hideSlotSelection() {
+    document.getElementById('slot-selection-overlay').classList.remove('active');
+}
+
+// 格式化最后游玩时间
+function formatLastPlayed(timestamp) {
+    if (!timestamp) return '';
+    const now = Date.now();
+    const diff = now - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return '刚刚';
+    if (minutes < 60) return `${minutes}分钟前`;
+    if (hours < 24) return `${hours}小时前`;
+    if (days < 7) return `${days}天前`;
+    return new Date(timestamp).toLocaleDateString('zh-CN');
+}
+
+// 选择存档槽位
+async function selectSlot(slotNum) {
+    hideSlotSelection();
+    await SaveSystem.loadSlot(slotNum);
+    startGame();
+}
+
+// 显示删除确认对话框
+function showDeleteConfirm(slotNum) {
+    pendingDeleteSlot = slotNum;
+    document.getElementById('delete-slot-num').textContent = slotNum;
+    document.getElementById('delete-confirm-input').value = '';
+    document.getElementById('delete-confirm-btn').disabled = true;
+    document.getElementById('delete-slot-confirm').classList.add('active');
+
+    // 监听输入
+    const input = document.getElementById('delete-confirm-input');
+    input.oninput = () => {
+        document.getElementById('delete-confirm-btn').disabled = input.value !== '删除';
+    };
+    input.focus();
+}
+
+// 隐藏删除确认对话框
+function hideDeleteConfirm() {
+    document.getElementById('delete-slot-confirm').classList.remove('active');
+    pendingDeleteSlot = null;
+}
+
+// 确认删除存档
+async function confirmDeleteSlot() {
+    if (!pendingDeleteSlot) return;
+    const input = document.getElementById('delete-confirm-input');
+    if (input.value !== '删除') return;
+
+    await SaveSystem.deleteSlot(pendingDeleteSlot);
+    hideDeleteConfirm();
+
+    // 刷新存档列表
+    SaveSystem.loadAllSlotsMeta();
+    setTimeout(() => showSlotSelection(), 100);
 }
 
 function startGame() {

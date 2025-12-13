@@ -2,6 +2,15 @@
 // 倒序排列（最新版本在前）
 const CHANGELOG = [
     {
+        version: "5.0",
+        title: "多存档系统",
+        highlights: [
+            "支持3个独立存档，可同时培养多个角色",
+            "增加新手引导",
+            "每日登录奖励增加领取特效"
+        ]
+    },
+    {
         version: "4.9",
         title: "怪物系统大扩展",
         highlights: [

@@ -27,7 +27,7 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=202512132145">
+    <link rel="stylesheet" href="style.css?v=202512132228">
 </head>
 
 <body>
@@ -61,14 +61,12 @@
                     您的浏览器不支持视频标签。
                 </video>
                 <div id="welcome-back"></div>
-                <button class="start-btn" onclick="startGame()">踏入庇护所</button>
+                <button class="start-btn" onclick="showSlotSelection()">踏入庇护所</button>
 
                 <div id="save-status" style="color: #fff; font-size: 12px; margin-top: 20px;">
                     正在检查存档...
-                    <span onclick="confirmResetSave()"
-                        style="color: #ff4444; text-decoration: underline; cursor: pointer; margin-left: 10px; font-size: 11px;">清除存档</span>
                 </div>
-                <p style="color: #888; font-size: 11px; margin-top: 10px;">v4.8
+                <p style="color: #888; font-size: 11px; margin-top: 10px;">v5.0
                     <span id="changelog-link" onclick="showChangelogPanel()"
                         style="color: #ffd700; text-decoration: underline; cursor: pointer; margin-left: 8px;">更新公告</span>
                 </p>
@@ -638,8 +636,8 @@
         </div>
     </div>
 
-    <script src="changelog.js?v=202512112330"></script>
-    <script src="game.js?v=202512132157"></script>
+    <script src="changelog.js?v=202512132210"></script>
+    <script src="game.js?v=202512132228"></script>
     <script src="pocketbase.umd.js"></script>
     <script src="online.js?v=202512122225"></script>
     <script>
@@ -659,6 +657,35 @@
                 .catch(err => console.log('SW registration failed:', err));
         }
     </script>
+
+    <!-- 存档选择面板 (放在body直接下面，避免pointer-events问题) -->
+    <div id="slot-selection-overlay" class="slot-selection-overlay">
+        <div class="slot-selection-panel">
+            <div class="slot-selection-header">选择存档</div>
+            <div class="slot-selection-grid" id="slot-selection-grid">
+                <!-- 动态生成3个存档槽位 -->
+            </div>
+            <div class="slot-selection-footer">
+                <button class="slot-back-btn" onclick="hideSlotSelection()">返回</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除存档确认对话框 -->
+    <div id="delete-slot-confirm" class="delete-slot-confirm-overlay">
+        <div class="delete-slot-confirm-dialog">
+            <div class="delete-confirm-title">⚠️ 删除存档</div>
+            <div class="delete-confirm-text">确定要删除存档 <span id="delete-slot-num">1</span> 吗？<br>此操作<span style="color:#ff4444;">不可恢复</span>！</div>
+            <div class="delete-confirm-input">
+                <span>请输入"删除"以确认：</span>
+                <input type="text" id="delete-confirm-input" placeholder="删除" autocomplete="off">
+            </div>
+            <div class="delete-confirm-actions">
+                <button class="delete-cancel-btn" onclick="hideDeleteConfirm()">取消</button>
+                <button class="delete-confirm-btn" id="delete-confirm-btn" onclick="confirmDeleteSlot()" disabled>确认删除</button>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>
