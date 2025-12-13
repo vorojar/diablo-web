@@ -1026,7 +1026,7 @@
 
         #floor-display {
             position: absolute;
-            top: 20px;
+            top: 50px;  /* 原20px，为公告栏腾出空间 */
             left: 20px;
             color: #bbb;
             font-size: 1.4em;
@@ -1039,7 +1039,7 @@
         /* 任务追踪器位于左侧下方 */
         #quest-tracker {
             position: absolute;
-            top: 60px;
+            top: 90px;  /* 原60px，为公告栏腾出空间 */
             left: 20px;
             text-align: left;
             pointer-events: none;
@@ -3203,4 +3203,48 @@
   font-size: 12px;
   color: white;
   text-shadow: 1px 1px 1px black;
+}
+
+/* ========== 全服公告栏 ========== */
+#announcement-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 28px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.6) 100%);
+  border-bottom: 1px solid rgba(200, 150, 50, 0.3);
+  overflow: hidden;
+  z-index: 100;
+  pointer-events: none;
+}
+
+#announcement-content {
+  position: absolute;
+  white-space: nowrap;
+  line-height: 28px;
+  font-size: 14px;
+  font-family: 'Cinzel', serif;
+  text-shadow: 0 0 8px currentColor, 1px 1px 2px black;
+  padding: 0 20px;
+}
+
+/* Boss击杀公告 - 金色 */
+.boss-announcement {
+  color: #ffd700;
+}
+
+/* 套装掉落公告 - 绿色 */
+.set-announcement {
+  color: #20ff20;
+}
+
+/* 公告滚动动画 */
+@keyframes scrollAnnouncement {
+  0% {
+    transform: translateX(100vw);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
 }

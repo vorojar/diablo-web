@@ -989,7 +989,7 @@ const DIVINE_BLESSING_POOL = [
 ];
 
 const spriteSheet = new Image();
-spriteSheet.src = 'sprites.png?v=4.8';
+spriteSheet.src = 'sprites.png?v=5.2';
 
 let spritesLoaded = false;
 let processedSpriteSheet = null;
@@ -1035,7 +1035,7 @@ const SPRITE_CONFIG = {
 
 // --- Item Sprites ---
 const itemSpriteSheet = new Image();
-itemSpriteSheet.src = 'items.png';
+itemSpriteSheet.src = 'items.png?v=5.2';
 let itemSpritesLoaded = false;
 let processedItemSprites = null; // 去除黑底后的精灵图
 
@@ -1063,20 +1063,133 @@ itemSpriteSheet.onload = () => {
     itemSpritesLoaded = true;
 };
 
+// 程序化墙壁细节绘制 (使用 Sprite Sheet)
+// 程序化墙壁细节绘制 (使用 Sprite Sheet)
+// 返回是否成功绘制了 Sprite
+function drawBiomeWallDetails(ctx, x, y, size, type, seed) {
+    if (envSpritesLoaded && processedEnvSprites) {
+        // 使用伪随机数决定画什么
+        const hash = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+        const rand = hash - Math.floor(hash);
+
+        // 10% 概率替换为装饰物，90% 保持原有墙壁
+        if (rand < 0.1) {
+            // 每个群系现在有 2 行变体 (共16种)
+            let startRow = 6; // Default Misc (Rows 6-7)
+            if (type === 'forest') startRow = 0;
+            else if (type === 'ice') startRow = 2;
+            else if (type === 'fire') startRow = 4;
+
+            // 随机选择该群系的 2 行中的一行
+            const row = startRow + (Math.floor(rand * 1000) % 2);
+
+            // 随机选择该行的某一列 (0-7)
+            const col = Math.floor(rand * 100) % 8;
+
+            // 绘制贴图 - 修正裁切问题
+            // 为了防止切到边缘或隔壁的图，我们向内收缩 5%
+            const paddingX = envCellWidth * 0.05;
+            const paddingY = envCellHeight * 0.05;
+
+            // 源矩形 (在 Sprite Sheet 上的位置)
+            const sx = col * envCellWidth + paddingX;
+            const sy = row * envCellHeight + paddingY;
+            const sw = envCellWidth - 2 * paddingX;
+            const sh = envCellHeight - 2 * paddingY;
+
+            // 目标尺寸
+            // 保持宽高比
+            const ratio = sw / sh;
+            let drawH = size * 1.1; // 高度设为格子的 1.1 倍 (原 1.5)
+            let drawW = drawH * ratio; // 宽度自适应
+
+            // 居中偏移
+            const offsetX = (size - drawW) / 2;
+            const offsetY = (size - drawH) + 2; // 微调底部对齐
+
+            ctx.drawImage(processedEnvSprites,
+                sx, sy, sw, sh,
+                x + offsetX, y + offsetY, drawW, drawH
+            );
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+// 加载环境装饰贴图 (Environment Sprites)
+const envSpriteSheet = new Image();
+envSpriteSheet.src = 'environment_sprites.png?v=5.2';
+
+let envSpritesLoaded = false;
+let processedEnvSprites = null;
+let envCellWidth = 0;
+let envCellHeight = 0;
+
+envSpriteSheet.onload = () => {
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = envSpriteSheet.width;
+    tempCanvas.height = envSpriteSheet.height;
+
+    tempCtx.drawImage(envSpriteSheet, 0, 0);
+
+    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // 去除白色背景 (适应新生成的 Sprite Sheet)
+        // 同时也去除了白色的网格线
+        if (r > 200 && g > 200 && b > 200) {
+            data[i + 3] = 0;
+        }
+    }
+
+    tempCtx.putImageData(imageData, 0, 0);
+
+    processedEnvSprites = new Image();
+    processedEnvSprites.onload = () => {
+        envSpritesLoaded = true;
+        // 计算单个格子的尺寸 (8列 x 8行)
+        // 之前是 4 行，现在 V3 是 8 行，必须除以 8，否则会一次切到两行图
+        envCellWidth = processedEnvSprites.width / 8;
+        envCellHeight = processedEnvSprites.height / 8;
+    };
+    processedEnvSprites.src = tempCanvas.toDataURL();
+};
+
 const wallTiles = new Image();
-wallTiles.src = 'wall_tiles.png';
+wallTiles.src = 'wall_tiles.png?v=5.2';
 let wallTilesLoaded = false;
 wallTiles.onload = () => { wallTilesLoaded = true; };
 
+function getBiomeStyle(floor) {
+    if (floor === 0) return null; // Camp uses default
+    if (player.isInHell) return { tint: 'rgba(200, 50, 0, 0.4)', type: 'fire', ice: false };
+
+    // 1-10: 迷雾森林 (绿色, 潮湿)
+    if (floor <= 10) return { tint: 'rgba(50, 200, 80, 0.25)', type: 'forest', ice: false };
+    // 11-20: 冰封废墟 (蓝色, 滑)
+    if (floor <= 20) return { tint: 'rgba(100, 220, 255, 0.35)', type: 'ice', ice: true };
+    // 21+: 熔岩炼狱 (红色)
+    return { tint: 'rgba(255, 80, 20, 0.3)', type: 'fire', ice: false };
+}
+
 function getWallTextureIndex(floor) {
-    if (player.isInHell) return 2; // Hell texture
-    if (floor >= 9) return 2;      // Hellish levels
-    if (floor >= 5) return 1;      // Cave levels
-    return 0;                      // Stone levels (1-4)
+    if (player.isInHell) return 2;
+    // 复用现有的3张墙壁贴图来配合色调
+    if (floor <= 10) return 0; // 石墙适合森林
+    if (floor <= 20) return 1; // 洞穴墙适合冰窟
+    return 2;                  // 地狱墙适合熔岩
 }
 
 const floorTiles = new Image();
-floorTiles.src = 'floor_tiles.png';
+floorTiles.src = 'floor_tiles.png?v=5.2';
 let floorTilesLoaded = false;
 floorTiles.onload = () => { floorTilesLoaded = true; };
 
@@ -1131,7 +1244,7 @@ function applyItemSpriteToElement(el, item) {
     if (itemSpritesLoaded) {
         const coords = getItemSpriteCoords(item);
         el.innerText = '';
-        el.style.backgroundImage = "url('items.png')";
+        el.style.backgroundImage = "url('items.png?v=5.2')";
         el.style.backgroundSize = '400% 400%';
         el.style.backgroundPosition = `${coords.col * 33.333}% ${coords.row * 33.333}%`;
         el.style.backgroundRepeat = 'no-repeat';
@@ -4641,6 +4754,39 @@ function update(dt) {
         return; // 死亡时不执行其他更新逻辑
     }
 
+    // 环境氛围粒子生成 (Biome Atmosphere) - 每帧检查
+    const currentBiome = getBiomeStyle(player.floor);
+    if (currentBiome && Math.random() < 0.2) { // 20%概率每帧
+        const spawnX = camera.x + Math.random() * canvas.width;
+        const spawnY = camera.y + Math.random() * canvas.height;
+
+        if (currentBiome.type === 'forest') {
+            // 森林孢子/萤火虫
+            particles.push({
+                x: spawnX, y: spawnY,
+                vx: (Math.random() - 0.5) * 20,
+                vy: (Math.random() - 0.5) * 20,
+                life: 3 + Math.random() * 2,
+                color: Math.random() < 0.7 ? '#aaff88' : '#ffffaa',
+                size: 1 + Math.random() * 2,
+                alpha: 0.6,
+                maxAlpha: 0.6
+            });
+        } else if (currentBiome.type === 'fire') {
+            // 熔岩余烬 (向上飘)
+            particles.push({
+                x: spawnX, y: spawnY,
+                vx: (Math.random() - 0.5) * 30,
+                vy: -30 - Math.random() * 30,
+                life: 1.5 + Math.random(),
+                color: Math.random() < 0.6 ? '#ff4400' : '#ffaa00',
+                size: 2 + Math.random() * 2,
+                alpha: 0.8,
+                maxAlpha: 0.8
+            });
+        }
+    }
+
     // 定期清理死亡敌人（每3秒，使用对象池回收）
     cleanupTimer += dt;
     if (cleanupTimer > 3) {
@@ -5346,31 +5492,62 @@ function draw() {
 
     const sc = Math.floor(camera.x / TILE_SIZE), ec = sc + (canvas.width / TILE_SIZE) + 1;
     const sr = Math.floor(camera.y / TILE_SIZE), er = sr + (canvas.height / TILE_SIZE) + 1;
+
+    // 获取当前层群系样式
+    const biome = getBiomeStyle(player.floor);
+
     for (let r = sr - 1; r < er + 1; r++) {
         for (let c = sc - 1; c < ec + 1; c++) {
             if (r >= 0 && r < MAP_HEIGHT && c >= 0 && c < MAP_WIDTH) {
                 const x = c * TILE_SIZE, y = r * TILE_SIZE;
                 if (mapData[r][c] === 0) {
-                    if (wallTilesLoaded) {
-                        const wallIndex = getWallTextureIndex(player.floor);
+                    let drawnSprite = false;
 
-                        // 图片已调整为 120x360 (每个图块 120x120)
-                        // 120px 到 40px 是完美的 3倍缩放
-                        const tileHeight = wallTiles.height / 3;
-
-                        ctx.drawImage(wallTiles,
-                            0, wallIndex * tileHeight, wallTiles.width, tileHeight,
-                            x, y, TILE_SIZE, TILE_SIZE
-                        );
-
-                        // 阴影
-                        //ctx.fillStyle = 'rgba(0,0,0,0.5)';
-                        //ctx.fillRect(x, y + TILE_SIZE - 6, TILE_SIZE, 6);
-                    } else {
-                        ctx.fillStyle = COLORS.wall;
+                    // 尝试使用 Sprite 绘制墙壁 (仅在有群系时，Camp层除外)
+                    if (biome && envSpritesLoaded && processedEnvSprites) {
+                        // 1. 先画地板作为底色 (防止树后面透出黑色背景)
+                        if (floorTilesLoaded) {
+                            const floorIndex = getFloorTextureIndex(player.floor);
+                            const tileHeight = floorTiles.height / 3;
+                            ctx.drawImage(floorTiles, 0, floorIndex * tileHeight, floorTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
+                        } else {
+                            ctx.fillStyle = '#151515';
+                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        }
+                        // 地板色调叠加
+                        ctx.fillStyle = biome.tint;
                         ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        ctx.fillStyle = '#111';
-                        ctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10);
+
+                        // 2. 绘制 Sprite
+                        drawnSprite = drawBiomeWallDetails(ctx, x, y, TILE_SIZE, biome.type, r * 1000 + c);
+                    }
+
+                    // 如果没有绘制 Sprite (例如 Camp 层，或资源未加载)，则绘制标准墙壁
+                    if (!drawnSprite) {
+                        if (wallTilesLoaded) {
+                            const wallIndex = getWallTextureIndex(player.floor);
+                            const tileHeight = wallTiles.height / 3;
+
+                            ctx.drawImage(wallTiles,
+                                0, wallIndex * tileHeight, wallTiles.width, tileHeight,
+                                x, y, TILE_SIZE, TILE_SIZE
+                            );
+
+                            // 群系色调叠加（墙壁）
+                            if (biome) {
+                                ctx.fillStyle = biome.tint;
+                                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                            }
+                        } else {
+                            ctx.fillStyle = COLORS.wall;
+                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                            if (biome) {
+                                ctx.fillStyle = biome.tint;
+                                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                            }
+                            ctx.fillStyle = '#111';
+                            ctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10);
+                        }
                     }
                 }
                 else {
@@ -5389,9 +5566,30 @@ function draw() {
                             ctx.fillStyle = 'rgba(0,0,0,0.1)';
                             ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
                         }
+
+                        // 群系色调叠加（地板）
+                        if (biome) {
+                            ctx.fillStyle = biome.tint;
+                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+                            // 冰面反光效果
+                            if (biome.type === 'ice' && (c + r) % 3 === 0) {
+                                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                                ctx.beginPath();
+                                ctx.moveTo(x + 10, y + TILE_SIZE - 10);
+                                ctx.lineTo(x + TILE_SIZE - 10, y + 10);
+                                ctx.lineTo(x + TILE_SIZE - 5, y + 15);
+                                ctx.lineTo(x + 15, y + TILE_SIZE - 5);
+                                ctx.fill();
+                            }
+                        }
                     } else {
                         ctx.fillStyle = ((c + r) % 2 === 0) ? '#151515' : '#1a1a1a';
                         ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        if (biome) {
+                            ctx.fillStyle = biome.tint;
+                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        }
                     }
                 }
             }
@@ -6708,6 +6906,10 @@ function takeDamage(e, dmg, isSkillDamage = false) {
             player.stats.bossKills++;
             // Boss死亡特效：慢动作 + 爆炸粒子 + 巨型伤害数字
             triggerBossDeathEffect(e, totalDamage);
+            // 全服公告：击杀Boss
+            if (typeof OnlineSystem !== 'undefined') {
+                OnlineSystem.announce('boss_kill', e.name);
+            }
         }
         if (e.isElite) {
             player.stats.eliteKills++;
@@ -8357,8 +8559,8 @@ function triggerEliteDeathEffect(elite, damage) {
     // 中等震屏
     triggerScreenShake(12, 0.3);
 
-    // 音效
-    AudioSys.play('quest');
+    // 音效 (已取消)
+    // AudioSys.play('quest');
 
     // 大伤害数字（紫色，中等大小）
     damageNumbers.push({
@@ -8922,7 +9124,13 @@ function dropLoot(monster) {
             const setChance = setBaseChance + setFloorBonus + setLuckBonus;
             if (Math.random() < setChance) {
                 item = generateRandomSetItem(f);
-                if (item) droppedGoodItem = true;
+                if (item) {
+                    droppedGoodItem = true;
+                    // 全服公告：获得套装
+                    if (typeof OnlineSystem !== 'undefined') {
+                        OnlineSystem.announce('set_drop', item.displayName || item.name);
+                    }
+                }
             }
 
             // ========== 普通装备掉落 ==========

@@ -435,10 +435,171 @@ const OnlineSystem = {
         };
     },
 
-    leaderboardData: []
+    leaderboardData: [],
+
+    // ========== 全服公告系统 ==========
+    announcementQueue: [],      // 公告队列
+    isScrolling: false,         // 是否正在滚动
+    lastAnnouncementTime: 0,    // 上次获取公告时间
+    shownAnnouncementIds: new Set(),  // 已显示的公告ID（防重复）
+    realtimeSubscribed: false,  // 是否已订阅 Realtime
+
+    // 初始化公告系统
+    initAnnouncements() {
+        this.createAnnouncementUI();
+        this.loadAnnouncements();  // 先加载历史公告
+
+        // ========== 方案B: Realtime 实时推送 ==========
+        this.subscribeAnnouncements();
+
+        // ========== 方案A: 轮询（已注释） ==========
+        // setInterval(() => this.loadAnnouncements(), 30000);
+    },
+
+    // Realtime 订阅公告
+    async subscribeAnnouncements() {
+        try {
+            // 订阅 announcements 表的所有变更
+            await pb.collection('announcements').subscribe('*', (e) => {
+                // 只处理新创建的公告
+                if (e.action === 'create') {
+                    const record = e.record;
+                    // 防重复
+                    if (!this.shownAnnouncementIds.has(record.id)) {
+                        this.shownAnnouncementIds.add(record.id);
+                        this.announcementQueue.push(this.formatAnnouncement(record));
+
+                        // 如果没在滚动，立即开始
+                        if (!this.isScrolling) {
+                            this.scrollNextAnnouncement();
+                        }
+                    }
+                }
+            });
+            this.realtimeSubscribed = true;
+            console.log('[公告系统] Realtime 订阅成功');
+        } catch (e) {
+            console.warn('[公告系统] Realtime 订阅失败，降级为轮询模式', e);
+            // 降级为轮询模式
+            setInterval(() => this.loadAnnouncements(), 30000);
+        }
+    },
+
+    // 取消订阅（页面关闭时调用）
+    unsubscribeAnnouncements() {
+        if (this.realtimeSubscribed) {
+            pb.collection('announcements').unsubscribe('*');
+            this.realtimeSubscribed = false;
+        }
+    },
+
+    // 创建公告UI
+    createAnnouncementUI() {
+        let bar = document.getElementById('announcement-bar');
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.id = 'announcement-bar';
+            bar.innerHTML = '<div id="announcement-content"></div>';
+            document.querySelector('.ui-layer')?.appendChild(bar);
+        }
+    },
+
+    // 加载历史公告（初始化时调用一次）
+    async loadAnnouncements() {
+        try {
+            // 获取最近5分钟的公告
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString().replace('T', ' ');
+            const records = await pb.collection('announcements').getList(1, 20, {
+                filter: `created >= "${fiveMinutesAgo}"`,
+                sort: '-created'
+            });
+
+            // 过滤已显示的公告，添加新公告到队列
+            for (const record of records.items.reverse()) {
+                if (!this.shownAnnouncementIds.has(record.id)) {
+                    this.shownAnnouncementIds.add(record.id);
+                    this.announcementQueue.push(this.formatAnnouncement(record));
+                }
+            }
+
+            // 清理过期的ID（保留最近100条）
+            if (this.shownAnnouncementIds.size > 100) {
+                const arr = Array.from(this.shownAnnouncementIds);
+                this.shownAnnouncementIds = new Set(arr.slice(-50));
+            }
+
+            // 开始滚动
+            if (!this.isScrolling && this.announcementQueue.length > 0) {
+                this.scrollNextAnnouncement();
+            }
+        } catch (e) { }
+    },
+
+    // 格式化公告文本
+    formatAnnouncement(record) {
+        const floorText = record.is_hell ? `地狱${record.floor}层` : `第${record.floor}层`;
+        if (record.type === 'boss_kill') {
+            return {
+                text: `${record.nickname} 在${floorText}击杀了 ${record.target_name}`,
+                type: 'boss'
+            };
+        } else {
+            return {
+                text: `${record.nickname} 在${floorText}获得了 ${record.target_name}`,
+                type: 'set'
+            };
+        }
+    },
+
+    // 滚动显示下一条公告
+    scrollNextAnnouncement() {
+        if (this.announcementQueue.length === 0) {
+            this.isScrolling = false;
+            return;
+        }
+
+        this.isScrolling = true;
+        const announcement = this.announcementQueue.shift();
+        const content = document.getElementById('announcement-content');
+        if (!content) return;
+
+        // 设置公告内容和样式
+        content.innerText = announcement.text;
+        content.className = announcement.type === 'boss' ? 'boss-announcement' : 'set-announcement';
+
+        // 重置动画
+        content.style.animation = 'none';
+        content.offsetHeight; // 触发重绘
+        content.style.animation = 'scrollAnnouncement 8s linear';
+
+        // 动画结束后显示下一条
+        setTimeout(() => this.scrollNextAnnouncement(), 8500);
+    },
+
+    // 提交公告
+    async announce(type, targetName) {
+        if (!this.userId || !this.nickname) return;
+
+        const floor = typeof player !== 'undefined' ?
+            (player.isInHell ? player.hellFloor : player.floor) : 1;
+        const isHell = typeof player !== 'undefined' ? player.isInHell : false;
+
+        try {
+            await pb.collection('announcements').create({
+                type: type,
+                nickname: this.nickname,
+                floor: floor,
+                is_hell: isHell,
+                target_name: targetName
+            });
+        } catch (e) { }
+    }
 };
 
 // 页面加载后初始化
 window.addEventListener('load', () => {
-    setTimeout(() => OnlineSystem.init(), 1000);
+    setTimeout(() => {
+        OnlineSystem.init();
+        OnlineSystem.initAnnouncements();
+    }, 1000);
 });
