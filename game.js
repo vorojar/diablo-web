@@ -4616,7 +4616,7 @@ function gameLoop(ts) {
     }
 
     update(dt); draw();
-    autoSaveTimer += dt; if (autoSaveTimer > GAME_CONFIG.AUTO_SAVE_INTERVAL) { SaveSystem.save(); autoSaveTimer = 0; }
+    autoSaveTimer += dt; if (autoSaveTimer > GAME_CONFIG.AUTO_SAVE_INTERVAL) { SaveSystem.save(true); autoSaveTimer = 0; }  // 静默自动存档
     requestAnimationFrame(gameLoop);
 }
 // Main Update Loop
