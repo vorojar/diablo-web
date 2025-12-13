@@ -27,7 +27,7 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=202512132215">
+    <link rel="stylesheet" href="style.css?v=202512132335">
 </head>
 
 <body>
@@ -389,6 +389,18 @@
                 <!-- Tab 2: General Settings -->
                 <div id="tab-general" class="tab-content" style="display: none;">
                     <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
+                        <span>画质设置</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>特效质量</span>
+                        <select id="select-graphics-quality" onchange="toggleGraphicsQuality()" style="background:#222; color:#fff; border:1px solid #444; padding:4px 8px; border-radius:4px;">
+                            <option value="high">华丽特效</option>
+                            <option value="low">性能优先</option>
+                        </select>
+                    </div>
+
+                    <hr style="border-color: #333; margin: 15px 0;">
+                    <div class="stat-row" style="color: #ffff88; font-weight: bold; margin-bottom: 10px;">
                         <span>音效设置</span>
                     </div>
                     <div class="stat-row">
@@ -638,9 +650,9 @@
     </div>
 
     <script src="changelog.js?v=202512132142"></script>
-    <script src="game.js?v=202512132215"></script>
+    <script src="game.js?v=202512132340"></script>
     <script src="pocketbase.umd.js"></script>
-    <script src="online.js?v=202512132215"></script>
+    <script src="online.js?v=202512132335"></script>
     <script>
         // 显示欢迎回来信息
         const savedNickname = localStorage.getItem('pb_nickname');

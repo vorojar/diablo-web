@@ -886,6 +886,8 @@ const player = {
         potion: true,    // 自动拾取药水
         scroll: true     // 自动拾取卷轴
     },
+    // 画质设置
+    graphicsQuality: 'high',  // 'high'=华丽特效, 'low'=性能优先
     // 难度系统
     defeatedBaal: false,  // 是否击败巴尔（同时用于解锁地狱模式）
     isInHell: false,      // 当前是否在地狱中
@@ -2874,6 +2876,14 @@ function toggleAutoPickup(itemType) {
     showNotification(`自动拾取${itemType === 'gold' ? '金币' : itemType === 'potion' ? '药水' : '卷轴'}：${checkbox.checked ? '开启' : '关闭'}`);
 }
 
+// 画质设置切换
+function toggleGraphicsQuality() {
+    const select = document.getElementById('select-graphics-quality');
+    player.graphicsQuality = select.value;
+    SaveSystem.save();
+    showNotification(`特效质量：${select.value === 'high' ? '华丽特效' : '性能优先'}`);
+}
+
 // ========== 属性系统迁移函数 ==========
 // 将旧版本的基础属性(str/dex/vit/ene)转换为直接效果属性
 function migrateItemStats() {
@@ -4103,6 +4113,11 @@ function startGame() {
             player.autoPickup = { gold: true, potion: true, scroll: true };
         }
 
+        // 向后兼容：画质设置
+        if (!player.graphicsQuality) {
+            player.graphicsQuality = 'high';
+        }
+
         if (player.died === undefined) player.died = false; // 初始化死亡标记
 
         if (!player.achievements) player.achievements = {}; // 初始化成就字段
@@ -4251,6 +4266,9 @@ function startGame() {
     document.getElementById('chk-auto-gold').checked = player.autoPickup.gold;
     document.getElementById('chk-auto-potion').checked = player.autoPickup.potion;
     document.getElementById('chk-auto-scroll').checked = player.autoPickup.scroll;
+
+    // 同步画质设置的选择框状态
+    document.getElementById('select-graphics-quality').value = player.graphicsQuality || 'high';
 
     updateStats(); enterFloor(player.floor, 'start'); renderInventory(); updateStatsUI(); updateSkillsUI(); updateUI(); updateBeltUI(); updateQuestUI(); updateMenuIndicators();
     updateTalentHUD(); // 更新天赋HUD显示
@@ -4862,8 +4880,8 @@ function update(dt) {
         }
     }
 
-    // 自动战斗系统（营地不执行，面板打开时暂停）
-    if (AutoBattle.enabled && !player.frozen && player.floor !== 0 && !isAnyPanelOpen()) {
+    // 自动战斗系统（营地不执行）
+    if (AutoBattle.enabled && !player.frozen && player.floor !== 0) {
         AutoBattle.decideAction(dt);
     }
 
@@ -5143,7 +5161,7 @@ function update(dt) {
                 createDamageNumber(player.x, player.y - 20, Math.floor(dmg), COLORS.damage);
                 combo.active = false; combo.count = 0; // 被击中连击中断
                 AudioSys.play('hit');
-                triggerScreenShake(2, 0.1); // 玩家被击中震动
+                // 已移除玩家被击中震屏，优化性能
 
                 // 自动战斗：记录远程攻击者
                 AutoBattle.onPlayerDamaged(p.owner);
@@ -5160,7 +5178,7 @@ function update(dt) {
                     p.life = 0;
                     hitTarget = e; // 记录被击中的目标
                     addCombo(1);   // 增加连击
-                    triggerScreenShake(1, 0.05); // 投射物击中震动
+                    // 已移除投射物击中震屏，优化性能
                     if (p.freeze) { e.frozenTimer = p.freeze; createDamageNumber(e.x, e.y - 40, "冻结!", COLORS.ice); }
                     for (let j = 0; j < 5; j++)createParticle(p.x, p.y, p.color || '#ff4400');
                 }
@@ -5239,6 +5257,10 @@ function update(dt) {
         }
         if (p.life <= 0) particles.splice(i, 1);
     });
+    // 粒子数量上限裁剪（移除最老的粒子）
+    if (particles.length > MAX_PARTICLES) {
+        particles.splice(0, particles.length - MAX_PARTICLES);
+    }
 
     // 伤害数字物理更新
     damageNumbers.forEach((d, i) => {
@@ -5802,8 +5824,7 @@ function draw() {
         ctx.lineJoin = 'round';
 
         // 外发光
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#0088ff';
+        setGlow(ctx, 15, '#0088ff');
 
         // 宽线条背景 (蓝色)
         ctx.strokeStyle = '#0088ff';
@@ -5918,10 +5939,9 @@ function draw() {
             ctx.lineWidth = p.width * (p.life / 0.2); // 随时间变细
             ctx.stroke();
             // 闪光效果
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = p.color;
+            setGlow(ctx, 20, p.color);
             ctx.stroke();
-            ctx.shadowBlur = 0;
+            clearGlow(ctx);
         } else if (p.type === 'lightning_chain') {
             // 渲染闪电链（增强版）
             const alpha = p.life / (p.maxLife || 0.3);
@@ -5936,16 +5956,14 @@ function draw() {
             ctx.globalAlpha = alpha * 0.5;
             ctx.strokeStyle = p.glowColor || '#88ccff';
             ctx.lineWidth = (p.lineWidth || 2) + 6;
-            ctx.shadowBlur = 25;
-            ctx.shadowColor = p.glowColor || '#88ccff';
+            setGlow(ctx, 25, p.glowColor || '#88ccff');
             ctx.stroke();
 
             // 中层（主体颜色）
             ctx.globalAlpha = alpha * 0.8;
             ctx.strokeStyle = p.color;
             ctx.lineWidth = (p.lineWidth || 2) + 2;
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = p.color;
+            setGlow(ctx, 15, p.color);
             ctx.stroke();
 
             // 内核（白色高亮，主闪电才有）
@@ -5953,12 +5971,11 @@ function draw() {
                 ctx.globalAlpha = alpha;
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = p.lineWidth || 2;
-                ctx.shadowBlur = 8;
-                ctx.shadowColor = '#ffffff';
+                setGlow(ctx, 8, '#ffffff');
                 ctx.stroke();
             }
 
-            ctx.shadowBlur = 0;
+            clearGlow(ctx);
             ctx.globalAlpha = 1.0;
         } else if (p.type === 'drop_beam') {
             // 渲染掉落光柱
@@ -5978,11 +5995,10 @@ function draw() {
             const beamWidth = p.width * (0.8 + 0.2 * Math.sin(Date.now() / 100));  // 脉动效果
             ctx.fillRect(p.x - beamWidth / 2, p.y - p.height, beamWidth, p.height);
 
-            // 发光效果
-            ctx.shadowBlur = 30;
-            ctx.shadowColor = p.color;
+            // 发光效果（关键特效，强制开启）
+            setGlow(ctx, 30, p.color, true);
             ctx.fillRect(p.x - beamWidth / 4, p.y - p.height, beamWidth / 2, p.height);
-            ctx.shadowBlur = 0;
+            clearGlow(ctx);
 
             // 底部光晕
             ctx.beginPath();
@@ -6000,12 +6016,11 @@ function draw() {
             // 渲染上升光点
             ctx.globalAlpha = p.life;
             ctx.fillStyle = p.color;
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = p.color;
+            setGlow(ctx, 10, p.color);
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
             ctx.fill();
-            ctx.shadowBlur = 0;
+            clearGlow(ctx);
             ctx.globalAlpha = 1.0;
         } else {
             ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
@@ -6021,8 +6036,7 @@ function draw() {
         const scale = 1 + progress * 0.5; // 逐渐放大
 
         // 外发光
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = fp.color;
+        setGlow(ctx, 15, fp.color);
 
         // 拖尾效果
         ctx.globalAlpha = alpha * 0.3;
@@ -6043,7 +6057,7 @@ function draw() {
         ctx.fill();
 
         // 内核高光
-        ctx.shadowBlur = 0;
+        clearGlow(ctx);
         ctx.fillStyle = '#fff';
         ctx.globalAlpha = alpha * 0.8;
         ctx.beginPath();
@@ -6060,8 +6074,7 @@ function draw() {
 
         // 暴击时添加外发光
         if (s.isCrit) {
-            ctx.shadowColor = '#ffdd00';
-            ctx.shadowBlur = 15;
+            setGlow(ctx, 15, '#ffdd00');
         }
 
         // 根据颜色解析RGB用于alpha渐变
@@ -6077,7 +6090,7 @@ function draw() {
         ctx.stroke();
 
         // 清除发光效果
-        ctx.shadowBlur = 0;
+        clearGlow(ctx);
     });
 
     ctx.textAlign = 'center';
@@ -6101,7 +6114,7 @@ function draw() {
 
 
 
-        ctx.shadowBlur = 0;
+        clearGlow(ctx);
         ctx.fillStyle = '#fff';
         ctx.font = '24px Arial';
         ctx.textAlign = 'center';
@@ -6183,8 +6196,7 @@ function draw() {
         ctx.textAlign = 'center';
         ctx.font = 'italic 900 16px Arial';
         ctx.fillStyle = color;
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 10;
+        setGlow(ctx, 10, color);
         ctx.fillText('COMBO', 0, -25);
 
         ctx.font = 'italic 900 48px Arial';
@@ -6203,9 +6215,10 @@ function draw() {
         ctx.fillRect(-barW / 2, 30, barW, barH);
 
         ctx.fillStyle = color;
-        ctx.shadowBlur = 5;
+        setGlow(ctx, 5, color);
         ctx.fillRect(-barW / 2, 30, barW * pct, barH);
 
+        clearGlow(ctx);
         ctx.restore();
     }
 
@@ -6876,11 +6889,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     e.hp -= totalDamage;
     e.hitFlashTimer = 0.1; // 触发受击闪白
 
-    // 暴击或大伤害的额外视觉
-    const isBigHit = totalDamage > player.maxHp * 0.2; // 超过玩家20%血量的伤害算大伤害
-    if (isBigHit) {
-        triggerScreenShake(3, 0.1);
-    }
+    // 已移除大伤害震屏，优化性能
 
     createDamageNumber(e.x, e.y, Math.floor(totalDamage), '#fff');
     AudioSys.play('hit');
@@ -6888,7 +6897,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     if (e.hp <= 0) {
         // 怪物死亡 - 强烈的果汁感
         e.dead = true;
-        triggerScreenShake(8, 0.25); // 死亡震动
+        // 已移除普通怪物死亡震屏，优化性能
 
         // 创建地面血迹
         createBloodSplat(e.x, e.y, e.radius);
@@ -8214,10 +8223,28 @@ function createFloatingText(x, y, text, color = '#ffff00', duration = 2) {
 
     animate();
 }
-function createParticle(x, y, color, size = 3) { particles.push({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size }); }
+const MAX_PARTICLES = 200;  // 粒子上限，优化性能
+function createParticle(x, y, color, size = 3) {
+    if (particles.length >= MAX_PARTICLES) return;  // 超出上限不创建
+    particles.push({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size });
+}
 
 // ========== 掉落特效系统 ==========
 let screenShake = { intensity: 0, duration: 0 };
+
+// 画质感知的 shadowBlur 设置
+// force=true 时强制设置（用于Boss死亡、暗金掉落等关键特效）
+function setGlow(ctx, blur, color, force = false) {
+    if (player.graphicsQuality === 'high' || force) {
+        ctx.shadowBlur = blur;
+        ctx.shadowColor = color;
+    }
+    // 性能模式且非强制时，不设置 shadowBlur（保持为0）
+}
+
+function clearGlow(ctx) {
+    ctx.shadowBlur = 0;
+}
 
 // 震屏效果
 function triggerScreenShake(intensity = 10, duration = 0.3) {
@@ -8714,10 +8741,9 @@ function drawPortal(x, y, label) {
     ctx.fillStyle = '#aaddff';
     ctx.font = '12px Cinzel';
     ctx.textAlign = 'center';
-    ctx.shadowColor = '#4488ff';
-    ctx.shadowBlur = 8;
+    setGlow(ctx, 8, '#4488ff');
     ctx.fillText(label, x, y - 28);
-    ctx.shadowBlur = 0;
+    clearGlow(ctx);
 }
 
 // 绘制地牢出口（下行漩涡 - 蓝色）
@@ -8747,10 +8773,9 @@ function drawDungeonExit(x, y, label) {
     // 边框发光
     ctx.strokeStyle = `rgba(80, 150, 255, ${0.6 + Math.sin(time * 3) * 0.3})`;
     ctx.lineWidth = 2;
-    ctx.shadowColor = '#4488ff';
-    ctx.shadowBlur = 10;
+    setGlow(ctx, 10, '#4488ff');
     ctx.strokeRect(x - size, y - size / 2 + pulseOffset, size * 2, size);
-    ctx.shadowBlur = 0;
+    clearGlow(ctx);
 
     // 中心下箭头
     ctx.fillStyle = `rgba(100, 180, 255, ${0.7 + Math.sin(time * 4) * 0.2})`;
@@ -8818,15 +8843,14 @@ function drawDungeonEntrance(x, y, label) {
     // 边框发光
     ctx.strokeStyle = `rgba(255, 200, 100, ${0.5 + Math.sin(time * 3) * 0.3})`;
     ctx.lineWidth = 2;
-    ctx.shadowColor = '#ffaa44';
-    ctx.shadowBlur = 8;
+    setGlow(ctx, 8, '#ffaa44');
     ctx.beginPath();
     ctx.moveTo(x - size, y + size * 0.6);
     ctx.lineTo(x - size, y - size * 0.3);
     ctx.arc(x, y - size * 0.3, size, Math.PI, 0, false);
     ctx.lineTo(x + size, y + size * 0.6);
     ctx.stroke();
-    ctx.shadowBlur = 0;
+    clearGlow(ctx);
 
     // 上箭头指示
     ctx.fillStyle = `rgba(255, 220, 120, ${0.6 + Math.sin(time * 4) * 0.3})`;
@@ -9318,13 +9342,9 @@ function performAttack(t) {
         const critMultiplier = 2 + (player.critDamage || 0) / 100;
         dmg = Math.floor(dmg * critMultiplier);
 
-        // 暴击视觉强化：短暂慢动作
-        slowMotion.active = true;
-        slowMotion.timer = 0.1;  // 0.1秒微慢动作
-        slowMotion.scale = 0.5;  // 50%速度
+        // 已移除暴击慢动作，优化性能（原：0.1秒50%速度）
 
-        // 暴击震屏更强
-        triggerScreenShake(6, 0.2);
+        // 已移除暴击震屏，优化性能
 
         // 大伤害数字（金色+大字体）
         damageNumbers.push({
@@ -9358,9 +9378,8 @@ function performAttack(t) {
 
         // 暴击专属音效
         AudioSys.play('quest');  // 借用任务完成音效，比较响亮
-    } else {
-        triggerScreenShake(1, 0.05); // 普通攻击轻微震动
     }
+    // 已移除普通攻击震屏，优化性能
 
     // 构建伤害对象（包含物理和元素伤害）
     const damageObj = {
