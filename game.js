@@ -3058,7 +3058,7 @@ const SaveSystem = {
         };
         db.transaction(['saveData'], 'readwrite').objectStore('saveData').put(data);
 
-        if (!silent) showNotification("游戏已保存");
+        // 静默存档，不显示提示（原：if (!silent) showNotification("游戏已保存");）
     },
 
     // 加载指定槽位
