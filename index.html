@@ -27,7 +27,7 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=202512132244">
+    <link rel="stylesheet" href="style.css?v=202512131502">
 </head>
 
 <body>
@@ -66,6 +66,7 @@
                 <div id="save-status" style="color: #fff; font-size: 12px; margin-top: 20px;">
                     正在检查存档...
                 </div>
+                <!-- <p style="color: #666; font-size: 10px; margin-top: 5px;">在线: <span id="online-count">1</span></p> -->
                 <p style="color: #888; font-size: 11px; margin-top: 10px;">v5.1
                     <span id="changelog-link" onclick="showChangelogPanel()"
                         style="color: #ffd700; text-decoration: underline; cursor: pointer; margin-left: 8px;">更新公告</span>
@@ -636,10 +637,10 @@
         </div>
     </div>
 
-    <script src="changelog.js?v=202512132210"></script>
-    <script src="game.js?v=202512132244"></script>
+    <script src="changelog.js?v=202512131502"></script>
+    <script src="game.js?v=202512131502"></script>
     <script src="pocketbase.umd.js"></script>
-    <script src="online.js?v=202512122225"></script>
+    <script src="online.js?v=202512131502"></script>
     <script>
         // 显示欢迎回来信息
         const savedNickname = localStorage.getItem('pb_nickname');

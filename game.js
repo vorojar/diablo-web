@@ -558,6 +558,30 @@ let slowMotion = {
     scale: 1.0  // 时间缩放倍率
 };
 
+// 连击计数器（纯Game Juice视觉反馈）
+let combo = {
+    count: 0,
+    timer: 0,
+    maxTimer: 2.5, // 连击窗口时间
+    scale: 1,      // 视觉缩放（跳动效果）
+    shake: 0,      // 视觉抖动
+    active: false  // 是否显示
+};
+
+// 增加连击数
+function addCombo(amount = 1) {
+    if (combo.count === 0) {
+        combo.active = true;
+    }
+    combo.count += amount;
+    combo.timer = combo.maxTimer;
+    combo.scale = 1.5; // 击中时弹跳
+
+    // 连击音效（每10次播放更强烈的声音）
+    // 这里简单起见，利用现有的音效，或者静默（视觉为主）
+}
+
+
 // 敌人对象池系统 - 复用对象减少GC压力
 const EnemyPool = {
     pool: [],           // 可复用的敌人对象
@@ -4487,6 +4511,21 @@ function update(dt) {
     // 天赋商店打开时暂停游戏（不更新敌人和战斗）
     if (talentShopOpen) return;
 
+    // 连击计时器更新
+    if (combo.active) {
+        combo.timer -= dt;
+        if (combo.timer <= 0) {
+            combo.active = false;
+            combo.count = 0;
+        }
+        // 视觉缩放恢复
+        if (combo.scale > 1) {
+            combo.scale -= dt * 2;
+            if (combo.scale < 1) combo.scale = 1;
+        }
+    }
+
+
     mouse.worldX = mouse.x + camera.x; mouse.worldY = mouse.y + camera.y;
     // 基础生命/法力恢复（大幅降低基础值，装备回复改为百分比加成）
     let hpRegen = 0.5;  // 基础0.5/秒
@@ -4956,6 +4995,7 @@ function update(dt) {
                 player.invincibleTimer = 0.3;  // 0.3秒无敌帧
                 p.life = 0;
                 createDamageNumber(player.x, player.y - 20, Math.floor(dmg), COLORS.damage);
+                combo.active = false; combo.count = 0; // 被击中连击中断
                 AudioSys.play('hit');
                 triggerScreenShake(2, 0.1); // 玩家被击中震动
 
@@ -4973,6 +5013,7 @@ function update(dt) {
                     takeDamage(e, p.damage, true);  // 第三个参数标记为技能伤害
                     p.life = 0;
                     hitTarget = e; // 记录被击中的目标
+                    addCombo(1);   // 增加连击
                     triggerScreenShake(1, 0.05); // 投射物击中震动
                     if (p.freeze) { e.frozenTimer = p.freeze; createDamageNumber(e.x, e.y - 40, "冻结!", COLORS.ice); }
                     for (let j = 0; j < 5; j++)createParticle(p.x, p.y, p.color || '#ff4400');
@@ -5192,6 +5233,7 @@ function updateEnemies(dt) {
                 let physicalDmg = e.ignoreArmor ? e.dmg : Math.max(1, e.dmg - player.armor * 0.1);
                 player.hp -= physicalDmg;
                 createDamageNumber(player.x, player.y - 30, Math.floor(physicalDmg), '#ff4444');
+                combo.active = false; combo.count = 0; // 被击中连击中断
                 e.cooldown = 1.5;
                 AudioSys.play('hit');
             }
@@ -5237,6 +5279,7 @@ function updateEnemies(dt) {
                 player.invincibleTimer = 0.3;  // 0.3秒无敌帧
                 e.cooldown = 1.5;
                 createDamageNumber(player.x, player.y - 20, Math.floor(totalDmg), COLORS.damage);
+                combo.active = false; combo.count = 0; // 被击中连击中断
                 AudioSys.play('hit');
 
                 // 荆棘天赋+天神赐福：反弹伤害
@@ -5358,46 +5401,27 @@ function draw() {
     // Render Exits
     if (isInTown()) {
         // 罗格营地：只显示去地牢1层
-        ctx.fillStyle = COLORS.exit; ctx.fillRect(dungeonExit.x - 15, dungeonExit.y - 15, 30, 30);
-        ctx.strokeStyle = '#4d94ff'; ctx.strokeRect(dungeonExit.x - 15, dungeonExit.y - 15, 30, 30);
-        ctx.fillStyle = '#aaa'; ctx.textAlign = 'center'; ctx.fillText("去地牢 1层", dungeonExit.x, dungeonExit.y - 20);
+        drawDungeonExit(dungeonExit.x, dungeonExit.y, "去地牢 1层");
     } else if (player.isInHell) {
         // 地狱模式：显示地狱的入口和出口
-        ctx.fillStyle = COLORS.exit; ctx.fillRect(dungeonExit.x - 15, dungeonExit.y - 15, 30, 30);
-        ctx.strokeStyle = '#4d94ff'; ctx.strokeRect(dungeonExit.x - 15, dungeonExit.y - 15, 30, 30);
-        ctx.fillStyle = COLORS.entrance; ctx.fillRect(dungeonEntrance.x - 15, dungeonEntrance.y - 15, 30, 30);
-        ctx.strokeStyle = '#ffaa00'; ctx.strokeRect(dungeonEntrance.x - 15, dungeonEntrance.y - 15, 30, 30);
+        let exitLabel = player.hellFloor >= 10 ? "返回罗格营地" : `进入地狱 ${player.hellFloor + 1}层`;
+        drawDungeonExit(dungeonExit.x, dungeonExit.y, exitLabel);
 
-        // 出口标签
-        let nextLabel;
-        if (player.hellFloor >= 10) {
-            nextLabel = "返回罗格营地";
-        } else {
-            nextLabel = `进入地狱 ${player.hellFloor + 1}层`;
-        }
-        ctx.fillStyle = '#aaa'; ctx.textAlign = 'center'; ctx.fillText(nextLabel, dungeonExit.x, dungeonExit.y - 20);
-
-        // 入口标签
-        let prevLabel = player.hellFloor === 1 ? "返回罗格营地" : `回到地狱 ${player.hellFloor - 1}层`;
-        ctx.fillStyle = '#aaa'; ctx.textAlign = 'center'; ctx.fillText(prevLabel, dungeonEntrance.x, dungeonEntrance.y - 20);
+        let entranceLabel = player.hellFloor === 1 ? "返回罗格营地" : `回到地狱 ${player.hellFloor - 1}层`;
+        drawDungeonEntrance(dungeonEntrance.x, dungeonEntrance.y, entranceLabel);
     } else {
         // 普通地牢：显示地牢的入口和出口
-        ctx.fillStyle = COLORS.exit; ctx.fillRect(dungeonExit.x - 15, dungeonExit.y - 15, 30, 30);
-        ctx.strokeStyle = '#4d94ff'; ctx.strokeRect(dungeonExit.x - 15, dungeonExit.y - 15, 30, 30);
-        ctx.fillStyle = COLORS.entrance; ctx.fillRect(dungeonEntrance.x - 15, dungeonEntrance.y - 15, 30, 30);
-        ctx.strokeStyle = '#ffaa00'; ctx.strokeRect(dungeonEntrance.x - 15, dungeonEntrance.y - 15, 30, 30);
+        let exitLabel = `去地牢 ${player.floor + 1}层`;
+        drawDungeonExit(dungeonExit.x, dungeonExit.y, exitLabel);
 
-        // 入口标签
-        let prevLabel = player.floor === 1 ? "去罗格营地" : `去地牢 ${player.floor - 1}层`;
-        ctx.fillStyle = '#aaa'; ctx.textAlign = 'center'; ctx.fillText(prevLabel, dungeonEntrance.x, dungeonEntrance.y - 20);
+        let entranceLabel = player.floor === 1 ? "去罗格营地" : `去地牢 ${player.floor - 1}层`;
+        drawDungeonEntrance(dungeonEntrance.x, dungeonEntrance.y, entranceLabel);
     }
 
     // 传送门只在普通地牢中显示，地狱中不显示
     if (townPortal && townPortal.activeFloor === player.floor && !player.isInHell) {
-        ctx.fillStyle = COLORS.info; ctx.beginPath(); ctx.arc(townPortal.x, townPortal.y, 10, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#fff'; ctx.stroke();
         let label = player.floor === 0 ? '传送门' : '传送门 (回罗格营地)';
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(label, townPortal.x, townPortal.y - 20);
+        drawPortal(townPortal.x, townPortal.y, label);
     }
 
     groundItems.forEach(i => {
@@ -5833,11 +5857,29 @@ function draw() {
 
     // 绘制斩击弧
     slashEffects.forEach(s => {
-        ctx.strokeStyle = `rgba(255, 255, 255, ${s.life})`;
-        ctx.lineWidth = 3 * s.life;
+        const alpha = s.life;
+        const color = s.color || '#ffffff';
+
+        // 暴击时添加外发光
+        if (s.isCrit) {
+            ctx.shadowColor = '#ffdd00';
+            ctx.shadowBlur = 15;
+        }
+
+        // 根据颜色解析RGB用于alpha渐变
+        if (color === '#ffdd00') {
+            ctx.strokeStyle = `rgba(255, 221, 0, ${alpha})`;
+        } else {
+            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        }
+
+        ctx.lineWidth = (s.isCrit ? 5 : 3) * alpha;
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.radius, s.angle - 0.8, s.angle + 0.8);
         ctx.stroke();
+
+        // 清除发光效果
+        ctx.shadowBlur = 0;
     });
 
     ctx.textAlign = 'center';
@@ -5917,6 +5959,55 @@ function draw() {
         gradient.addColorStop(1, `rgba(255, 150, 0, 0)`);
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+    }
+
+    // 连击计数器渲染 (HUD)
+    if (combo.active && combo.count > 1) {
+        ctx.save();
+        // 直接使用屏幕坐标（之前已经restore了camera transform）
+
+        // 移至屏幕中上方，避开小地图和自动战斗按钮
+        const cx = canvas.width / 2;
+        const cy = 80;
+        const scale = combo.scale;
+
+        ctx.translate(cx, cy);
+        ctx.scale(scale, scale);
+
+        // 连击数颜色
+        let color = '#ffff00'; // 黄
+        if (combo.count >= 50) color = '#ff00ff'; // 紫
+        else if (combo.count >= 20) color = '#ff0000'; // 红
+        else if (combo.count >= 10) color = '#ff8800'; // 橙
+
+        // 连击文字
+        ctx.textAlign = 'center';
+        ctx.font = 'italic 900 16px Arial';
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+        ctx.fillText('COMBO', 0, -25);
+
+        ctx.font = 'italic 900 48px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.fillText(combo.count, 0, 20);
+        ctx.strokeText(combo.count, 0, 20);
+
+        // 倒计时条
+        const barW = 80;
+        const barH = 6;
+        const pct = combo.timer / combo.maxTimer;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(-barW / 2, 30, barW, barH);
+
+        ctx.fillStyle = color;
+        ctx.shadowBlur = 5;
+        ctx.fillRect(-barW / 2, 30, barW * pct, barH);
+
         ctx.restore();
     }
 
@@ -7853,17 +7944,31 @@ function createDamageNumber(x, y, val, color) {
 
 
 // 触发震屏
-function createSlashEffect(fromX, fromY, toX, toY, damage = 50) {
+function createSlashEffect(fromX, fromY, toX, toY, damage = 50, isCrit = false) {
     const angle = Math.atan2(toY - fromY, toX - fromX);
-    const count = damage < 50 ? 1 : damage < 150 ? 2 : 3;
-    const offsets = count === 1 ? [0] : count === 2 ? [-0.5, 0.5] : [-0.7, 0, 0.7];
+
+    // 暴击时更多斩击弧、更大半径
+    let count = damage < 50 ? 1 : damage < 150 ? 2 : 3;
+    if (isCrit) count = Math.min(count + 2, 5);  // 暴击增加2条，最多5条
+
+    const getOffsets = (n) => {
+        if (n === 1) return [0];
+        if (n === 2) return [-0.5, 0.5];
+        if (n === 3) return [-0.7, 0, 0.7];
+        if (n === 4) return [-0.9, -0.3, 0.3, 0.9];
+        return [-1.0, -0.5, 0, 0.5, 1.0];
+    };
+
+    const offsets = getOffsets(count);
     offsets.forEach(off => {
         slashEffects.push({
             x: fromX + Math.cos(angle) * 10,
             y: fromY + Math.sin(angle) * 10,
             angle: angle + off,
-            radius: 30,
-            life: 1.0
+            radius: isCrit ? 45 : 30,  // 暴击更大半径
+            life: 1.0,
+            isCrit: isCrit,  // 标记暴击，用于渲染
+            color: isCrit ? '#ffdd00' : '#ffffff'  // 暴击金色，普通白色
         });
     });
 }
@@ -8328,6 +8433,216 @@ function triggerEliteDeathEffect(elite, damage) {
     }
 }
 
+// ========== 传送门和地牢入口/出口渲染 ==========
+
+// 绘制传送门（蓝紫色旋转能量漩涡）
+function drawPortal(x, y, label) {
+    const time = Date.now() / 1000;
+    const baseRadius = 18;
+
+    // 外层光晕（脉动）
+    const pulseScale = 1 + Math.sin(time * 3) * 0.15;
+    const glowRadius = baseRadius * 1.8 * pulseScale;
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
+    gradient.addColorStop(0, 'rgba(100, 150, 255, 0.4)');
+    gradient.addColorStop(0.5, 'rgba(80, 100, 200, 0.2)');
+    gradient.addColorStop(1, 'rgba(60, 80, 180, 0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 外层旋转环（逆时针）
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-time * 1.5);
+    ctx.strokeStyle = 'rgba(100, 180, 255, 0.7)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI * 2 / 6) * i;
+        const arcStart = angle - 0.3;
+        const arcEnd = angle + 0.3;
+        ctx.beginPath();
+        ctx.arc(0, 0, baseRadius * 1.2, arcStart, arcEnd);
+        ctx.stroke();
+    }
+    ctx.restore();
+
+    // 内层旋转环（顺时针）
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(time * 2.5);
+    ctx.strokeStyle = 'rgba(180, 120, 255, 0.8)';
+    ctx.lineWidth = 2.5;
+    for (let i = 0; i < 4; i++) {
+        const angle = (Math.PI * 2 / 4) * i;
+        const arcStart = angle - 0.4;
+        const arcEnd = angle + 0.4;
+        ctx.beginPath();
+        ctx.arc(0, 0, baseRadius * 0.7, arcStart, arcEnd);
+        ctx.stroke();
+    }
+    ctx.restore();
+
+    // 中心能量核心
+    const coreGradient = ctx.createRadialGradient(x, y, 0, x, y, baseRadius * 0.5);
+    coreGradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+    coreGradient.addColorStop(0.5, 'rgba(150, 200, 255, 0.6)');
+    coreGradient.addColorStop(1, 'rgba(100, 150, 255, 0)');
+    ctx.fillStyle = coreGradient;
+    ctx.beginPath();
+    ctx.arc(x, y, baseRadius * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 漂浮能量粒子（向中心汇聚）
+    for (let i = 0; i < 5; i++) {
+        const particleAngle = time * 2 + (Math.PI * 2 / 5) * i;
+        const particleRadius = baseRadius * (0.8 + Math.sin(time * 4 + i) * 0.3);
+        const px = x + Math.cos(particleAngle) * particleRadius;
+        const py = y + Math.sin(particleAngle) * particleRadius;
+        const pSize = 2 + Math.sin(time * 5 + i * 2) * 1;
+
+        ctx.fillStyle = `rgba(200, 220, 255, ${0.6 + Math.sin(time * 3 + i) * 0.3})`;
+        ctx.beginPath();
+        ctx.arc(px, py, pSize, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // 标签
+    ctx.fillStyle = '#aaddff';
+    ctx.font = '12px Cinzel';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#4488ff';
+    ctx.shadowBlur = 8;
+    ctx.fillText(label, x, y - 28);
+    ctx.shadowBlur = 0;
+}
+
+// 绘制地牢出口（下行漩涡 - 蓝色）
+function drawDungeonExit(x, y, label) {
+    const time = Date.now() / 1000;
+    const size = 20;
+
+    // 外层发光
+    const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, size * 1.5);
+    glowGradient.addColorStop(0, 'rgba(60, 120, 200, 0.4)');
+    glowGradient.addColorStop(0.7, 'rgba(40, 80, 160, 0.15)');
+    glowGradient.addColorStop(1, 'rgba(20, 40, 80, 0)');
+    ctx.fillStyle = glowGradient;
+    ctx.beginPath();
+    ctx.arc(x, y, size * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 下行阶梯效果（三层矩形）
+    const pulseOffset = Math.sin(time * 2) * 2;
+    ctx.fillStyle = '#1a3355';
+    ctx.fillRect(x - size, y - size / 2 + pulseOffset, size * 2, size / 3);
+    ctx.fillStyle = '#2a4466';
+    ctx.fillRect(x - size * 0.7, y - size / 6 + pulseOffset, size * 1.4, size / 3);
+    ctx.fillStyle = '#3a5577';
+    ctx.fillRect(x - size * 0.4, y + size / 6 + pulseOffset, size * 0.8, size / 3);
+
+    // 边框发光
+    ctx.strokeStyle = `rgba(80, 150, 255, ${0.6 + Math.sin(time * 3) * 0.3})`;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#4488ff';
+    ctx.shadowBlur = 10;
+    ctx.strokeRect(x - size, y - size / 2 + pulseOffset, size * 2, size);
+    ctx.shadowBlur = 0;
+
+    // 中心下箭头
+    ctx.fillStyle = `rgba(100, 180, 255, ${0.7 + Math.sin(time * 4) * 0.2})`;
+    ctx.beginPath();
+    ctx.moveTo(x, y + size * 0.6 + pulseOffset);
+    ctx.lineTo(x - 6, y + pulseOffset);
+    ctx.lineTo(x + 6, y + pulseOffset);
+    ctx.closePath();
+    ctx.fill();
+
+    // 标签
+    ctx.fillStyle = '#88ccff';
+    ctx.font = '12px Cinzel';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, y - size - 8);
+}
+
+// 绘制地牢入口（上行拱门 - 金色）
+function drawDungeonEntrance(x, y, label) {
+    const time = Date.now() / 1000;
+    const size = 18;
+
+    // 外层暖色发光
+    const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, size * 1.6);
+    glowGradient.addColorStop(0, 'rgba(200, 150, 50, 0.35)');
+    glowGradient.addColorStop(0.6, 'rgba(180, 120, 40, 0.15)');
+    glowGradient.addColorStop(1, 'rgba(100, 80, 30, 0)');
+    ctx.fillStyle = glowGradient;
+    ctx.beginPath();
+    ctx.arc(x, y, size * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 拱门形状
+    const pulseScale = 1 + Math.sin(time * 2.5) * 0.05;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(pulseScale, pulseScale);
+
+    // 拱门主体
+    ctx.fillStyle = '#3d2a1a';
+    ctx.beginPath();
+    ctx.moveTo(-size, size * 0.6);
+    ctx.lineTo(-size, -size * 0.3);
+    ctx.arc(0, -size * 0.3, size, Math.PI, 0, false);
+    ctx.lineTo(size, size * 0.6);
+    ctx.closePath();
+    ctx.fill();
+
+    // 拱门内部（光亮）
+    const innerGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 0.7);
+    innerGradient.addColorStop(0, 'rgba(255, 220, 150, 0.8)');
+    innerGradient.addColorStop(0.7, 'rgba(255, 180, 80, 0.4)');
+    innerGradient.addColorStop(1, 'rgba(200, 120, 50, 0.2)');
+    ctx.fillStyle = innerGradient;
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.6, size * 0.5);
+    ctx.lineTo(-size * 0.6, -size * 0.2);
+    ctx.arc(0, -size * 0.2, size * 0.6, Math.PI, 0, false);
+    ctx.lineTo(size * 0.6, size * 0.5);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+
+    // 边框发光
+    ctx.strokeStyle = `rgba(255, 200, 100, ${0.5 + Math.sin(time * 3) * 0.3})`;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = '#ffaa44';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(x - size, y + size * 0.6);
+    ctx.lineTo(x - size, y - size * 0.3);
+    ctx.arc(x, y - size * 0.3, size, Math.PI, 0, false);
+    ctx.lineTo(x + size, y + size * 0.6);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 上箭头指示
+    ctx.fillStyle = `rgba(255, 220, 120, ${0.6 + Math.sin(time * 4) * 0.3})`;
+    const arrowY = y - size * 0.5 + Math.sin(time * 3) * 3;
+    ctx.beginPath();
+    ctx.moveTo(x, arrowY - 8);
+    ctx.lineTo(x - 5, arrowY);
+    ctx.lineTo(x + 5, arrowY);
+    ctx.closePath();
+    ctx.fill();
+
+    // 标签
+    ctx.fillStyle = '#ffcc88';
+    ctx.font = '12px Cinzel';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, y - size - 12);
+}
+
 // 创建地面血迹
 function createBloodSplat(x, y, size) {
     const splatCount = 2 + Math.floor(Math.random() * 3); // 2-4个血迹
@@ -8783,12 +9098,58 @@ function performAttack(t) {
         return;
     }
 
+    // 增加连击
+    addCombo(1);
+
     let dmg = Math.floor(Math.random() * (player.damage[1] - player.damage[0] + 1)) + player.damage[0];
-    let isCrit = Math.random() < player.dex * 0.01;
+
+    // 使用实际暴击率（player.critChance 是百分比）
+    let isCrit = Math.random() * 100 < player.critChance;
     if (isCrit) {
-        dmg *= 2;
-        triggerScreenShake(4, 0.15); // 暴击震动
-        createDamageNumber(t.x, t.y - 20, "暴击!", COLORS.critical);
+        // 暴击伤害加成
+        const critMultiplier = 2 + (player.critDamage || 0) / 100;
+        dmg = Math.floor(dmg * critMultiplier);
+
+        // 暴击视觉强化：短暂慢动作
+        slowMotion.active = true;
+        slowMotion.timer = 0.1;  // 0.1秒微慢动作
+        slowMotion.scale = 0.5;  // 50%速度
+
+        // 暴击震屏更强
+        triggerScreenShake(6, 0.2);
+
+        // 大伤害数字（金色+大字体）
+        damageNumbers.push({
+            x: t.x,
+            y: t.y - 25,
+            val: `💥 ${dmg}!`,
+            color: '#ffdd00',
+            life: 1.5,
+            fontSize: 28,
+            vx: (Math.random() - 0.5) * 80,
+            vy: -180,
+            gravity: 200
+        });
+
+        // 暴击粒子爆发（金色+白色）
+        for (let i = 0; i < 12; i++) {
+            const angle = (Math.PI * 2 / 12) * i + Math.random() * 0.3;
+            const speed = 120 + Math.random() * 100;
+            const color = ['#ffdd00', '#ffffff', '#ffaa00', '#ff8800'][Math.floor(Math.random() * 4)];
+            particles.push({
+                x: t.x,
+                y: t.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 50,
+                color: color,
+                life: 0.4 + Math.random() * 0.3,
+                size: 3 + Math.random() * 3,
+                gravity: 150
+            });
+        }
+
+        // 暴击专属音效
+        AudioSys.play('quest');  // 借用任务完成音效，比较响亮
     } else {
         triggerScreenShake(1, 0.05); // 普通攻击轻微震动
     }
@@ -8801,9 +9162,9 @@ function performAttack(t) {
         poison: player.elementalDamage.poison
     };
 
-    takeDamage(t, damageObj);
+    takeDamage(t, damageObj, false, isCrit);  // 传递isCrit参数
     AudioSys.play('attack');
-    createSlashEffect(player.x, player.y, t.x, t.y, dmg);
+    createSlashEffect(player.x, player.y, t.x, t.y, dmg, isCrit);  // 传递isCrit给斩击效果
     player.attackAnim = 1;
 
     if (player.lifeSteal > 0) {
@@ -8813,7 +9174,11 @@ function performAttack(t) {
             createDamageNumber(player.x, player.y - 40, "+" + h, COLORS.green);
         }
     }
-    createParticle(t.x, t.y, '#fff', 5);
+    // 暴击时更多粒子
+    const particleCount = isCrit ? 8 : 1;
+    for (let i = 0; i < particleCount; i++) {
+        createParticle(t.x + (Math.random() - 0.5) * 20, t.y + (Math.random() - 0.5) * 20, isCrit ? '#ffdd00' : '#fff', isCrit ? 4 : 5);
+    }
     player.attackCooldown = 0.5 / (1 + player.attackSpeed / 100);
 }
 

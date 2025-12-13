@@ -186,14 +186,22 @@ const OnlineSystem = {
     },
 
     // 更新在线人数显示
+    // 更新在线人数显示
     updateOnlineDisplay(count) {
+        // 暂时隐藏在线人数显示
         let el = document.getElementById('online-count');
+        if (el) {
+            el.style.display = 'none';
+        }
+        return;
+        /*
         if (!el) {
             el = document.createElement('div');
             el.id = 'online-count';
             document.querySelector('.ui-layer')?.appendChild(el);
         }
         el.innerHTML = `🟢 在线: ${count * 9}`;
+        */
     },
 
     // 提交分数到排行榜
