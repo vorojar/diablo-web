@@ -2267,8 +2267,8 @@ const AutoBattle = {
         // 检查是否在激烈战斗中（敌人很近才算激烈战斗）
         const inCombat = this.currentTarget && !this.currentTarget.dead;
         const targetDist = inCombat ? Math.hypot(this.currentTarget.x - player.x, this.currentTarget.y - player.y) : Infinity;
-        // 激烈战斗：敌人距离150内
-        const inHeavyCombat = inCombat && targetDist < 150;
+        // 激烈战斗：任意敌人距离80内
+        const inHeavyCombat = enemies.some(e => !e.dead && Math.hypot(e.x - player.x, e.y - player.y) < 80);
 
         // 按优先级选择：套装 > 紧急药水 > 暗金/稀有 > 金币 > 药水 > 蓝装
         // 刷宝游戏要贪婪！
