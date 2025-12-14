@@ -323,3 +323,9 @@ const CHANGELOG = [
 
 // 获取当前版本号
 const CURRENT_VERSION = CHANGELOG[0].version;
+
+// 初始化版本号显示
+document.addEventListener('DOMContentLoaded', () => {
+    const versionEl = document.getElementById('game-version');
+    if (versionEl) versionEl.textContent = 'v' + CURRENT_VERSION;
+});

@@ -523,6 +523,11 @@ let projectiles = [];
 let npcs = [];
 let bloodSplats = [];  // 地面血迹效果
 
+// 地图缓存系统（离屏Canvas优化）
+let mapCacheCanvas = null;
+let mapCacheCtx = null;
+let mapCacheValid = false;  // 缓存是否有效
+
 // 回城仪式状态
 let portalRitual = {
     active: false,       // 是否正在施法
@@ -1161,6 +1166,8 @@ envSpriteSheet.onload = () => {
         // 之前是 4 行，现在 V3 是 8 行，必须除以 8，否则会一次切到两行图
         envCellWidth = processedEnvSprites.width / 8;
         envCellHeight = processedEnvSprites.height / 8;
+        // 资源加载完成后重新生成地图缓存
+        if (gameActive && mapData.length > 0) generateMapCache();
     };
     processedEnvSprites.src = tempCanvas.toDataURL();
 };
@@ -1168,7 +1175,11 @@ envSpriteSheet.onload = () => {
 const wallTiles = new Image();
 wallTiles.src = 'wall_tiles.png?v=5.2';
 let wallTilesLoaded = false;
-wallTiles.onload = () => { wallTilesLoaded = true; };
+wallTiles.onload = () => {
+    wallTilesLoaded = true;
+    // 资源加载完成后重新生成地图缓存
+    if (gameActive && mapData.length > 0) generateMapCache();
+};
 
 function getBiomeStyle(floor) {
     if (floor === 0) return null; // Camp uses default
@@ -1193,7 +1204,11 @@ function getWallTextureIndex(floor) {
 const floorTiles = new Image();
 floorTiles.src = 'floor_tiles.png?v=5.2';
 let floorTilesLoaded = false;
-floorTiles.onload = () => { floorTilesLoaded = true; };
+floorTiles.onload = () => {
+    floorTilesLoaded = true;
+    // 资源加载完成后重新生成地图缓存
+    if (gameActive && mapData.length > 0) generateMapCache();
+};
 
 function getFloorTextureIndex(floor) {
     if (floor === 0) return 0;     // Camp (Grass)
@@ -4300,7 +4315,8 @@ function enterFloor(f, spawnAt = 'start') {
             level: player.lvl,
             kills: player.kills,
             maxFloor: player.isInHell ? player.hellFloor + 10 : player.floor,
-            isHell: player.isInHell
+            isHell: player.isInHell,
+            gold: player.gold || 0
         });
     }
 
@@ -4515,6 +4531,9 @@ function enterFloor(f, spawnAt = 'start') {
         else { player.x = dungeonEntrance.x; player.y = dungeonEntrance.y; }
     }
     player.targetX = null; updateQuestTracker(); SaveSystem.save();
+
+    // 生成地图缓存（离屏Canvas优化）
+    generateMapCache();
 }
 
 function generateTown() {
@@ -4616,6 +4635,118 @@ function generateDungeon() {
     }
     let maxD = 0; let sx = Math.floor(dungeonEntrance.x / TILE_SIZE), sy = Math.floor(dungeonEntrance.y / TILE_SIZE);
     for (let y = 0; y < MAP_HEIGHT; y++) for (let x = 0; x < MAP_WIDTH; x++) if (mapData[y][x] === 1) { const d = Math.hypot(x - sx, y - sy); if (d > maxD) { maxD = d; dungeonExit.x = x * TILE_SIZE + TILE_SIZE / 2; dungeonExit.y = y * TILE_SIZE + TILE_SIZE / 2; } }
+}
+
+// 生成地图缓存（离屏Canvas优化，避免每帧重复绘制静态地图）
+function generateMapCache() {
+    const fullWidth = MAP_WIDTH * TILE_SIZE;
+    const fullHeight = MAP_HEIGHT * TILE_SIZE;
+
+    // 创建或重用离屏Canvas
+    if (!mapCacheCanvas) {
+        mapCacheCanvas = document.createElement('canvas');
+        mapCacheCanvas.width = fullWidth;
+        mapCacheCanvas.height = fullHeight;
+        mapCacheCtx = mapCacheCanvas.getContext('2d');
+    }
+
+    const cctx = mapCacheCtx;
+    cctx.clearRect(0, 0, fullWidth, fullHeight);
+
+    // 获取当前层群系样式
+    const biome = getBiomeStyle(player.floor);
+
+    // 绘制整个地图到缓存
+    for (let r = 0; r < MAP_HEIGHT; r++) {
+        for (let c = 0; c < MAP_WIDTH; c++) {
+            const x = c * TILE_SIZE, y = r * TILE_SIZE;
+
+            if (mapData[r][c] === 0) {
+                // 墙壁
+                let drawnSprite = false;
+
+                if (biome && envSpritesLoaded && processedEnvSprites) {
+                    // 先画地板底色
+                    if (floorTilesLoaded) {
+                        const floorIndex = getFloorTextureIndex(player.floor);
+                        const tileHeight = floorTiles.height / 3;
+                        cctx.drawImage(floorTiles, 0, floorIndex * tileHeight, floorTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
+                    } else {
+                        cctx.fillStyle = '#151515';
+                        cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    }
+                    // 地板色调叠加
+                    cctx.fillStyle = biome.tint;
+                    cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+                    // 绘制 Sprite
+                    drawnSprite = drawBiomeWallDetails(cctx, x, y, TILE_SIZE, biome.type, r * 1000 + c);
+                }
+
+                if (!drawnSprite) {
+                    if (wallTilesLoaded) {
+                        const wallIndex = getWallTextureIndex(player.floor);
+                        const tileHeight = wallTiles.height / 3;
+                        cctx.drawImage(wallTiles, 0, wallIndex * tileHeight, wallTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
+                        if (biome) {
+                            cctx.fillStyle = biome.tint;
+                            cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        }
+                    } else {
+                        cctx.fillStyle = COLORS.wall;
+                        cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        if (biome) {
+                            cctx.fillStyle = biome.tint;
+                            cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        }
+                        cctx.fillStyle = '#111';
+                        cctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10);
+                    }
+                }
+            } else {
+                // 地板
+                if (floorTilesLoaded) {
+                    const floorIndex = getFloorTextureIndex(player.floor);
+                    const tileHeight = floorTiles.height / 3;
+                    cctx.drawImage(floorTiles, 0, floorIndex * tileHeight, floorTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
+
+                    // 棋盘格
+                    if ((c + r) % 2 === 0) {
+                        cctx.fillStyle = 'rgba(0,0,0,0.1)';
+                        cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    }
+
+                    if (biome) {
+                        cctx.fillStyle = biome.tint;
+                        cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+                        // 冰面反光效果
+                        if (biome.type === 'ice' && (c + r) % 3 === 0) {
+                            cctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                            cctx.beginPath();
+                            cctx.moveTo(x + 10, y + TILE_SIZE - 10);
+                            cctx.lineTo(x + TILE_SIZE - 10, y + 10);
+                            cctx.lineTo(x + TILE_SIZE - 5, y + 15);
+                            cctx.lineTo(x + 15, y + TILE_SIZE - 5);
+                            cctx.fill();
+                        }
+                    }
+                } else {
+                    cctx.fillStyle = ((c + r) % 2 === 0) ? '#151515' : '#1a1a1a';
+                    cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    if (biome) {
+                        cctx.fillStyle = biome.tint;
+                        cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    }
+                }
+            }
+        }
+    }
+
+    // 只有当必要的贴图都加载完成时才标记缓存有效
+    // 否则会显示黑屏（缓存内容为空）
+    const texturesReady = floorTilesLoaded && wallTilesLoaded;
+    mapCacheValid = texturesReady;
 }
 
 function gameLoop(ts) {
@@ -5118,8 +5249,9 @@ function update(dt) {
     projectiles.forEach((p, i) => {
         p.life -= dt; p.x += Math.cos(p.angle) * p.speed * dt; p.y += Math.sin(p.angle) * p.speed * dt;
 
-        // 火球拖尾粒子
-        if (p.type === 'fireball' && Math.random() < 0.6) {
+        // 火球拖尾粒子（概率根据画质动态调整）
+        const pConfig = getParticleConfig();
+        if (p.type === 'fireball' && Math.random() < pConfig.fireballTrail) {
             const trailColors = ['#ff4400', '#ff6600', '#ff8800', '#ffaa00'];
             particles.push({
                 x: p.x + (Math.random() - 0.5) * 10,
@@ -5133,8 +5265,8 @@ function update(dt) {
             });
         }
 
-        // 多重射击拖尾粒子
-        if (p.type === 'multishot' && Math.random() < 0.4) {
+        // 多重射击拖尾粒子（概率根据画质动态调整）
+        if (p.type === 'multishot' && Math.random() < pConfig.multishotTrail) {
             const trailColors = ['#aaff00', '#88ff44', '#ffff00', '#ccff88'];
             particles.push({
                 x: p.x + (Math.random() - 0.5) * 6,
@@ -5257,9 +5389,10 @@ function update(dt) {
         }
         if (p.life <= 0) particles.splice(i, 1);
     });
-    // 粒子数量上限裁剪（移除最老的粒子）
-    if (particles.length > MAX_PARTICLES) {
-        particles.splice(0, particles.length - MAX_PARTICLES);
+    // 粒子数量上限裁剪（移除最老的粒子，根据画质动态调整上限）
+    const maxParticles = getParticleConfig().maxParticles;
+    if (particles.length > maxParticles) {
+        particles.splice(0, particles.length - maxParticles);
     }
 
     // 伤害数字物理更新
@@ -5512,106 +5645,46 @@ function draw() {
 
     ctx.save(); ctx.translate(-Math.floor(camera.x) + shakeX, -Math.floor(camera.y) + shakeY);
 
-    const sc = Math.floor(camera.x / TILE_SIZE), ec = sc + (canvas.width / TILE_SIZE) + 1;
-    const sr = Math.floor(camera.y / TILE_SIZE), er = sr + (canvas.height / TILE_SIZE) + 1;
+    // 使用离屏Canvas缓存绘制地图（性能优化：从每帧5000+次ctx调用降为1次）
+    let mapDrawn = false;
+    if (mapCacheValid && mapCacheCanvas) {
+        // 计算源区域（从缓存中裁剪的区域）
+        const cacheW = mapCacheCanvas.width;
+        const cacheH = mapCacheCanvas.height;
 
-    // 获取当前层群系样式
-    const biome = getBiomeStyle(player.floor);
+        // 源坐标（缓存中的位置），需要限制在有效范围内
+        const srcX = Math.max(0, Math.floor(camera.x));
+        const srcY = Math.max(0, Math.floor(camera.y));
 
-    for (let r = sr - 1; r < er + 1; r++) {
-        for (let c = sc - 1; c < ec + 1; c++) {
-            if (r >= 0 && r < MAP_HEIGHT && c >= 0 && c < MAP_WIDTH) {
-                const x = c * TILE_SIZE, y = r * TILE_SIZE;
-                if (mapData[r][c] === 0) {
-                    let drawnSprite = false;
+        // 目标坐标（画布上的位置）
+        const dstX = Math.max(0, -Math.floor(camera.x));
+        const dstY = Math.max(0, -Math.floor(camera.y));
 
-                    // 尝试使用 Sprite 绘制墙壁 (仅在有群系时，Camp层除外)
-                    if (biome && envSpritesLoaded && processedEnvSprites) {
-                        // 1. 先画地板作为底色 (防止树后面透出黑色背景)
-                        if (floorTilesLoaded) {
-                            const floorIndex = getFloorTextureIndex(player.floor);
-                            const tileHeight = floorTiles.height / 3;
-                            ctx.drawImage(floorTiles, 0, floorIndex * tileHeight, floorTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
-                        } else {
-                            ctx.fillStyle = '#151515';
-                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        }
-                        // 地板色调叠加
-                        ctx.fillStyle = biome.tint;
-                        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+        // 绘制宽高
+        const drawW = Math.min(canvas.width - dstX, cacheW - srcX);
+        const drawH = Math.min(canvas.height - dstY, cacheH - srcY);
 
-                        // 2. 绘制 Sprite
-                        drawnSprite = drawBiomeWallDetails(ctx, x, y, TILE_SIZE, biome.type, r * 1000 + c);
-                    }
+        if (drawW > 0 && drawH > 0) {
+            ctx.drawImage(mapCacheCanvas, srcX, srcY, drawW, drawH, srcX, srcY, drawW, drawH);
+            mapDrawn = true;
+        }
+    }
 
-                    // 如果没有绘制 Sprite (例如 Camp 层，或资源未加载)，则绘制标准墙壁
-                    if (!drawnSprite) {
-                        if (wallTilesLoaded) {
-                            const wallIndex = getWallTextureIndex(player.floor);
-                            const tileHeight = wallTiles.height / 3;
+    // 缓存无效或绘制失败时的后备方案
+    if (!mapDrawn) {
+        const sc = Math.floor(camera.x / TILE_SIZE), ec = sc + (canvas.width / TILE_SIZE) + 1;
+        const sr = Math.floor(camera.y / TILE_SIZE), er = sr + (canvas.height / TILE_SIZE) + 1;
 
-                            ctx.drawImage(wallTiles,
-                                0, wallIndex * tileHeight, wallTiles.width, tileHeight,
-                                x, y, TILE_SIZE, TILE_SIZE
-                            );
-
-                            // 群系色调叠加（墙壁）
-                            if (biome) {
-                                ctx.fillStyle = biome.tint;
-                                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                            }
-                        } else {
-                            ctx.fillStyle = COLORS.wall;
-                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                            if (biome) {
-                                ctx.fillStyle = biome.tint;
-                                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                            }
-                            ctx.fillStyle = '#111';
-                            ctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10);
-                        }
-                    }
-                }
-                else {
+        for (let r = sr - 1; r < er + 1; r++) {
+            for (let c = sc - 1; c < ec + 1; c++) {
+                if (r >= 0 && r < MAP_HEIGHT && c >= 0 && c < MAP_WIDTH) {
                     const x = c * TILE_SIZE, y = r * TILE_SIZE;
-                    if (floorTilesLoaded) {
-                        const floorIndex = getFloorTextureIndex(player.floor);
-                        const tileHeight = floorTiles.height / 3;
-
-                        ctx.drawImage(floorTiles,
-                            0, floorIndex * tileHeight, floorTiles.width, tileHeight,
-                            x, y, TILE_SIZE, TILE_SIZE
-                        );
-
-                        // Subtle checkerboard pattern for variety
-                        if ((c + r) % 2 === 0) {
-                            ctx.fillStyle = 'rgba(0,0,0,0.1)';
-                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        }
-
-                        // 群系色调叠加（地板）
-                        if (biome) {
-                            ctx.fillStyle = biome.tint;
-                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-
-                            // 冰面反光效果
-                            if (biome.type === 'ice' && (c + r) % 3 === 0) {
-                                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-                                ctx.beginPath();
-                                ctx.moveTo(x + 10, y + TILE_SIZE - 10);
-                                ctx.lineTo(x + TILE_SIZE - 10, y + 10);
-                                ctx.lineTo(x + TILE_SIZE - 5, y + 15);
-                                ctx.lineTo(x + 15, y + TILE_SIZE - 5);
-                                ctx.fill();
-                            }
-                        }
+                    if (mapData[r][c] === 0) {
+                        ctx.fillStyle = COLORS.wall;
+                        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
                     } else {
                         ctx.fillStyle = ((c + r) % 2 === 0) ? '#151515' : '#1a1a1a';
                         ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        if (biome) {
-                            ctx.fillStyle = biome.tint;
-                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        }
                     }
                 }
             }
@@ -8223,9 +8296,19 @@ function createFloatingText(x, y, text, color = '#ffff00', duration = 2) {
 
     animate();
 }
-const MAX_PARTICLES = 200;  // 粒子上限，优化性能
+// 画质相关的粒子配置
+const PARTICLE_CONFIG = {
+    high: { maxParticles: 200, fireballTrail: 0.6, multishotTrail: 0.4 },
+    low: { maxParticles: 100, fireballTrail: 0.25, multishotTrail: 0.15 }
+};
+
+function getParticleConfig() {
+    return PARTICLE_CONFIG[player.graphicsQuality] || PARTICLE_CONFIG.high;
+}
+
 function createParticle(x, y, color, size = 3) {
-    if (particles.length >= MAX_PARTICLES) return;  // 超出上限不创建
+    const maxParticles = getParticleConfig().maxParticles;
+    if (particles.length >= maxParticles) return;  // 超出上限不创建
     particles.push({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size });
 }
 
@@ -8936,7 +9019,8 @@ function checkPlayerDeath() {
                 level: player.lvl,
                 kills: player.kills,
                 maxFloor: player.isInHell ? player.hellFloor + 10 : player.floor,
-                isHell: player.isInHell
+                isHell: player.isInHell,
+                gold: player.gold || 0
             });
         }
 
@@ -10386,7 +10470,8 @@ function checkLevelUp() {
                 level: player.lvl,
                 kills: player.kills,
                 maxFloor: player.isInHell ? player.hellFloor + 10 : player.floor,
-                isHell: player.isInHell
+                isHell: player.isInHell,
+                gold: player.gold || 0
             });
         }
     }

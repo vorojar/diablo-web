@@ -215,6 +215,7 @@ const OnlineSystem = {
             kills: data.kills || 0,
             max_floor: data.maxFloor || 0,
             is_hell: data.isHell || false,
+            gold: data.gold || 0,
             score: (data.level || 1) * 100 + (data.kills || 0) + (data.maxFloor || 0) * 50
         };
 
@@ -224,8 +225,10 @@ const OnlineSystem = {
             });
 
             if (records.items.length > 0) {
-                if (scoreData.score > records.items[0].score) {
-                    await pb.collection('leaderboard').update(records.items[0].id, scoreData);
+                const old = records.items[0];
+                // 分数更高 或 金币更高 都触发更新
+                if (scoreData.score > old.score || scoreData.gold > (old.gold || 0)) {
+                    await pb.collection('leaderboard').update(old.id, scoreData);
                     this.loadLeaderboard(true);  // 强制刷新
                 }
             } else {
@@ -308,6 +311,7 @@ const OnlineSystem = {
             <span class="lb-tab ${this.currentTab === 'score' ? 'active' : ''}" onclick="OnlineSystem.switchTab('score')">综合</span>
             <span class="lb-tab ${this.currentTab === 'kills' ? 'active' : ''}" onclick="OnlineSystem.switchTab('kills')">击杀</span>
             <span class="lb-tab ${this.currentTab === 'floor' ? 'active' : ''}" onclick="OnlineSystem.switchTab('floor')">层数</span>
+            <span class="lb-tab ${this.currentTab === 'gold' ? 'active' : ''}" onclick="OnlineSystem.switchTab('gold')">富豪</span>
         </div>`;
 
         // 排行榜列表
@@ -378,6 +382,8 @@ const OnlineSystem = {
                     const bFloor = b.is_hell ? (b.max_floor || 0) + 10 : (b.max_floor || 0);
                     return bFloor - aFloor;
                 });
+            case 'gold':
+                return sorted.sort((a, b) => (b.gold || 0) - (a.gold || 0));
             default: // score
                 return sorted.sort((a, b) => (b.score || 0) - (a.score || 0));
         }
@@ -390,6 +396,8 @@ const OnlineSystem = {
                 return `${item.kills || 0} 击杀`;
             case 'floor':
                 return item.is_hell ? `地狱${item.max_floor}层` : `${item.max_floor}层`;
+            case 'gold':
+                return `${(item.gold || 0).toLocaleString()} 金币`;
             default:
                 return `Lv${item.level} ${item.is_hell ? '地狱' + item.max_floor : item.max_floor + '层'}`;
         }
