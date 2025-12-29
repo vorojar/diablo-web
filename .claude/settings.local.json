@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "WebSearch",
+      "WebFetch(domain:opengameart.org)",
+      "Bash(ffmpeg:*)",
+      "Bash(unzip:*)",
+      "Bash(find:*)",
+      "Bash(node -c:*)",
+      "Bash(node:*)"
+    ]
+  }
+}
