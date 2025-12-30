@@ -8,10 +8,31 @@ const AbyssSystem = {
   startTime: 0,          // 本次挑战开始时间
   score: 0,              // 当前积分
   currentChampion: null, // 本周王者昵称
+  selectedContracts: [], // 已选择的契约ID
+  totalMultiplier: 1.0,  // 总积分倍率
+
 
   // 配置
   BASE_LEVEL: 50,        // 积分计算基准等级
   MIN_LEVEL: 20,         // 进入门槛
+
+  // 契约配置
+  CONTRACTS: {
+    'low_hp': { name: '贫血契约', icon: '🩸', desc: '最大生命降低 30%', multiplier: 0.3 },
+    'glass_cannon': { name: '脆皮契约', icon: '🛡️', desc: '防御力降低 50%', multiplier: 0.4 },
+    'slow_motion': { name: '慢速契约', icon: '👣', desc: '移动速度降低 20%', multiplier: 0.2 },
+    'elemental_curse': { name: '元素契约', icon: '🔥', desc: '全抗性降低 40%', multiplier: 0.5 },
+    'vampire_bane': { name: '绝愈契约', icon: '💉', desc: '生命偷取无效', multiplier: 0.4 }
+  },
+
+  // 赛区配置
+  BRACKETS: [
+    { id: 'rookie', name: '新秀赛', range: [20, 30], icon: '🌱' },
+    { id: 'elite', name: '精英赛', range: [31, 50], icon: '⚔️' },
+    { id: 'peak', name: '巅峰赛', range: [51, 999], icon: '🔥' }
+  ],
+  currentLeaderboardBracket: null, // 当前查看的赛区ID
+
 
   // 初始化
   init() {
@@ -22,6 +43,9 @@ const AbyssSystem = {
   // 根据排名更新玩家称号（同时同步服务器最佳记录）
   updatePlayerTitle() {
     if (typeof OnlineSystem === 'undefined' || !OnlineSystem.getAbyssLeaderboard) return;
+
+    // 获取我对应的赛区范围
+    const myBracket = this.BRACKETS.find(b => player.lvl >= b.range[0] && player.lvl <= b.range[1]) || this.BRACKETS[this.BRACKETS.length - 1];
 
     OnlineSystem.getAbyssLeaderboard((data) => {
       if (data.error) return;
@@ -34,41 +58,44 @@ const AbyssSystem = {
         if (myRecord.score > localScore) {
           localStorage.setItem('abyss_best_score', myRecord.score);
           localStorage.setItem('abyss_best_floor', myRecord.floor);
-          console.log('[Abyss] 从服务器同步最佳记录:', myRecord.score, '分', myRecord.floor, '层');
+          console.log(`[Abyss] 从${myBracket.name}同步最佳记录:`, myRecord.score, '分', myRecord.floor, '层');
         }
       }
 
-      // 获取本周王者（第1名）
+      // 获取本赛区王者（第1名）
       if (data.list.length > 0) {
         this.currentChampion = data.list[0].name;
       } else {
         this.currentChampion = null;
       }
 
-      if (data.myRank <= 0) {
+      // 注意：这里的 data.myRank 是该赛区内的排名
+      const rank = data.myRank;
+
+      if (rank <= 0) {
         player.abyssTitle = null;
+        localStorage.setItem('abyss_last_rank', 0);
         return;
       }
 
-      const rank = data.myRank;
-
-      // 保存排名用于周结算
+      // 保存赛区排名用于周结算
       localStorage.setItem('abyss_last_rank', rank);
 
+      // 根据赛区排名更新分赛区称号
       if (rank === 1) {
-        player.abyssTitle = '深渊魔王';
+        player.abyssTitle = `${myBracket.name}王`;
       } else if (rank <= 3) {
-        player.abyssTitle = '深渊领主';
+        player.abyssTitle = `${myBracket.name}领主`;
       } else if (rank <= 10) {
-        player.abyssTitle = '深渊使者';
+        player.abyssTitle = `${myBracket.name}精英`;
       } else if (rank <= 50) {
-        player.abyssTitle = '深渊行者';
+        player.abyssTitle = `${myBracket.name}行者`;
       } else {
         player.abyssTitle = null;
       }
 
-      console.log('[Abyss] 称号更新:', player.abyssTitle, '排名:', rank);
-    });
+      console.log(`[Abyss] ${myBracket.name}称号更新:`, player.abyssTitle, '排名:', rank);
+    }, myBracket.range[0], myBracket.range[1]);
   },
 
   // 检查周重置（每周一 00:00）
@@ -190,9 +217,9 @@ const AbyssSystem = {
     }
 
     const html = `
-      <div class="panel-header" style="background: linear-gradient(90deg, ${isFull ? '#600, #900' : '#400, #600'});">
+      <div class="panel-header">
         ${titleIcon} 深渊锦标赛结算 ${titleIcon}
-        <div class="panel-close" onclick="document.getElementById('abyss-reward-panel').remove()"></div>
+        <div class="panel-close" onclick="AbyssSystem.closeRewardPanel()"></div>
       </div>
       <div class="panel-content" style="padding: 25px; text-align: center;">
         <div style="font-size: 20px; color: ${titleColor}; margin-bottom: 15px;">
@@ -200,8 +227,8 @@ const AbyssSystem = {
         </div>
         ${contentHtml}
         <div style="margin-top: 20px;">
-          <button class="abyss-btn" style="width: 100%; padding: 12px; font-size: 16px;" 
-            onclick="document.getElementById('abyss-reward-panel').remove()">
+          <button class="abyss-btn" style="width: 100%;" 
+            onclick="AbyssSystem.closeRewardPanel()">
             ${isFull ? '去腾空间' : '✨ 确定'}
           </button>
         </div>
@@ -211,13 +238,29 @@ const AbyssSystem = {
     const div = document.createElement('div');
     div.id = 'abyss-reward-panel';
     div.className = 'panel active';
-    div.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 380px; z-index: 3000; box-shadow: 0 0 50px rgba(255,100,100,0.5);';
+    div.style.cssText = 'position:fixed; top:50%; left:50%; width:320px; z-index:3000; box-shadow: 0 0 50px rgba(255,100,100,0.5);';
     div.innerHTML = html;
     document.body.appendChild(div);
+
+    // 弹入动画
+    if (typeof GSAPAnims !== 'undefined') {
+      GSAPAnims.panelIn(div, 'center');
+    }
 
     // 播放音效
     if (typeof AudioSys !== 'undefined') {
       AudioSys.play('levelup');
+    }
+  },
+
+  // 关闭奖励面板
+  closeRewardPanel() {
+    const el = document.getElementById('abyss-reward-panel');
+    if (!el) return;
+    if (typeof GSAPAnims !== 'undefined') {
+      GSAPAnims.panelOut(el, () => el.remove());
+    } else {
+      el.remove();
     }
   },
 
@@ -259,6 +302,10 @@ const AbyssSystem = {
     this.currentFloor = 1;
     this.startTime = Date.now();
     this.score = 0;
+
+    // 应用选中的契约统计倍率
+    this.calculateMultiplier();
+
 
     // 设置玩家状态
     player.isInHell = true; // 复用地狱标识，用于怪物强度
@@ -327,6 +374,11 @@ const AbyssSystem = {
     if (typeof updateHellIndicator === 'function') {
       updateHellIndicator();
     }
+
+    // 关键：重置契约并刷新属性，确保回到营地后数值完全恢复原状
+    this.selectedContracts = [];
+    if (typeof updateStats === 'function') updateStats();
+    if (typeof updateStatsUI === 'function') updateStatsUI();
   },
 
   // 计算积分
@@ -336,16 +388,142 @@ const AbyssSystem = {
     const levelBonus = Math.max(0, (this.BASE_LEVEL - player.lvl) * 50);
     const timePenalty = Math.floor(durationSeconds * 0.1);
 
-    this.score = Math.floor(floorScore + levelBonus - timePenalty);
-    if (this.score < 0) this.score = 0;
+    // 基础积分
+    let baseScore = floorScore + levelBonus - timePenalty;
+    if (baseScore < 0) baseScore = 0;
+
+    // 应用契约倍率
+    this.score = Math.floor(baseScore * this.totalMultiplier);
 
     console.log('[Abyss] 积分计算详情:');
-    console.log('  层数:', this.currentFloor, '× 100 =', floorScore);
-    console.log('  等级:', player.lvl, '加成: (50-' + player.lvl + ')×50 =', levelBonus);
-    console.log('  用时:', Math.floor(durationSeconds), '秒, 惩罚:', timePenalty);
-    console.log('  总分:', floorScore, '+', levelBonus, '-', timePenalty, '=', this.score);
+    console.log('  基础积分:', baseScore);
+    console.log('  契约倍率: x' + this.totalMultiplier.toFixed(2));
+    console.log('  最终总分:', this.score);
 
     return this.score;
+  },
+
+  // 计算当前总倍率
+  calculateMultiplier() {
+    let m = 1.0;
+    this.selectedContracts.forEach(id => {
+      const c = this.CONTRACTS[id];
+      if (c) m += c.multiplier;
+    });
+    this.totalMultiplier = m;
+    return m;
+  },
+
+  // 切换契约选择
+  toggleContract(id) {
+    const idx = this.selectedContracts.indexOf(id);
+    if (idx >= 0) {
+      this.selectedContracts.splice(idx, 1);
+    } else {
+      this.selectedContracts.push(id);
+    }
+    this.updateContractUI();
+
+    // 立即刷新属性，让玩家看到实时反馈（如血量下降）
+    if (typeof updateStats === 'function') updateStats();
+    if (typeof updateStatsUI === 'function') updateStatsUI();
+  },
+
+  // 更新契约面板UI内容
+  updateContractUI() {
+    const listEl = document.getElementById('contract-list');
+    if (!listEl) return;
+
+    let html = '';
+    for (let id in this.CONTRACTS) {
+      const c = this.CONTRACTS[id];
+      const selected = this.selectedContracts.includes(id);
+      html += `
+        <div class="contract-item ${selected ? 'selected' : ''}" onmousedown="event.stopPropagation(); AbyssSystem.toggleContract('${id}')">
+          <div class="contract-icon">${c.icon}</div>
+          <div class="contract-info">
+            <div class="contract-name">${c.name}</div>
+            <div class="contract-desc">${c.desc}</div>
+          </div>
+          <div class="contract-multiplier">+${(c.multiplier * 100).toFixed(0)}%</div>
+        </div>
+      `;
+    }
+    listEl.innerHTML = html;
+
+    const m = this.calculateMultiplier();
+    const mEl = document.getElementById('total-multiplier-val');
+    if (mEl) mEl.innerText = m.toFixed(2);
+  },
+
+  // 显示契约选择面板
+  showContractPanel() {
+    console.log('[Abyss] Opening contract panel...');
+    try {
+      this.closeEntrancePanel();
+      this.selectedContracts = []; // 每次进入前重置选择
+
+      let panel = document.getElementById('abyss-contract-panel');
+      if (panel) panel.remove();
+
+      panel = document.createElement('div');
+      panel.id = 'abyss-contract-panel';
+      panel.className = 'panel active';
+      panel.onmousedown = (e) => e.stopPropagation();
+      panel.style.cssText = 'position:fixed; top:50%; left:50%; width:320px; z-index:2500;';
+
+      panel.innerHTML = `
+      <div class="panel-header">
+        📜 签订深渊契约
+        <div class="panel-close" onclick="AbyssSystem.closeContractPanel()"></div>
+      </div>
+      <div class="panel-content" style="padding:20px;">
+        <div style="color:#aaa; font-size:12px; margin-bottom:15px; text-align:center;">
+          难度越高，积分倍率越高。挑战极速冲榜！
+        </div>
+        
+        <div id="contract-list" class="contract-list-scroll">
+          <!-- 契约项列表 -->
+        </div>
+
+        <div style="margin: 15px 0; padding:10px; background:rgba(0,0,0,0.3); border:1px solid #444; border-radius:4px; display:flex; justify-content:space-between; align-items:center;">
+          <span style="color:#aaa;">当前总倍率:</span>
+          <span style="color:#ffcc00; font-size:20px; font-weight:bold;">x<span id="total-multiplier-val">1.00</span></span>
+        </div>
+
+        <button class="abyss-btn" style="width:100%; margin-top: 10px;" onclick="AbyssSystem.enter(); AbyssSystem.closeContractPanel(true)">
+          🔥 签订契约并开启挑战
+        </button>
+      </div>
+    `;
+      document.body.appendChild(panel);
+      this.updateContractUI();
+
+      // 弹入动画
+      if (typeof GSAPAnims !== 'undefined') {
+        GSAPAnims.panelIn(panel, 'center');
+      }
+    } catch (e) {
+      console.error('[Abyss] Error in showContractPanel:', e);
+    }
+  },
+
+  // 关闭契约面板并重置（取消选择）
+  closeContractPanel(isStarting = false) {
+    const el = document.getElementById('abyss-contract-panel');
+    if (el) {
+      if (typeof GSAPAnims !== 'undefined') {
+        GSAPAnims.panelOut(el, () => el.remove());
+      } else {
+        el.remove();
+      }
+    }
+    if (!isStarting) {
+      this.selectedContracts = []; // 清空选择
+      // 立即刷新属性（恢复状态）
+      if (typeof updateStats === 'function') updateStats();
+      if (typeof updateStatsUI === 'function') updateStatsUI();
+    }
   },
 
   // 完成当前层（到达下一层入口）
@@ -389,18 +567,28 @@ const AbyssSystem = {
     if (!panel) {
       panel = document.createElement('div');
       panel.id = 'abyss-leaderboard-panel';
-      panel.className = 'panel'; // Add common panel class
+      panel.className = 'panel';
+      panel.style.cssText = 'position:fixed; top:50%; left:50%; width:320px; z-index:2100;';
       panel.innerHTML = `
             <div class="panel-header">🏆 深渊排行榜 <div class="panel-close" onclick="AbyssSystem.closeLeaderboard()"></div></div>
             
+            <!-- 赛区切换页签 -->
+            <div class="leaderboard-tabs" id="lb-bracket-tabs">
+                ${this.BRACKETS.map(b => `
+                    <div class="lb-tab" id="tab-${b.id}" onclick="AbyssSystem.switchBracket('${b.id}')">
+                        ${b.icon} ${b.name}
+                    </div>
+                `).join('')}
+            </div>
+
             <div class="lb-my-rank" id="lb-my-rank-container">
                 <div>
-                    <div style="color:#aaa; font-size:12px;">我的排名</div>
-                    <div style="color:#fff; font-size:16px;" id="lb-my-rank-val">未上榜</div>
+                    <div style="color:#aaa; font-size:12px;" id="lb-bracket-title">我的排名</div>
+                    <div style="color:#fff; font-size:16px;" id="lb-my-rank-val">加载中...</div>
                 </div>
-                <!-- 同级最强 Banner -->
+                <!-- 殿堂记录 Banner -->
                 <div id="lb-bracket-rank" style="background: linear-gradient(90deg, #530, #840); padding: 5px 15px; border-radius: 4px; border:1px solid #d80; display:none;">
-                    👑 同级第 <span id="lb-bracket-val" style="color:#ff0; font-size:18px; font-weight:bold;">1</span> 名
+                    👑 赛区第 <span id="lb-bracket-val" style="color:#ff0; font-size:18px; font-weight:bold;">1</span> 名
                 </div>
             </div>
             <div class="lb-list" id="lb-container" style="flex:1; overflow-y:auto; padding:10px;">
@@ -412,9 +600,39 @@ const AbyssSystem = {
 
     panel.classList.add('active');
 
-    // 加载数据
+    // 弹入动画
+    if (typeof GSAPAnims !== 'undefined') {
+      GSAPAnims.panelIn(panel, 'center');
+    }
+
+    // 默认打开玩家当前等级所属的赛区
+    if (!this.currentLeaderboardBracket) {
+      const playerBracket = this.BRACKETS.find(b => player.lvl >= b.range[0] && player.lvl <= b.range[1]) || this.BRACKETS[this.BRACKETS.length - 1];
+      this.currentLeaderboardBracket = playerBracket.id;
+    }
+
+    this.switchBracket(this.currentLeaderboardBracket);
+  },
+
+  // 切换赛区
+  switchBracket(bracketId) {
+    this.currentLeaderboardBracket = bracketId;
+    const bracket = this.BRACKETS.find(b => b.id === bracketId);
+    if (!bracket) return;
+
+    // 更新页签样式
+    this.BRACKETS.forEach(b => {
+      const tab = document.getElementById(`tab-${b.id}`);
+      if (tab) tab.classList.toggle('active', b.id === bracketId);
+    });
+
+    // 拉取数据
+    const container = document.getElementById('lb-container');
+    container.innerHTML = '<div style="text-align:center; padding:50px; color:#666;">⏳ 正在穿越位面...</div>';
+
+    document.getElementById('lb-bracket-title').innerText = `${bracket.name}·我的排名`;
+
     OnlineSystem.getAbyssLeaderboard((data) => {
-      const container = document.getElementById('lb-container');
       const myRankEl = document.getElementById('lb-my-rank-val');
       const bracketEl = document.getElementById('lb-bracket-rank');
       const bracketVal = document.getElementById('lb-bracket-val');
@@ -426,50 +644,36 @@ const AbyssSystem = {
         myRankEl.innerText = "暂无成绩";
       }
 
-      // 同级排名提示
-      if (data.myLevelRank > 0 && data.myLevelRank <= 10) {
-        bracketEl.style.display = 'block';
-        bracketVal.innerText = data.myLevelRank;
-      } else {
-        bracketEl.style.display = 'none';
-      }
-
-      // 错误处理
-      if (data.error) {
-        container.innerHTML = '<div style="text-align:center; padding:50px; color:#f44;">连接失败</div>';
-        return;
-      }
-      if (data.list.length === 0) {
-        container.innerHTML = '<div style="text-align:center; padding:50px; color:#888;">暂无记录，快来抢占第一！</div>';
-        return;
-      }
-
       // 渲染列表
-      let html = '';
-      data.list.forEach(item => {
-        const rankClass = item.rank <= 3 ? `top${item.rank}` : '';
-        const selfClass = item.isSelf ? 'self' : '';
-        html += `
-                <div class="lb-item ${selfClass}">
-                    <div class="lb-item-rank ${rankClass}">${item.rank}</div>
-                    <div class="lb-item-info">
-                        <div class="lb-item-name">${item.name}</div>
-                        <div class="lb-item-class">Level ${item.lvl}</div>
-                    </div>
-                    <div>
-                        <div class="lb-item-score">${item.score}</div>
-                        <div class="lb-item-floor">${item.floor}层</div>
-                    </div>
-                </div>
-              `;
-      });
-      container.innerHTML = html;
-    });
+      if (data.list.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:50px; color:#666;">该赛区空谷幽兰，暂无高手<br><span style="font-size:12px; color:#444;">(${bracket.range[0]}-${bracket.range[1]}级)</span></div>`;
+        return;
+      }
+
+      container.innerHTML = data.list.map(item => `
+        <div class="lb-item ${item.isSelf ? 'self' : ''}">
+            <div class="lb-item-rank ${item.rank <= 3 ? 'top' + item.rank : ''}">${item.rank}</div>
+            <div class="lb-item-info">
+                <div class="lb-item-name">${item.name} <span style="color:#666; font-size:11px;">Lv.${item.lvl}</span></div>
+            </div>
+            <div style="text-align:right">
+                <div class="lb-item-score">${item.score}</div>
+                <div class="lb-item-floor">深渊第${item.floor}层</div>
+            </div>
+        </div>
+      `).join('');
+    }, bracket.range[0], bracket.range[1]);
   },
 
   closeLeaderboard() {
     const panel = document.getElementById('abyss-leaderboard-panel');
-    if (panel) panel.classList.remove('active');
+    if (panel) {
+      if (typeof GSAPAnims !== 'undefined') {
+        GSAPAnims.panelOut(panel, () => panel.remove());
+      } else {
+        panel.remove();
+      }
+    }
   },
 
   // 显示结算面板
@@ -480,30 +684,41 @@ const AbyssSystem = {
 
     // 构建HTML
     const html = `
-        <div class="panel-header" style="color:${isDeath ? '#f44' : '#fff'}">${title}</div>
-        <div class="panel-content" style="padding:20px; text-align:center;">
-             <div style="font-size:18px; margin-bottom:10px;">到达层数: <span style="color:#fb0">${this.currentFloor} 层</span></div>
-             <div style="font-size:14px; color:#aaa; margin-bottom:10px;">耗时: ${timeStr}</div>
-             <div style="font-size:24px; color:#0f0; margin:15px 0;">积分: ${this.score}</div>
-             <div style="font-size:12px; color:#888;">(每周一 00:00 重置)</div>
-             <div class="panel-btn-group" style="margin-top:20px;">
-                 <button onclick="AbyssSystem.backToTown()" class="btn">返回营地</button>
-             </div>
-        </div>
-    `;
+      <div class="panel-header" style="color:${isDeath ? '#f44' : '#fff'}">${title}</div>
+    <div class="panel-content" style="padding:20px; text-align:center;">
+      <div style="font-size:18px; margin-bottom:10px;">到达层数: <span style="color:#fb0">${this.currentFloor} 层</span></div>
+      <div style="font-size:14px; color:#aaa; margin-bottom:10px;">耗时: ${timeStr}</div>
+      <div style="font-size:24px; color:#0f0; margin:15px 0;">积分: ${this.score}</div>
+      <div style="font-size:12px; color:#888;">(每周一 00:00 重置)</div>
+      <div class="panel-btn-group" style="margin-top:20px;">
+        <button onclick="AbyssSystem.backToTown()" class="abyss-btn" style="width: 100%;">返回营地</button>
+      </div>
+    </div>
+`;
 
     // 使用标准 Panel 结构
     const div = document.createElement('div');
     div.id = 'abyss-result-panel';
     div.className = 'panel active'; // Use common panel class
-    div.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:320px; z-index:2000;';
+    div.style.cssText = 'position:fixed; top:50%; left:50%; width:320px; z-index:2000;';
     div.innerHTML = html;
     document.body.appendChild(div);
+
+    // 弹入动画
+    if (typeof GSAPAnims !== 'undefined') {
+      GSAPAnims.panelIn(div, 'center');
+    }
   },
 
   backToTown() {
     const el = document.getElementById('abyss-result-panel');
-    if (el) el.remove();
+    if (el) {
+      if (typeof GSAPAnims !== 'undefined') {
+        GSAPAnims.panelOut(el, () => el.remove());
+      } else {
+        el.remove();
+      }
+    }
 
     // 返回营地
     player.isInHell = false;
@@ -542,54 +757,66 @@ const AbyssSystem = {
     const currentRank = localStorage.getItem('abyss_last_rank') || '-';
 
     const html = `
-        <div class="panel-header">🔥 深渊挑战 <div class="panel-close" onclick="AbyssSystem.closeEntrancePanel()"></div></div>
-        <div class="panel-content" style="padding: 20px;">
-            <div class="abyss-info-row">
-                <span class="abyss-info-label">本周最佳:</span>
-                <span class="abyss-info-value">第${bestFloor}层 (${bestScore}分)</span>
-            </div>
-            <div class="abyss-info-row">
-                <span class="abyss-info-label">当前排名:</span>
-                <span class="abyss-info-value" style="color: #ff8800;">${currentRank === '-' ? '暂无记录' : '第' + currentRank + '名'}</span> 
-            </div>
-            
-            <div class="abyss-time-left">
-                ⏱️ 本周剩余: ${days}天 ${hours}小时
-            </div>
+      <div class="panel-header">🔥 深渊挑战 <div class="panel-close" onclick="AbyssSystem.closeEntrancePanel()"></div></div>
+    <div class="panel-content" style="padding: 20px;">
+      <div class="abyss-info-row">
+        <span class="abyss-info-label">本周最佳:</span>
+        <span class="abyss-info-value">第${bestFloor}层 (${bestScore}分)</span>
+      </div>
+      <div class="abyss-info-row">
+        <span class="abyss-info-label">当前排名:</span>
+        <span class="abyss-info-value" style="color: #ff8800;">${currentRank === '-' ? '暂无记录' : '第' + currentRank + '名'}</span>
+      </div>
 
-            <div style="background: rgba(100,30,30,0.3); border: 1px solid #633; border-radius: 6px; padding: 12px; margin: 15px 0;">
-                <div style="color: #ffcc00; font-size: 14px; text-align: center; margin-bottom: 10px;">🏆 周榜奖励预览</div>
-                <div style="font-size: 12px; line-height: 1.8; color: #ccc;">
-                    <div>🥇 <span style="color:#ff4400;">第1名</span> → <span style="color:#00ff88;">全套深渊征服者</span> + 称号「深渊魔王」</div>
-                    <div>🥈 <span style="color:#cc2222;">第2-3名</span> → 3件套装 + 称号「深渊领主」</div>
-                    <div>🥉 <span style="color:#9933ff;">第4-10名</span> → 2件套装 + 称号「深渊使者」</div>
-                    <div>🌑 <span style="color:#888;">第11-50名</span> → 1件套装 + 称号「深渊行者」</div>
-                </div>
-            </div>
-            
-            <div style="background: rgba(50,50,80,0.3); border: 1px solid #446; border-radius: 4px; padding: 8px; margin-bottom: 15px;">
-                <div style="color: #88aaff; font-size: 11px; text-align: center;">
-                    ⚖️ 公平竞技：深渊征服者套装效果在挑战中禁用
-                </div>
-            </div>
+      <div class="abyss-time-left">
+        ⏱️ 本周剩余: ${days}天 ${hours}小时
+      </div>
 
-            <div class="abyss-btn-group">
-                <button class="abyss-btn" onclick="AbyssSystem.enter(); AbyssSystem.closeEntrancePanel()">💀 立即挑战</button>
-                <button class="abyss-btn" onclick="AbyssSystem.openLeaderboard()">🏆 查看排行榜</button>
-            </div>
+      <div style="background: rgba(100,30,30,0.3); border: 1px solid #633; border-radius: 6px; padding: 12px; margin: 15px 0;">
+        <div style="color: #ffcc00; font-size: 14px; text-align: center; margin-bottom: 10px;">🏆 周榜奖励预览</div>
+        <div style="font-size: 12px; line-height: 1.8; color: #ccc;">
+          <div>🥇 <span style="color:#ff4400;">第1名</span> → <span style="color:#00ff88;">全套深渊征服者</span> + 称号「深渊魔王」</div>
+          <div>🥈 <span style="color:#cc2222;">第2-3名</span> → 3件套装 + 称号「深渊领主」</div>
+          <div>🥉 <span style="color:#9933ff;">第4-10名</span> → 2件套装 + 称号「深渊使者」</div>
+          <div>🌑 <span style="color:#888;">第11-50名</span> → 1件套装 + 称号「深渊行者」</div>
         </div>
-    `;
+      </div>
+
+      <div style="background: rgba(50,50,80,0.3); border: 1px solid #446; border-radius: 4px; padding: 8px; margin-bottom: 15px;">
+        <div style="color: #88aaff; font-size: 11px; text-align: center;">
+          ⚖️ 公平竞技：深渊征服者套装效果在挑战中禁用
+        </div>
+      </div>
+
+      <div class="abyss-btn-group">
+        <button class="abyss-btn" onclick="AbyssSystem.showContractPanel()">💀 立即挑战</button>
+        <button class="abyss-btn" onclick="AbyssSystem.openLeaderboard()">🏆 查看排行榜</button>
+      </div>
+    </div>
+`;
 
     const div = document.createElement('div');
     div.id = 'abyss-entrance-panel';
-    div.className = 'panel active'; // Use common panel class
+    div.className = 'panel active';
+    div.style.cssText = 'position:fixed; top:50%; left:50%; width:320px; z-index:2000;';
     div.innerHTML = html;
     document.body.appendChild(div);
+
+    // 弹入动画
+    if (typeof GSAPAnims !== 'undefined') {
+      GSAPAnims.panelIn(div, 'center');
+    }
   },
 
   closeEntrancePanel() {
     const el = document.getElementById('abyss-entrance-panel');
-    if (el) el.remove();
+    if (!el) return;
+
+    if (typeof GSAPAnims !== 'undefined') {
+      GSAPAnims.panelOut(el, () => el.remove());
+    } else {
+      el.remove();
+    }
   },
 
   // 更新HUD (每一帧调用)
@@ -616,10 +843,10 @@ const AbyssSystem = {
       hud.id = 'abyss-hud';
       hud.className = 'active';
       hud.innerHTML = `
-            <div class="abyss-hud-floor"></div>
+        <div class="abyss-hud-floor"></div>
             <div class="abyss-hud-time"></div>
             <div class="abyss-hud-warning">💀 禁用自动战斗</div>
-          `;
+`;
       document.body.appendChild(hud);
     }
     hud.style.display = 'block';
@@ -628,8 +855,8 @@ const AbyssSystem = {
     const min = Math.floor(duration / 60).toString().padStart(2, '0');
     const sec = Math.floor(duration % 60).toString().padStart(2, '0');
 
-    hud.querySelector('.abyss-hud-floor').innerText = `深渊 第${this.currentFloor}层`;
-    hud.querySelector('.abyss-hud-time').innerText = `⏱ ${min}:${sec}`;
+    hud.querySelector('.abyss-hud-floor').innerText = `深渊 第${this.currentFloor} 层`;
+    hud.querySelector('.abyss-hud-time').innerText = `⏱ ${min}:${sec} `;
   }
 };
 

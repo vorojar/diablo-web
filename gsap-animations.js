@@ -42,19 +42,54 @@ const GSAPAnims = {
     if (!element || typeof gsap === 'undefined') return;
 
     gsap.killTweensOf(element);
-    const fromProps = { opacity: 0, scale: 0.95 };
 
-    if (direction === 'bottom') fromProps.y = 30;
-    else if (direction === 'top') fromProps.y = -30;
-    else if (direction === 'center') fromProps.scale = 0.8;
+    // 智能检测：如果面板是居中定位（50/50），则由 GSAP 自动接管百分比位移，防止动画结束后位置跳变
+    const isCentered = element.style.top === '50%' && element.style.left === '50%' ||
+      window.getComputedStyle(element).top === '50%';
 
-    gsap.fromTo(element, fromProps, {
+    const toProps = {
       opacity: 1,
       scale: 1,
       y: 0,
       duration: 0.35,
       ease: "back.out(1.5)",
-      clearProps: "transform" // 动画结束后清除 transform，避免干扰 CSS layout
+      clearProps: "opacity" // 绝对不要清除 transform 相关属性，防止居中失效
+    };
+
+    const fromProps = { opacity: 0, scale: 0.95 };
+
+    if (isCentered) {
+      fromProps.xPercent = -50;
+      fromProps.yPercent = -50;
+      toProps.xPercent = -50;
+      toProps.yPercent = -50;
+    }
+
+    if (direction === 'bottom') fromProps.y = 30;
+    else if (direction === 'top') fromProps.y = -30;
+    else if (direction === 'center') fromProps.scale = 0.8;
+
+    gsap.fromTo(element, fromProps, toProps);
+  },
+
+  /**
+   * 面板弹出销毁动画
+   */
+  panelOut(element, onComplete) {
+    if (!element || typeof gsap === 'undefined') {
+      if (onComplete) onComplete();
+      return;
+    }
+
+    gsap.to(element, {
+      opacity: 0,
+      scale: 0.8,
+      y: 30,
+      duration: 0.25,
+      ease: "power2.in",
+      onComplete: () => {
+        if (onComplete) onComplete();
+      }
     });
   },
 

@@ -2249,12 +2249,20 @@ window.addEventListener('load', () => {
 // ========== 深渊排行榜 Mock (Patch) ==========
 if (typeof OnlineSystem !== 'undefined') {
     // ========== 深渊排行榜 (Real) ==========
-    OnlineSystem.getAbyssLeaderboard = async function (callback) {
+    OnlineSystem.getAbyssLeaderboard = async function (callback, minLvl, maxLvl) {
         try {
-            // 获取全服前100名
+            let filter = '';
+            if (minLvl !== undefined && maxLvl !== undefined) {
+                filter = `level >= ${minLvl} && level <= ${maxLvl}`;
+            } else if (minLvl !== undefined) {
+                filter = `level >= ${minLvl}`;
+            }
+
+            // 获取分赛区前100名
             const result = await pb.collection('abyss_rank').getList(1, 100, {
                 sort: '-score',
-                expand: 'user' // 假设关联了用户表
+                filter: filter,
+                expand: 'user'
             });
 
             const records = result.items.map((item, index) => ({
@@ -2361,24 +2369,31 @@ if (typeof OnlineSystem !== 'undefined') {
                 console.log('[Online] 创建深渊记录:', score);
             }
 
-            // 检查是否超越第1名（成为新王者）
-            if (score > previousChampionScore && previousChampionName && previousChampionName !== data.nickname) {
-                // 发送王者更替公告
-                OnlineSystem.announce('abyss_champion', previousChampionName, score);
-                console.log('[Abyss] 公告：超越王者', previousChampionName);
+            // 获取本赛区的排名（阶梯赛逻辑）
+            const myBracket = player.lvl <= 30 ? [20, 30] : (player.lvl <= 50 ? [31, 50] : [51, 999]);
+            const bracketFilter = `level >= ${myBracket[0]} && level <= ${myBracket[1]}`;
+
+            // 检查赛区内是否超越第1名
+            const bracketTopResult = await pb.collection('abyss_rank').getList(1, 1, {
+                sort: '-score',
+                filter: bracketFilter
+            });
+            const previousBracketChampion = bracketTopResult.items.length > 0 ? bracketTopResult.items[0] : null;
+
+            if (score > (previousBracketChampion?.score || 0) && previousBracketChampion?.nickname !== data.nickname) {
+                const bracketName = player.lvl <= 30 ? '新秀赛区' : (player.lvl <= 50 ? '精英赛区' : '巅峰赛区');
+                OnlineSystem.announce('abyss_champion', `[${bracketName}]`, score);
+                console.log(`[Abyss] 公告：超越${bracketName}王者`);
             }
 
-            // 检查是否首次进入前10
-            if (myPreviousScore === 0) {
-                // 这是新记录，查一下现在排名
-                const newRankResult = await pb.collection('abyss_rank').getList(1, 100, {
-                    sort: '-score'
-                });
-                const newRank = newRankResult.items.findIndex(r => r.sync_code === syncCode) + 1;
-                if (newRank > 0 && newRank <= 10) {
-                    OnlineSystem.announce('abyss_top10', '深渊挑战', newRank);
-                    console.log('[Abyss] 公告：首次进入前10，排名', newRank);
-                }
+            // 检查赛区内是否进入前10
+            const bracketRankResult = await pb.collection('abyss_rank').getList(1, 10, {
+                sort: '-score',
+                filter: bracketFilter
+            });
+            const myBracketRank = bracketRankResult.items.findIndex(r => r.sync_code === syncCode) + 1;
+            if (myBracketRank > 0 && myBracketRank <= 10 && myPreviousScore === 0) {
+                OnlineSystem.announce('abyss_top10', '赛区挑战', myBracketRank);
             }
 
         } catch (e) {

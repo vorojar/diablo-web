@@ -6545,14 +6545,7 @@ function renderAchievements() {
 
     // 类别标签
     const tabsContainer = header.querySelector('#ach-tabs');
-    const currentFilter = list.dataset.filter || 'all';
-
-    // 全部标签
-    const allTab = document.createElement('span');
-    allTab.className = 'ach-tab' + (currentFilter === 'all' ? ' active' : '');
-    allTab.textContent = '全部';
-    allTab.onclick = () => { list.dataset.filter = 'all'; renderAchievements(); };
-    tabsContainer.appendChild(allTab);
+    const currentFilter = list.dataset.filter || 'kill';
 
     // 各类别标签 - 使用纯文字
     Object.keys(ACHIEVEMENT_CATEGORIES).forEach(cat => {
@@ -6572,7 +6565,7 @@ function renderAchievements() {
 
     // 筛选并渲染成就
     const filteredAch = ACHIEVEMENTS.filter(ach =>
-        currentFilter === 'all' || ach.category === currentFilter
+        ach.category === currentFilter
     );
 
     filteredAch.forEach(ach => {
@@ -9908,6 +9901,10 @@ function updateStats() {
     player.attackSpeed = ias;
     player.critChance = Math.min(100, 5 + dex * 0.5 + bonusCritChance);
 
+    // 基础移动速度重置与天赋/装备加成 (基准 180)
+    const talentSpeedPct = typeof getTalentEffect !== 'undefined' ? getTalentEffect('speedPct', 0) : 0;
+    player.speed = 180 * (1 + talentSpeedPct / 100);
+
     // 更新特殊属性
     player.hpRegen = hpRegen;
     player.mpRegen = mpRegen;
@@ -9974,6 +9971,33 @@ function updateStats() {
 
     // 检查套装成就
     checkSetAchievements();
+
+    // ========== 深渊契约惩罚 ==========
+    const isContractPanelOpen = document.getElementById('abyss-contract-panel')?.classList.contains('active');
+    if (typeof AbyssSystem !== 'undefined' && (AbyssSystem.isActive || isContractPanelOpen) && AbyssSystem.selectedContracts.length > 0) {
+        AbyssSystem.selectedContracts.forEach(id => {
+            switch (id) {
+                case 'low_hp': player.maxHp = Math.floor(player.maxHp * 0.7); break;
+                case 'glass_cannon': player.armor = Math.floor(player.armor * 0.5); break;
+                case 'slow_motion': player.speed *= 0.8; break;
+                case 'elemental_curse':
+                    player.resistances.fire -= 40;
+                    player.resistances.cold -= 40;
+                    player.resistances.lightning -= 40;
+                    player.resistances.poison -= 40;
+                    break;
+                case 'vampire_bane': player.lifeSteal = 0; break;
+            }
+        });
+        // 修正血量和蓝量不超过上限
+        player.hp = Math.min(player.hp, player.maxHp);
+        player.mp = Math.min(player.mp, player.maxMp);
+        // 修正抗性下限
+        player.resistances.fire = Math.max(-100, player.resistances.fire);
+        player.resistances.cold = Math.max(-100, player.resistances.cold);
+        player.resistances.lightning = Math.max(-100, player.resistances.lightning);
+        player.resistances.poison = Math.max(-100, player.resistances.poison);
+    }
 }
 
 function updateUI() {
@@ -10898,7 +10922,11 @@ window.addEventListener('keyup', e => {
 
 // Prevent move on UI clicks
 document.querySelectorAll('.sys-btn, .skill-btn, .stat-btn, .gamble-slot, .equip-slot, .bag-slot, .panel, .belt-slot').forEach(el => {
-    el.onmousedown = (e) => e.stopPropagation();
+    el.onmousedown = (e) => {
+        // 如果点击的是面板标题逻辑（.panel-header），允许它冒泡到 document 处理拖拽
+        if (e.target.closest('.panel-header')) return;
+        e.stopPropagation();
+    };
 });
 
 // --- Dragging Logic ---
@@ -10909,8 +10937,15 @@ function initDragging() {
 
     function startDrag(header, clientX, clientY) {
         dragObj = header.parentElement;
-        document.querySelectorAll('.panel').forEach(p => p.style.zIndex = 60);
-        dragObj.style.zIndex = 61;
+        if (typeof panelManager !== 'undefined') {
+            // 如果是面板管理器管理的面板，同步层级
+            const entry = Object.entries(panelManager.panels).find(([k, p]) => p.id === dragObj.id);
+            if (entry) panelManager.bringToFront(entry[0]);
+        }
+        // 确保深渊等动态面板也能在最前
+        if (parseInt(dragObj.style.zIndex) < 2000) {
+            dragObj.style.zIndex = 2500;
+        }
 
         const rect = dragObj.getBoundingClientRect();
         dragObj.style.left = rect.left + 'px';
@@ -10936,26 +10971,27 @@ function initDragging() {
         dragObj = null;
     }
 
-    document.querySelectorAll('.panel-header').forEach(header => {
-        // 鼠标事件（小屏幕也禁用拖拽）
-        header.onmousedown = function (e) {
-            if (window.innerWidth < 768) return;
+    // 使用事件委托实现拖拽，支持动态生成的面板（如深渊面板）
+    document.addEventListener('mousedown', function (e) {
+        if (window.innerWidth < 768) return;
+        const header = e.target.closest('.panel-header');
+        if (header) {
             e.preventDefault();
             e.stopPropagation();
             startDrag(header, e.clientX, e.clientY);
-        };
-        // 触摸事件（小屏幕禁用拖拽）
-        header.ontouchstart = function (e) {
-            if (window.innerWidth < 768) {
-                e.stopPropagation();
-                return;
-            }
+        }
+    });
+
+    document.addEventListener('touchstart', function (e) {
+        if (window.innerWidth < 768) return;
+        const header = e.target.closest('.panel-header');
+        if (header) {
             e.preventDefault();
             e.stopPropagation();
             const touch = e.touches[0];
             startDrag(header, touch.clientX, touch.clientY);
-        };
-    });
+        }
+    }, { passive: false });
 
     // 鼠标移动
     document.addEventListener('mousemove', function (e) {
