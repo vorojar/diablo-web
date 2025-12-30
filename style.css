@@ -2442,7 +2442,7 @@
         }
 
         .lb-tab {
-            padding: 6px 16px;
+            padding: 6px 13px;
             background: rgba(40, 35, 30, 0.8);
             border: 1px solid #3a3530;
             color: #888;
@@ -4272,6 +4272,12 @@
             color: #ff8800;
         }
 
+        /* 深渊公告 - 红色火焰效果 */
+        .abyss-announcement {
+            color: #ff4444;
+            text-shadow: 0 0 10px #ff0000, 0 0 20px #ff4400, 1px 1px 2px black;
+        }
+
         /* 公告滚动动画 */
         @keyframes scrollAnnouncement {
             0% {
@@ -5976,4 +5982,299 @@
         .game-dialog-btn.primary:hover {
             background: #5d4e36;
             box-shadow: 0 0 15px rgba(199, 179, 119, 0.3);
+        }
+
+        /* Abyss Mode UI */
+        #abyss-entrance-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            background: rgba(10, 5, 5, 0.95);
+            border: 2px solid #a33;
+            border-radius: 8px;
+            padding: 20px;
+            color: #ddd;
+            box-shadow: 0 0 30px rgba(170, 50, 50, 0.5);
+            z-index: 2000;
+            display: none;
+            font-family: 'Cinzel', serif;
+        }
+
+        #abyss-entrance-panel.active {
+            display: block;
+        }
+
+        .abyss-title {
+            font-size: 24px;
+            color: #f66;
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #622;
+            padding-bottom: 10px;
+        }
+
+        .abyss-info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+
+        .abyss-info-label {
+            color: #888;
+        }
+
+        .abyss-info-value {
+            color: #fe0;
+            font-weight: bold;
+        }
+
+        .abyss-time-left {
+            text-align: center;
+            margin: 20px 0;
+            color: #fa0;
+            font-size: 14px;
+        }
+
+        .abyss-btn-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .abyss-btn {
+            background: linear-gradient(to bottom, #833, #500);
+            border: 1px solid #a55;
+            color: #fff;
+            padding: 8px 20px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .abyss-btn:hover {
+            background: linear-gradient(to bottom, #a44, #711);
+            box-shadow: 0 0 10px #f00;
+        }
+
+        #abyss-hud {
+            position: fixed;
+            top: 32px;
+            left: 10px;
+            /* 在楼层显示下方 */
+            background: rgba(80, 20, 20, 0.85);
+            padding: 8px 12px;
+            border: 1px solid #833;
+            border-radius: 4px;
+            color: #fff;
+            display: none;
+            pointer-events: none;
+            text-align: left;
+            z-index: 100;
+        }
+
+        #abyss-hud.active {
+            display: block;
+        }
+
+        .abyss-hud-floor {
+            font-size: 18px;
+            color: #f88;
+            font-weight: bold;
+        }
+
+        .abyss-hud-time {
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .abyss-hud-warning {
+            color: #f44;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+
+        /* Leaderboard UI */
+        #abyss-leaderboard-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 500px;
+            height: 600px;
+            background: rgba(10, 5, 5, 0.98);
+            border: 2px solid #844;
+            border-radius: 8px;
+            color: #ccc;
+            z-index: 2100;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+            font-family: 'Cinzel', serif;
+        }
+
+        #abyss-leaderboard-panel.active {
+            display: flex;
+        }
+
+        .lb-header {
+            padding: 15px;
+            border-bottom: 1px solid #622;
+            font-size: 20px;
+            color: #f66;
+            text-align: center;
+            position: relative;
+            background: linear-gradient(to right, #200, #400, #200);
+        }
+
+        .lb-close {
+            position: absolute;
+            right: 15px;
+            top: 15px;
+            cursor: pointer;
+            color: #888;
+        }
+
+        .lb-my-rank {
+            background: #311;
+            padding: 15px;
+            border-bottom: 1px solid #522;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .lb-rank-badge {
+            background: #a33;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .lb-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .lb-item {
+            display: flex;
+            padding: 10px;
+            border-bottom: 1px solid #333;
+            align-items: center;
+        }
+
+        .lb-item:nth-child(odd) {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .lb-item.self {
+            background: rgba(100, 50, 50, 0.4);
+            border: 1px solid #844;
+        }
+
+        .lb-item-rank {
+            width: 40px;
+            text-align: center;
+            font-weight: bold;
+            color: #888;
+        }
+
+        .lb-item-rank.top1 {
+            color: #fe0;
+            font-size: 18px;
+        }
+
+        .lb-item-rank.top2 {
+            color: #ddd;
+            font-size: 16px;
+        }
+
+        .lb-item-rank.top3 {
+            color: #b84;
+            font-size: 16px;
+        }
+
+        .lb-item-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            margin-left: 10px;
+        }
+
+        .lb-item-name {
+            color: #ddd;
+            font-size: 14px;
+        }
+
+        .lb-item-class {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .lb-item-score {
+            text-align: right;
+            color: #fa0;
+            font-family: monospace;
+            font-size: 16px;
+        }
+
+        .lb-item-floor {
+            text-align: right;
+            color: #aaa;
+            font-size: 12px;
+        }
+
+
+        /* Abyss Scrollbar & Panel Fixes */
+        #abyss-entrance-panel,
+        #abyss-leaderboard-panel,
+        #abyss-result-panel {
+            /* Ensure they look like game panels but with Abyss flavor */
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+            pointer-events: auto;
+            /* Ensure clicks are captured */
+        }
+
+        /* Custom Scrollbar for Abyss Leaderboard */
+        .lb-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .lb-list::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 3px;
+        }
+
+        .lb-list::-webkit-scrollbar-thumb {
+            background: #622;
+            border-radius: 3px;
+            border: 1px solid #844;
+        }
+
+        .lb-list::-webkit-scrollbar-thumb:hover {
+            background: #844;
+        }
+
+        .lb-list {
+            scrollbar-width: thin;
+            scrollbar-color: #622 rgba(0, 0, 0, 0.3);
+        }
+
+
+        /* Deep Abyss Specific Adjustments */
+        #abyss-result-panel .panel-btn-group {
+            display: flex;
+            justify-content: center;
+        }
+
+        #abyss-result-panel .btn {
+            width: 100%;
+            margin: 0;
         }

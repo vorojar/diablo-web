@@ -1412,6 +1412,7 @@ const OnlineSystem = {
             html += `<div class="leaderboard-tabs">
                 <span class="lb-tab ${this.currentTab === 'score' ? 'active' : ''}" onclick="OnlineSystem.switchTab('score')">综合</span>
                 <span class="lb-tab ${this.currentTab === 'kills' ? 'active' : ''}" onclick="OnlineSystem.switchTab('kills')">击杀</span>
+                <span class="lb-tab ${this.currentTab === 'abyss' ? 'active' : ''}" onclick="OnlineSystem.switchTab('abyss')">🔥深渊</span>
             </div>`;
         } else {
             html += `<div class="leaderboard-tabs">
@@ -1419,6 +1420,7 @@ const OnlineSystem = {
                 <span class="lb-tab ${this.currentTab === 'kills' ? 'active' : ''}" onclick="OnlineSystem.switchTab('kills')">击杀</span>
                 <span class="lb-tab ${this.currentTab === 'floor' ? 'active' : ''}" onclick="OnlineSystem.switchTab('floor')">层数</span>
                 <span class="lb-tab ${this.currentTab === 'gold' ? 'active' : ''}" onclick="OnlineSystem.switchTab('gold')">富豪</span>
+                <span class="lb-tab ${this.currentTab === 'abyss' ? 'active' : ''}" onclick="OnlineSystem.switchTab('abyss')">🔥深渊</span>
             </div>`;
         }
 
@@ -1476,9 +1478,93 @@ const OnlineSystem = {
     switchTab(tab) {
         this.currentTab = tab;
         const panel = document.getElementById('leaderboard-panel');
+
+        // 深渊榜单使用独立的数据源
+        if (tab === 'abyss') {
+            this.renderAbyssLeaderboard(panel);
+            return;
+        }
+
         if (panel && this.leaderboardData) {
             this.renderLeaderboardContent(panel, this.leaderboardData);
         }
+    },
+
+    // 渲染深渊排行榜（保持与普通榜一致的风格）
+    renderAbyssLeaderboard(panel) {
+        if (!panel) return;
+
+        // 先显示加载状态，保持完整UI结构
+        let html = '<div class="panel-close" onclick="togglePanel(\'leaderboard\')"></div>';
+        html += '<div class="panel-header">🏆 排行榜</div>';
+
+        // 周榜/总榜切换（深渊榜不区分）
+        html += `<div class="leaderboard-mode-tabs">
+            <span class="lb-mode-tab ${this.leaderboardMode === 'week' ? 'active' : ''}" onclick="OnlineSystem.switchMode('week')">📅 周榜</span>
+            <span class="lb-mode-tab ${this.leaderboardMode === 'all' ? 'active' : ''}" onclick="OnlineSystem.switchMode('all')">🏅 总榜</span>
+        </div>`;
+
+        // 深渊个人记录
+        const bestScore = parseInt(localStorage.getItem('abyss_best_score') || '0');
+        const bestFloor = parseInt(localStorage.getItem('abyss_best_floor') || '0');
+        html += `<div class="personal-best">
+            <div class="pb-title">🔥 深渊挑战</div>
+            <div class="pb-grid">
+                <div class="pb-item"><span class="pb-label">最高层数</span><span class="pb-value" style="color:#ff6600;">${bestFloor}层</span></div>
+                <div class="pb-item"><span class="pb-label">最高积分</span><span class="pb-value" style="color:#ffcc00;">${bestScore}分</span></div>
+            </div>
+        </div>`;
+
+        // 周重置倒计时
+        html += `<div class="week-countdown">⏱️ 距离重置: ${this.getTimeToNextWeek()}</div>`;
+
+
+        // Tab标签（与其他榜一致）
+        html += `<div class="leaderboard-tabs">
+            <span class="lb-tab" onclick="OnlineSystem.switchTab('score')">综合</span>
+            <span class="lb-tab" onclick="OnlineSystem.switchTab('kills')">击杀</span>
+            ${this.leaderboardMode !== 'week' ? '<span class="lb-tab" onclick="OnlineSystem.switchTab(\'floor\')">层数</span>' : ''}
+            ${this.leaderboardMode !== 'week' ? '<span class="lb-tab" onclick="OnlineSystem.switchTab(\'gold\')">富豪</span>' : ''}
+            <span class="lb-tab active">🔥深渊</span>
+        </div>`;
+
+        html += '<div id="abyss-loading" style="color: #888; text-align: center; padding: 20px;">加载中...</div>';
+        panel.innerHTML = html;
+        this.bindPanelDrag(panel);
+
+        // 加载深渊数据
+        this.getAbyssLeaderboard((data) => {
+            if (this.currentTab !== 'abyss') return; // 用户已切换走
+
+            let listHtml = '';
+            if (data.error) {
+                listHtml = '<div style="color: #f44; text-align: center; padding: 20px;">加载失败</div>';
+            } else if (data.list.length === 0) {
+                listHtml = '<div style="color: #666; text-align: center; padding: 20px;">暂无挑战者，快来争夺榜首！</div>';
+            } else {
+                data.list.slice(0, 10).forEach((item, i) => {
+                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+                    listHtml += `<div class="stat-row" style="${item.isSelf ? 'color: #ffff00; background: rgba(255,255,0,0.1);' : ''}">
+                        <span>${medal} ${item.name}</span>
+                        <span style="color: #ff8800;">${item.floor}层 ${item.score}分</span>
+                    </div>`;
+                });
+
+                // 我的排名
+                if (data.myRank > 0) {
+                    listHtml += `<div class="stat-row" style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px; color: #ffcc00;">
+                        <span>我的排名</span>
+                        <span>第 ${data.myRank} 名</span>
+                    </div>`;
+                }
+            }
+
+            // 只更新列表部分
+            const loadingDiv = document.getElementById('abyss-loading');
+            if (loadingDiv) {
+                loadingDiv.outerHTML = listHtml;
+            }
+        });
     },
 
     // 切换周榜/总榜模式
@@ -1731,6 +1817,16 @@ const OnlineSystem = {
                     text: `💰 ${record.nickname} 卖出了 ${record.target_name}，获得 ${record.extra_data}G`,
                     type: 'gold'
                 };
+            case 'abyss_champion':
+                return {
+                    text: `🔥【深渊快报】${record.nickname} 击败了 ${record.target_name}，登顶深渊王者！`,
+                    type: 'abyss'
+                };
+            case 'abyss_top10':
+                return {
+                    text: `💀 ${record.nickname} 闯入深渊前10！当前排名第${record.extra_data}名`,
+                    type: 'abyss'
+                };
             default:
                 return {
                     text: `${record.nickname}: ${record.target_name}`,
@@ -1753,7 +1849,14 @@ const OnlineSystem = {
 
         // 设置公告内容和样式
         content.innerText = announcement.text;
-        content.className = announcement.type === 'boss' ? 'boss-announcement' : 'set-announcement';
+        const typeClassMap = {
+            'boss': 'boss-announcement',
+            'set': 'set-announcement',
+            'level': 'level-announcement',
+            'enhance': 'enhance-announcement',
+            'abyss': 'abyss-announcement'
+        };
+        content.className = typeClassMap[announcement.type] || 'set-announcement';
 
         // 重置动画
         content.style.animation = 'none';
@@ -1794,6 +1897,9 @@ const OnlineSystem = {
                 console.warn('[公告系统] 无法发布公告: 请在 PocketBase 后台将 announcements 表的 Create 权限设置为开放 (空字符串)。');
             } else {
                 console.error('[公告系统] 发布公告异常:', e.message);
+                if (e.response && e.response.data) {
+                    console.error('[公告系统] 错误详情:', JSON.stringify(e.response.data));
+                }
             }
         }
     }
@@ -2139,3 +2245,148 @@ window.addEventListener('load', () => {
         OnlineSystem.initAnnouncements();
     }, 1000);
 });
+
+// ========== 深渊排行榜 Mock (Patch) ==========
+if (typeof OnlineSystem !== 'undefined') {
+    // ========== 深渊排行榜 (Real) ==========
+    OnlineSystem.getAbyssLeaderboard = async function (callback) {
+        try {
+            // 获取全服前100名
+            const result = await pb.collection('abyss_rank').getList(1, 100, {
+                sort: '-score',
+                expand: 'user' // 假设关联了用户表
+            });
+
+            const records = result.items.map((item, index) => ({
+                rank: index + 1,
+                name: item.nickname || 'Unknown',
+                lvl: item.level || 1,
+                floor: item.floor || 1,
+                score: item.score || 0,
+                // 通过同步码识别自己（包括临时ID）
+                isSelf: item.sync_code === CloudSync.syncCode ||
+                    item.sync_code === localStorage.getItem('temp_user_id')
+            }));
+
+            // 获取我的排名 (如果在前100名里)
+            let myRank = -1;
+            let myLevelRank = -1;
+
+            const myRecord = records.find(r => r.isSelf);
+            if (myRecord) myRank = myRecord.rank;
+
+            // TODO: 如果不在前100，需要单独查询
+
+            // 计算同级排名 (简单过滤前100名中的同级方便展示，准确数据需后端支持)
+            const myLvl = player.lvl;
+            const levelSubset = records.filter(r => Math.abs(r.lvl - myLvl) <= 5);
+            // 重新排序子集
+            levelSubset.sort((a, b) => b.score - a.score);
+
+            if (myRecord) {
+                myLevelRank = levelSubset.findIndex(r => r.isSelf) + 1;
+            }
+
+            if (callback) callback({
+                list: records,
+                myRank: myRank,
+                myLevelRank: myLevelRank,
+                totalPlayers: result.totalItems
+            });
+
+        } catch (e) {
+            console.error('[Online] 排行榜拉取失败:', e);
+            // 失败时返回空或显示错误，不再伪造数据
+            if (callback) callback({
+                list: [],
+                myRank: 0,
+                myLevelRank: 0,
+                totalPlayers: 0,
+                error: true
+            });
+        }
+    };
+
+    OnlineSystem.submitAbyssScore = async function (score, floor) {
+        // 获取同步码，如果未绑定则使用临时ID（6位纯字母数字）
+        let syncCode = CloudSync.syncCode;
+        if (!syncCode) {
+            let tempId = localStorage.getItem('temp_user_id');
+            if (!tempId) {
+                tempId = Math.random().toString(36).substr(2, 6).toUpperCase();
+                localStorage.setItem('temp_user_id', tempId);
+            }
+            syncCode = tempId;
+        }
+
+        const data = {
+            sync_code: syncCode,
+            nickname: OnlineSystem.nickname || '勇士',
+            score: score,
+            floor: floor,
+            level: player.lvl
+        };
+
+        console.log('[Abyss] 提交数据:', JSON.stringify(data));
+
+        try {
+            // 先获取当前第1名（用于判断是否超越）
+            const topResult = await pb.collection('abyss_rank').getList(1, 1, {
+                sort: '-score'
+            });
+            const previousChampion = topResult.items.length > 0 ? topResult.items[0] : null;
+            const previousChampionScore = previousChampion ? previousChampion.score : 0;
+            const previousChampionName = previousChampion ? previousChampion.nickname : null;
+
+            // 获取我之前的排名
+            const previousRankData = await pb.collection('abyss_rank').getList(1, 1, {
+                filter: `sync_code = "${syncCode}"`
+            });
+            const myPreviousScore = previousRankData.items.length > 0 ? previousRankData.items[0].score : 0;
+
+            // 查询是否已有记录
+            const existing = await pb.collection('abyss_rank').getList(1, 1, {
+                filter: `sync_code = "${syncCode}"`
+            });
+
+            if (existing.items.length > 0) {
+                const record = existing.items[0];
+                // 只有分数更高时才更新
+                if (score > record.score) {
+                    await pb.collection('abyss_rank').update(record.id, data);
+                    console.log('[Online] 更新深渊记录:', score);
+                }
+            } else {
+                await pb.collection('abyss_rank').create(data);
+                console.log('[Online] 创建深渊记录:', score);
+            }
+
+            // 检查是否超越第1名（成为新王者）
+            if (score > previousChampionScore && previousChampionName && previousChampionName !== data.nickname) {
+                // 发送王者更替公告
+                OnlineSystem.announce('abyss_champion', previousChampionName, score);
+                console.log('[Abyss] 公告：超越王者', previousChampionName);
+            }
+
+            // 检查是否首次进入前10
+            if (myPreviousScore === 0) {
+                // 这是新记录，查一下现在排名
+                const newRankResult = await pb.collection('abyss_rank').getList(1, 100, {
+                    sort: '-score'
+                });
+                const newRank = newRankResult.items.findIndex(r => r.sync_code === syncCode) + 1;
+                if (newRank > 0 && newRank <= 10) {
+                    OnlineSystem.announce('abyss_top10', '深渊挑战', newRank);
+                    console.log('[Abyss] 公告：首次进入前10，排名', newRank);
+                }
+            }
+
+        } catch (e) {
+            console.error('[Online] 提交分数失败:', e);
+            // 打印详细错误信息
+            if (e.response && e.response.data) {
+                console.error('[Online] 错误详情:', JSON.stringify(e.response.data));
+            }
+        }
+    };
+}

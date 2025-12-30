@@ -568,5 +568,68 @@ const SET_ITEMS = {
                 stats: { maxHp: 200, maxMp: 100, def: 100, dmgPct: 250, critChance: 15 }
             }
         }
+    },
+
+    // ========== 深渊挑战专属套装 ==========
+    'abyss_conqueror': {
+        name: "深渊征服者",
+        description: "深渊挑战专属套装，只有周榜前列才能获得",
+        pieces: {
+            helm: {
+                name: "深渊征服者的冠冕",
+                icon: '👑',
+                type: 'helm',
+                def: 45,
+                stats: { dmgPct: 100, maxHp: 100, allRes: 30 }
+            },
+            body: {
+                name: "深渊征服者的战甲",
+                icon: '🛡️',
+                type: 'armor',
+                def: 280,
+                stats: { dmgPct: 150, maxHp: 200, def: 80, allRes: 40 }
+            },
+            gloves: {
+                name: "深渊征服者的铁拳",
+                icon: '🧤',
+                type: 'gloves',
+                def: 28,
+                stats: { dmgPct: 80, critChance: 12, attackSpeed: 25 }
+            },
+            boots: {
+                name: "深渊征服者的践踏",
+                icon: '👢',
+                type: 'boots',
+                def: 30,
+                stats: { dmgPct: 70, maxHp: 80, def: 40 }
+            },
+            belt: {
+                name: "深渊征服者的束缚",
+                icon: '🎗️',
+                type: 'belt',
+                def: 22,
+                stats: { dmgPct: 60, maxHp: 60, lifeSteal: 8 }
+            },
+            amulet: {
+                name: "深渊征服者的徽记",
+                icon: '📿',
+                type: 'amulet',
+                stats: { dmgPct: 120, critChance: 15, critDamage: 50 }
+            }
+        },
+        bonuses: {
+            2: {
+                desc: "伤害 +200%，全抗性 +50",
+                stats: { dmgPct: 200, allRes: 50 }
+            },
+            4: {
+                desc: "暴击率 +20%，生命偷取 +15%",
+                stats: { critChance: 20, lifeSteal: 15 }
+            },
+            6: {
+                desc: "伤害 +500%，最大生命 +500，攻速 +50%",
+                stats: { dmgPct: 500, maxHp: 500, attackSpeed: 50 }
+            }
+        }
     }
 };

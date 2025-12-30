@@ -29,7 +29,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 | 对象 | 文件/行号 | 用途 |
 |------|------|------|
-| `RARITY` | game.js:3 | 物品稀有度常量 |
+| `RARITY` | constants.js | 物品稀有度常量 |
 | `panelManager` | game.js:49 | UI面板管理系统 |
 | `GAME_CONFIG` | constants.js | 游戏配置常量集合 |
 | `EnemyPool` | game.js:489 | 敌人对象池系统 |
@@ -39,9 +39,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | **`SaveSystem`** | **save-system.js** | **IndexedDB存档系统（已拆分）** |
 | **`EnemySystem`** | **enemy-system.js** | **Boss/精英怪配置与技能（已拆分）** |
 | `SET_ITEMS` | set-items.js | 套装装备数据定义 |
+| **`ItemSystem`** | **item-system.js** | **物品/背包/掉落系统（已拆分）** |
+| **`panelManager`** | **ui-panels.js** | **面板管理/切换/层级系统（已拆分）** |
 | `enterFloor()` | game.js:3560 | 进入楼层/地图生成 |
 | `takeDamage()` | game.js:5400 | 伤害计算和死亡处理 |
-| `dropLoot()` | game.js:6830 | 物品掉落系统 |
+| `dropLoot()` | item-system.js | 物品掉落系统 |
 
 ### 常量系统 (v4.7+)
 
