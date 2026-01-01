@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-这是一个使用 HTML5 Canvas 和原生 JavaScript 开发的暗黑破坏神风格 ARPG 游戏。整个游戏架构采用单文件设计，所有逻辑集中在 `game.js` 中，无任何外部依赖。
+这是一个使用 HTML5 Canvas 和原生 JavaScript 开发的 ARPG 游戏「菠萝战纪 Brawlore」。整个游戏架构采用单文件设计，所有逻辑集中在 `game.js` 中，无任何外部依赖。
 
 ## 如何运行
 
@@ -27,20 +27,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### 关键全局对象位置
 
-| 对象 | 行号 | 用途 |
+| 对象 | 文件/行号 | 用途 |
 |------|------|------|
-| `RARITY` | 3 | 物品稀有度常量 |
-| `panelManager` | 49 | UI面板管理系统 |
-| `GAME_CONFIG` | 225 | 游戏配置常量集合 |
-| `EnemyPool` | 489 | 敌人对象池系统 |
-| `player` | 748 | 玩家状态和数据 |
-| `AutoBattle` | 1220 | 自动战斗AI系统 |
-| `AudioSys` | 2312 | 音效和背景音乐 |
-| `SaveSystem` | 2780 | IndexedDB存档系统 |
-| `SET_ITEMS` | 3082 | 套装装备数据定义 |
-| `enterFloor()` | 3840 | 进入楼层/地图生成 |
-| `takeDamage()` | 5683 | 伤害计算和死亡处理 |
-| `dropLoot()` | 7110 | 物品掉落系统 |
+| `RARITY` | constants.js | 物品稀有度常量 |
+| `panelManager` | game.js:49 | UI面板管理系统 |
+| `GAME_CONFIG` | constants.js | 游戏配置常量集合 |
+| `EnemyPool` | game.js:489 | 敌人对象池系统 |
+| `player` | game.js:748 | 玩家状态和数据 |
+| `AutoBattle` | game.js:1220 | 自动战斗AI系统 |
+| `AudioSys` | audio.js | 音效和背景音乐 |
+| **`SaveSystem`** | **save-system.js** | **IndexedDB存档系统（已拆分）** |
+| **`EnemySystem`** | **enemy-system.js** | **Boss/精英怪配置与技能（已拆分）** |
+| `SET_ITEMS` | set-items.js | 套装装备数据定义 |
+| **`ItemSystem`** | **item-system.js** | **物品/背包/掉落系统（已拆分）** |
+| **`panelManager`** | **ui-panels.js** | **面板管理/切换/层级系统（已拆分）** |
+| `enterFloor()` | game.js:3560 | 进入楼层/地图生成 |
+| `takeDamage()` | game.js:5400 | 伤害计算和死亡处理 |
+| `dropLoot()` | item-system.js | 物品掉落系统 |
 
 ### 常量系统 (v4.7+)
 
@@ -65,10 +68,11 @@ const SKILL_CONFIG = {
     multishot: { baseMana: 10, range: 500, cooldown: 1.0 }
 };
 
-// 游戏配置 (game.js:225) - 包含40+个常量
+// 游戏配置 (constants.js) - 包含40+个常量
 const GAME_CONFIG = {
     ELITE_SPAWN_RATE: 0.1,          // 精英怪概率
-    MAX_ENEMIES: 20,                // 最大怪物数
+    MAX_ENEMIES: 80,                // 最大怪物数（80x80地图）
+    INITIAL_ENEMIES: 40,            // 初始生成数量
     INTERACTION_RANGE: 60,          // 交互距离
     AUTO_SAVE_INTERVAL: 30,         // 自动存档间隔(秒)
     LOW_HP_THRESHOLD: 0.2,          // 低血量警告阈值
@@ -399,4 +403,4 @@ player.killsSincePotion   // 距离下次保底消耗品的击杀数
 - 颜色使用 `COLORS` 常量对象统一管理
 - 所有文本为中文（包括注释）
 - 使用简洁token执行和输出
-- 每次更新了 js \css 文件,就要在 index.html 中更新其版本号,精确到分钟(UTF-8 时间),避免被浏览器缓存.
+- 每次更新了 js \css 文件,就要在 index.html 中更新其版本号,避免被浏览器缓存.

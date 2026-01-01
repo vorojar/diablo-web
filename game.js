@@ -1,44 +1,5 @@
-// ========== 全局常量定义 ==========
-// 稀有度等级
-const RARITY = {
-    COMMON: 0,      // 普通(白)
-    NORMAL: 1,      // 普通强化(白)
-    MAGIC: 2,       // 魔法(蓝)
-    RARE: 3,        // 稀有(黄)
-    UNIQUE: 4,      // 暗金(金)
-    SET: 5          // 套装(绿)
-};
-
-// 物品类型
-const ITEM_TYPE = {
-    WEAPON: 'weapon',
-    ARMOR: 'armor',
-    HELM: 'helm',
-    BELT: 'belt',
-    GLOVES: 'gloves',
-    BOOTS: 'boots',
-    RING: 'ring',
-    AMULET: 'amulet',
-    POTION: 'potion',
-    SCROLL: 'scroll',
-    GOLD: 'gold'
-};
-
-// 消耗品名称
-const CONSUMABLE_NAME = {
-    HEALTH_POTION: '治疗药剂',
-    MANA_POTION: '法力药剂',
-    TOWN_PORTAL: '回城卷轴'
-};
-
-// 工具函数：检查是否为受保护物品（不可丢弃）
-function isProtectedItem(item) {
-    if (!item) return false;
-    return item.rarity >= RARITY.UNIQUE ||
-        item.name === CONSUMABLE_NAME.HEALTH_POTION ||
-        item.name === CONSUMABLE_NAME.MANA_POTION ||
-        item.name === CONSUMABLE_NAME.TOWN_PORTAL;
-}
+// ========== game.js - 主游戏逻辑 ==========
+// 常量定义已移至 constants.js
 
 // 工具函数：检查是否在城镇
 function isInTown() {
@@ -53,6 +14,12 @@ function addGold(amount) {
     if (player.gold > player.personalBest.maxGold) {
         player.personalBest.maxGold = player.gold;
     }
+    // 每日任务：收集金币
+    if (typeof DailyQuestSystem !== 'undefined') {
+        DailyQuestSystem.updateProgress('collect_gold', amount);
+    }
+    // 成就追踪：累计金币
+    trackAchievement('total_gold', { amount });
 }
 
 // 统计追踪：更新个人最佳记录
@@ -72,445 +39,103 @@ function updatePersonalBest() {
 }
 
 // 统计追踪：记录稀有物品发现
-function trackItemFound(item) {
-    if (!item) return;
-    if (item.rarity === RARITY.UNIQUE) {
-        player.stats.uniqueFound++;
-    } else if (item.rarity === RARITY.SET) {
-        player.stats.setFound++;
-    }
-}
+// 统计追踪：记录稀有物品发现 (已移至 item-system.js)
 
 // 面板管理系统
-const panelManager = {
-    panels: {
-        'stats': { id: 'stats-panel', group: 'left', top: 10, baseTop: 10, opened: false, zIndex: 0 },
-        'achievements': { id: 'achievements-panel', group: 'left', top: 10, baseTop: 10, opened: false, zIndex: 0 },
-        'quest': { id: 'quest-panel', group: 'left', top: 15, baseTop: 15, opened: false, zIndex: 0 },
-        'inventory': { id: 'inventory-panel', group: 'right', top: 10, baseTop: 10, opened: false, zIndex: 0 },
-        'stash': { id: 'stash-panel', group: 'right', top: 15, baseTop: 15, opened: false, zIndex: 0 },
-        'skills': { id: 'skills-panel', group: 'center', top: 15, baseTop: 15, opened: false, zIndex: 0, left: 340 },
-        'shop': { id: 'shop-panel', group: 'center', top: 10, baseTop: 10, opened: false, zIndex: 0 },
-        'blacksmith': { id: 'blacksmith-panel', group: 'center', top: 15, baseTop: 15, opened: false, zIndex: 0 },
-        'auto-battle': { id: 'auto-battle-panel', group: 'right', top: 10, baseTop: 10, opened: false, zIndex: 0 }
-    },
-    maxZIndex: 100,
-
-    // 动态计算面板位置
-    calculatePosition(panelId) {
-        const panel = this.panels[panelId];
-        const element = document.getElementById(panel.id);
-
-        // 计算同组中已打开面板的数量
-        const openedInGroup = Object.values(this.panels).filter(
-            p => p.group === panel.group && p.opened && p.id !== panel.id
-        ).length;
-
-        // 根据同组打开面板数量动态调整位置
-        const offset = openedInGroup * 8; // 每个面板错开8%
-        const newTop = panel.baseTop + offset;
-
-        element.style.top = newTop + '%';
-
-        // 对于中间组的面板,水平错开
-        if (panel.group === 'center' && panel.left) {
-            const centerOffset = (openedInGroup % 2) * 50 - 25; // 左右错开
-            element.style.left = (panel.left + centerOffset) + 'px';
-        }
-
-        return newTop;
-    },
-
-    // 设置面板在最上层
-    bringToFront(panelId) {
-        const panel = this.panels[panelId];
-        const element = document.getElementById(panel.id);
-
-        this.maxZIndex += 10;
-        panel.zIndex = this.maxZIndex;
-        element.style.zIndex = this.maxZIndex;
-    },
-
-    // 打开面板
-    open(panelId) {
-        const panel = this.panels[panelId];
-        panel.opened = true;
-        this.calculatePosition(panelId);
-        this.bringToFront(panelId);
-    },
-
-    // 关闭面板
-    close(panelId) {
-        const panel = this.panels[panelId];
-        panel.opened = false;
-        panel.zIndex = 0;
-    }
-};
-
-// 检查是否有任何重要面板打开（排除自动战斗设置面板）
-function isAnyPanelOpen() {
-    return Object.entries(panelManager.panels).some(
-        ([key, p]) => p.opened && key !== 'auto-battle'
-    );
-}
+// panelManager 和 isAnyPanelOpen 已迁移到 ui-panels.js
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const miniCanvas = document.getElementById('minimap');
 const miniCtx = miniCanvas.getContext('2d');
 
-const TILE_SIZE = 40;
-const MAP_WIDTH = 64;
-const MAP_HEIGHT = 64;
-
-const COLORS = {
-    // 基础颜色
-    white: '#ffffff',
-    blue: '#4850b8',
-    yellow: '#ffff00',
-    gold: '#908858',
-    red: '#c23b22',
-    green: '#00ff00',
-    ice: '#00ccff',
-
-    // 地图元素
-    floor: '#0c0c0c',
-    floorAlt: '#080808',
-    wall: '#2C2C2C',
-    townFloor: '#1a1a1a',
-    exit: '#0055aa',
-    entrance: '#aa5500',
-
-    // 稀有度颜色（物品）
-    rarityCommon: '#ffffff',     // 白色
-    rarityMagic: '#4850b8',      // 蓝色
-    rarityRare: '#ffff00',       // 黄色
-    rarityUnique: '#908858',     // 暗金
-    raritySet: '#20ff20',        // 套装绿
-
-    // 战斗反馈
-    damage: '#ff0000',           // 伤害数字
-    critical: '#ffff00',         // 暴击
-    heal: '#00ff00',             // 治疗
-    thornsDamage: '#88ff88',     // 荆棘反伤
-    manaCost: '#0066ff',         // 法力消耗
-    revive: '#ff00ff',           // 复活
-
-    // 提示/警告
-    warning: '#ff4444',          // 警告（背包满等）
-    error: '#ff0000',            // 错误
-    success: '#00ff00',          // 成功
-    info: '#4d94ff',             // 信息
-
-    // 元素伤害
-    fire: '#ff4400',             // 火焰
-    lightning: '#ffff00',        // 闪电
-    cold: '#00ccff',             // 冰霜
-    poison: '#00ff00',           // 毒素
-
-    // NPC/敌人
-    npc: '#00ff00',              // NPC标记
-    enemy: '#ff0000',            // 敌人
-    boss: '#ff00ff',             // BOSS
-    elite: '#ffaa00'             // 精英怪
+// DOM 缓存对象
+const cachedUI = {
+    // Orbs
+    hpFill: null, hpGhostFill: null, hpText: null, hpOrb: null,
+    mpFill: null, mpGhostFill: null, mpText: null, mpOrb: null,
+    // XP & Level
+    xpFill: null, xpPercentage: null, hudLvl: null, hudGold: null, floorDisplay: null,
+    // Indicators & FX
+    lowHpVignette: null, hellIndicator: null, comboHud: null, comboCount: null, comboTimerFill: null,
+    // Container
+    worldLabels: null, notificationArea: null, floatingTexts: null,
+    talentHud: null, tooltip: null, uiLayer: null,
+    // Skills Bar
+    skillBtns: {},
+    cdSweeps: {},
+    cdTimes: {},
+    // Menu Badges
+    badges: { stats: null, skills: null, quest: null },
+    // Settings & System
+    chkAutoGold: null, chkAutoPotion: null, chkAutoScroll: null,
+    chkJuice: null,
+    selectGraphicsQuality: null,
+    saveStatus: null
 };
 
-// 工具函数：根据稀有度获取颜色
-function getRarityColor(rarity) {
-    const colorMap = {
-        [RARITY.COMMON]: COLORS.rarityCommon,
-        [RARITY.NORMAL]: COLORS.rarityCommon,
-        [RARITY.MAGIC]: COLORS.rarityMagic,
-        [RARITY.RARE]: COLORS.rarityRare,
-        [RARITY.UNIQUE]: COLORS.rarityUnique,
-        [RARITY.SET]: COLORS.raritySet
-    };
-    return colorMap[rarity] || COLORS.white;
+// 初始化 UI 缓存
+function initUICache() {
+    // Orbs
+    cachedUI.hpFill = document.getElementById('hp-fill');
+    cachedUI.hpGhostFill = document.getElementById('hp-ghost-fill');
+    cachedUI.hpText = document.getElementById('hp-text');
+    cachedUI.hpOrb = document.getElementById('health-orb');
+    cachedUI.mpFill = document.getElementById('mp-fill');
+    cachedUI.mpGhostFill = document.getElementById('mp-ghost-fill');
+    cachedUI.mpText = document.getElementById('mp-text');
+    cachedUI.mpOrb = document.getElementById('mana-orb');
+
+    // XP & Level & Info
+    cachedUI.xpFill = document.getElementById('xp-fill');
+    cachedUI.xpPercentage = document.getElementById('xp-percentage');
+    cachedUI.hudLvl = document.getElementById('hud-lvl');
+    // 多处金币显示列表
+    cachedUI.goldDisplays = [
+        document.getElementById('gold-display'),
+        document.getElementById('shop-gold-display'),
+        document.getElementById('stash-gold-display'),
+        document.getElementById('forge-gold-display'),
+        document.getElementById('talent-shop-gold')
+    ].filter(el => el !== null);
+    cachedUI.floorDisplay = document.getElementById('floor-display');
+
+    // Indicators
+    cachedUI.lowHpVignette = document.getElementById('low-hp-vignette');
+    cachedUI.hellIndicator = document.getElementById('hell-indicator');
+    cachedUI.comboHud = document.getElementById('combo-hud');
+    cachedUI.comboCount = document.getElementById('combo-count');
+    cachedUI.comboTimerFill = document.getElementById('combo-timer-fill');
+
+    // Containers
+    cachedUI.worldLabels = document.getElementById('world-labels');
+    cachedUI.notificationArea = document.getElementById('notification-area');
+    cachedUI.floatingTexts = document.getElementById('floating-texts-container');
+    cachedUI.talentHud = document.getElementById('talent-hud');
+    cachedUI.tooltip = document.getElementById('tooltip');
+    cachedUI.uiLayer = document.querySelector('.ui-layer');
+
+    // Skills
+    const skills = ['fireball', 'thunder', 'multishot'];
+    skills.forEach(s => {
+        cachedUI.skillBtns[s] = document.getElementById(`skill-${s}`);
+        cachedUI.cdSweeps[s] = document.getElementById(`cd-sweep-${s}`);
+        cachedUI.cdTimes[s] = document.getElementById(`cd-time-${s}`);
+    });
+
+    // Badges
+    cachedUI.badges.stats = document.getElementById('badge-stats');
+    cachedUI.badges.skills = document.getElementById('badge-skills');
+    cachedUI.badges.quest = document.getElementById('badge-quest');
+
+    // Settings
+    cachedUI.chkAutoGold = document.getElementById('chk-auto-gold');
+    cachedUI.chkAutoPotion = document.getElementById('chk-auto-potion');
+    cachedUI.chkAutoScroll = document.getElementById('chk-auto-scroll');
+    cachedUI.chkJuice = document.getElementById('chk-juice');
+    cachedUI.selectGraphicsQuality = document.getElementById('select-graphics-quality');
+    cachedUI.saveStatus = document.getElementById('save-status');
 }
-
-// ========== 技能配置 ==========
-const SKILL_CONFIG = {
-    fireball: {
-        baseMana: 10,
-        manaPerLevel: 0,        // 固定消耗
-        range: 450,
-        cooldown: 0.5,
-        explosionLevel: 5       // 5级解锁爆炸
-    },
-    thunder: {
-        baseMana: 8,
-        manaPerLevel: 0.5,
-        range: 190,
-        cooldown: 0.8
-    },
-    multishot: {
-        baseMana: 10,
-        manaPerLevel: 0,
-        range: 500,
-        cooldown: 1.0
-    }
-};
-
-// 工具函数：计算技能法力消耗
-function getSkillManaCost(skillName, level) {
-    const config = SKILL_CONFIG[skillName];
-    if (!config) return 10;
-    return config.baseMana + (level - 1) * config.manaPerLevel;
-}
-
-// ========== 游戏配置常量 ==========
-const GAME_CONFIG = {
-    // 怪物生成
-    ELITE_SPAWN_RATE: 0.1,              // 精英怪生成概率 10%
-    DOUBLE_AFFIX_RATE: 0.3,             // 双词缀概率 30%
-    MAX_ENEMIES: 20,                    // 最大怪物数量
-    ENEMY_SPAWN_INTERVAL: 2000,         // 怪物生成间隔(ms)
-    ENEMY_SPAWN_MIN_DISTANCE: 300,      // 怪物生成最小距离
-
-    // 赌博概率
-    GAMBLE_RARE_RATE: 0.3,              // 赌博稀有概率 30%
-    GAMBLE_UNIQUE_RATE: 0.05,           // 赌博暗金概率 5%
-
-    // 自动战斗阈值
-    AUTO_POTION_HP_THRESHOLD: 0.3,      // 30%喝红药
-    AUTO_POTION_MP_THRESHOLD: 0.2,      // 20%喝蓝药
-    AUTO_EMERGENCY_HP: 0.15,            // 15%紧急回城
-    AUTO_KEEP_DISTANCE: 150,            // 保持距离150
-
-    // 怪物AI距离
-    MONSTER_MELEE_RANGE: 30,            // 近战攻击距离
-    MONSTER_RANGED_RETREAT: 150,        // 远程后退距离
-    MONSTER_RANGED_MAX: 400,            // 远程最大攻击距离
-
-    // 交互距离
-    INTERACTION_RANGE: 60,              // 通用交互距离
-    NPC_INTERACTION_RANGE: 80,          // NPC交互距离
-    PORTAL_INTERACTION_RANGE: 60,       // 传送门交互距离
-
-    // 拾取距离
-    PICKUP_RANGE: 400,                  // 自动拾取检测距离
-    PICKUP_MOVE_RANGE: 40,              // 拾取移动到物品距离
-
-    // 自动存档
-    AUTO_SAVE_INTERVAL: 30,             // 自动存档间隔(秒)
-
-    // 物品消失时间
-    ITEM_DESPAWN_RARE: 5 * 60 * 1000,   // 稀有物品5分钟
-    ITEM_DESPAWN_COMMON: 2 * 60 * 1000, // 普通物品2分钟
-
-    // 视觉效果
-    LOW_HP_THRESHOLD: 0.2,              // 低血量警告阈值 20%
-    CAMERA_SMOOTH: 0.1                  // 相机平滑系数
-};
-
-
-// ========== 天赋商店系统 ==========
-// 天赋数据库 - 每层可购买的随机天赋
-const TALENTS = {
-    // 攻击类天赋
-    flame_soul: {
-        id: 'flame_soul',
-        name: '烈焰之魂',
-        icon: '🔥',
-        desc: '攻击附带30%火焰伤害',
-        tier: 'rare',      // normal/rare/epic/legendary
-        price: 150,
-        effect: { fireDmgPct: 30 }
-    },
-    thunder_chain: {
-        id: 'thunder_chain',
-        name: '连锁闪电',
-        icon: '⚡',
-        desc: '击杀敌人时电击周围敌人',
-        tier: 'epic',
-        price: 200,
-        effect: { onKillChainLightning: true }
-    },
-    executioner: {
-        id: 'executioner',
-        name: '处刑者',
-        icon: '💀',
-        desc: '对低于30%血量敌人伤害+100%',
-        tier: 'rare',
-        price: 120,
-        effect: { executeDmgPct: 100, executeThreshold: 0.3 }
-    },
-    berserker: {
-        id: 'berserker',
-        name: '狂战士',
-        icon: '😡',
-        desc: '伤害+50%，受到伤害+20%',
-        tier: 'rare',
-        price: 100,
-        effect: { dmgPct: 50, damageTakenPct: 20 }
-    },
-    critical_master: {
-        id: 'critical_master',
-        name: '暴击大师',
-        icon: '🎯',
-        desc: '暴击率+15%，暴击伤害+30%',
-        tier: 'epic',
-        price: 180,
-        effect: { critChance: 15, critDamage: 30 }
-    },
-    poison_blade: {
-        id: 'poison_blade',
-        name: '淬毒之刃',
-        icon: '☠️',
-        desc: '攻击附带25%毒素伤害',
-        tier: 'rare',
-        price: 140,
-        effect: { poisonDmgPct: 25 }
-    },
-
-    // 防御类天赋
-    iron_wall: {
-        id: 'iron_wall',
-        name: '铁壁',
-        icon: '🛡️',
-        desc: '+80防御，移速-10%',
-        tier: 'normal',
-        price: 80,
-        effect: { def: 80, speedPct: -10 }
-    },
-    vampire: {
-        id: 'vampire',
-        name: '吸血鬼',
-        icon: '🧛',
-        desc: '生命偷取+8%',
-        tier: 'rare',
-        price: 130,
-        effect: { lifeSteal: 8 }
-    },
-    regeneration: {
-        id: 'regeneration',
-        name: '再生',
-        icon: '💚',
-        desc: '每秒恢复2%最大生命值',
-        tier: 'rare',
-        price: 150,
-        effect: { hpRegenPct: 2 }
-    },
-    elemental_shield: {
-        id: 'elemental_shield',
-        name: '元素护盾',
-        icon: '🌈',
-        desc: '所有抗性+25%',
-        tier: 'epic',
-        price: 200,
-        effect: { allRes: 25 }
-    },
-    thorns: {
-        id: 'thorns',
-        name: '荆棘',
-        icon: '🌵',
-        desc: '反弹20%受到的伤害',
-        tier: 'normal',
-        price: 90,
-        effect: { thornsPct: 20 }
-    },
-
-    // 功能类天赋
-    magnet: {
-        id: 'magnet',
-        name: '磁铁',
-        icon: '🧲',
-        desc: '自动拾取范围翻倍',
-        tier: 'normal',
-        price: 50,
-        effect: { pickupRange: 2 }
-    },
-    greed: {
-        id: 'greed',
-        name: '贪婪',
-        icon: '💰',
-        desc: '金币掉落+50%',
-        tier: 'normal',
-        price: 60,
-        effect: { goldPct: 50 }
-    },
-    treasure_hunter: {
-        id: 'treasure_hunter',
-        name: '寻宝者',
-        icon: '🗝️',
-        desc: '装备掉落率+30%',
-        tier: 'rare',
-        price: 160,
-        effect: { dropRatePct: 30 }
-    },
-    swift: {
-        id: 'swift',
-        name: '迅捷',
-        icon: '💨',
-        desc: '移动速度+25%',
-        tier: 'normal',
-        price: 70,
-        effect: { speedPct: 25 }
-    },
-    mana_flow: {
-        id: 'mana_flow',
-        name: '法力涌动',
-        icon: '🔮',
-        desc: '最大法力+50，法力恢复+10%',
-        tier: 'rare',
-        price: 120,
-        effect: { maxMp: 50, mpRegenPct: 10 }  // 从50%降到10%
-    },
-
-    // 特殊/传说天赋
-    gambler: {
-        id: 'gambler',
-        name: '赌徒',
-        icon: '🎰',
-        desc: '伤害随机×0.5~×2.0',
-        tier: 'epic',
-        price: 100,
-        effect: { gamblerDamage: true }
-    },
-    glass_cannon: {
-        id: 'glass_cannon',
-        name: '玻璃大炮',
-        icon: '💣',
-        desc: '伤害+100%，最大生命-30%',
-        tier: 'legendary',
-        price: 500,
-        effect: { dmgPct: 100, maxHpPct: -30 }
-    },
-    phoenix: {
-        id: 'phoenix',
-        name: '凤凰',
-        icon: '🔥',
-        desc: '死亡时复活一次（50%生命）',
-        tier: 'legendary',
-        price: 1000,
-        effect: { phoenixRevive: true }
-    },
-    bloodlust: {
-        id: 'bloodlust',
-        name: '嗜血',
-        icon: '🩸',
-        desc: '击杀敌人时恢复5%最大生命',
-        tier: 'rare',
-        price: 140,
-        effect: { onKillHealPct: 5 }
-    }
-};
-
-// 天赋稀有度价格倍率
-const TALENT_TIER_MULT = {
-    normal: 1,
-    rare: 1,
-    epic: 1,
-    legendary: 1
-};
-
-// 天赋稀有度颜色
-const TALENT_TIER_COLORS = {
-    normal: '#ffffff',
-    rare: '#4850b8',
-    epic: '#a335ee',
-    legendary: '#ff8000'
-};
 
 let gameActive = false;
 let lastTime = 0;
@@ -521,7 +146,13 @@ let enemies = [];
 let groundItems = [];
 let projectiles = [];
 let npcs = [];
-let bloodSplats = [];  // 地面血迹效果
+// bloodSplats 已废弃，血迹现在直接绘制到离屏Canvas (bloodCanvas)
+let destructibles = []; // 场景可破坏物体
+
+// 地图缓存系统（离屏Canvas优化）
+let mapCacheCanvas = null;
+let mapCacheCtx = null;
+let mapCacheValid = false;  // 缓存是否有效
 
 // 回城仪式状态
 let portalRitual = {
@@ -568,6 +199,56 @@ let combo = {
     active: false  // 是否显示
 };
 
+// ========== Game Juice 系统 (打击感与反馈) ==========
+const Juice = {
+    hitStopTimer: 0,
+
+    // 触发打击感核心逻辑
+    // entity: 受击者, isCrit: 是否暴击, isKill: 是否击杀
+    hit: function (entity, isCrit, isKill) {
+        if (!player.juiceEnabled) return; // 检查开关
+        const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
+
+        // 1. 顿帧 (Hit Stop) - 产生卡肉感
+        // 只有暴击或重要时刻才顿帧，普通攻击保持连贯
+        if (isCrit || isKill) {
+            this.hitStopTimer = isKill ? 0.06 : 0.03;
+            if (isMobile) this.hitStopTimer *= 0.7; // 移动端稍微短一点，防止误判为卡顿
+        }
+
+        // 2. 震屏 (Screen Shake)
+        let intensity = isCrit ? 10 : 4;
+        if (isKill) intensity += 6;
+        if (isMobile) intensity *= 0.4; // 移动端减弱视觉震动，保护视力
+
+        if (intensity > 2) {
+            triggerScreenShake(intensity, 0.15);
+        }
+
+        // 3. 触感反馈 (Mobile Vibrate)
+        if (isMobile && navigator.vibrate) {
+            if (isKill) navigator.vibrate(15);
+            else if (isCrit) navigator.vibrate(8);
+        }
+
+        // 4. 受击实体视觉反馈 (Squash & Stretch)
+        if (entity) {
+            entity.juiceScale = 0.85; // 瞬间压缩
+            entity.juiceScaleTimer = 0.2; // 0.2秒恢复
+        }
+    },
+
+    // 更新 Juice 系统时间
+    update: function (dt) {
+        if (this.hitStopTimer > 0) {
+            this.hitStopTimer -= dt;
+            if (this.hitStopTimer < 0) this.hitStopTimer = 0;
+            return true; // 正在顿帧，告诉主循环暂停逻辑更新
+        }
+        return false;
+    }
+};
+
 // 增加连击数
 function addCombo(amount = 1) {
     if (combo.count === 0) {
@@ -576,11 +257,56 @@ function addCombo(amount = 1) {
     combo.count += amount;
     combo.timer = combo.maxTimer;
     combo.scale = 1.5; // 击中时弹跳
-
-    // 连击音效（每10次播放更强烈的声音）
-    // 这里简单起见，利用现有的音效，或者静默（视觉为主）
+    // 成就追踪：最大连击
+    trackAchievement('max_combo', { combo: combo.count });
 }
 
+
+// --- 性能优化：通用对象池管理 ---
+const ParticlePool = {
+    _pool: [],
+    acquire(props) {
+        const p = this._pool.pop() || {};
+        return Object.assign(p, props);
+    },
+    release(p) {
+        if (this._pool.length < 500) {
+            // 清理物理属性，防止复用污染
+            p.z = undefined; p.vz = undefined; p.vx = undefined; p.vy = undefined;
+            p.gravity = undefined; p.type = undefined; p.canBake = undefined; p.size = 3;
+            this._pool.push(p);
+        }
+    }
+};
+
+const DamageNumberPool = {
+    _pool: [],
+    acquire(props) {
+        const d = this._pool.pop() || {};
+        return Object.assign(d, props);
+    },
+    release(d) {
+        if (this._pool.length < 100) this._pool.push(d);
+    }
+};
+
+// --- 性能优化：地表血迹离屏层 ---
+let bloodCanvas = null;
+let bloodCtx = null;
+
+function initBloodCanvas() {
+    if (!bloodCanvas) {
+        bloodCanvas = document.createElement('canvas');
+        bloodCanvas.width = MAP_WIDTH * TILE_SIZE;
+        bloodCanvas.height = MAP_HEIGHT * TILE_SIZE;
+        bloodCtx = bloodCanvas.getContext('2d');
+    }
+    clearBloodCanvas();
+}
+
+function clearBloodCanvas() {
+    if (bloodCtx) bloodCtx.clearRect(0, 0, bloodCanvas.width, bloodCanvas.height);
+}
 
 // 敌人对象池系统 - 复用对象减少GC压力
 const EnemyPool = {
@@ -638,25 +364,36 @@ let visitedMap = [];
 let dungeonExit = { x: 0, y: 0 };
 let dungeonEntrance = { x: 0, y: 0 };
 let townPortal = null;
+let townPortalSpot = { x: 0, y: 0 }; // 营地固定传送门位置（地牢入口右侧）
 let interactionTarget = null;
+
+// 获取传送门应显示的位置（营地使用固定位置，地牢使用实际位置）
+function getPortalDisplayPosition() {
+    if (!townPortal) return null;
+    if (player.floor === 0) {
+        // 营地：使用固定位置
+        return { x: townPortalSpot.x, y: townPortalSpot.y };
+    } else {
+        // 地牢：使用实际传送门位置
+        return { x: townPortal.x, y: townPortal.y };
+    }
+}
 
 const mouse = { x: 0, y: 0, worldX: 0, worldY: 0, leftDown: false, rightDown: false };
 const camera = { x: 0, y: 0 };
 
-// Settings
-const Settings = { bgm: true, sfx: true };
-
+// 任务标题和描述从 FLOOR_NAMES 动态获取，保持数据源统一
 const QUEST_DB = [
-    { id: 0, title: '邪恶洞窟', desc: '清除地牢第1层的 10 只怪物。', type: 'kill_count', target: 10, floor: 1, reward: '1 技能点' },
-    { id: 1, title: '埋骨之地', desc: '在地牢第2层击杀精英怪"血鸟"。', type: 'kill_elite', targetName: '血鸟', floor: 2, reward: '稀有戒指' },
-    { id: 2, title: '黑色荒地', desc: '在地牢第3层击杀 15 只怪物。', type: 'kill_count', target: 15, floor: 3, reward: '500 金币' },
-    { id: 3, title: '遗忘之塔', desc: '在地牢第4层击杀"女伯爵"。', type: 'kill_elite', targetName: '女伯爵', floor: 4, reward: '随机符文' },
-    { id: 4, title: '屠夫的末日', desc: '在地牢第5层击杀屠夫。', type: 'kill_boss', targetName: '屠夫', floor: 5, reward: '暗金装备' },
-    { id: 5, title: '蜘蛛森林', desc: '清除地牢第6层的 20 只怪物。', type: 'kill_count', target: 20, floor: 6, reward: '2 技能点' },
-    { id: 6, title: '剥皮丛林', desc: '在地牢第7层击杀精英怪"树头木拳"。', type: 'kill_elite', targetName: '树头木拳', floor: 7, reward: '暗金饰品' },
-    { id: 7, title: '憎恨囚牢', desc: '在地牢第8层击杀 25 只怪物。', type: 'kill_count', target: 25, floor: 8, reward: '1000 金币' },
-    { id: 8, title: '混沌避难所', desc: '在地牢第9层击杀"暗黑破坏神"。', type: 'kill_elite', targetName: '暗黑破坏神', floor: 9, reward: '传奇装备' },
-    { id: 9, title: '世界之石要塞', desc: '在地牢第10层击败巴尔，拯救世界。', type: 'kill_boss', targetName: '巴尔', floor: 10, reward: '终极神装' }
+    { id: 0, get title() { return getFloorName(1); }, get desc() { return `清除第1层「${getFloorName(1)}」的 10 只怪物。`; }, type: 'kill_count', target: 10, floor: 1, reward: '1 技能点' },
+    { id: 1, get title() { return getFloorName(2); }, get desc() { return `在第2层「${getFloorName(2)}」击杀精英怪"血鸟"。`; }, type: 'kill_elite', targetName: '血鸟', floor: 2, reward: '稀有戒指' },
+    { id: 2, get title() { return getFloorName(3); }, get desc() { return `在第3层「${getFloorName(3)}」击杀 15 只怪物。`; }, type: 'kill_count', target: 15, floor: 3, reward: '500 金币' },
+    { id: 3, get title() { return getFloorName(4); }, get desc() { return `在第4层「${getFloorName(4)}」击杀"女伯爵"。`; }, type: 'kill_elite', targetName: '女伯爵', floor: 4, reward: '随机符文' },
+    { id: 4, get title() { return getFloorName(5); }, get desc() { return `在第5层「${getFloorName(5)}」击杀屠夫。`; }, type: 'kill_boss', targetName: '屠夫', floor: 5, reward: '暗金装备' },
+    { id: 5, get title() { return getFloorName(6); }, get desc() { return `清除第6层「${getFloorName(6)}」的 20 只怪物。`; }, type: 'kill_count', target: 20, floor: 6, reward: '2 技能点' },
+    { id: 6, get title() { return getFloorName(7); }, get desc() { return `在第7层「${getFloorName(7)}」击杀精英怪"树头木拳"。`; }, type: 'kill_elite', targetName: '树头木拳', floor: 7, reward: '暗金饰品' },
+    { id: 7, get title() { return getFloorName(8); }, get desc() { return `在第8层「${getFloorName(8)}」击杀 25 只怪物。`; }, type: 'kill_count', target: 25, floor: 8, reward: '1000 金币' },
+    { id: 8, get title() { return getFloorName(9); }, get desc() { return `在第9层「${getFloorName(9)}」击杀"暗黑破坏神"。`; }, type: 'kill_elite', targetName: '暗黑破坏神', floor: 9, reward: '传奇装备' },
+    { id: 9, get title() { return getFloorName(10); }, get desc() { return `在第10层「${getFloorName(10)}」击败巴尔，拯救世界。`; }, type: 'kill_boss', targetName: '巴尔', floor: 10, reward: '终极神装' }
 ];
 
 // 获取当前或指定索引的任务（支持无限任务）
@@ -685,6 +422,7 @@ function getCurrentQuest(index) {
         rewardStr += " & 随机装备";
     }
 
+    const floorName = getFloorName(currentFloor);
     if (isBossLevel) {
         // Boss任务
         // 简化的Boss名称逻辑
@@ -694,8 +432,8 @@ function getCurrentQuest(index) {
 
         return {
             id: idx,
-            title: `第 ${currentFloor} 层：${isTrueBoss ? '首领挑战' : '精英狩猎'}`,
-            desc: `前往地牢第 ${currentFloor} 层，击败强大的 ${bossName}。`,
+            title: floorName,
+            desc: `在第${currentFloor}层「${floorName}」击败强大的 ${bossName}。`,
             type: isTrueBoss ? 'kill_boss' : 'kill_elite',
             targetName: bossName,
             floor: currentFloor,
@@ -707,8 +445,8 @@ function getCurrentQuest(index) {
         const targetCount = Math.min(50, 15 + Math.floor((idx - 9) * 2)); // 数量逐渐增加，上限50
         return {
             id: idx,
-            title: `第 ${currentFloor} 层：区域清理`,
-            desc: `清除地牢第 ${currentFloor} 层的 ${targetCount} 只怪物，确保营地安全。`,
+            title: floorName,
+            desc: `清除第${currentFloor}层「${floorName}」的 ${targetCount} 只怪物。`,
             type: 'kill_count',
             target: targetCount,
             floor: currentFloor,
@@ -769,89 +507,10 @@ function claimQuestReward() {
 }
 
 // 第2排：普通怪物帧索引
-const MONSTER_FRAMES = {
-    'melee': 0,       // 沉沦魔
-    'ranged': 1,      // 骷髅弓箭手
-    'shaman': 2,      // 沉沦魔巫师
-    'zombie': 3,      // 僵尸
-    'skeleton': 4,    // 骷髅战士
-    'ghost': 5,       // 幽灵鬼魂
-    'specter': 6,     // 闪电幽魂
-    'mummy': 7,       // 木乃伊
-    'vampire': 8      // 吸血鬼
-};
+// 第2排：普通怪物帧索引 (已移至 enemy-system.js)
 
-// 第3排：BOSS帧索引
-const BOSS_FRAMES = {
-    'bloodRaven': 0,  // 血鸟
-    'countess': 1,    // 女伯爵
-    'butcher': 2,     // 屠夫
-    'duriel': 3,      // 树头木拳
-    'diablo': 4,      // 暗黑破坏神
-    'baal': 5         // 巴尔
-};
-
-// 根据Boss名称获取frameIndex（用于BOSS_FRAMES）
-function getBossFrameIndex(bossName) {
-    // 移除"地狱"前缀
-    const cleanName = bossName.replace('地狱', '');
-
-    const bossFrameMap = {
-        '血鸟': BOSS_FRAMES.bloodRaven,
-        '女伯爵': BOSS_FRAMES.countess,
-        '屠夫': BOSS_FRAMES.butcher,
-        '树头木拳': BOSS_FRAMES.duriel,
-        '暗黑破坏神': BOSS_FRAMES.diablo,
-        '巴尔': BOSS_FRAMES.baal
-    };
-
-    return bossFrameMap[cleanName] || BOSS_FRAMES.bloodRaven; // 默认使用血鸟
-}
-
-// 每层对应的 Boss 信息（名称与基础血量）
-// 基础Boss配置
-const BASE_BOSS_MAP = {
-    2: { name: '血鸟', hp: 300, dmg: 25, xp: 1000 },
-    4: { name: '女伯爵', hp: 800, dmg: 40, xp: 2000 },
-    5: { name: '屠夫', hp: 1050, dmg: 50, xp: 2500 },
-    7: { name: '树头木拳', hp: 2150, dmg: 55, xp: 3000 },
-    9: { name: '暗黑破坏神', hp: 3840, dmg: 70, xp: 5000 },
-    10: { name: '巴尔', hp: 4500, dmg: 80, xp: 8000 }
-};
-
-// 获取当前层的BOSS生成信息（支持无限层级）
-function getBossSpawnInfo(floor) {
-    // 计算周目数 (0: 1-10层, 1: 11-20层, ...)
-    const cycle = Math.floor((floor - 1) / 10);
-    // 映射到基础层数 (1-10)
-    const baseFloor = ((floor - 1) % 10) + 1;
-
-    const config = BASE_BOSS_MAP[baseFloor];
-    if (!config) return null;
-
-    // 属性膨胀系数
-    // 血量：每周目+150%
-    const hpMult = 1 + cycle * 1.5;
-    // 伤害：每周目+60%
-    const dmgMult = 1 + cycle * 0.6;
-    // 经验：每周目+100%
-    const xpMult = 1 + cycle * 1.0;
-
-    // 称号前缀
-    let prefix = "";
-    if (cycle === 1) prefix = "噩梦 ";
-    else if (cycle === 2) prefix = "地狱 ";
-    else if (cycle >= 3) prefix = "折磨" + (cycle - 2) + " ";
-
-    return {
-        name: prefix + config.name,
-        originalName: config.name, // 用于查找资源
-        hp: Math.floor(config.hp * hpMult),
-        dmg: Math.floor(config.dmg * dmgMult),
-        xp: Math.floor(config.xp * xpMult),
-        speed: 90 + Math.min(cycle * 10, 100) // 速度有上限
-    };
-}
+// 应用 Boss 特殊属性
+// 应用 Boss 特殊属性 (已移至 enemy-system.js)
 
 const player = {
     x: 0, y: 0, radius: 12, color: '#eee', speed: 180, direction: 'front',
@@ -876,7 +535,8 @@ const player = {
     // 记录每层 Boss 的下次刷新时间戳（毫秒）
     bossRespawn: {},
     inventory: Array(30).fill(null),
-    stash: Array(36).fill(null), // 仓库，36个格子
+    stash: Array(36).fill(null), // 仓库，基础36格
+    stashLevel: 0, // 仓库扩建等级（0-3），每级+6格
     questIndex: 0, questState: 0, questProgress: 0,
     died: false,
     achievements: {},
@@ -886,6 +546,8 @@ const player = {
         potion: true,    // 自动拾取药水
         scroll: true     // 自动拾取卷轴
     },
+    // 打击感设置
+    juiceEnabled: false, // 默认关闭打击感增强
     // 画质设置
     graphicsQuality: 'high',  // 'high'=华丽特效, 'low'=性能优先
     // 难度系统
@@ -931,6 +593,7 @@ const player = {
     deathTimer: 0,        // 死亡倒计时（秒）
     lastDamageSource: null, // 最后伤害来源（用于显示死因）
     invincibleTimer: 0,   // 无敌帧计时器
+    lightningOverloadTimer: 0, // 闪电过载视觉计时器
     // 统计数据（用于排行榜）
     stats: {
         totalGold: 0,         // 累计获得金币
@@ -954,18 +617,179 @@ const player = {
     tutorial: {
         completed: false,     // 是否已完成引导
         step: 0               // 当前步骤：0=进入地牢, 1=攻击怪物, 2=拾取物品, 3=打开背包, 4=使用技能
-    }
+    },
+    // 离线收益系统
+    lastOnlineTime: null,     // 上次在线时间戳（用于计算离线时长）
+    offlineRewardsClaimed: false  // 离线收益是否已领取（初始为false，第一次进入游戏后会被设置为true）
 };
+
+// UI 视觉状态（用于平滑动画与脏检查）
+let uiDisplayState = {
+    hp: 100, hpGhost: 100, mp: 50, mpGhost: 50, xpPct: 0, lvl: -1, gold: -1,
+    lastHp: -1, lastHpGhost: -1, lastMp: -1, lastMpGhost: -1, lastXpPct: -1,
+    activeSkill: '',
+    lastLowHpState: null,
+    lastPoisonedState: null,
+    lastFrozenState: null,
+    lastOverloadedState: null,
+    dirty: true
+};
+
+// UI 平滑渲染引擎
+// UI 平滑渲染引擎
+function updateSmoothUI(dt) {
+    // --- Combo HUD ---
+    if (cachedUI.comboHud) {
+        if (combo.active && combo.count > 1) {
+            cachedUI.comboHud.classList.add('active');
+            cachedUI.comboCount.innerText = combo.count;
+            const pct = (combo.timer / combo.maxTimer) * 100;
+            cachedUI.comboTimerFill.style.width = pct + '%';
+            cachedUI.comboCount.style.transform = (combo.scale > 1) ? `scale(${combo.scale})` : 'scale(1)';
+        } else {
+            cachedUI.comboHud.classList.remove('active');
+        }
+    }
+
+    // --- Smooth Logic ---
+    const targetHp = (player.hp / player.maxHp) * 100;
+    if (Math.abs(uiDisplayState.hp - targetHp) > 0.01) uiDisplayState.hp += (targetHp - uiDisplayState.hp) * dt * 8;
+    else uiDisplayState.hp = targetHp;
+
+    if (uiDisplayState.hpGhost > uiDisplayState.hp) uiDisplayState.hpGhost += (uiDisplayState.hp - uiDisplayState.hpGhost) * dt * 2.5;
+    else uiDisplayState.hpGhost = uiDisplayState.hp;
+
+    const targetMp = (player.mp / player.maxMp) * 100;
+    if (Math.abs(uiDisplayState.mp - targetMp) > 0.01) uiDisplayState.mp += (targetMp - uiDisplayState.mp) * dt * 8;
+    else uiDisplayState.mp = targetMp;
+
+    if (uiDisplayState.mpGhost > uiDisplayState.mp) uiDisplayState.mpGhost += (uiDisplayState.mp - uiDisplayState.mpGhost) * dt * 2.5;
+    else uiDisplayState.mpGhost = uiDisplayState.mp;
+
+    const targetXp = player.xpNext > 0 ? (player.xp / player.xpNext * 100) : 0;
+    if (Math.abs(uiDisplayState.xpPct - targetXp) > 0.01) uiDisplayState.xpPct += (targetXp - uiDisplayState.xpPct) * dt * 5;
+    else uiDisplayState.xpPct = targetXp;
+
+    // --- Granular DOM Implementation ---
+    if (Math.abs(uiDisplayState.hp - uiDisplayState.lastHp) > 0.001) {
+        uiDisplayState.lastHp = uiDisplayState.hp;
+        if (cachedUI.hpFill) cachedUI.hpFill.style.height = uiDisplayState.hp + '%';
+        if (cachedUI.hpText) cachedUI.hpText.innerText = Math.max(0, Math.floor(player.hp));
+    }
+    if (Math.abs(uiDisplayState.hpGhost - uiDisplayState.lastHpGhost) > 0.001) {
+        uiDisplayState.lastHpGhost = uiDisplayState.hpGhost;
+        if (cachedUI.hpGhostFill) cachedUI.hpGhostFill.style.height = uiDisplayState.hpGhost + '%';
+    }
+    if (Math.abs(uiDisplayState.mp - uiDisplayState.lastMp) > 0.001) {
+        uiDisplayState.lastMp = uiDisplayState.mp;
+        if (cachedUI.mpFill) cachedUI.mpFill.style.height = uiDisplayState.mp + '%';
+        if (cachedUI.mpText) cachedUI.mpText.innerText = Math.max(0, Math.floor(player.mp));
+    }
+    if (Math.abs(uiDisplayState.mpGhost - uiDisplayState.lastMpGhost) > 0.001) {
+        uiDisplayState.lastMpGhost = uiDisplayState.mpGhost;
+        if (cachedUI.mpGhostFill) cachedUI.mpGhostFill.style.height = uiDisplayState.mpGhost + '%';
+    }
+    if (Math.abs(uiDisplayState.xpPct - uiDisplayState.lastXpPct) > 0.001) {
+        uiDisplayState.lastXpPct = uiDisplayState.xpPct;
+        if (cachedUI.xpFill) cachedUI.xpFill.style.width = Math.min(100, uiDisplayState.xpPct) + '%';
+        if (cachedUI.xpPercentage) cachedUI.xpPercentage.innerText = uiDisplayState.xpPct.toFixed(2) + '%';
+    }
+
+    if (uiDisplayState.gold !== player.gold) {
+        const oldGold = (uiDisplayState.gold === -1) ? player.gold : uiDisplayState.gold;
+        uiDisplayState.gold = player.gold;
+
+        cachedUI.goldDisplays.forEach(el => {
+            if (el) {
+                // 如果元素可见，则播放滚动动画；否则直接更新文字
+                if (el.offsetParent !== null) {
+                    GSAPAnims.countUp(el, oldGold, player.gold, 0.8);
+                    // 伴随一个小缩放脉冲
+                    if (el.parentElement) GSAPAnims.pulse(el.parentElement, 1.05);
+                } else {
+                    el.innerText = player.gold.toLocaleString();
+                }
+            }
+        });
+    }
+
+    if (uiDisplayState.lvl !== player.lvl) {
+        uiDisplayState.lvl = player.lvl;
+        if (cachedUI.hudLvl) {
+            cachedUI.hudLvl.innerText = player.lvl;
+            GSAPAnims.pulse(cachedUI.hudLvl.parentElement, 1.2);
+        }
+    }
+
+    if (uiDisplayState.activeSkill !== player.activeSkill) {
+        uiDisplayState.activeSkill = player.activeSkill;
+        if (cachedUI.skillBtns.fireball) {
+            for (let k in cachedUI.skillBtns) if (cachedUI.skillBtns[k]) cachedUI.skillBtns[k].classList.remove('active');
+            const currentSkill = (player.activeSkill === 'attack') ? 'fireball' : player.activeSkill;
+            if (cachedUI.skillBtns[currentSkill]) cachedUI.skillBtns[currentSkill].classList.add('active');
+        }
+    }
+
+    // 中毒视觉同步
+    if (uiDisplayState.lastPoisonedState !== player.poisoned) {
+        uiDisplayState.lastPoisonedState = player.poisoned;
+        if (cachedUI.hpOrb) {
+            if (player.poisoned) cachedUI.hpOrb.classList.add('poisoned');
+            else cachedUI.hpOrb.classList.remove('poisoned');
+        }
+    }
+
+    // 冰冻/减速视觉同步
+    const isChilled = (player.frozen || player.slowedTimer > 0);
+    if (uiDisplayState.lastFrozenState !== isChilled) {
+        uiDisplayState.lastFrozenState = isChilled;
+        if (cachedUI.hpOrb) {
+            if (isChilled) cachedUI.hpOrb.classList.add('chilled');
+            else cachedUI.hpOrb.classList.remove('chilled', 'frozen');
+        }
+    }
+
+    // 闪电过载视觉同步
+    const isOverloaded = (player.lightningOverloadTimer > 0);
+    if (uiDisplayState.lastOverloadedState !== isOverloaded) {
+        uiDisplayState.lastOverloadedState = isOverloaded;
+        if (cachedUI.mpOrb) {
+            if (isOverloaded) cachedUI.mpOrb.classList.add('overloaded');
+            else cachedUI.mpOrb.classList.remove('overloaded');
+        }
+    }
+
+    // 濒危视觉警告脏检查
+    const hpPercent = player.hp / player.maxHp;
+    const isLowHp = hpPercent < 0.2 && player.hp > 0;
+    if (uiDisplayState.lastLowHpState !== isLowHp) {
+        uiDisplayState.lastLowHpState = isLowHp;
+        if (cachedUI.lowHpVignette) {
+            if (isLowHp) cachedUI.lowHpVignette.classList.add('active');
+            else cachedUI.lowHpVignette.classList.remove('active');
+        }
+    }
+
+    // --- Throttled Updates (10Hz) ---
+    const now = Date.now();
+    if (!uiDisplayState.lastThrottleTime || now - uiDisplayState.lastThrottleTime > 100) {
+        uiDisplayState.lastThrottleTime = now;
+        updateLabelsPosition();
+        updateBuffIndicators();
+        updateSkillCooldownUI();
+        updateHellIndicator();
+    }
+}
 
 // ========== 每日登录奖励配置 ==========
 const DAILY_LOGIN_REWARDS = [
-    { day: 1, icon: '💰', name: '100 金币', type: 'gold', amount: 100 },
-    { day: 2, icon: '❤️', name: '治疗药剂 x3', type: 'potion', heal: 50, amount: 3 },
+    { day: 1, icon: '💰', name: '200 金币', type: 'gold', amount: 200 },
+    { day: 2, icon: '💰', name: '12小时双倍金币', type: 'buff_gold', amount: 12 },
     { day: 3, icon: '⚡', name: '24小时双倍经验', type: 'buff_xp', amount: 24 },
-    { day: 4, icon: '💎', name: '300 金币', type: 'gold', amount: 300 },
-    { day: 5, icon: '💙', name: '法力药剂 x3', type: 'potion', mana: 30, amount: 3 },
-    { day: 6, icon: '📜', name: '回城卷轴 x5', type: 'scroll', amount: 5 },
-    { day: 7, icon: '🏆', name: '暗金装备', type: 'unique_item', amount: 1 }
+    { day: 4, icon: '⚡', name: '24小时双倍经验', type: 'buff_xp', amount: 24 },
+    { day: 5, icon: '🎁', name: '24小时双倍掉落', type: 'buff_drop', amount: 24 },
+    { day: 6, icon: '⚡', name: '24小时双倍经验', type: 'buff_xp', amount: 24 },
+    { day: 7, icon: '🔥', name: '24小时三倍经验 + 套装装备', type: 'buff_xp_triple', amount: 24 }
 ];
 
 // ========== 天神赐福词条池（复用天赋商店属性key，数值约为1/3） ==========
@@ -991,39 +815,55 @@ const DIVINE_BLESSING_POOL = [
 ];
 
 const spriteSheet = new Image();
-spriteSheet.src = 'sprites.png?v=5.2';
+spriteSheet.src = 'sprites.png?v=5.9';
 
 let spritesLoaded = false;
 let processedSpriteSheet = null;
+const TintCache = {
+    white: null,  // 受击闪白
+    ice: null,    // 冰封/减速
+    poison: null, // 中毒
+    lightning: null // 闪电过载
+};
+
+// 生成染色版本精灵图（使用 filter 预处理，获得高质量视觉效果且不增加运行时负担）
+function createTintedSpriteSheet(source, filterStr) {
+    const canvas = document.createElement('canvas');
+    canvas.width = source.width;
+    canvas.height = source.height;
+    const ctx = canvas.getContext('2d');
+    ctx.filter = filterStr;
+    ctx.drawImage(source, 0, 0);
+    return canvas;
+}
 
 spriteSheet.onload = () => {
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
     tempCanvas.width = spriteSheet.width;
     tempCanvas.height = spriteSheet.height;
-
     tempCtx.drawImage(spriteSheet, 0, 0);
 
     const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
     const data = imageData.data;
-
     for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-
-        // 如果像 items.png 一样是黑底的，则去除黑色背景
-        // 黑色阈值 (R<25, G<25, B<25) - 稍微放宽一点，消除黑边杂色
-        if (r < 25 && g < 25 && b < 25) {
-            data[i + 3] = 0;
-        }
+        if (data[i] < 25 && data[i + 1] < 25 && data[i + 2] < 25) data[i + 3] = 0;
     }
-
     tempCtx.putImageData(imageData, 0, 0);
 
-    processedSpriteSheet = new Image();
-    processedSpriteSheet.onload = () => { spritesLoaded = true; };
-    processedSpriteSheet.src = tempCanvas.toDataURL();
+    // 将普通 Image 对象改为 Canvas 对象，方便 TintCache 引用
+    processedSpriteSheet = document.createElement('canvas');
+    processedSpriteSheet.width = tempCanvas.width;
+    processedSpriteSheet.height = tempCanvas.height;
+    processedSpriteSheet.getContext('2d').drawImage(tempCanvas, 0, 0);
+
+    // 预热 TintCache：使用与原版运行时滤镜完全一致的参数，确保视觉真实
+    TintCache.white = createTintedSpriteSheet(processedSpriteSheet, 'brightness(500%) sepia(100%) saturate(0%)');
+    TintCache.ice = createTintedSpriteSheet(processedSpriteSheet, 'sepia(100%) saturate(150%) hue-rotate(180deg) brightness(120%)');
+    TintCache.poison = createTintedSpriteSheet(processedSpriteSheet, 'sepia(100%) saturate(300%) hue-rotate(80deg) brightness(80%)');
+    TintCache.lightning = createTintedSpriteSheet(processedSpriteSheet, 'brightness(300%) saturate(50%)');
+
+    spritesLoaded = true;
 };
 
 const SPRITE_CONFIG = {
@@ -1161,14 +1001,172 @@ envSpriteSheet.onload = () => {
         // 之前是 4 行，现在 V3 是 8 行，必须除以 8，否则会一次切到两行图
         envCellWidth = processedEnvSprites.width / 8;
         envCellHeight = processedEnvSprites.height / 8;
+        // 资源加载完成后重新生成地图缓存
+        if (gameActive && mapData.length > 0) generateMapCache();
     };
     processedEnvSprites.src = tempCanvas.toDataURL();
 };
 
+// --- Destructible Sprites ---
+const destructibleSpriteSheet = new Image();
+destructibleSpriteSheet.src = 'destructibles_sprites.png?v=202512211022';
+let destructiblesLoaded = false;
+let processedDestructibleSprites = null;
+
+destructibleSpriteSheet.onload = () => {
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = destructibleSpriteSheet.width;
+    tempCanvas.height = destructibleSpriteSheet.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx.drawImage(destructibleSpriteSheet, 0, 0);
+
+    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const data = imageData.data;
+    // 去除白色背景 (阈值220)
+    for (let i = 0; i < data.length; i += 4) {
+        if (data[i] > 220 && data[i + 1] > 220 && data[i + 2] > 220) data[i + 3] = 0;
+    }
+    tempCtx.putImageData(imageData, 0, 0);
+    processedDestructibleSprites = tempCanvas;
+    // 计算格尺寸 (3行 x 2列)
+    DESTRUCTIBLE_CONFIG.cellWidth = processedDestructibleSprites.width / 2;
+    DESTRUCTIBLE_CONFIG.cellHeight = processedDestructibleSprites.height / 3;
+    destructiblesLoaded = true;
+};
+
+const DESTRUCTIBLE_CONFIG = {
+    cellWidth: 0,
+    cellHeight: 0,
+    types: [
+        { name: 'barrel', row: 0, color: '#8b4513' }, // 木桶
+        { name: 'crate', row: 1, color: '#a0522d' },  // 木箱
+        { name: 'urn', row: 2, color: '#696969' }     // 陶罐
+    ]
+};
+
+const DestructibleSystem = {
+    update: function (dt) {
+        // 移除破碎超过 5 秒的物体
+        const now = Date.now();
+        for (let i = destructibles.length - 1; i >= 0; i--) {
+            const d = destructibles[i];
+            if (d.broken && d.brokenTime && now - d.brokenTime > 5000) {
+                destructibles.splice(i, 1);
+            }
+        }
+    },
+
+    draw: function (ctx) {
+        if (!destructiblesLoaded || !processedDestructibleSprites) return;
+
+        destructibles.forEach(d => {
+            // 视口剔除
+            if (d.x < camera.x - 100 || d.x > camera.x + canvas.width + 100 ||
+                d.y < camera.y - 120 || d.y > camera.y + canvas.height + 100) return;
+
+            const sw = DESTRUCTIBLE_CONFIG.cellWidth;
+            const sh = DESTRUCTIBLE_CONFIG.cellHeight;
+            const sx = d.broken ? sw : 0;
+            const sy = d.type.row * sh;
+
+            // 再次增大尺寸，使其更加饱满
+            const drawW = 42;
+            const drawH = Math.round(drawW * (sh / sw));
+            const rx = Math.round(d.x - drawW / 2);
+            const ry = Math.round(d.y - drawH + 12); // 微调底部锚点
+
+            ctx.drawImage(processedDestructibleSprites, sx, sy, sw, sh, rx, ry, drawW, drawH);
+        });
+    },
+
+    break: function (d) {
+        if (d.broken) return;
+        d.broken = true;
+        d.brokenTime = Date.now(); // 记录破碎时间
+
+        // 震屏
+        triggerScreenShake(3, 0.1);
+
+        // 碎裂粒子
+        for (let i = 0; i < 12; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 40 + Math.random() * 80;
+            createSimpleParticle(d.x, d.y, d.type.color, speed, angle);
+        }
+
+        // 掉落逻辑
+        const rand = Math.random();
+        const f = player.isInHell ? player.hellFloor : player.floor;
+        if (rand < 0.2) { // 20% 爆金币
+            let goldAmount = Math.floor((5 + f * 2) * (0.8 + Math.random() * 0.4));
+            groundItems.push({
+                type: 'gold', val: Math.floor(goldAmount),
+                x: d.x, y: d.y, z: 0,
+                vx: (Math.random() - 0.5) * 80,
+                vy: (Math.random() - 0.5) * 80,
+                vz: 120 + Math.random() * 60,
+                bounces: 1,
+                soundLand: 'land_gold',
+                rarity: 0, name: Math.floor(goldAmount) + " 金币", icon: '💰', dropTime: Date.now()
+            });
+        } else if (rand < 0.3) { // 10% 爆药水/卷轴
+            const pRand = Math.random();
+            let dropItem;
+            if (pRand < 0.5) dropItem = { type: 'potion', name: '治疗药剂', heal: 50, rarity: 0, stackable: true, count: 1 };
+            else if (pRand < 0.85) dropItem = { type: 'potion', name: '法力药剂', mana: 30, rarity: 0, stackable: true, count: 1 };
+            else dropItem = { type: 'scroll', name: '回城卷轴', rarity: 0, stackable: true, count: 1 };
+
+            groundItems.push({
+                ...dropItem,
+                x: d.x, y: d.y, z: 0,
+                vx: (Math.random() - 0.5) * 60,
+                vy: (Math.random() - 0.5) * 60,
+                vz: 110 + Math.random() * 70,
+                bounces: 1,
+                soundLand: dropItem.type === 'potion' || dropItem.type === 'scroll' ? 'land_soft' : 'land_hard',
+                dropTime: Date.now()
+            });
+        }
+
+        // 音效
+        AudioSys.play('land_hard');
+    },
+
+    checkMeleeCollision: function (x, y, range) {
+        const rSq = range * range;
+        destructibles.forEach(d => {
+            if (!d.broken) {
+                const dx = d.x - x, dy = d.y - y;
+                if (dx * dx + dy * dy < rSq) {
+                    this.break(d);
+                }
+            }
+        });
+    }
+};
+
+function createSimpleParticle(x, y, color, speed, angle) {
+    const p = ParticlePool.acquire();
+    p.x = x; p.y = y; p.z = 5 + Math.random() * 10;
+    p.vx = Math.cos(angle) * speed;
+    p.vy = Math.sin(angle) * speed;
+    p.vz = 50 + Math.random() * 50;
+    p.life = 0.5 + Math.random() * 0.5;
+    p.color = color;
+    p.size = 2 + Math.random() * 2;
+    p.gravity = 600;
+    p.canBake = true;
+    particles.push(p);
+}
+
 const wallTiles = new Image();
 wallTiles.src = 'wall_tiles.png?v=5.2';
 let wallTilesLoaded = false;
-wallTiles.onload = () => { wallTilesLoaded = true; };
+wallTiles.onload = () => {
+    wallTilesLoaded = true;
+    // 资源加载完成后重新生成地图缓存
+    if (gameActive && mapData.length > 0) generateMapCache();
+};
 
 function getBiomeStyle(floor) {
     if (floor === 0) return null; // Camp uses default
@@ -1193,119 +1191,84 @@ function getWallTextureIndex(floor) {
 const floorTiles = new Image();
 floorTiles.src = 'floor_tiles.png?v=5.2';
 let floorTilesLoaded = false;
-floorTiles.onload = () => { floorTilesLoaded = true; };
+floorTiles.onload = () => {
+    floorTilesLoaded = true;
+    // 资源加载完成后重新生成地图缓存
+    if (gameActive && mapData.length > 0) generateMapCache();
+};
 
 function getFloorTextureIndex(floor) {
     if (floor === 0) return 0;     // Camp (Grass)
     return 1;                      // Stone levels (All dungeons)
 }
 
-const ITEM_FRAMES = {
-    'gold': { col: 0, row: 0 },
-    'potion_health': { col: 1, row: 0 },
-    'potion_mana': { col: 2, row: 0 },
-    'scroll': { col: 3, row: 0 },
-    'weapon': { col: 0, row: 1 }, // sword default
-    'axe': { col: 1, row: 1 },
-    'staff': { col: 2, row: 1 },
-    'bow': { col: 3, row: 1 },
-    'helm': { col: 0, row: 2 },
-    'armor': { col: 1, row: 2 },
-    'gloves': { col: 2, row: 2 },
-    'boots': { col: 3, row: 2 },
-    'belt': { col: 0, row: 3 },
-    'shield': { col: 1, row: 3 },
-    'ring': { col: 2, row: 3 },
-    'amulet': { col: 3, row: 3 }
-};
+// 物品Sprite辅助函数 (已移至 item-system.js)
 
-function getItemSpriteCoords(item) {
-    let type = item.type;
-    let key = type;
-
-    if (type === 'potion') {
-        key = item.heal ? 'potion_health' : 'potion_mana';
-    } else if (type === 'weapon') {
-        if (item.name.includes('斧')) key = 'axe';
-        else if (item.name.includes('弓')) key = 'bow';
-        else if (item.name.includes('杖')) key = 'staff';
-        else key = 'weapon';
-    } else if (type === 'body') {
-        key = 'armor';
-    } else if (type === 'gold') {
-        key = 'gold';
-    }
-
-    // Fallback for mapped names
-    if (!ITEM_FRAMES[key] && ITEM_FRAMES[type]) key = type;
-
-    return ITEM_FRAMES[key] || ITEM_FRAMES['gold'];
-}
-
-function applyItemSpriteToElement(el, item) {
-    if (itemSpritesLoaded) {
-        const coords = getItemSpriteCoords(item);
-        el.innerText = '';
-        el.style.backgroundImage = "url('items.png?v=5.2')";
-        el.style.backgroundSize = '400% 400%';
-        el.style.backgroundPosition = `${coords.col * 33.333}% ${coords.row * 33.333}%`;
-        el.style.backgroundRepeat = 'no-repeat';
-        // Remove text color as we use image now
-        el.style.color = 'transparent';
-
-        // Rarity Border
-        const rarityColor = getItemColor(item.rarity);
-        el.style.border = `1px solid ${rarityColor}`;
-        if (item.rarity >= 3) {
-            el.style.boxShadow = `inset 0 0 5px ${rarityColor}`;
-        } else {
-            el.style.boxShadow = 'none';
-        }
-    } else {
-        el.innerText = item.icon || '?';
-        el.style.color = getItemColor(item.rarity);
-    }
-}
-
-// 成就系统定义
+// 成就系统定义 - 按类别分组
+// 类别: kill(击杀) explore(探索) collect(收集) combat(战斗) economy(经济) growth(成长)
 const ACHIEVEMENTS = [
+    // ===== 击杀类 (kill) =====
+    {
+        id: 'kill_fallen_100',
+        name: '沉沦魔猎手',
+        description: '击杀100只沉沦魔',
+        target: 100,
+        type: 'kill_monster',
+        monsterName: '沉沦魔',
+        category: 'kill',
+        icon: '🗡️',
+        points: 5
+    },
     {
         id: 'kill_fallen_1000',
         name: '沉沦魔克星',
         description: '击杀1000只沉沦魔',
         target: 1000,
         type: 'kill_monster',
-        monsterName: '沉沦魔'
+        monsterName: '沉沦魔',
+        category: 'kill',
+        icon: '⚔️',
+        points: 15
     },
-    {
-        id: 'reach_floor_10',
-        name: '地牢征服者',
-        description: '到达地牢第10层',
-        target: 10,
-        type: 'reach_floor'
-    },
-
-    {
-        id: 'equip_full_set',
-        name: '套装大师',
-        description: '同时穿戴一套完整套装（6件）',
-        target: 6,
-        type: 'equip_set'
-    },
-
     {
         id: 'kill_boss_5',
         name: 'BOSS猎人',
         description: '击败5个首领级敌人',
         target: 5,
-        type: 'kill_boss'
+        type: 'kill_boss',
+        category: 'kill',
+        icon: '👹',
+        points: 10
     },
     {
-        id: 'reach_level_30',
-        name: '传奇英雄',
-        description: '达到等级30',
+        id: 'kill_boss_20',
+        name: 'BOSS终结者',
+        description: '击败20个首领级敌人',
+        target: 20,
+        type: 'kill_boss',
+        category: 'kill',
+        icon: '💀',
+        points: 25
+    },
+    {
+        id: 'kill_boss_50',
+        name: 'BOSS毁灭者',
+        description: '击败50个首领级敌人',
+        target: 50,
+        type: 'kill_boss',
+        category: 'kill',
+        icon: '☠️',
+        points: 50
+    },
+    {
+        id: 'kill_elite_30',
+        name: '精英猎人',
+        description: '击杀30只精英怪物',
         target: 30,
-        type: 'reach_level'
+        type: 'kill_elite',
+        category: 'kill',
+        icon: '🔱',
+        points: 15
     },
     {
         id: 'kill_baal',
@@ -1313,11 +1276,319 @@ const ACHIEVEMENTS = [
         description: '击败巴尔',
         target: 1,
         type: 'kill_specific_boss',
-        bossName: '巴尔'
+        bossName: '巴尔',
+        category: 'kill',
+        icon: '🌍',
+        points: 30
+    },
+
+    // ===== 探索类 (explore) =====
+    {
+        id: 'reach_floor_5',
+        name: '初探地牢',
+        get description() { return `到达第5层「${getFloorName(5)}」`; },
+        target: 5,
+        type: 'reach_floor',
+        category: 'explore',
+        icon: '🚪',
+        points: 5
+    },
+    {
+        id: 'reach_floor_10',
+        name: '地牢征服者',
+        get description() { return `到达第10层「${getFloorName(10)}」`; },
+        target: 10,
+        type: 'reach_floor',
+        category: 'explore',
+        icon: '🏔️',
+        points: 15
+    },
+    {
+        id: 'reach_floor_20',
+        name: '深渊探险家',
+        get description() { return `到达第20层「${getFloorName(20)}」`; },
+        target: 20,
+        type: 'reach_floor',
+        category: 'explore',
+        icon: '🌋',
+        points: 25
+    },
+    {
+        id: 'reach_floor_30',
+        name: '无尽追寻者',
+        get description() { return `到达第30层「${getFloorName(30)}」`; },
+        target: 30,
+        type: 'reach_floor',
+        category: 'explore',
+        icon: '🌌',
+        points: 40
+    },
+    {
+        id: 'enter_hell',
+        name: '地狱行者',
+        description: '进入地狱模式',
+        target: 1,
+        type: 'enter_hell',
+        category: 'explore',
+        icon: '🔥',
+        points: 20
+    },
+
+    // ===== 收集类 (collect) =====
+    {
+        id: 'collect_unique_1',
+        name: '暗金初见',
+        description: '获得1件暗金装备',
+        target: 1,
+        type: 'collect_unique',
+        category: 'collect',
+        icon: '✨',
+        points: 5
+    },
+    {
+        id: 'collect_unique_10',
+        name: '暗金收藏家',
+        description: '累计获得10件暗金装备',
+        target: 10,
+        type: 'collect_unique',
+        category: 'collect',
+        icon: '💎',
+        points: 20
+    },
+    {
+        id: 'collect_set_1',
+        name: '套装初识',
+        description: '获得1件套装装备',
+        target: 1,
+        type: 'collect_set_item',
+        category: 'collect',
+        icon: '🟢',
+        points: 10
+    },
+    {
+        id: 'collect_set_10',
+        name: '套装收藏家',
+        description: '累计获得10件套装装备',
+        target: 10,
+        type: 'collect_set_item',
+        category: 'collect',
+        icon: '🎁',
+        points: 30
+    },
+    {
+        id: 'equip_full_set',
+        name: '套装大师',
+        description: '同时穿戴一套完整套装（6件）',
+        target: 6,
+        type: 'equip_set',
+        category: 'collect',
+        icon: '👑',
+        points: 50
+    },
+
+    // ===== 战斗类 (combat) =====
+    {
+        id: 'total_damage_100k',
+        name: '伤害输出者',
+        description: '累计造成10万点伤害',
+        target: 100000,
+        type: 'total_damage',
+        category: 'combat',
+        icon: '💥',
+        points: 10
+    },
+    {
+        id: 'total_damage_1m',
+        name: '战场收割者',
+        description: '累计造成100万点伤害',
+        target: 1000000,
+        type: 'total_damage',
+        category: 'combat',
+        icon: '⚡',
+        points: 30
+    },
+    {
+        id: 'crit_count_100',
+        name: '暴击新手',
+        description: '触发100次暴击',
+        target: 100,
+        type: 'crit_count',
+        category: 'combat',
+        icon: '💢',
+        points: 10
+    },
+    {
+        id: 'crit_count_1000',
+        name: '暴击大师',
+        description: '触发1000次暴击',
+        target: 1000,
+        type: 'crit_count',
+        category: 'combat',
+        icon: '🔥',
+        points: 25
+    },
+    {
+        id: 'combo_50',
+        name: '连击达人',
+        description: '达成50连击',
+        target: 50,
+        type: 'max_combo',
+        category: 'combat',
+        icon: '🎯',
+        points: 20
+    },
+    {
+        id: 'use_skill_500',
+        name: '技能练习生',
+        description: '使用技能500次',
+        target: 500,
+        type: 'skill_use',
+        category: 'combat',
+        icon: '🔮',
+        points: 15
+    },
+
+    // ===== 经济类 (economy) =====
+    {
+        id: 'gold_10k',
+        name: '小康之家',
+        description: '累计获得1万金币',
+        target: 10000,
+        type: 'total_gold',
+        category: 'economy',
+        icon: '💰',
+        points: 5
+    },
+    {
+        id: 'gold_100k',
+        name: '富甲一方',
+        description: '累计获得10万金币',
+        target: 100000,
+        type: 'total_gold',
+        category: 'economy',
+        icon: '💵',
+        points: 15
+    },
+    {
+        id: 'gold_1m',
+        name: '亿万富翁',
+        description: '累计获得100万金币',
+        target: 1000000,
+        type: 'total_gold',
+        category: 'economy',
+        icon: '🏆',
+        points: 40
+    },
+    {
+        id: 'enhance_5',
+        name: '铁匠学徒',
+        description: '将装备强化至+5',
+        target: 5,
+        type: 'max_enhance',
+        category: 'economy',
+        icon: '🔨',
+        points: 15
+    },
+    {
+        id: 'enhance_9',
+        name: '铁匠大师',
+        description: '将装备强化至+9',
+        target: 9,
+        type: 'max_enhance',
+        category: 'economy',
+        icon: '⚒️',
+        points: 50
+    },
+
+    // ===== 成长类 (growth) =====
+    {
+        id: 'reach_level_10',
+        name: '冒险新秀',
+        description: '达到等级10',
+        target: 10,
+        type: 'reach_level',
+        category: 'growth',
+        icon: '⭐',
+        points: 5
+    },
+    {
+        id: 'reach_level_30',
+        name: '传奇英雄',
+        description: '达到等级30',
+        target: 30,
+        type: 'reach_level',
+        category: 'growth',
+        icon: '🌟',
+        points: 20
+    },
+    {
+        id: 'reach_level_50',
+        name: '不朽战神',
+        description: '达到等级50',
+        target: 50,
+        type: 'reach_level',
+        category: 'growth',
+        icon: '👼',
+        points: 40
+    },
+    {
+        id: 'buy_talent_30',
+        name: '天赋收集者',
+        description: '购买30个天赋',
+        target: 30,
+        type: 'talent_bought',
+        category: 'growth',
+        icon: '📚',
+        points: 15
+    },
+    {
+        id: 'blessing_10',
+        name: '赐福宠儿',
+        description: '获得10次天神赐福',
+        target: 10,
+        type: 'blessing_count',
+        category: 'growth',
+        icon: '🌈',
+        points: 20
     }
 ];
 
+// 成就类别配置（统一使用金色调）
+const ACHIEVEMENT_CATEGORIES = {
+    kill: { name: '击杀', color: '#c7b377' },
+    explore: { name: '探索', color: '#c7b377' },
+    collect: { name: '收集', color: '#c7b377' },
+    combat: { name: '战斗', color: '#c7b377' },
+    economy: { name: '经济', color: '#c7b377' },
+    growth: { name: '成长', color: '#c7b377' }
+};
+
+// 计算成就统计
+function getAchievementStats() {
+    let completed = 0, total = ACHIEVEMENTS.length, points = 0, maxPoints = 0;
+    ACHIEVEMENTS.forEach(ach => {
+        maxPoints += ach.points || 0;
+        if (player.achievements[ach.id]?.completed) {
+            completed++;
+            points += ach.points || 0;
+        }
+    });
+    return { completed, total, points, maxPoints };
+}
+
 function getHeroFrame(direction) {
+    // 如果正在摆摊，使用坐姿帧（索引 4）
+    if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) {
+        const frameX = 4 * SPRITE_CONFIG.frameWidth; // sit = 4
+        const frameY = SPRITE_CONFIG.heroRow * SPRITE_CONFIG.frameHeight;
+        return {
+            x: frameX,
+            y: frameY,
+            width: SPRITE_CONFIG.frameWidth,
+            height: SPRITE_CONFIG.frameHeight
+        };
+    }
+
     const frameMap = {
         'left': 0,
         'right': 1,
@@ -1368,19 +1639,40 @@ function getBossFrame(frameIndex) {
 }
 
 // 成就追踪系统
-function trackAchievement(type, data) {
+function trackAchievement(type, data = {}) {
     ACHIEVEMENTS.forEach(ach => {
         if (ach.type !== type || !player.achievements[ach.id]) return;
-
         if (player.achievements[ach.id].completed) return;
 
-        let progress = 0;
+        let progress = player.achievements[ach.id].progress || 0;
+        let shouldCheck = false;
 
         switch (type) {
             case 'kill_monster':
                 if (data.monsterName === ach.monsterName) {
-                    player.achievements[ach.id].progress++;
-                    progress = player.achievements[ach.id].progress;
+                    player.achievements[ach.id].progress = ++progress;
+                    shouldCheck = true;
+                }
+                break;
+
+            case 'kill_boss':
+                if (data.isBoss || data.isQuestTarget) {
+                    player.achievements[ach.id].progress = ++progress;
+                    shouldCheck = true;
+                }
+                break;
+
+            case 'kill_elite':
+                if (data.isElite) {
+                    player.achievements[ach.id].progress = ++progress;
+                    shouldCheck = true;
+                }
+                break;
+
+            case 'kill_specific_boss':
+                if (data.name === ach.bossName) {
+                    player.achievements[ach.id].progress = ++progress;
+                    shouldCheck = true;
                 }
                 break;
 
@@ -1390,31 +1682,73 @@ function trackAchievement(type, data) {
                 }
                 return;
 
-
-
-
-            case 'kill_boss':
-                if (data.isBoss || data.isQuestTarget) {
-                    player.achievements[ach.id].progress++;
-                    progress = player.achievements[ach.id].progress;
-                }
-                break;
-
-            case 'kill_specific_boss':
-                if (data.name === ach.bossName) {
-                    player.achievements[ach.id].progress++;
-                    progress = player.achievements[ach.id].progress;
-                }
-                break;
-
             case 'reach_level':
                 if (player.lvl >= ach.target) {
                     completeAchievement(ach);
                 }
                 return;
+
+            case 'enter_hell':
+                player.achievements[ach.id].progress = 1;
+                completeAchievement(ach);
+                return;
+
+            case 'collect_unique':
+                player.achievements[ach.id].progress = ++progress;
+                shouldCheck = true;
+                break;
+
+            case 'collect_set_item':
+                player.achievements[ach.id].progress = ++progress;
+                shouldCheck = true;
+                break;
+
+            case 'total_damage':
+                player.achievements[ach.id].progress = (progress + (data.damage || 0));
+                shouldCheck = true;
+                break;
+
+            case 'crit_count':
+                player.achievements[ach.id].progress = ++progress;
+                shouldCheck = true;
+                break;
+
+            case 'max_combo':
+                if ((data.combo || 0) > progress) {
+                    player.achievements[ach.id].progress = data.combo;
+                    shouldCheck = true;
+                }
+                break;
+
+            case 'skill_use':
+                player.achievements[ach.id].progress = ++progress;
+                shouldCheck = true;
+                break;
+
+            case 'total_gold':
+                player.achievements[ach.id].progress = (progress + (data.amount || 0));
+                shouldCheck = true;
+                break;
+
+            case 'max_enhance':
+                if ((data.level || 0) > progress) {
+                    player.achievements[ach.id].progress = data.level;
+                    shouldCheck = true;
+                }
+                break;
+
+            case 'talent_bought':
+                player.achievements[ach.id].progress = ++progress;
+                shouldCheck = true;
+                break;
+
+            case 'blessing_count':
+                player.achievements[ach.id].progress = ++progress;
+                shouldCheck = true;
+                break;
         }
 
-        if (progress >= ach.target) {
+        if (shouldCheck && player.achievements[ach.id].progress >= ach.target) {
             completeAchievement(ach);
         }
     });
@@ -1480,8 +1814,6 @@ const SLOT_MAP = {
     'boots': 'boots', 'belt': 'belt', 'ring': 'ring', 'amulet': 'amulet'
 };
 
-const DB_NAME = 'DiabloCloneDB'; const DB_VERSION = 8; let db;
-
 // 自动战斗系统
 const AutoBattle = {
     enabled: false,
@@ -1495,7 +1827,8 @@ const AutoBattle = {
         pickupSet: true                                     // 自动拾取套装
     },
     currentTarget: null,
-    stuckTimer: 0,               // 卡死检测计时器
+    stuckTimer: 0,               // 无目标时的卡死检测计时器
+    stuckPosTimer: 0,            // 位置位移卡死检测计时器
     lastPos: { x: 0, y: 0 },
     oscillationDetector: { positions: [], lastCheck: 0 },  // 摇摆检测器
     lastDamagedBy: null,         // 记录最后攻击我的敌人
@@ -1522,15 +1855,33 @@ const AutoBattle = {
         // 转换为瓦片坐标
         const startCol = Math.floor(startX / TILE_SIZE);
         const startRow = Math.floor(startY / TILE_SIZE);
-        const goalCol = Math.floor(goalX / TILE_SIZE);
-        const goalRow = Math.floor(goalY / TILE_SIZE);
+        let goalCol = Math.floor(goalX / TILE_SIZE);
+        let goalRow = Math.floor(goalY / TILE_SIZE);
 
         // 边界检查
         if (startCol < 0 || startCol >= MAP_WIDTH || startRow < 0 || startRow >= MAP_HEIGHT) return null;
         if (goalCol < 0 || goalCol >= MAP_WIDTH || goalRow < 0 || goalRow >= MAP_HEIGHT) return null;
 
-        // 目标是墙则放弃
-        if (mapData[goalRow][goalCol] === 0) return null;
+        // 目标是墙则尝试找附近最近的可行走瓦片
+        if (mapData[goalRow][goalCol] === 0) {
+            let found = false;
+            // 搜索半径逐渐扩大
+            for (let radius = 1; radius <= 3 && !found; radius++) {
+                for (let dr = -radius; dr <= radius && !found; dr++) {
+                    for (let dc = -radius; dc <= radius && !found; dc++) {
+                        if (Math.abs(dr) !== radius && Math.abs(dc) !== radius) continue; // 只检查外圈
+                        const nr = goalRow + dr;
+                        const nc = goalCol + dc;
+                        if (nr >= 0 && nr < MAP_HEIGHT && nc >= 0 && nc < MAP_WIDTH && mapData[nr][nc] !== 0) {
+                            goalRow = nr;
+                            goalCol = nc;
+                            found = true;
+                        }
+                    }
+                }
+            }
+            if (!found) return null; // 附近没有可行走的瓦片
+        }
 
         // 节点类
         class AStarNode {
@@ -1724,24 +2075,25 @@ const AutoBattle = {
             const e = enemies[i];
             if (e.dead) continue;
 
-            const dist = Math.hypot(e.x - player.x, e.y - player.y);
+            const dx = e.x - player.x, dy = e.y - player.y;
+            const distSq = dx * dx + dy * dy;
 
             // 近距离的怪（<100）：即使在墙角也要打，最高优先
-            if (dist < 100 && dist < minCloseDist) {
+            if (distSq < 10000 && distSq < minCloseDist * minCloseDist) {
                 nearestClose = e;
-                minCloseDist = dist;
+                minCloseDist = Math.sqrt(distSq); // 这里需要实际距离，但由于判定频率低且已排除非近距离怪，影响较小
             }
 
             // 能看到的怪：优先选，范围600
-            if (dist < 600 && dist < minVisibleDist && hasLineOfSight(player.x, player.y, e.x, e.y)) {
+            if (distSq < 360000 && distSq < minVisibleDist * minVisibleDist && hasLineOfSight(player.x, player.y, e.x, e.y)) {
                 nearestVisible = e;
-                minVisibleDist = dist;
+                minVisibleDist = Math.sqrt(distSq);
             }
 
             // 任意怪：范围扩大到1500（整个屏幕），用于绕路追击
-            if (dist < 1500 && dist < minAnyDist) {
+            if (distSq < 2250000 && distSq < minAnyDist * minAnyDist) { // 1500^2 = 2250000
                 nearestAny = e;
-                minAnyDist = dist;
+                minAnyDist = Math.sqrt(distSq);
             }
         }
 
@@ -1764,6 +2116,41 @@ const AutoBattle = {
     // 决策行动 - 极简版
     decideAction(dt) {
         if (!this.enabled || isInTown()) return;
+
+        // 0. 物理位置卡死检测
+        const moveDist = Math.hypot(player.x - this.lastPos.x, player.y - this.lastPos.y);
+
+        // 如果有拾取目标，检测是否在接近目标
+        if (player.targetItem) {
+            const distToItem = Math.hypot(player.x - player.targetItem.x, player.y - player.targetItem.y);
+            // 如果距离物品很近但拾取不了，或者长时间没接近物品，放弃
+            if (distToItem < 50 && moveDist < 5) {
+                this.stuckPosTimer += dt;
+            } else if (moveDist < 10) {
+                // 在移动但移动很慢（可能在绕路或卡住）
+                this.stuckPosTimer += dt * 0.5;
+            } else {
+                this.stuckPosTimer = Math.max(0, this.stuckPosTimer - dt);
+            }
+
+            if (this.stuckPosTimer > 2) {
+                this.blacklistedTargets.push({ target: player.targetItem, until: Date.now() + 30000 });
+                createFloatingText(player.x, player.y - 70, "无法到达，放弃", "#ffaa00", 1.5);
+                player.targetItem = null;
+                player.targetX = null;
+                player.targetY = null;
+                this.stuckPosTimer = 0;
+            }
+        } else if (moveDist < 2) {
+            this.stuckPosTimer += dt;
+            if (this.stuckPosTimer > 3) {
+                this.escapeFromStuck();
+                this.stuckPosTimer = 0;
+            }
+        } else {
+            this.stuckPosTimer = 0;
+        }
+        this.lastPos = { x: player.x, y: player.y };
 
         // 1. 生存：紧急回城
         const hpPercent = player.hp / player.maxHp;
@@ -1802,8 +2189,9 @@ const AutoBattle = {
 
         // 5. 移动：没在拾取东西就走向目标
         if (player.targetItem === null) {
-            const dist = Math.hypot(this.currentTarget.x - player.x, this.currentTarget.y - player.y);
-            if (dist > 60) {
+            const tdx = this.currentTarget.x - player.x;
+            const tdy = this.currentTarget.y - player.y;
+            if (tdx * tdx + tdy * tdy > 3600) { // 60^2 = 3600
                 this.moveTowards(this.currentTarget);
             } else {
                 player.targetX = null;
@@ -2151,46 +2539,31 @@ const AutoBattle = {
 
     // 自动拾取物品（带优先级）
     autoPickupItems() {
-        // 已有拾取目标且仍然有效，不重复设置
-        if (player.targetItem) {
-            const stillExists = groundItems.includes(player.targetItem);
-            const dist = Math.hypot(player.targetItem.x - player.x, player.targetItem.y - player.y);
-            if (stillExists && dist < 500) {
-                return; // 保持当前目标
-            }
-            // 目标无效，清除
-            player.targetItem = null;
-            player.targetX = null;
-            player.targetY = null;
-        }
-
         const inventoryFull = player.inventory.filter(it => it !== null).length >= player.inventory.length;
 
-        // 检查能否为物品腾出空间（预判断，不实际丢弃）
-        // forSet=true 时为套装腾空间，可以丢弃稀有(黄)装备
-        const canMakeRoom = (forSet = false) => {
+        // 检查能否为物品腾出空间（只要背包里有比目标稀有度低的物品就可以腾位）
+        const canMakeRoom = (targetRarity) => {
+            // 只有装备（稀有度>=2）才考虑腾位
+            if (targetRarity < 2) return false;
             for (let i = 0; i < player.inventory.length; i++) {
                 const it = player.inventory[i];
                 if (!it) continue;
-                // 永远不丢：套装、暗金、药水、卷轴
-                if (isProtectedItem(it)) continue;
-                // 为套装腾空间时，稀有(黄, rarity=3)也可以丢
-                if (forSet) return true;
-                // 普通情况：只丢蓝装及以下
-                if (it.rarity < 3) return true;
+                // 药水、卷轴不丢
+                if (it.type === 'potion' || it.type === 'scroll') continue;
+                // 如果背包里的物品稀有度低于目标，就可以腾位
+                if (it.rarity < targetRarity) return true;
             }
             return false;
         };
 
-        // 候选物品列表，按优先级分类
+        // 候选物品列表
         let setItems = [];      // 套装：最高优先级
-        let urgentPotions = []; // 紧急药水（没药时）：次高优先级
-        let uniqueItems = [];   // 暗金：高优先级
-        let normalItems = [];   // 蓝/黄：普通优先级
+        let urgentPotions = []; // 紧急药水
+        let uniqueItems = [];   // 暗金/稀有
         let goldItems = [];     // 金币
         let consumables = [];   // 药水/卷轴
+        let normalItems = [];   // 蓝/黄
 
-        // 检查是否缺药水
         const hasHealPotion = player.inventory.some(it => it && it.name === CONSUMABLE_NAME.HEALTH_POTION);
         const hasManaPotion = player.inventory.some(it => it && it.name === CONSUMABLE_NAME.MANA_POTION);
 
@@ -2198,133 +2571,151 @@ const AutoBattle = {
             const it = groundItems[i];
             if (!it) continue;
 
+            // 过滤黑名单物品
+            if (this.blacklistedTargets.some(b => b.target === it && Date.now() < b.until)) continue;
+
             const dist = Math.hypot(it.x - player.x, it.y - player.y);
+            if (it.dropTime && Date.now() - it.dropTime < 3000) continue; // 刚丢弃的物品不捡
 
-            // 检查视线（防止尝试拾取墙后面的物品）
-            if (!hasLineOfSight(player.x, player.y, it.x, it.y)) continue;
+            // 视线检查：普通物品需要视线；极品物品（套装/暗金/金币）如果距离近即便没视线也要捡（可能在拐角）
+            const isSuperRare = it.rarity >= 4 || it.type === 'gold';
+            if (!isSuperRare && !hasLineOfSight(player.x, player.y, it.x, it.y)) continue;
+            // 即便没视线，极品物品距离也有限制（防止全图跑）
+            if (isSuperRare && dist > 800) continue;
 
-            // 金币：距离600内（贪婪拾取）
-            if (it.type === 'gold' && dist < 600) {
-                goldItems.push({ item: it, dist });
-                continue;
+            // 分类
+            if (it.type === 'gold' && player.autoPickup.gold && dist < 600) {
+                goldItems.push({ item: it, dist, priority: 1 }); // 金币优先级提升至与套装相同
+            } else if (it.rarity === 5 && dist < 500) {
+                if (!inventoryFull || canMakeRoom(5)) setItems.push({ item: it, dist, priority: 1 });
+            } else if (it.rarity === 4 && dist < 500) {
+                if (!inventoryFull || canMakeRoom(4)) uniqueItems.push({ item: it, dist, priority: 3 });
+            } else if (it.rarity === 3 && dist < 400) {
+                if (!inventoryFull || canMakeRoom(3)) uniqueItems.push({ item: it, dist, priority: 4 });
+            } else if ((it.name === CONSUMABLE_NAME.HEALTH_POTION || it.name === CONSUMABLE_NAME.MANA_POTION)) {
+                if (player.autoPickup.potion && dist < 400) {
+                    const needUrgent = (it.name === CONSUMABLE_NAME.HEALTH_POTION && !hasHealPotion) || (it.name === CONSUMABLE_NAME.MANA_POTION && !hasManaPotion);
+                    if (needUrgent) urgentPotions.push({ item: it, dist, priority: 2 });
+                    else consumables.push({ item: it, dist, priority: 6 });
+                }
+            } else if (it.name === CONSUMABLE_NAME.TOWN_PORTAL && player.autoPickup.scroll && dist < 400) {
+                consumables.push({ item: it, dist, priority: 6 });
+            } else if (it.rarity >= 2 && dist < 300 && !inventoryFull) {
+                normalItems.push({ item: it, dist, priority: 7 });
             }
+        }
 
-            // 可叠加物品检查（药水/卷轴）
-            const canStack = (it.name === CONSUMABLE_NAME.HEALTH_POTION || it.name === CONSUMABLE_NAME.MANA_POTION || it.name === CONSUMABLE_NAME.TOWN_PORTAL) &&
-                player.inventory.some(inv => inv && inv.name === it.name);
+        // 优先级决断逻辑
+        let bestCandidate = null;
+        const candidates = [...setItems, ...urgentPotions, ...uniqueItems, ...goldItems, ...consumables, ...normalItems];
+        if (candidates.length > 0) {
+            candidates.sort((a, b) => a.priority - b.priority || a.dist - b.dist);
+            bestCandidate = candidates[0].item;
+            bestCandidate.prioValue = candidates[0].priority;
+        }
 
-            // 药水/卷轴
-            if (it.name === CONSUMABLE_NAME.HEALTH_POTION && player.autoPickup.potion && dist < 400) {
-                if (canStack || !inventoryFull) {
-                    // 没有红药时提升优先级
-                    if (!hasHealPotion) urgentPotions.push({ item: it, dist });
-                    else consumables.push({ item: it, dist });
+        // 激烈战斗判定
+        const pX = player.x, pY = player.y;
+        const inHeavyCombat = enemies.some(e => {
+            if (e.dead) return false;
+            const dx = e.x - pX, dy = e.y - pY;
+            return dx * dx + dy * dy < 6400; // 80^2 = 6400
+        });
+
+        // 如果当前已有目标，检查是否需要切换
+        if (player.targetItem) {
+            const oldExists = groundItems.includes(player.targetItem);
+            const oldPrio = player.targetItem.prioValue || 99;
+            const oldDist = Math.hypot(player.targetItem.x - player.x, player.targetItem.y - player.y);
+
+            // 切换条件：旧目标消失，或新目标优先级更高，或同优先级但距离近50%以上
+            const shouldSwitch = !oldExists ||
+                (bestCandidate && bestCandidate.prioValue < oldPrio) ||
+                (bestCandidate && bestCandidate.prioValue === oldPrio && bestCandidate.dist < oldDist * 0.5);
+
+            if (shouldSwitch) {
+                // 切换到新目标
+                player.targetItem = null;
+            } else {
+                // 保持旧目标，除非旧目标在激烈战斗中且不够重要
+                if (inHeavyCombat && oldPrio > 3 && Math.hypot(player.targetItem.x - player.x, player.targetItem.y - player.y) > 100) {
+                    player.targetItem = null; // 战斗中暂缓低优先级拾取
+                } else {
+                    // 保持旧目标，但需要持续更新路径点（用于 A* 寻路）
+                    const item = player.targetItem;
+                    if (hasLineOfSight(player.x, player.y, item.x, item.y)) {
+                        player.targetX = item.x;
+                        player.targetY = item.y;
+                    } else {
+                        const pathPoint = this.findPathToTarget(item.x, item.y);
+                        if (pathPoint) {
+                            player.targetX = pathPoint.x;
+                            player.targetY = pathPoint.y;
+                        } else {
+                            // 找不到路，放弃
+                            this.blacklistedTargets.push({ target: item, until: Date.now() + 30000 });
+                            player.targetItem = null;
+                            player.targetX = null;
+                            player.targetY = null;
+                        }
+                    }
+                    return;
                 }
             }
-            else if (it.name === CONSUMABLE_NAME.MANA_POTION && player.autoPickup.potion && dist < 400) {
-                // 没有蓝药时，可以丢弃低价值装备腾空间（和套装同等重要）
-                if (canStack || !inventoryFull || (!hasManaPotion && canMakeRoom(true))) {
-                    if (!hasManaPotion) urgentPotions.push({ item: it, dist });
-                    else consumables.push({ item: it, dist });
-                }
-            }
-            else if (it.name === CONSUMABLE_NAME.TOWN_PORTAL && player.autoPickup.scroll && dist < 400) {
-                if (canStack || !inventoryFull) consumables.push({ item: it, dist });
-            }
-            // 套装：距离500内，最高优先级（可丢弃稀有装备腾空间）
-            else if (this.settings.pickupSet && it.rarity === 5 && dist < 500) {
-                if (!inventoryFull || canMakeRoom(true)) setItems.push({ item: it, dist });
-            }
-            // 暗金：距离500内，高优先级
-            else if (this.settings.pickupUnique && it.rarity === 4 && dist < 500) {
-                if (!inventoryFull || canMakeRoom()) uniqueItems.push({ item: it, dist });
-            }
-            // 稀有(黄)：距离400内
-            else if (it.rarity === 3 && dist < 400) {
-                if (!inventoryFull || canMakeRoom()) uniqueItems.push({ item: it, dist });
-            }
-            // 蓝色及以上：距离300内，背包满则跳过
-            else if (it.rarity >= 2 && dist < 300) {
-                if (!inventoryFull) normalItems.push({ item: it, dist });
-            }
         }
 
-        // 检查是否在激烈战斗中（敌人很近才算激烈战斗）
-        const inCombat = this.currentTarget && !this.currentTarget.dead;
-        const targetDist = inCombat ? Math.hypot(this.currentTarget.x - player.x, this.currentTarget.y - player.y) : Infinity;
-        // 激烈战斗：敌人距离150内
-        const inHeavyCombat = inCombat && targetDist < 150;
-
-        // 按优先级选择：套装 > 紧急药水 > 暗金/稀有 > 金币 > 药水 > 蓝装
-        // 刷宝游戏要贪婪！
-        let selected = null;
-
-        // 1. 套装最优先（任何时候都捡）
-        if (setItems.length > 0) {
-            setItems.sort((a, b) => a.dist - b.dist);
-            selected = setItems[0].item;
-        }
-        // 2. 紧急药水（没药时，激烈战斗中距离150内也捡）
-        if (!selected && urgentPotions.length > 0) {
-            urgentPotions.sort((a, b) => a.dist - b.dist);
-            if (!inHeavyCombat || urgentPotions[0].dist < 150) {
-                selected = urgentPotions[0].item;
-            }
-        }
-        // 3. 暗金/稀有（激烈战斗中距离150内也捡）
-        if (!selected && uniqueItems.length > 0) {
-            uniqueItems.sort((a, b) => a.dist - b.dist);
-            if (!inHeavyCombat || uniqueItems[0].dist < 150) {
-                selected = uniqueItems[0].item;
-            }
-        }
-        // 4. 金币（激烈战斗中距离100内也捡，否则都捡）
-        if (!selected && goldItems.length > 0) {
-            goldItems.sort((a, b) => a.dist - b.dist);
-            if (!inHeavyCombat || goldItems[0].dist < 100) {
-                selected = goldItems[0].item;
-            }
-        }
-        // 5. 药水/卷轴（激烈战斗中距离100内也捡）
-        if (!selected && consumables.length > 0) {
-            consumables.sort((a, b) => a.dist - b.dist);
-            if (!inHeavyCombat || consumables[0].dist < 100) {
-                selected = consumables[0].item;
-            }
-        }
-        // 6. 普通装备（蓝/黄）- 激烈战斗中距离80内也捡
-        if (!selected && normalItems.length > 0) {
-            normalItems.sort((a, b) => a.dist - b.dist);
-            if (!inHeavyCombat || normalItems[0].dist < 80) {
-                selected = normalItems[0].item;
+        // 选择最合适的捡取目标
+        let selected = bestCandidate;
+        if (selected && inHeavyCombat) {
+            // 激烈战斗中，只允许捡套装(1)、紧急药水(2)或已经在脚下的东西
+            if (selected.prioValue > 2 && Math.hypot(selected.x - player.x, selected.y - player.y) > 150) {
+                selected = null;
             }
         }
 
         if (selected) {
-            // 背包满且是重要物品，先丢弃低价值物品
             if (inventoryFull && selected.rarity >= 3) {
-                // 套装可以丢弃稀有装备，其他只丢蓝装及以下
-                this.dropLowestValueItem(selected.rarity === 5);
+                this.dropLowestValueItem(selected.rarity);
             }
-            player.targetItem = selected;
-            player.targetX = selected.x;
-            player.targetY = selected.y;
+
+            // 检查是否有视线，决定移动方式
+            if (hasLineOfSight(player.x, player.y, selected.x, selected.y)) {
+                // 有视线，直接走过去
+                player.targetItem = selected;
+                player.targetX = selected.x;
+                player.targetY = selected.y;
+            } else {
+                // 没有视线，使用 A* 寻路
+                const pathPoint = this.findPathToTarget(selected.x, selected.y);
+                if (pathPoint) {
+                    player.targetItem = selected;
+                    player.targetX = pathPoint.x;
+                    player.targetY = pathPoint.y;
+                } else {
+                    // A* 找不到路，放弃这个物品，加入黑名单 30 秒
+                    this.blacklistedTargets.push({ target: selected, until: Date.now() + 30000 });
+                    player.targetItem = null;
+                    player.targetX = null;
+                    player.targetY = null;
+                }
+            }
+            selected.prioValue = selected.prioValue; // 记录优先级用于下次对比
         }
     },
 
-    // 丢弃背包中最低价值物品
-    // forSet=true 时为套装腾空间，可以丢弃稀有(黄)装备
-    dropLowestValueItem(forSet = false) {
+    // 丢弃背包中最低价值物品（用于给更高稀有度的物品腾位）
+    dropLowestValueItem(targetRarity) {
         let lowestIdx = -1, lowestVal = Infinity;
         for (let i = 0; i < player.inventory.length; i++) {
             const it = player.inventory[i];
             if (!it) continue;
-            // 永远不丢：套装、暗金、药水、卷轴
-            if (isProtectedItem(it)) continue;
-            // 非套装情况：也保护稀有(黄)装备
-            if (!forSet && it.rarity >= 3) continue;
-            const val = (it.rarity || 0) * 100 + (it.def || 0) + (it.minDmg || 0);
-            if (val < lowestVal) { lowestVal = val; lowestIdx = i; }
+            // 药水、卷轴不丢
+            if (it.type === 'potion' || it.type === 'scroll') continue;
+            // 只有比目标稀有度低的物品才会被丢弃
+            if (it.rarity < targetRarity) {
+                const val = (it.rarity || 0) * 1000 + (it.def || 0) + (it.minDmg || 0);
+                if (val < lowestVal) { lowestVal = val; lowestIdx = i; }
+            }
         }
         if (lowestIdx >= 0) {
             const item = player.inventory[lowestIdx];
@@ -2339,538 +2730,14 @@ const AutoBattle = {
 
 };
 
-const AudioSys = {
-    ctx: null,
-    bgmEl: null,
-    bgmUrl: "bg.mp3",
-    masterGain: null, sfxGain: null,
-    bgmNode: null, bgmGainNode: null, bgmFilter: null, // BGM 音频节点
-    bgmPlaying: false,
-    bgmRetryNeeded: false,
-    // 金币连续拾取音调
-    goldPitch: 1.0,
-    lastGoldTime: 0,
-    // 心跳音效计时
-    heartbeatTimer: 0,
-    init: function () {
-        if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
-            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            this.masterGain = this.ctx.createGain();
-            this.sfxGain = this.ctx.createGain();
-
-            this.sfxGain.connect(this.masterGain);
-            this.masterGain.connect(this.ctx.destination);
-
-            this.sfxGain.gain.value = Settings.sfx ? 1.0 : 0;
-
-            // BGM 链路: source -> bgmGainNode -> bgmFilter -> masterGain
-            this.bgmFilter = this.ctx.createBiquadFilter();
-            this.bgmFilter.type = 'lowpass';
-            this.bgmFilter.frequency.value = 22000; // 默认全通
-            this.bgmFilter.connect(this.masterGain);
-
-            this.bgmGainNode = this.ctx.createGain();
-            this.bgmGainNode.gain.value = Settings.bgm ? 0.3 : 0;
-            this.bgmGainNode.connect(this.bgmFilter);
-
-            this.bgmEl = new Audio(this.bgmUrl);
-            this.bgmEl.loop = true;
-            // 注意：当使用 MediaElementSource 时，element.volume 也可以控制，但我们主要用 GainNode
-            this.bgmEl.volume = 1.0;
-
-            // 创建 MediaElementSource 需要在用户交互后或上下文 ready 时，但在 init 通常也可以
-            // 为了安全，我们只创建一次。注意：有些旧浏览器可能需要前缀，但现在通常不需要
-            try {
-                this.bgmNode = this.ctx.createMediaElementSource(this.bgmEl);
-                this.bgmNode.connect(this.bgmGainNode);
-            } catch (e) {
-                console.error("Error creating MediaElementSource:", e);
-                // 降级处理：如果不成功，至少让它响，虽然没有滤镜效果
-                this.bgmEl.volume = Settings.bgm ? 0.3 : 0;
-            }
-
-            // 监听音频结束事件，确保循环播放
-            this.bgmEl.addEventListener('ended', () => {
-                if (Settings.bgm && this.bgmPlaying) {
-                    this.bgmEl.currentTime = 0;
-                    this.bgmEl.play().catch(e => console.log("BGM restart failed:", e));
-                }
-            });
-        }
-        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
-    },
-    startBGM: function () {
-        if (this.bgmEl && Settings.bgm && !this.bgmPlaying) {
-            console.log("Attempting to start BGM...");
-            this.bgmPlaying = true;
-            this.bgmEl.play().then(() => {
-                console.log("✅ BGM started successfully");
-            }).catch(e => {
-                console.log("❌ BGM play failed:", e);
-                this.bgmPlaying = false;
-                // 如果失败，可能是需要更多用户交互，设置标记稍后重试
-                this.bgmRetryNeeded = true;
-            });
-        }
-    },
-    stopBGM: function () {
-        if (this.bgmEl && this.bgmPlaying) {
-            this.bgmEl.pause();
-            this.bgmPlaying = false;
-        }
-    },
-    resumeBGM: function () {
-        if (this.bgmEl && Settings.bgm && !this.bgmPlaying) {
-            // 如果有重试标记，先尝试startBGM
-            if (this.bgmRetryNeeded) {
-                this.bgmRetryNeeded = false;
-                this.startBGM();
-            } else {
-                this.bgmEl.play().then(() => {
-                    this.bgmPlaying = true;
-                    console.log("✅ BGM resumed successfully");
-                }).catch(e => {
-                    console.log("❌ BGM resume failed:", e);
-                    this.bgmPlaying = false;
-                });
-            }
-        }
-    },
-    // 在任何用户交互时调用，尝试启动BGM
-    tryAutoStartBGM: function () {
-        if (this.bgmRetryNeeded && Settings.bgm) {
-            console.log("🔄 Auto-retrying BGM start...");
-            this.bgmRetryNeeded = false;
-            this.startBGM();
-        }
-    },
-    play: function (type) {
-        if (!this.ctx) { console.log('AudioSys: No context'); return; }
-        if (this.ctx.state === 'suspended') { console.log('AudioSys: Context suspended'); this.ctx.resume(); }
-
-        // console.log('AudioSys playing:', type, 'SFX:', Settings.sfx, 'Gain:', this.sfxGain.gain.value); // Debug
-
-        const t = this.ctx.currentTime;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.connect(gain); gain.connect(this.sfxGain);
-
-        if (type === 'gold') {
-            // 连续拾取音调递增逻辑
-            const now = Date.now();
-            if (now - this.lastGoldTime < 1500) {
-                this.goldPitch = Math.min(this.goldPitch + 0.1, 2.0); // 最高 2.0 倍
-            } else {
-                this.goldPitch = 1.0;
-            }
-            this.lastGoldTime = now;
-
-            osc.type = 'sine';
-            // 基础频率 1800 * pitch
-            const freq = 1800 * this.goldPitch;
-            osc.frequency.setValueAtTime(freq, t);
-            gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15); //稍微缩短一点
-            osc.start(); osc.stop(t + 0.15);
-        } else if (type === 'heartbeat') {
-            // 心跳声：低频脉冲
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(60, t);
-            osc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
-
-            gain.gain.setValueAtTime(0.5, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-
-            osc.start(); osc.stop(t + 0.2);
-        } else if (type === 'attack') {
-            osc.type = 'triangle'; osc.frequency.setValueAtTime(100, t); osc.frequency.linearRampToValueAtTime(50, t + 0.1);
-            gain.gain.setValueAtTime(0.1, t); gain.gain.linearRampToValueAtTime(0, t + 0.1);
-            osc.start(); osc.stop(t + 0.1);
-        } else if (type === 'hit') {
-            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, t);
-            gain.gain.setValueAtTime(0.1, t); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
-            osc.start(); osc.stop(t + 0.1);
-        } else if (type === 'quest') {
-            osc.type = 'sine'; osc.frequency.setValueAtTime(440, t);
-            osc.frequency.setValueAtTime(554, t + 0.2); osc.frequency.setValueAtTime(659, t + 0.4);
-            gain.gain.setValueAtTime(0.2, t); gain.gain.setValueAtTime(0, t + 1);
-            osc.start(); osc.stop(t + 1);
-        } else if (type === 'levelup') {
-            [440, 554, 659, 880].forEach((f, i) => {
-                let o = this.ctx.createOscillator(); let g = this.ctx.createGain();
-                o.connect(g); g.connect(this.sfxGain);
-                o.frequency.value = f;
-                g.gain.setValueAtTime(0.1, t + i * 0.1); g.gain.linearRampToValueAtTime(0, t + i * 0.1 + 0.3);
-                o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.3);
-            });
-        } else if (type === 'potion') {
-            // 咕噜噜的喝药音效 - 使用多个振荡器模拟液体流动声
-            [200, 250, 300].forEach((f, i) => {
-                let o = this.ctx.createOscillator();
-                let g = this.ctx.createGain();
-                o.type = 'sine';
-                o.connect(g);
-                g.connect(this.sfxGain);
-                o.frequency.setValueAtTime(f, t + i * 0.05);
-                o.frequency.exponentialRampToValueAtTime(f * 0.5, t + i * 0.05 + 0.2);
-                g.gain.setValueAtTime(0.08, t + i * 0.05);
-                g.gain.exponentialRampToValueAtTime(0.01, t + i * 0.05 + 0.3);
-                o.start(t + i * 0.05);
-                o.stop(t + i * 0.05 + 0.3);
-            });
-        } else if (type === 'click') {
-            // 加点/确认音效 - 清脆的点击声
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(800, t);
-            osc.frequency.exponentialRampToValueAtTime(600, t + 0.05);
-            gain.gain.setValueAtTime(0.15, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
-            osc.start(t);
-            osc.stop(t + 0.1);
-        } else if (type === 'fireball') {
-            // 逼真的火球音效 - 三层叠加：爆发冲击 + 火焰燃烧 + 空气振动
-
-            // 1. 爆发冲击层 - 方波模拟爆炸冲击
-            const osc1 = this.ctx.createOscillator();
-            const gain1 = this.ctx.createGain();
-            osc1.type = 'square';
-            osc1.connect(gain1);
-            gain1.connect(this.sfxGain);
-            osc1.frequency.setValueAtTime(80, t);
-            osc1.frequency.exponentialRampToValueAtTime(40, t + 0.2);
-            gain1.gain.setValueAtTime(0.3, t);
-            gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
-            osc1.start(t);
-            osc1.stop(t + 0.3);
-
-            // 2. 火焰燃烧层 - 锯齿波模拟火焰噼啪声
-            [120, 150, 180].forEach((f, i) => {
-                const osc2 = this.ctx.createOscillator();
-                const gain2 = this.ctx.createGain();
-                osc2.type = 'sawtooth';
-                osc2.connect(gain2);
-                gain2.connect(this.sfxGain);
-                osc2.frequency.setValueAtTime(f, t + i * 0.03);
-                osc2.frequency.exponentialRampToValueAtTime(f * 0.3, t + 0.4);
-                gain2.gain.setValueAtTime(0.1 - i * 0.02, t + i * 0.03);
-                gain2.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
-                osc2.start(t + i * 0.03);
-                osc2.stop(t + 0.5);
-            });
-            // 3. 高频嘶嘶声层 - 正弦波模拟空气振动
-            const osc3 = this.ctx.createOscillator();
-            const gain3 = this.ctx.createGain();
-            osc3.type = 'sine';
-            osc3.connect(gain3);
-            gain3.connect(this.sfxGain);
-            osc3.frequency.setValueAtTime(1000, t);
-            osc3.frequency.exponentialRampToValueAtTime(500, t + 0.15);
-            gain3.gain.setValueAtTime(0.05, t);
-            gain3.gain.linearRampToValueAtTime(0, t + 0.2);
-            osc3.start(t);
-            osc3.stop(t + 0.2);
-        } else if (type === 'arrow') {
-            // 箭矢音效 - 风声和撞击声
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'triangle';
-            osc.connect(gain);
-            gain.connect(this.sfxGain);
-            osc.frequency.setValueAtTime(800, t);
-            osc.frequency.exponentialRampToValueAtTime(400, t + 0.1);
-            gain.gain.setValueAtTime(0.1, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
-            osc.start(t);
-            osc.stop(t + 0.2);
-        } else if (type === 'thunder') {
-            // 雷电音效：白噪声 + 低频震荡
-            // 1. 初始的尖锐爆裂声 (高频锯齿波)
-            const osc1 = this.ctx.createOscillator();
-            const gain1 = this.ctx.createGain();
-            osc1.type = 'sawtooth';
-            osc1.frequency.setValueAtTime(800, t);
-            osc1.frequency.exponentialRampToValueAtTime(100, t + 0.1);
-            gain1.gain.setValueAtTime(0.3, t);
-            gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
-            osc1.connect(gain1);
-            gain1.connect(this.sfxGain);
-            osc1.start(t);
-            osc1.stop(t + 0.15);
-
-            // 2. 隆隆的雷声 (低频噪声模拟)
-            // 由于 Web Audio API 原生没有白噪声节点，我们用多个低频振荡器模拟
-            [60, 80, 100, 120, 150].forEach((f) => {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'square'; // 方波听起来更粗糙，适合模拟雷声
-                osc.frequency.setValueAtTime(f + Math.random() * 20, t);
-                osc.frequency.linearRampToValueAtTime(f * 0.5, t + 0.5 + Math.random() * 0.5);
-
-                gain.gain.setValueAtTime(0.05, t);
-                gain.gain.linearRampToValueAtTime(0.08, t + 0.1); // 渐强
-                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8 + Math.random() * 0.4); // 漫长的衰减
-
-                osc.connect(gain);
-                gain.connect(this.sfxGain);
-                osc.start(t);
-                osc.stop(t + 1.5);
-            });
-        } else if (type === 'drop_unique') {
-            // 暗金掉落音效 - 史诗感的金属共鸣 + 天堂之音
-            // 1. 金属撞击声
-            const osc1 = this.ctx.createOscillator();
-            const gain1 = this.ctx.createGain();
-            osc1.type = 'sine';
-            osc1.frequency.setValueAtTime(880, t);
-            osc1.frequency.exponentialRampToValueAtTime(440, t + 0.3);
-            gain1.gain.setValueAtTime(0.3, t);
-            gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
-            osc1.connect(gain1);
-            gain1.connect(this.sfxGain);
-            osc1.start(t);
-            osc1.stop(t + 0.5);
-
-            // 2. 天堂和弦 (C-E-G-C)
-            [523, 659, 784, 1047].forEach((f, i) => {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(f, t + i * 0.08);
-                gain.gain.setValueAtTime(0.15, t + i * 0.08);
-                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
-                osc.connect(gain);
-                gain.connect(this.sfxGain);
-                osc.start(t + i * 0.08);
-                osc.stop(t + 1);
-            });
-
-            // 3. 低频共鸣
-            const osc3 = this.ctx.createOscillator();
-            const gain3 = this.ctx.createGain();
-            osc3.type = 'triangle';
-            osc3.frequency.setValueAtTime(110, t);
-            gain3.gain.setValueAtTime(0.2, t);
-            gain3.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
-            osc3.connect(gain3);
-            gain3.connect(this.sfxGain);
-            osc3.start(t);
-            osc3.stop(t + 0.6);
-        } else if (type === 'drop_set') {
-            // 套装掉落音效 - 神秘的绿色能量
-            // 1. 神秘的低音脉冲
-            const osc1 = this.ctx.createOscillator();
-            const gain1 = this.ctx.createGain();
-            osc1.type = 'sine';
-            osc1.frequency.setValueAtTime(165, t);
-            osc1.frequency.linearRampToValueAtTime(220, t + 0.3);
-            gain1.gain.setValueAtTime(0.25, t);
-            gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
-            osc1.connect(gain1);
-            gain1.connect(this.sfxGain);
-            osc1.start(t);
-            osc1.stop(t + 0.5);
-
-            // 2. 魔法音阶 (小调神秘感)
-            [330, 392, 440, 523].forEach((f, i) => {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(f, t + i * 0.1);
-                gain.gain.setValueAtTime(0.12, t + i * 0.1);
-                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.7);
-                osc.connect(gain);
-                gain.connect(this.sfxGain);
-                osc.start(t + i * 0.1);
-                osc.stop(t + 0.9);
-            });
-        }
-    },
-    playFireballExplosion: function (level) {
-        if (!this.ctx) { console.log('AudioSys: No context'); return; }
-        if (this.ctx.state === 'suspended') { this.ctx.resume(); }
-
-        const t = this.ctx.currentTime;
-
-        // 根据等级计算参数
-        const filterFreq = 300 - (level - 5) * 10; // 5级=300Hz, 10级=250Hz
-        const volume = 0.3 + (level - 5) * 0.04;   // 5级=0.3, 10级=0.5
-        const duration = 0.25 + (level - 5) * 0.02; // 5级=0.25s, 10级=0.35s
-
-        // 第一层：低频轰鸣（主体爆炸声）
-        // 使用多个低频方波叠加模拟噪声
-        [60, 80, 100, 120, 150].forEach((f) => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            const filter = this.ctx.createBiquadFilter();
-
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(f + Math.random() * 10, t);
-
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(filterFreq, t);
-            filter.Q.setValueAtTime(1, t);
-
-            gain.gain.setValueAtTime(volume * 0.15, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
-
-            osc.connect(filter);
-            filter.connect(gain);
-            gain.connect(this.sfxGain);
-            osc.start(t);
-            osc.stop(t + duration);
-        });
-
-        // 第二层：中频冲击（爆炸瞬间的"砰"）
-        const osc2 = this.ctx.createOscillator();
-        const gain2 = this.ctx.createGain();
-        osc2.type = 'triangle';
-        osc2.frequency.setValueAtTime(400, t);
-        osc2.frequency.exponentialRampToValueAtTime(100, t + 0.05);
-        gain2.gain.setValueAtTime(volume * 0.5, t);
-        gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-        osc2.connect(gain2);
-        gain2.connect(this.sfxGain);
-        osc2.start(t);
-        osc2.stop(t + 0.08);
-
-        // 第三层：高频碎裂（火焰碎片飞溅）
-        [800, 1000, 1200].forEach((f, i) => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(f, t + i * 0.02);
-            osc.frequency.exponentialRampToValueAtTime(f * 0.3, t + 0.1);
-            gain.gain.setValueAtTime(volume * 0.08, t + i * 0.02);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-            osc.connect(gain);
-            gain.connect(this.sfxGain);
-            osc.start(t + i * 0.02);
-            osc.stop(t + 0.15);
-        });
-
-        // 等级10添加余波效果
-        if (level >= 10) {
-            setTimeout(() => {
-                const t2 = this.ctx.currentTime;
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                const filter = this.ctx.createBiquadFilter();
-
-                osc.type = 'square';
-                osc.frequency.setValueAtTime(80, t2);
-                filter.type = 'lowpass';
-                filter.frequency.setValueAtTime(200, t2);
-                gain.gain.setValueAtTime(volume * 0.2, t2);
-                gain.gain.exponentialRampToValueAtTime(0.001, t2 + 0.15);
-
-                osc.connect(filter);
-                filter.connect(gain);
-                gain.connect(this.sfxGain);
-                osc.start(t2);
-                osc.stop(t2 + 0.15);
-            }, 150);
-        }
-    },
-    // 更新低血量音效（由 update 循环调用）
-    updateLowHpEffect: function (dt, hpPct) {
-        if (!this.ctx || !this.bgmFilter) return;
-
-        // 阈值 30%
-        if (hpPct < 0.3 && !player.isDead) {
-            // 目标频率：越低越闷，最低 200Hz
-            const targetFreq = 200 + hpPct * 1000;
-            // 平滑过渡
-            const currentFreq = this.bgmFilter.frequency.value;
-            this.bgmFilter.frequency.value = currentFreq + (targetFreq - currentFreq) * dt * 5;
-
-            // 心跳声
-            if (this.heartbeatTimer <= 0) {
-                this.play('heartbeat');
-                // 血越少心跳越快：30% -> 1秒, 0% -> 0.4秒
-                this.heartbeatTimer = 0.4 + hpPct * 2;
-            } else {
-                this.heartbeatTimer -= dt;
-            }
-        } else {
-            // 恢复正常
-            const currentFreq = this.bgmFilter.frequency.value;
-            if (currentFreq < 22000) {
-                this.bgmFilter.frequency.value = currentFreq + (22000 - currentFreq) * dt * 2;
-            }
-            this.heartbeatTimer = 0;
-        }
-    },
-    toggleSetting: function (key, val) {
-        Settings[key] = val;
-        if (key === 'bgm' && this.bgmEl) {
-            this.bgmEl.volume = val ? 0.3 : 0;
-            if (val && !this.bgmPlaying) {
-                // 如果开启BGM且当前没有播放，尝试播放
-                this.startBGM();
-            } else if (!val && this.bgmPlaying) {
-                // 如果关闭BGM且当前正在播放，暂停播放
-                this.stopBGM();
-            }
-        }
-        if (key === 'sfx' && this.sfxGain) {
-            this.sfxGain.gain.setValueAtTime(val ? 1.0 : 0, this.ctx.currentTime);
-        }
-    },
-    playPortalOpen: function () {
-        // 传送门打开音效：神秘的能量涌动
-        if (!this.ctx) return;
-        const t = this.ctx.currentTime;
-
-        // 1. 低频能量脉冲
-        const osc1 = this.ctx.createOscillator();
-        const gain1 = this.ctx.createGain();
-        osc1.type = 'sine';
-        osc1.frequency.setValueAtTime(80, t);
-        osc1.frequency.exponentialRampToValueAtTime(200, t + 0.5);
-        gain1.gain.setValueAtTime(0.3, t);
-        gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
-        osc1.connect(gain1);
-        gain1.connect(this.sfxGain);
-        osc1.start(t);
-        osc1.stop(t + 0.8);
-
-        // 2. 高频魔法音
-        [400, 500, 600, 800].forEach((f, i) => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(f, t + i * 0.1);
-            gain.gain.setValueAtTime(0.1, t + i * 0.1);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.6);
-            osc.connect(gain);
-            gain.connect(this.sfxGain);
-            osc.start(t + i * 0.1);
-            osc.stop(t + 0.8);
-        });
-    },
-    playPortalArrive: function () {
-        // 到达城镇音效：温暖的环境音
-        if (!this.ctx) return;
-        const t = this.ctx.currentTime;
-
-        // 和弦音
-        [262, 330, 392].forEach((f) => {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(f, t);
-            gain.gain.setValueAtTime(0.15, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 1.0);
-            osc.connect(gain);
-            gain.connect(this.sfxGain);
-            osc.start(t);
-            osc.stop(t + 1.0);
-        });
-    }
-};
-
 // 自动拾取设置切换
 function toggleAutoPickup(itemType) {
-    const checkbox = document.getElementById(`chk-auto-${itemType}`);
+    let checkbox = null;
+    if (itemType === 'gold') checkbox = cachedUI.chkAutoGold;
+    else if (itemType === 'potion') checkbox = cachedUI.chkAutoPotion;
+    else if (itemType === 'scroll') checkbox = cachedUI.chkAutoScroll;
+
+    if (!checkbox) return;
     player.autoPickup[itemType] = checkbox.checked;
     SaveSystem.save();
     showNotification(`自动拾取${itemType === 'gold' ? '金币' : itemType === 'potion' ? '药水' : '卷轴'}：${checkbox.checked ? '开启' : '关闭'}`);
@@ -2878,1080 +2745,419 @@ function toggleAutoPickup(itemType) {
 
 // 画质设置切换
 function toggleGraphicsQuality() {
-    const select = document.getElementById('select-graphics-quality');
-    player.graphicsQuality = select.value;
+    if (!cachedUI.selectGraphicsQuality) return;
+    const val = cachedUI.selectGraphicsQuality.value;
+    player.graphicsQuality = val;
+    document.body.classList.toggle('high-quality', val === 'high');
     SaveSystem.save();
-    showNotification(`特效质量：${select.value === 'high' ? '华丽特效' : '性能优先'}`);
+    showNotification(`特效质量：${val === 'high' ? '华丽特效' : '性能优先'}`);
 }
 
-// ========== 属性系统迁移函数 ==========
-// 将旧版本的基础属性(str/dex/vit/ene)转换为直接效果属性
-function migrateItemStats() {
-    let migratedCount = 0;
+// ========== 离线收益系统 ==========
+const OfflineRewards = {
+    // 配置常量
+    MAX_OFFLINE_HOURS: 8,        // 最大离线时长（小时）
+    MIN_OFFLINE_MINUTES: 5,      // 最小离线时长（分钟）
+    EFFICIENCY: 0.5,             // 离线效率（在线的50%）
 
-    // 迁移单个物品
-    function migrateItem(item) {
-        if (!item || !item.stats) return false;
-        let migrated = false;
+    // 每小时基础收益（1层时）
+    BASE_GOLD_PER_HOUR: 600,
+    BASE_XP_PER_HOUR: 80,
 
-        // str → dmgPct (×5)
-        if (item.stats.str) {
-            item.stats.dmgPct = (item.stats.dmgPct || 0) + item.stats.str * 5;
-            delete item.stats.str;
-            migrated = true;
-        }
+    // 装备掉落概率（每小时）
+    MAGIC_DROP_CHANCE: 0.15,     // 蓝装 15%/小时
+    RARE_DROP_CHANCE: 0.03,      // 黄装 3%/小时
 
-        // vit → maxHp (×5)
-        if (item.stats.vit) {
-            item.stats.maxHp = (item.stats.maxHp || 0) + item.stats.vit * 5;
-            delete item.stats.vit;
-            migrated = true;
-        }
+    // 装备转金币价值
+    MAGIC_TO_GOLD: 50,
+    RARE_TO_GOLD: 150,
 
-        // ene → maxMp (×3)
-        if (item.stats.ene) {
-            item.stats.maxMp = (item.stats.maxMp || 0) + item.stats.ene * 3;
-            delete item.stats.ene;
-            migrated = true;
-        }
-
-        // dex → def (×1) + critChance (×0.5)
-        if (item.stats.dex) {
-            item.stats.def = (item.stats.def || 0) + item.stats.dex;
-            item.stats.critChance = (item.stats.critChance || 0) + Math.floor(item.stats.dex * 0.5);
-            delete item.stats.dex;
-            migrated = true;
-        }
-
-        // mpRegen 迁移：旧版是固定值(30-100)，新版是百分比(3-10%)
-        // 检测：如果 > 20，说明是旧版固定值，除以10转为百分比
-        if (item.stats.mpRegen && item.stats.mpRegen > 20) {
-            item.stats.mpRegen = Math.round(item.stats.mpRegen / 10);
-            migrated = true;
-        }
-
-        return migrated;
-    }
-
-    // 迁移背包物品
-    player.inventory.forEach(item => {
-        if (migrateItem(item)) migratedCount++;
-    });
-
-    // 迁移仓库物品
-    player.stash.forEach(item => {
-        if (migrateItem(item)) migratedCount++;
-    });
-
-    // 迁移已装备物品
-    Object.values(player.equipment).forEach(item => {
-        if (migrateItem(item)) migratedCount++;
-    });
-
-    if (migratedCount > 0) {
-        console.log(`[属性迁移] 已转换 ${migratedCount} 件物品的旧属性`);
-        showNotification(`已自动升级 ${migratedCount} 件装备属性`);
-    }
-}
-
-const SaveSystem = {
-    currentSlot: 1,  // 当前使用的存档槽位
-    MAX_SLOTS: 3,    // 最大存档数
-
-    init: function () {
-        const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = e => {
-            const db = e.target.result;
-            if (!db.objectStoreNames.contains('saveData')) db.createObjectStore('saveData', { keyPath: 'id' });
-        };
-        req.onsuccess = e => {
-            db = e.target.result;
-            this.migrateOldSave().then(() => {
-                this.loadAllSlotsMeta();
-            });
-        };
-        req.onerror = e => { console.error("DB Init Failed", e); };
-    },
-
-    // 迁移旧存档到槽位1
-    migrateOldSave: async function () {
-        return new Promise((resolve) => {
-            if (!db) { resolve(); return; }
-            const tx = db.transaction(['saveData'], 'readonly');
-            const store = tx.objectStore('saveData');
-
-            // 检查是否有旧格式存档
-            const oldReq = store.get('player1');
-            oldReq.onsuccess = (e) => {
-                const oldData = e.target.result;
-                if (oldData && !oldData.slotId) {
-                    // 旧存档存在且未迁移，迁移到槽位1
-                    const newData = { ...oldData, id: 'slot_1', slotId: 1 };
-                    const writeTx = db.transaction(['saveData'], 'readwrite');
-                    const writeStore = writeTx.objectStore('saveData');
-                    writeStore.put(newData);
-                    writeStore.delete('player1');  // 删除旧存档
-                    writeTx.oncomplete = () => {
-                        console.log('[存档迁移] 已将旧存档迁移到槽位1');
-                        resolve();
-                    };
-                } else {
-                    resolve();
-                }
-            };
-            oldReq.onerror = () => resolve();
-        });
-    },
-
-    // 加载所有槽位的元数据（用于显示存档选择界面）
-    loadAllSlotsMeta: function () {
-        if (!db) return;
-        window.saveSlots = [null, null, null];  // 3个槽位
-
-        const tx = db.transaction(['saveData'], 'readonly');
-        const store = tx.objectStore('saveData');
-
-        for (let i = 1; i <= this.MAX_SLOTS; i++) {
-            const req = store.get(`slot_${i}`);
-            req.onsuccess = (e) => {
-                if (e.target.result) {
-                    const data = e.target.result;
-                    const pb = data.personalBest || {};
-                    window.saveSlots[i - 1] = {
-                        slotId: i,
-                        level: data.lvl || 1,
-                        kills: data.kills || 0,
-                        gold: data.gold || 0,
-                        maxFloor: pb.maxFloor || data.floor || 0,
-                        maxHellFloor: pb.maxHellFloor || 0,
-                        lastPlayed: data.lastPlayed || Date.now(),
-                        hasData: true
-                    };
-                }
-                // 当所有槽位都检查完毕后，更新UI
-                if (i === this.MAX_SLOTS) {
-                    this.updateStartScreenStatus();
-                }
-            };
-        }
-    },
-
-    // 更新开始界面状态
-    updateStartScreenStatus: function () {
-        const statusEl = document.getElementById('save-status');
-        const hasAnySave = window.saveSlots && window.saveSlots.some(s => s && s.hasData);
-        if (hasAnySave) {
-            const filledSlots = window.saveSlots.filter(s => s && s.hasData).length;
-            statusEl.innerHTML = `发现 ${filledSlots} 个存档`;
+    // 计算楼层系数（无限楼层适配）
+    getFloorMultiplier(floor) {
+        // 1-10层：1.0 + 层×0.1 = 1.1 ~ 2.0
+        // 11-20层：2.0 + (层-10)×0.08 = 2.08 ~ 2.8
+        // 21-30层：2.8 + (层-20)×0.06 = 2.86 ~ 3.4
+        // 31+层：3.4 + (层-30)×0.04，封顶5.0
+        if (floor <= 10) {
+            return 1.0 + floor * 0.1;
+        } else if (floor <= 20) {
+            return 2.0 + (floor - 10) * 0.08;
+        } else if (floor <= 30) {
+            return 2.8 + (floor - 20) * 0.06;
         } else {
-            statusEl.innerHTML = '';
+            return Math.min(5.0, 3.4 + (floor - 30) * 0.04);
         }
     },
 
-    // 保存到当前槽位
-    save: function (silent = false) {
-        if (!db) return;
-        const clean = i => { if (!i) return null; const { el, ...r } = i; return r; };
-        const eq = {}; for (let k in player.equipment) eq[k] = clean(player.equipment[k]);
-        const data = {
-            id: `slot_${this.currentSlot}`,
-            slotId: this.currentSlot,
-            ...player,
-            inventory: player.inventory.map(clean),
-            equipment: eq,
-            stash: player.stash.map(clean),
-            targetItem: clean(player.targetItem),
-            townPortal: townPortal,
-            settings: Settings,
-            autoBattleSettings: AutoBattle.settings,
-            lastPlayed: Date.now()
+    // 计算离线收益
+    calculate(lastOnlineTime, maxFloor) {
+        const now = Date.now();
+        const offlineMs = now - lastOnlineTime;
+        const offlineMinutes = offlineMs / 60000;
+
+        // 离线时间不足5分钟，无收益
+        if (offlineMinutes < this.MIN_OFFLINE_MINUTES) {
+            return null;
+        }
+
+        // 限制最大离线时长
+        const cappedHours = Math.min(offlineMinutes / 60, this.MAX_OFFLINE_HOURS);
+
+        // 使用历史最高普通楼层（不计地狱）
+        const effectiveFloor = maxFloor || 1;
+
+        const floorMult = this.getFloorMultiplier(effectiveFloor);
+
+        // 计算金币和经验
+        const gold = Math.floor(this.BASE_GOLD_PER_HOUR * cappedHours * floorMult * this.EFFICIENCY);
+        const xp = Math.floor(this.BASE_XP_PER_HOUR * cappedHours * floorMult * this.EFFICIENCY);
+
+        // 计算装备掉落数量
+        const magicRolls = cappedHours * this.MAGIC_DROP_CHANCE;
+        const rareRolls = cappedHours * this.RARE_DROP_CHANCE;
+
+        // 使用概率累积生成装备数量
+        let magicCount = Math.floor(magicRolls);
+        if (Math.random() < (magicRolls - magicCount)) magicCount++;
+
+        let rareCount = Math.floor(rareRolls);
+        if (Math.random() < (rareRolls - rareCount)) rareCount++;
+
+        // 生成装备列表
+        const items = [];
+        const itemLevel = Math.max(1, effectiveFloor);
+
+        for (let i = 0; i < rareCount; i++) {
+            items.push(this.generateOfflineItem(itemLevel, 3)); // 黄装
+        }
+        for (let i = 0; i < magicCount; i++) {
+            items.push(this.generateOfflineItem(itemLevel, 2)); // 蓝装
+        }
+
+        return {
+            offlineMinutes: Math.floor(offlineMinutes),
+            cappedHours: cappedHours,
+            gold: gold,
+            xp: xp,
+            items: items,
+            floor: effectiveFloor
         };
-        db.transaction(['saveData'], 'readwrite').objectStore('saveData').put(data);
-
-        // 静默存档，不显示提示（原：if (!silent) showNotification("游戏已保存");）
     },
 
-    // 加载指定槽位
-    loadSlot: function (slotId) {
-        return new Promise((resolve) => {
-            if (!db) { resolve(null); return; }
-            this.currentSlot = slotId;
-            db.transaction(['saveData']).objectStore('saveData').get(`slot_${slotId}`).onsuccess = e => {
-                if (e.target.result) {
-                    window.pendingLoadData = e.target.result;
+    // 生成离线装备
+    generateOfflineItem(level, rarity) {
+        const types = ['weapon', 'armor', 'helm', 'gloves', 'boots', 'belt', 'ring', 'amulet'];
+        // 名称必须与 BASE_ITEMS 完全匹配，否则 createItem 会随机选择物品（可能选中药水/卷轴）
+        const typeNames = ['短剑', '皮甲', '皮帽', '皮手套', '皮靴', '轻扣带', '铜戒指', '护身符'];
+        const typeIdx = Math.floor(Math.random() * types.length);
 
-                    // Load Settings
-                    if (e.target.result.settings) {
-                        Object.assign(Settings, e.target.result.settings);
-                        document.getElementById('chk-bgm').checked = Settings.bgm;
-                        document.getElementById('chk-sfx').checked = Settings.sfx;
-                    }
-                    resolve(e.target.result);
-                } else {
-                    window.pendingLoadData = null;
-                    resolve(null);
+        const item = createItem(typeNames[typeIdx], level);
+        item.rarity = rarity;
+
+        // 根据稀有度重新生成属性
+        if (rarity >= 2) {
+            const p = AFFIXES.prefixes[Math.floor(Math.random() * AFFIXES.prefixes.length)];
+            item.displayName = p.name + " " + item.name;
+            item.stats[p.stat] = Math.floor(Math.random() * (p.max - p.min)) + p.min;
+        }
+        if (rarity >= 3) {
+            const s = AFFIXES.suffixes[Math.floor(Math.random() * AFFIXES.suffixes.length)];
+            item.displayName += s.name;
+            item.stats[s.stat] = (item.stats[s.stat] || 0) + Math.floor(Math.random() * (s.max - s.min)) + s.min;
+        }
+
+        return item;
+    },
+
+    // 领取离线收益
+    claim(rewards) {
+        if (!rewards) return { success: false };
+
+        // 1. 发放金币
+        addGold(rewards.gold);
+
+        // 2. 发放经验
+        const oldLvl = player.lvl;
+        player.xp += rewards.xp;
+        while (player.xp >= player.xpNext) {
+            player.xp -= player.xpNext;
+            player.lvl++;
+            player.points += 5;
+            player.skillPoints += 1;
+            player.xpNext = Math.floor(100 * Math.pow(1.15, player.lvl - 1));
+        }
+        const leveledUp = player.lvl > oldLvl;
+
+        // 3. 发放装备（背包满则转金币）
+        let itemsReceived = 0;
+        let itemsConverted = 0;
+        let convertedGold = 0;
+
+        for (const item of rewards.items) {
+            const emptySlot = player.inventory.findIndex(x => !x);
+            if (emptySlot >= 0) {
+                player.inventory[emptySlot] = item;
+                itemsReceived++;
+                trackItemFound(item);
+            } else {
+                // 背包满，转化为金币
+                const goldValue = item.rarity === 3 ? this.RARE_TO_GOLD : this.MAGIC_TO_GOLD;
+                addGold(goldValue);
+                itemsConverted++;
+                convertedGold += goldValue;
+            }
+        }
+
+        // 标记已领取
+        player.offlineRewardsClaimed = true;
+        player.lastOnlineTime = Date.now();
+
+        // 更新UI
+        updateStats();
+        updateUI();
+        renderInventory();
+
+        return {
+            success: true,
+            itemsReceived,
+            itemsConverted,
+            convertedGold,
+            leveledUp,
+            newLevel: player.lvl
+        };
+    },
+
+    // 显示离线收益面板
+    showPanel(rewards) {
+        if (!rewards) return;
+
+        const overlay = document.getElementById('offline-rewards-overlay');
+        if (!overlay) return;
+
+        // 格式化离线时间
+        let timeText;
+        if (rewards.offlineMinutes < 60) {
+            timeText = `${rewards.offlineMinutes} 分钟`;
+        } else {
+            const hours = Math.floor(rewards.offlineMinutes / 60);
+            const mins = rewards.offlineMinutes % 60;
+            timeText = mins > 0 ? `${hours} 小时 ${mins} 分钟` : `${hours} 小时`;
+        }
+
+        // 如果超过8小时，显示提示
+        if (rewards.cappedHours >= this.MAX_OFFLINE_HOURS) {
+            timeText += ` <span style="color:#888;">(最多计算${this.MAX_OFFLINE_HOURS}小时)</span>`;
+        }
+
+        const floorText = `第${rewards.floor}层`;
+
+        // 装备列表HTML
+        let itemsHtml = '';
+        if (rewards.items.length > 0) {
+            itemsHtml = '<div class="offline-items">';
+            for (const item of rewards.items) {
+                const color = item.rarity === 3 ? '#ffff00' : '#4d94ff';
+                itemsHtml += `<div class="offline-item" style="color:${color};">${item.displayName}</div>`;
+            }
+            itemsHtml += '</div>';
+        } else {
+            itemsHtml = '<div class="offline-items-empty">无装备掉落</div>';
+        }
+
+        document.getElementById('offline-time-text').innerHTML = timeText;
+        document.getElementById('offline-floor-text').innerText = floorText;
+        document.getElementById('offline-gold-text').innerText = rewards.gold.toLocaleString();
+        document.getElementById('offline-xp-text').innerText = rewards.xp.toLocaleString();
+        document.getElementById('offline-items-container').innerHTML = itemsHtml;
+
+        // 存储待领取的奖励
+        window.pendingOfflineRewards = rewards;
+
+        overlay.classList.add('active');
+        AudioSys.play('levelup');
+    },
+
+    // 关闭面板并领取
+    claimAndClose() {
+        const rewards = window.pendingOfflineRewards;
+        if (!rewards) return;
+
+        const result = this.claim(rewards);
+
+        // 播放领取音效
+        AudioSys.play('coins');
+
+        // 显示飘字效果（金币和经验）
+        const baseY = player.y - 40;
+        let delay = 0;
+
+        // 金币飘字（金色）
+        setTimeout(() => {
+            createDamageNumber(player.x, baseY, `+${rewards.gold.toLocaleString()} G`, '#ffd700', true);
+        }, delay);
+        delay += 200;
+
+        // 经验飘字（青色）
+        setTimeout(() => {
+            createDamageNumber(player.x, baseY - 20, `+${rewards.xp.toLocaleString()} XP`, '#00ffff', true);
+        }, delay);
+        delay += 200;
+
+        // 装备数量飘字（如果有）
+        if (result.itemsReceived > 0) {
+            setTimeout(() => {
+                createDamageNumber(player.x, baseY - 40, `+${result.itemsReceived} 装备`, '#ff88ff', true);
+            }, delay);
+            delay += 200;
+        }
+
+        // 升级特效
+        if (result.leveledUp) {
+            setTimeout(() => {
+                createDamageNumber(player.x, baseY - 60, `升级! Lv.${result.newLevel}`, '#ffff00', true);
+                AudioSys.play('levelup');
+                // 升级光效
+                for (let i = 0; i < 20; i++) {
+                    particles.push({
+                        x: player.x, y: player.y,
+                        vx: (Math.random() - 0.5) * 200,
+                        vy: -Math.random() * 150 - 50,
+                        life: 1, maxLife: 1,
+                        color: '#ffd700', size: 4
+                    });
                 }
-            };
-        });
-    },
-
-    // 删除指定槽位
-    deleteSlot: function (slotId) {
-        return new Promise((resolve) => {
-            if (!db) { resolve(); return; }
-            const tx = db.transaction(['saveData'], 'readwrite');
-            tx.objectStore('saveData').delete(`slot_${slotId}`);
-            tx.oncomplete = () => {
-                if (window.saveSlots) window.saveSlots[slotId - 1] = null;
-                resolve();
-            };
-        });
-    },
-
-    // 兼容旧代码的load方法
-    load: function () {
-        this.loadAllSlotsMeta();
-    },
-
-    // 重置当前槽位
-    reset: function () {
-        if (db) {
-            this.deleteSlot(this.currentSlot).then(() => {
-                location.reload();
-            });
+            }, delay);
         }
+
+        // 显示领取结果通知
+        let msg = `离线收益已领取！`;
+        if (result.itemsConverted > 0) {
+            msg += `\n${result.itemsConverted}件装备因背包已满转化为${result.convertedGold}金币`;
+        }
+        if (result.leveledUp) {
+            msg += `\n恭喜升级到 Lv.${result.newLevel}！`;
+        }
+        showNotification(msg);
+
+        // 关闭面板
+        document.getElementById('offline-rewards-overlay').classList.remove('active');
+        window.pendingOfflineRewards = null;
+
+        // 保存
+        SaveSystem.save();
     }
 };
 
-const ITEM_TYPES = {
-    WEAPON: { icon: '⚔️' }, ARMOR: { icon: '🛡️' }, RING: { icon: '💍' }, POTION: { icon: '🍷' }, SCROLL: { icon: '📜' },
-    HELM: { icon: '🪖' }, GLOVES: { icon: '🧤' }, BOOTS: { icon: '👢' }, BELT: { icon: '🎗️' }, AMULET: { icon: '📿' }
-};
+// 领取离线收益（UI调用）
+function claimOfflineRewards() {
+    OfflineRewards.claimAndClose();
+}
 
-// 难度系数配置
-const DIFFICULTY_MODIFIERS = {
-    normal: {
-        monsterHpMult: 1,
-        monsterDmgMult: 1,
-        monsterSpeedMult: 1,
-        xpMult: 1,
-        dropQualityMult: 1
-    },
-    hell: {
-        monsterHpMult: 6,
-        monsterDmgMult: 4,
-        monsterSpeedMult: 1.3,
-        xpMult: 5,
-        dropQualityMult: 3.5  // 150%提升 = 原250%
+// 检查离线收益（游戏启动时调用）
+function checkOfflineRewards() {
+    // 使用 startGame() 开头缓存的离线时间（在 enterFloor 触发 save 之前读取的）
+    const cachedTime = _cachedOfflineTime;
+    _cachedOfflineTime = null;
+
+    // 优先使用缓存的时间（这是关闭浏览器时保存的真实离线时间）
+    if (cachedTime) {
+        player.lastOnlineTime = cachedTime;
     }
-};
 
-const BASE_ITEMS = [
-    { name: '短剑', type: 'weapon', minDmg: 2, maxDmg: 5, rarity: 1, icon: '🗡️' },
-    { name: '巨斧', type: 'weapon', minDmg: 6, maxDmg: 14, rarity: 1, icon: '🪓' },
-    { name: '布甲', type: 'armor', def: 5, rarity: 1, icon: '👕' },
-    { name: '皮甲', type: 'armor', def: 12, rarity: 1, icon: '🦺' },
-    { name: '板甲', type: 'armor', def: 25, rarity: 1, icon: '🛡️' },
-
-    { name: '皮帽', type: 'helm', def: 3, rarity: 1, icon: '🧢' },
-    { name: '全盔', type: 'helm', def: 8, rarity: 1, icon: '🪖' },
-
-    { name: '皮手套', type: 'gloves', def: 2, rarity: 1, icon: '🧤' },
-    { name: '重手套', type: 'gloves', def: 5, rarity: 1, icon: '🧤' },
-
-    { name: '皮靴', type: 'boots', def: 2, rarity: 1, icon: '👢' },
-    { name: '锁链靴', type: 'boots', def: 6, rarity: 1, icon: '👢' },
-
-    { name: '轻扣带', type: 'belt', def: 2, rarity: 1, icon: '🎗️' },
-    { name: '重腰带', type: 'belt', def: 5, rarity: 1, icon: '🥋' },
-
-    { name: '铜戒指', type: 'ring', rarity: 1, icon: '💍' },
-    { name: '护身符', type: 'amulet', rarity: 1, icon: '📿' },
-
-    { name: '治疗药剂', type: 'potion', heal: 50, rarity: 0, stackable: true, icon: '🔴' },
-    { name: '法力药剂', type: 'potion', mana: 30, rarity: 0, stackable: true, icon: '🔵' },
-    { name: '回城卷轴', type: 'scroll', rarity: 0, stackable: true, icon: '📜' }
-];
-// 精英怪词缀系统
-const ELITE_AFFIXES = [
-    {
-        id: 'extra_fast',
-        name: '额外快速',
-        color: '#00ffff',
-        description: '移动速度+50%',
-        applyStats: (enemy) => {
-            enemy.speed *= 1.5;
-        }
-    },
-    {
-        id: 'extra_strong',
-        name: '额外强壮',
-        color: '#ff4400',
-        description: '伤害+100%',
-        applyStats: (enemy) => {
-            enemy.dmg *= 2.0;
-        }
-    },
-    {
-        id: 'fire_enchanted',
-        name: '火焰强化',
-        color: '#ff6600',
-        description: '攻击附带火焰伤害，死亡时爆炸',
-        applyStats: (enemy) => {
-            enemy.elementalDmg = enemy.elementalDmg || {};
-            enemy.elementalDmg.fire = Math.floor(enemy.dmg * 0.5);
-        },
-        onDeath: (enemy) => {
-            // 火焰爆炸
-            const explosionRadius = 150;
-            // 伤害改为15%血量，且上限200
-            const explosionDamage = Math.min(enemy.maxHp * 0.15, 200);
-            const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
-            if (dist < explosionRadius && player.invincibleTimer <= 0) {
-                const dmg = explosionDamage * (1 - dist / explosionRadius);
-                const finalDmg = dmg * (1 - player.resistances.fire / 100);
-                player.hp -= finalDmg;
-                player.lastDamageSource = enemy.name + '的火焰爆炸';
-                player.invincibleTimer = 0.3;  // 0.3秒无敌帧
-                createDamageNumber(player.x, player.y - 30, Math.floor(finalDmg), '#ff4400');
-                showNotification('火焰爆炸！');
-                updateUI(); checkPlayerDeath();
-            }
-            // 爆炸粒子效果
-            for (let i = 0; i < 20; i++) {
-                createParticle(enemy.x, enemy.y, '#ff4400', 10);
-            }
-        }
-    },
-    {
-        id: 'cold_enchanted',
-        name: '寒冰强化',
-        color: '#00aaff',
-        description: '攻击附带冰冻效果',
-        applyStats: (enemy) => {
-            enemy.elementalDmg = enemy.elementalDmg || {};
-            enemy.elementalDmg.cold = Math.floor(enemy.dmg * 0.4);
-            enemy.freezeOnHit = true;
-        }
-    },
-    {
-        id: 'lightning_enchanted',
-        name: '闪电强化',
-        color: '#ffff00',
-        description: '攻击附带闪电伤害',
-        applyStats: (enemy) => {
-            enemy.elementalDmg = enemy.elementalDmg || {};
-            enemy.elementalDmg.lightning = Math.floor(enemy.dmg * 0.6);
-        }
-    },
-    {
-        id: 'stone_skin',
-        name: '石肤',
-        color: '#888888',
-        description: '受到伤害减少50%',
-        applyStats: (enemy) => {
-            enemy.damageReduction = 0.5;
-        }
-    },
-    {
-        id: 'magic_resistant',
-        name: '魔法抗性',
-        color: '#aa00ff',
-        description: '技能伤害减免70%',
-        applyStats: (enemy) => {
-            enemy.magicResist = 0.7;
-        }
-    },
-    {
-        id: 'vampiric',
-        name: '吸血',
-        color: '#cc0000',
-        description: '攻击回复生命',
-        applyStats: (enemy) => {
-            enemy.lifeSteal = 0.5;  // 50%吸血
-        }
-    },
-    {
-        id: 'mana_burn',
-        name: '法力燃烧',
-        color: '#0066ff',
-        description: '攻击消耗玩家法力',
-        applyStats: (enemy) => {
-            enemy.manaBurn = true;
-        }
-    },
-    {
-        id: 'cursed',
-        name: '诅咒',
-        color: '#9900cc',
-        description: '降低玩家防御',
-        applyStats: (enemy) => {
-            enemy.cursed = true;
-        }
-    },
-    {
-        id: 'multiple_shot',
-        name: '多重射击',
-        color: '#ffaa00',
-        description: '远程怪物发射3支箭',
-        applyStats: (enemy) => {
-            if (enemy.ai === 'ranged') {
-                enemy.multiShot = 3;
-            }
-        }
-    },
-    {
-        id: 'spectral_hit',
-        name: '幽灵打击',
-        color: '#00ffaa',
-        description: '无视护甲',
-        applyStats: (enemy) => {
-            enemy.ignoreArmor = true;
-        }
+    // 新玩家或没有上次在线时间记录，初始化
+    if (!player.lastOnlineTime) {
+        player.lastOnlineTime = Date.now();
+        player.offlineRewardsClaimed = true;
+        return;
     }
-];
 
-const AFFIXES = {
-    prefixes: [
-        // 基础属性
-        { name: '残忍的', stat: 'dmgPct', min: 10, max: 30 },
-        { name: '野蛮的', stat: 'dmgPct', min: 15, max: 40 },
-        { name: '坚固的', stat: 'def', min: 5, max: 15 },
-        { name: '吸血的', stat: 'lifeSteal', min: 3, max: 5 },
-        { name: '急速的', stat: 'attackSpeed', min: 5, max: 15 },
-        // 抗性类
-        { name: '烈焰之', stat: 'fireRes', min: 15, max: 30 },
-        { name: '冰霜之', stat: 'coldRes', min: 15, max: 30 },
-        { name: '闪电之', stat: 'lightningRes', min: 15, max: 30 },
-        { name: '剧毒之', stat: 'poisonRes', min: 15, max: 30 },
-        { name: '全能之', stat: 'allRes', min: 8, max: 15 },
-        // 元素伤害
-        { name: '燃烧的', stat: 'fireDmg', min: 5, max: 20 },
-        { name: '雷电的', stat: 'lightningDmg', min: 5, max: 20 },
-        { name: '剧毒的', stat: 'poisonDmg', min: 10, max: 40 },
-        // 特殊效果
-        { name: '穿刺的', stat: 'armorPierce', min: 10, max: 25 },
-        { name: '击退的', stat: 'knockback', min: 20, max: 40 },
-        { name: '减速的', stat: 'slow', min: 25, max: 50 },
-        { name: '致命的', stat: 'critDamage', min: 30, max: 80 },
-        { name: '连击的', stat: 'doubleHit', min: 10, max: 20 }
-    ],
-    suffixes: [
-        // 基础属性（已转换为直接效果）
-        { name: '之熊', stat: 'maxHp', min: 25, max: 50 },
-        { name: '之鹰', stat: 'critChance', min: 3, max: 5 },
-        { name: '之吸血', stat: 'lifeSteal', min: 3, max: 6 },
-        { name: '之急速', stat: 'attackSpeed', min: 5, max: 10 },
-        { name: '之力量', stat: 'dmgPct', min: 15, max: 30 },
-        // 抗性类
-        { name: '之抗火', stat: 'fireRes', min: 10, max: 25 },
-        { name: '之抗冰', stat: 'coldRes', min: 10, max: 25 },
-        { name: '之抗电', stat: 'lightningRes', min: 10, max: 25 },
-        { name: '之抗毒', stat: 'poisonRes', min: 10, max: 25 },
-        { name: '之守护', stat: 'allRes', min: 5, max: 12 },
-        // 特殊效果
-        { name: '之再生', stat: 'hpRegen', min: 3, max: 10 },
-        { name: '之冥想', stat: 'mpRegen', min: 3, max: 10 },  // 改为百分比（从30-100降到3-10%）
-        { name: '之格挡', stat: 'blockChance', min: 10, max: 25 },
-        { name: '之反射', stat: 'reflectDamage', min: 5, max: 15 },
-        { name: '之神速', stat: 'attackSpeed', min: 10, max: 20 },
-        { name: '之铁壁', stat: 'damageReduction', min: 3, max: 10 },
-        { name: '之精准', stat: 'attackRating', min: 50, max: 150 },
-        { name: '之幸运', stat: 'magicFind', min: 10, max: 30 }
-    ]
-};
+    // 计算离线收益（只使用普通楼层，不计地狱）
+    const maxFloor = player.personalBest ? player.personalBest.maxFloor : (player.maxFloor || 1);
+    const rewards = OfflineRewards.calculate(player.lastOnlineTime, maxFloor);
 
-// 套装系统数据库
-const SET_ITEMS = {
-    'tals_set': {
-        name: "塔拉夏的外袍",
-        description: "法师专属套装，强化火焰技能",
-        pieces: {
-            helm: {
-                name: "塔拉夏的守护",
-                icon: '🪖',
-                type: 'helm',
-                def: 15,
-                stats: { maxMp: 30, mpRegen: 5, allRes: 10 }  // mpRegen改为百分比
-            },
-            body: {
-                name: "塔拉夏的外袍",
-                icon: '🛡️',
-                type: 'armor',
-                def: 120,
-                stats: { maxHp: 50, maxMp: 45, allRes: 15 }
-            },
-            amulet: {
-                name: "塔拉夏的裁决",
-                icon: '📿',
-                type: 'amulet',
-                stats: { maxMp: 45, fireDmg: 25, lightningDmg: 25 }
-            },
-            mainhand: {
-                name: "塔拉夏的永恒权杖",
-                icon: '⚔️',
-                type: 'weapon',
-                minDmg: 15,
-                maxDmg: 35,
-                stats: { maxMp: 60, fireDmg: 40 }
-            },
-            belt: {
-                name: "塔拉夏的束带",
-                icon: '🎗️',
-                type: 'belt',
-                def: 10,
-                stats: { maxMp: 60, fireDmg: 15 }
-            },
-            gloves: {
-                name: "塔拉夏的灵巧",
-                icon: '🧤',
-                type: 'gloves',
-                def: 8,
-                stats: { maxMp: 36, attackSpeed: 20, lightningDmg: 20 }
+    if (rewards) {
+        player.offlineRewardsClaimed = false;
+        // 延迟显示，避免与每日登录面板冲突
+        setTimeout(() => {
+            const dailyPanel = document.getElementById('daily-login-panel');
+            if (dailyPanel && dailyPanel.style.display !== 'none') {
+                const checkInterval = setInterval(() => {
+                    if (dailyPanel.style.display === 'none') {
+                        clearInterval(checkInterval);
+                        OfflineRewards.showPanel(rewards);
+                    }
+                }, 500);
+            } else {
+                OfflineRewards.showPanel(rewards);
             }
-        },
-        bonuses: {
-            2: {
-                desc: "+50 全抗性",
-                stats: { allRes: 50 }
-            },
-            4: {
-                desc: "法力恢复速度 +10%，最大法力 +60",
-                stats: { mpRegen: 10, maxMp: 60 }  // 从100%降到10%
-            },
-            6: {
-                desc: "火焰伤害 +200，法力回复 +5%，暴击率 +10%",
-                stats: { fireDmg: 200, mpRegen: 5, critChance: 10 }  // 从50%降到5%
-            }
-        }
-    },
-
-    'immortal_king': {
-        name: "不朽之王",
-        description: "战士专属套装，强化物理攻击",
-        pieces: {
-            helm: {
-                name: "不朽之王的意志",
-                icon: '🪖',
-                type: 'helm',
-                def: 20,
-                stats: { dmgPct: 50, maxHp: 50 }
-            },
-            body: {
-                name: "不朽之王的灵魂牢笼",
-                icon: '🛡️',
-                type: 'armor',
-                def: 200,
-                stats: { dmgPct: 75, maxHp: 100, def: 50 }
-            },
-            boots: {
-                name: "不朽之王的践踏",
-                icon: '👢',
-                type: 'boots',
-                def: 15,
-                stats: { dmgPct: 50, maxHp: 50 }
-            },
-            mainhand: {
-                name: "不朽之王的石碎器",
-                icon: '🪓',
-                type: 'weapon',
-                minDmg: 30,
-                maxDmg: 60,
-                stats: { dmgPct: 175 }
-            },
-            belt: {
-                name: "不朽之王的细节",
-                icon: '🥋',
-                type: 'belt',
-                def: 18,
-                stats: { dmgPct: 60, maxHp: 75, def: 25 }
-            },
-            gloves: {
-                name: "不朽之王的钢铁之握",
-                icon: '🧤',
-                type: 'gloves',
-                def: 12,
-                stats: { dmgPct: 105, attackSpeed: 15 }
-            }
-        },
-        bonuses: {
-            2: {
-                desc: "+100 最大生命",
-                stats: { maxHp: 100 }
-            },
-            4: {
-                desc: "生命偷取 +10%，攻击速度 +30%",
-                stats: { lifeSteal: 10, attackSpeed: 30 }
-            },
-            6: {
-                desc: "物理伤害 +450%，防御 +150",
-                stats: { dmgPct: 450, def: 150 }
-            }
-        }
-    },
-
-    'shadow_dancer': {
-        name: "暗影舞者",
-        description: "刺客专属套装，强化暴击和攻速",
-        pieces: {
-            helm: {
-                name: "暗影舞者的面罩",
-                icon: '🪖',
-                type: 'helm',
-                def: 27,
-                stats: { critChance: 8, attackSpeed: 10 }
-            },
-            body: {
-                name: "暗影舞者的披风",
-                icon: '🛡️',
-                type: 'armor',
-                def: 100,
-                stats: { critChance: 10, attackSpeed: 15 }
-            },
-            gloves: {
-                name: "暗影舞者的利爪",
-                icon: '🧤',
-                type: 'gloves',
-                def: 23,
-                stats: { critChance: 8, attackSpeed: 20 }
-            },
-            boots: {
-                name: "暗影舞者的迅捷",
-                icon: '👢',
-                type: 'boots',
-                def: 25,
-                stats: { critChance: 8, attackSpeed: 15 }
-            },
-            belt: {
-                name: "暗影舞者的束缚",
-                icon: '🎗️',
-                type: 'belt',
-                def: 21,
-                stats: { critChance: 6, attackSpeed: 12, critDamage: 20 }
-            },
-            amulet: {
-                name: "暗影舞者的徽记",
-                icon: '📿',
-                type: 'amulet',
-                stats: { critChance: 9, critDamage: 30, dmgPct: 25 }
-            }
-        },
-        bonuses: {
-            2: {
-                desc: "攻击速度 +30%",
-                stats: { attackSpeed: 30 }
-            },
-            4: {
-                desc: "暴击伤害 +75%，暴击率 +10%",
-                stats: { critDamage: 75, critChance: 10 }
-            },
-            6: {
-                desc: "暴击率 +20%，伤害 +150%，防御 +40",
-                stats: { critChance: 35, dmgPct: 150, def: 40 }
-            }
-        }
-    },
-
-    // ========== 新增套装 v4.1 ==========
-
-    'natalya': {
-        name: "娜塔亚的复仇",
-        description: "亚马逊套装，强化弓箭和闪电",
-        pieces: {
-            helm: {
-                name: "娜塔亚的凝视",
-                icon: '🪖',
-                type: 'helm',
-                def: 18,
-                stats: { lightningDmg: 30, critChance: 5 }
-            },
-            body: {
-                name: "娜塔亚的影甲",
-                icon: '🛡️',
-                type: 'armor',
-                def: 85,
-                stats: { lightningDmg: 45, def: 30, allRes: 15 }
-            },
-            gloves: {
-                name: "娜塔亚的触感",
-                icon: '🧤',
-                type: 'gloves',
-                def: 10,
-                stats: { lightningDmg: 35, attackSpeed: 25 }
-            },
-            boots: {
-                name: "娜塔亚的灵魂",
-                icon: '👢',
-                type: 'boots',
-                def: 12,
-                stats: { lightningDmg: 25, critChance: 6 }
-            },
-            ring: {
-                name: "娜塔亚的印记",
-                icon: '💍',
-                type: 'ring',
-                stats: { lightningDmg: 40, dmgPct: 30 }
-            },
-            mainhand: {
-                name: "娜塔亚的锋刃",
-                icon: '🗡️',
-                type: 'weapon',
-                minDmg: 20,
-                maxDmg: 45,
-                stats: { lightningDmg: 60, critChance: 8 }
-            }
-        },
-        bonuses: {
-            2: {
-                desc: "闪电伤害 +80",
-                stats: { lightningDmg: 80 }
-            },
-            4: {
-                desc: "攻击速度 +40%，暴击率 +12%",
-                stats: { attackSpeed: 40, critChance: 12 }
-            },
-            6: {
-                desc: "闪电伤害 +250，多重射击伤害 +100%",
-                stats: { lightningDmg: 250, dmgPct: 200 }
-            }
-        }
-    },
-
-    'griswold': {
-        name: "格里斯沃尔德的传承",
-        description: "圣骑士套装，强化防御和神圣",
-        pieces: {
-            helm: {
-                name: "格里斯沃尔德的荣耀",
-                icon: '🪖',
-                type: 'helm',
-                def: 35,
-                stats: { def: 40, maxHp: 60, allRes: 20 }
-            },
-            body: {
-                name: "格里斯沃尔德的圣铠",
-                icon: '🛡️',
-                type: 'armor',
-                def: 250,
-                stats: { def: 80, maxHp: 120, allRes: 30 }
-            },
-            gloves: {
-                name: "格里斯沃尔德的圣手",
-                icon: '🧤',
-                type: 'gloves',
-                def: 20,
-                stats: { def: 25, dmgPct: 40, lifeSteal: 3 }
-            },
-            boots: {
-                name: "格里斯沃尔德的坚毅",
-                icon: '👢',
-                type: 'boots',
-                def: 22,
-                stats: { def: 30, maxHp: 50 }
-            },
-            mainhand: {
-                name: "格里斯沃尔德的救赎",
-                icon: '⚔️',
-                type: 'weapon',
-                minDmg: 25,
-                maxDmg: 50,
-                stats: { dmgPct: 80, def: 35, lifeSteal: 5 }
-            },
-            amulet: {
-                name: "格里斯沃尔德的圣符",
-                icon: '📿',
-                type: 'amulet',
-                stats: { allRes: 40, maxHp: 80, def: 20 }
-            }
-        },
-        bonuses: {
-            2: {
-                desc: "防御 +120，全抗性 +30",
-                stats: { def: 120, allRes: 30 }
-            },
-            4: {
-                desc: "最大生命 +200，生命偷取 +8%",
-                stats: { maxHp: 200, lifeSteal: 8 }
-            },
-            6: {
-                desc: "伤害 +300%，受到伤害减少20%",
-                stats: { dmgPct: 300, def: 200 }
-            }
-        }
-    },
-
-    'trang_oul': {
-        name: "庄·欧的化身",
-        description: "死灵法师套装，强化毒素和召唤",
-        pieces: {
-            helm: {
-                name: "庄·欧的面甲",
-                icon: '🪖',
-                type: 'helm',
-                def: 16,
-                stats: { poisonDmg: 35, maxMp: 40 }
-            },
-            body: {
-                name: "庄·欧的圣甲",
-                icon: '🛡️',
-                type: 'armor',
-                def: 90,
-                stats: { poisonDmg: 55, maxMp: 60, allRes: 20 }
-            },
-            gloves: {
-                name: "庄·欧的利爪",
-                icon: '🧤',
-                type: 'gloves',
-                def: 9,
-                stats: { poisonDmg: 40, coldDmg: 25 }
-            },
-            boots: {
-                name: "庄·欧的鳞靴",
-                icon: '👢',
-                type: 'boots',
-                def: 11,
-                stats: { poisonDmg: 30, maxMp: 35 }
-            },
-            belt: {
-                name: "庄·欧的腰带",
-                icon: '🎗️',
-                type: 'belt',
-                def: 8,
-                stats: { poisonDmg: 45, mpRegen: 5 }  // mpRegen改为百分比
-            },
-            mainhand: {
-                name: "庄·欧的权杖",
-                icon: '⚔️',
-                type: 'weapon',
-                minDmg: 18,
-                maxDmg: 38,
-                stats: { poisonDmg: 80, maxMp: 50 }
-            }
-        },
-        bonuses: {
-            2: {
-                desc: "毒素伤害 +100",
-                stats: { poisonDmg: 100 }
-            },
-            4: {
-                desc: "法力回复 +15%，最大法力 +100",
-                stats: { mpRegen: 15, maxMp: 100 }  // 从150%降到15%
-            },
-            6: {
-                desc: "毒素伤害 +300，敌人中毒持续时间翻倍",
-                stats: { poisonDmg: 300, dmgPct: 100 }
-            }
-        }
-    },
-
-    'aldur': {
-        name: "奥杜尔的节拍",
-        description: "德鲁伊套装，强化自然和生命恢复",
-        pieces: {
-            helm: {
-                name: "奥杜尔的凝视",
-                icon: '🪖',
-                type: 'helm',
-                def: 22,
-                stats: { maxHp: 80, hpRegen: 20 }
-            },
-            body: {
-                name: "奥杜尔的驱邪铠",
-                icon: '🛡️',
-                type: 'armor',
-                def: 130,
-                stats: { maxHp: 150, hpRegen: 35, allRes: 25 }
-            },
-            boots: {
-                name: "奥杜尔的前进",
-                icon: '👢',
-                type: 'boots',
-                def: 18,
-                stats: { maxHp: 60, hpRegen: 15, def: 20 }
-            },
-            mainhand: {
-                name: "奥杜尔的节律",
-                icon: '🪓',
-                type: 'weapon',
-                minDmg: 22,
-                maxDmg: 48,
-                stats: { dmgPct: 100, hpRegen: 25, lifeSteal: 6 }
-            },
-            gloves: {
-                name: "奥杜尔的蛮力",
-                icon: '🧤',
-                type: 'gloves',
-                def: 14,
-                stats: { dmgPct: 50, maxHp: 50, hpRegen: 10 }
-            },
-            ring: {
-                name: "奥杜尔的命运",
-                icon: '💍',
-                type: 'ring',
-                stats: { maxHp: 70, hpRegen: 30, allRes: 15 }
-            }
-        },
-        bonuses: {
-            2: {
-                desc: "生命恢复 +50/秒，最大生命 +100",
-                stats: { hpRegen: 50, maxHp: 100 }
-            },
-            4: {
-                desc: "生命偷取 +12%，全抗性 +50",
-                stats: { lifeSteal: 12, allRes: 50 }
-            },
-            6: {
-                desc: "最大生命 +400，伤害 +200%",
-                stats: { maxHp: 400, dmgPct: 200 }
-            }
-        }
-    },
-
-    'mavina': {
-        name: "马维娜的战斗颂歌",
-        description: "狂战套装，强化狂暴和双倍伤害",
-        pieces: {
-            helm: {
-                name: "马维娜的真面目",
-                icon: '🪖',
-                type: 'helm',
-                def: 25,
-                stats: { dmgPct: 60, critDamage: 25 }
-            },
-            body: {
-                name: "马维娜的怀抱",
-                icon: '🛡️',
-                type: 'armor',
-                def: 110,
-                stats: { dmgPct: 90, attackSpeed: 20 }
-            },
-            gloves: {
-                name: "马维娜的紧握",
-                icon: '🧤',
-                type: 'gloves',
-                def: 15,
-                stats: { dmgPct: 55, critDamage: 30, attackSpeed: 15 }
-            },
-            boots: {
-                name: "马维娜的跟腱",
-                icon: '👢',
-                type: 'boots',
-                def: 17,
-                stats: { dmgPct: 45, attackSpeed: 10 }
-            },
-            belt: {
-                name: "马维娜的束腰",
-                icon: '🎗️',
-                type: 'belt',
-                def: 13,
-                stats: { dmgPct: 50, maxHp: 40 }
-            },
-            mainhand: {
-                name: "马维娜的弯弓",
-                icon: '🏹',
-                type: 'weapon',
-                minDmg: 28,
-                maxDmg: 55,
-                stats: { dmgPct: 120, critDamage: 40 }
-            }
-        },
-        bonuses: {
-            2: {
-                desc: "伤害 +100%",
-                stats: { dmgPct: 100 }
-            },
-            4: {
-                desc: "暴击伤害 +100%，攻击速度 +35%",
-                stats: { critDamage: 100, attackSpeed: 35 }
-            },
-            6: {
-                desc: "伤害 +400%，暴击率 +25%",
-                stats: { dmgPct: 400, critChance: 25 }
-            }
-        }
-    },
-
-    'sigon': {
-        name: "希冈的钢铁",
-        description: "混沌套装，全属性均衡提升",
-        pieces: {
-            helm: {
-                name: "希冈的护面",
-                icon: '🪖',
-                type: 'helm',
-                def: 20,
-                stats: { maxHp: 40, maxMp: 30, def: 15 }
-            },
-            body: {
-                name: "希冈的铁甲",
-                icon: '🛡️',
-                type: 'armor',
-                def: 140,
-                stats: { maxHp: 80, def: 50, allRes: 20 }
-            },
-            gloves: {
-                name: "希冈的铁手",
-                icon: '🧤',
-                type: 'gloves',
-                def: 12,
-                stats: { dmgPct: 35, attackSpeed: 15, critChance: 5 }
-            },
-            boots: {
-                name: "希冈的军靴",
-                icon: '👢',
-                type: 'boots',
-                def: 14,
-                stats: { maxHp: 35, def: 20, allRes: 10 }
-            },
-            belt: {
-                name: "希冈的腰带",
-                icon: '🥋',
-                type: 'belt',
-                def: 10,
-                stats: { maxHp: 50, maxMp: 40, lifeSteal: 4 }
-            },
-            amulet: {
-                name: "希冈的徽章",
-                icon: '📿',
-                type: 'amulet',
-                stats: { dmgPct: 40, critChance: 6, allRes: 25 }
-            }
-        },
-        bonuses: {
-            2: {
-                desc: "全属性 +50 (HP/MP/防御)",
-                stats: { maxHp: 50, maxMp: 50, def: 50 }
-            },
-            4: {
-                desc: "伤害 +150%，全抗性 +40",
-                stats: { dmgPct: 150, allRes: 40 }
-            },
-            6: {
-                desc: "全属性大幅提升",
-                stats: { maxHp: 200, maxMp: 100, def: 100, dmgPct: 250, critChance: 15 }
-            }
-        }
+        }, 500);
+    } else {
+        player.offlineRewardsClaimed = true;
     }
-};
+}
+
+// 精英怪词缀系统（含回调函数，保留在主文件）
+// 精英怪词缀系统 (已移至 enemy-system.js)
 
 function init() {
     resize(); window.addEventListener('resize', resize);
+    initUICache();
     initDragging();
     SaveSystem.init();
+
+    // 页面关闭前保存在线时间（用于离线收益计算）
+    // 注意：IndexedDB 是异步的，beforeunload 中可能写入失败
+    // 所以用 localStorage 保存时间戳（同步写入，100%可靠）
+    window.addEventListener('beforeunload', () => {
+        // 【重要】只有游戏真正开始后才保存，避免在首页刷新时覆盖存档
+        if (!gameActive) return;
+
+        const now = Date.now();
+        // 用 localStorage 保存关键时间戳（同步，可靠）
+        if (SaveSystem.currentSlot) {
+            localStorage.setItem(`lastOnlineTime_slot${SaveSystem.currentSlot}`, now.toString());
+        }
+        // IndexedDB 保存作为备份（可能失败）
+        player.lastOnlineTime = now;
+        if (db && SaveSystem.currentSlot) {
+            const clean = i => { if (!i) return null; const { el, ...r } = i; return r; };
+            const eq = {}; for (let k in player.equipment) eq[k] = clean(player.equipment[k]);
+
+            const data = {
+                id: `slot_${SaveSystem.currentSlot}`,
+                slotId: SaveSystem.currentSlot,
+                ...player,
+                inventory: player.inventory.map(clean),
+                equipment: eq,
+                stash: player.stash.map(clean),
+                targetItem: clean(player.targetItem),
+                townPortal: townPortal,
+                settings: Settings,
+                autoBattleSettings: AutoBattle.settings,
+                lastPlayed: now,
+                mapData: null,
+                enemies: null,
+                particles: null,
+                projectiles: null,
+                damageNumbers: null
+            };
+
+            const tx = db.transaction(['saveData'], 'readwrite');
+            tx.objectStore('saveData').put(data);
+        }
+    });
 }
 function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
 
-function confirmResetSave() {
+async function confirmResetSave() {
     // 检查是否有存档
-    const statusEl = document.getElementById('save-status');
-    // 只要包含"发现存档"字样，就认为有存档
-    const hasSave = statusEl && statusEl.innerText.includes('发现存档');
+    const hasSave = cachedUI.saveStatus && cachedUI.saveStatus.innerText.includes('发现存档');
 
     let message = '⚠️ 警告：此操作将永久删除所有存档数据！\n\n';
 
     if (hasSave) {
         // 提取存档信息
-        const match = statusEl.innerText.match(/发现存档: Lv(\d+) - (.+)/);
+        const match = cachedUI.saveStatus.innerText.match(/发现存档: Lv(\d+) - (.+)/);
         if (match) {
             const level = match[1];
             const location = match[2];
@@ -3961,7 +3167,8 @@ function confirmResetSave() {
 
     message += '是否确定要清除所有存档？\n\n此操作无法撤销！';
 
-    if (confirm(message)) {
+    const confirmed = await OnlineSystem.showConfirm(message, '重置确认');
+    if (confirmed) {
         SaveSystem.reset();
     }
 }
@@ -3970,7 +3177,32 @@ function confirmResetSave() {
 let pendingDeleteSlot = null;  // 待删除的槽位
 
 // 显示存档选择面板
-function showSlotSelection() {
+async function showSlotSelection() {
+    // 防御性检查：存档系统未就绪时不允许操作
+    if (!SaveSystem.isReady) {
+        console.warn('[存档系统] 尚未初始化完成，请稍候...');
+        return;
+    }
+
+    // 新用户检测：必须先选择开始方式
+    if (typeof OnlineSystem !== 'undefined' && !OnlineSystem.nickname) {
+        CloudSync.showNewUserDialog();
+        return;
+    }
+
+    // 多设备检测（已绑定云同步的用户）
+    if (typeof OnlineSystem !== 'undefined' && OnlineSystem.userId) {
+        const check = await OnlineSystem.checkOtherDeviceOnline();
+        if (check.online) {
+            const confirmed = await OnlineSystem.showConfirm('检测到其他设备正在游戏中。\n\n继续登录将踢掉该设备，是否继续？', '登录提示');
+            if (!confirmed) {
+                return;
+            }
+            // 接管会话
+            await OnlineSystem.takeoverSession(check.recordId);
+        }
+    }
+
     const overlay = document.getElementById('slot-selection-overlay');
     const grid = document.getElementById('slot-selection-grid');
 
@@ -4048,6 +3280,12 @@ function formatLastPlayed(timestamp) {
 async function selectSlot(slotNum) {
     hideSlotSelection();
     await SaveSystem.loadSlot(slotNum);
+
+    // 进入游戏时建立在线状态（心跳、Realtime 订阅）
+    if (typeof OnlineSystem !== 'undefined' && OnlineSystem.nickname) {
+        await OnlineSystem.startOnline();
+    }
+
     startGame();
 }
 
@@ -4087,7 +3325,17 @@ async function confirmDeleteSlot() {
     setTimeout(() => showSlotSelection(), 100);
 }
 
+// 用于保存离线时间戳（在 enterFloor 调用 save 之前读取）
+let _cachedOfflineTime = null;
+
 function startGame() {
+    // 在任何 SaveSystem.save() 调用之前，先读取 localStorage 中的离线时间
+    const localStorageKey = `lastOnlineTime_slot${SaveSystem.currentSlot}`;
+    const localStorageTime = localStorage.getItem(localStorageKey);
+    if (localStorageTime) {
+        _cachedOfflineTime = parseInt(localStorageTime);
+    }
+
     AudioSys.init();
     // 启动背景音乐（需要用户交互触发）
     // 延迟一下确保音频上下文完全初始化
@@ -4117,6 +3365,7 @@ function startGame() {
         if (!player.graphicsQuality) {
             player.graphicsQuality = 'high';
         }
+        document.body.classList.toggle('high-quality', player.graphicsQuality === 'high');
 
         if (player.died === undefined) player.died = false; // 初始化死亡标记
 
@@ -4170,16 +3419,24 @@ function startGame() {
             player.skillCooldowns.thunder = 0;
         }
 
-        // 加载仓库数据（如果没有则使用默认空仓库，如果存档是旧版60格则截断为36格）
+        // 加载仓库扩建等级
+        player.stashLevel = window.pendingLoadData.stashLevel || 0;
+
+        // 加载仓库数据，根据扩建等级调整大小
+        const expectedSize = STASH_BASE_SIZE + player.stashLevel * STASH_EXPAND_PER_LEVEL;
         if (window.pendingLoadData.stash) {
-            // 如果存档是60格，截断为36格
+            // 如果存档是旧版60格，截断为当前应有大小
             if (window.pendingLoadData.stash.length === 60) {
-                player.stash = window.pendingLoadData.stash.slice(0, 36);
+                player.stash = window.pendingLoadData.stash.slice(0, expectedSize);
             } else {
                 player.stash = window.pendingLoadData.stash;
             }
+            // 确保数组大小正确
+            while (player.stash.length < expectedSize) {
+                player.stash.push(null);
+            }
         } else if (!player.stash) {
-            player.stash = Array(36).fill(null);
+            player.stash = Array(expectedSize).fill(null);
         }
 
         if (window.pendingLoadData.townPortal) {
@@ -4196,7 +3453,15 @@ function startGame() {
             syncAutoBattleUI();
         }
         if (isNaN(player.xp)) player.xp = 0;
-        if (isNaN(player.xpNext) || player.xpNext <= 0) player.xpNext = 100 * Math.pow(1.5, player.lvl - 1);
+        if (isNaN(player.xpNext) || player.xpNext <= 0) player.xpNext = 100 * Math.pow(1.38, player.lvl - 1);
+        // v4.8 存档迁移：修正旧版本(1.5倍率)过高的经验需求，保持进度比例
+        const expectedXpNext = Math.floor(100 * Math.pow(1.38, player.lvl - 1));
+        if (player.xpNext > expectedXpNext * 1.5) {
+            const progress = player.xp / player.xpNext;  // 保存当前进度比例
+            console.log(`[存档迁移] xpNext 从 ${player.xpNext} 修正为 ${expectedXpNext}，进度 ${(progress * 100).toFixed(1)}%`);
+            player.xpNext = expectedXpNext;
+            player.xp = Math.floor(expectedXpNext * progress);  // 按比例缩放xp
+        }
         // 向后兼容：旧存档没有 maxFloor/lastFloor
         if (player.maxFloor === undefined) player.maxFloor = player.floor || 0;
         if (player.lastFloor === undefined) player.lastFloor = player.floor || 0;
@@ -4242,18 +3507,25 @@ function startGame() {
             player.tutorial = { completed: true, step: 5 };
         }
 
+        // 向后兼容：旧存档没有离线收益系统
+        if (player.lastOnlineTime === undefined) player.lastOnlineTime = null;
+        if (player.offlineRewardsClaimed === undefined) player.offlineRewardsClaimed = true;
+
         // ========== 属性系统迁移 v3.9 ==========
         // 将旧的基础属性(str/dex/vit/ene)转换为直接效果属性
         migrateItemStats();
     }
     else {
-        // 新玩家初始装备：白色短剑（无等级需求）
+        // 新玩家初始装备
         const starterSword = createItem('短剑', 0);
         starterSword.rarity = 1;  // 强制白色
         starterSword.requirements = null;  // 移除需求限制
-        addItemToInventory(starterSword);
-        addItemToInventory(createItem('治疗药剂', 0));
-        addItemToInventory(createItem('回城卷轴', 0));
+        addItemToInventory(starterSword);  // 1. 武器
+        addItemToInventory(createItem('治疗药剂', 0));  // 2. 1红
+        addItemToInventory(createItem('法力药剂', 0));  // 3. 蓝1
+        addItemToInventory(createItem('法力药剂', 0));  // 4. 蓝2
+        addItemToInventory(createItem('法力药剂', 0));  // 5. 蓝3
+        addItemToInventory(createItem('回城卷轴', 0));  // 6. 回城
         player.floor = 0;
 
         // 新游戏初始化成就
@@ -4274,7 +3546,13 @@ function startGame() {
     updateTalentHUD(); // 更新天赋HUD显示
     updateDivineBlessingHUD(); // 更新天神赐福HUD
     checkDailyLogin(); // 检查每日登录奖励
+    checkOfflineRewards(); // 检查离线收益
     checkTutorial(); // 检查新手引导
+    // 初始化每日任务系统
+    if (typeof DailyQuestSystem !== 'undefined') {
+        DailyQuestSystem.checkAndReset();
+    }
+    updateQuestTracker(); // 更新任务追踪器（包含每日任务）
     gameActive = true; gameLoop(0); spawnEnemyTimer();
 }
 
@@ -4299,14 +3577,16 @@ function enterFloor(f, spawnAt = 'start') {
         OnlineSystem.submitScore({
             level: player.lvl,
             kills: player.kills,
-            maxFloor: player.isInHell ? player.hellFloor + 10 : player.floor,
-            isHell: player.isInHell
+            maxFloor: player.isInHell ? (player.maxHellFloor || player.hellFloor) + 10 : player.maxFloor,
+            isHell: player.isInHell,
+            gold: player.gold || 0
         });
     }
 
     // 回收所有敌人到对象池
     enemies.forEach(e => EnemyPool.release(e));
     enemies = []; groundItems = []; projectiles = []; npcs = [];
+    destructibles = []; // 清空可破坏物体
 
     // 清空A*寻路缓存（新楼层需要重新计算路径）
     if (AutoBattle.astarCache) {
@@ -4338,13 +3618,18 @@ function enterFloor(f, spawnAt = 'start') {
         npcs.push({ x: dungeonEntrance.x, y: dungeonEntrance.y + 100, name: "瓦瑞夫（仓库）", type: "stash", radius: 20, frameIndex: 0 });
         npcs.push({ x: dungeonEntrance.x + 80, y: dungeonEntrance.y + 80, name: "恰西铁匠", type: "blacksmith", radius: 20, frameIndex: 5 });
 
-        // 始终添加地狱守卫，但交互需要条件
-        npcs.push({ x: dungeonEntrance.x - 150, y: dungeonEntrance.y + 50, name: "地狱守卫", type: "difficulty", radius: 20, frameIndex: 3 });
+        // 始终添加深渊守卫，但交互需要条件
+        npcs.push({ x: dungeonEntrance.x - 150, y: dungeonEntrance.y + 50, name: "深渊守卫", type: "difficulty", radius: 20, frameIndex: 3 });
 
         // 洗点师 - 神秘贤者
         npcs.push({ x: dungeonEntrance.x + 150, y: dungeonEntrance.y + 50, name: "神秘贤者", type: "respec", radius: 20, frameIndex: 4 });
 
         showNotification("欢迎回到罗格营地");
+
+        // 初始化摆摊系统
+        if (typeof MarketSystem !== 'undefined') {
+            MarketSystem.init();
+        }
 
         // ==== Boss 刷新检查 ==== //
         // 罗格营地也可以有BOSS攻城事件（可选），这里暂时保持只检查配置
@@ -4379,14 +3664,18 @@ function enterFloor(f, spawnAt = 'start') {
         // 根据是否在地狱显示不同的层数名称
         const isInHell = player.isInHell || false;
         const displayFloor = isInHell ? player.hellFloor : f;
-        document.getElementById('floor-display').innerText = isInHell ? `地狱 ${displayFloor}层` : `地牢 ${displayFloor}层`;
+        const floorName = getFloorName(displayFloor, isInHell);
+        document.getElementById('floor-display').innerText = `${displayFloor}层 ${floorName}`;
 
         generateDungeon();
 
         // 获取当前难度系数（在地狱中始终使用hell难度）
         const difficulty = isInHell ? DIFFICULTY_MODIFIERS.hell : DIFFICULTY_MODIFIERS.normal;
 
-        for (let i = 0; i < 15; i++) {
+        // 怪物数量随层数增长：1层少，10层后固定
+        const enemyScale = Math.min(1, 0.4 + f * 0.06);
+        const enemyCount = Math.floor(GAME_CONFIG.INITIAL_ENEMIES * enemyScale);
+        for (let i = 0; i < enemyCount; i++) {
             let x, y, v = false; while (!v) { x = Math.random() * MAP_WIDTH * TILE_SIZE; y = Math.random() * MAP_HEIGHT * TILE_SIZE; if (!isWall(x, y) && Math.hypot(x - dungeonEntrance.x, y - dungeonEntrance.y) > 300) v = true; }
 
             // 构建当前层可用的怪物池
@@ -4400,9 +3689,9 @@ function enterFloor(f, spawnAt = 'start') {
             }
             if (f >= 3) monsterPool.push({ type: 'shaman', name: '沉沦魔巫师', ai: 'revive', speed: 60, hpMult: 1, dmgMult: 1, weight: 10 });
             if (f >= 4) monsterPool.push({ type: 'ghost', name: '幽灵鬼魂', ai: 'phase', speed: 90, hpMult: 0.6, dmgMult: 1.2, weight: 12 });
-            if (f >= 5) monsterPool.push({ type: 'specter', name: '闪电幽魂', ai: 'ranged', speed: 75, hpMult: 1, dmgMult: 1.3, weight: 10 });
+            if (f >= 5) monsterPool.push({ type: 'specter', name: '闪电幽魂', ai: 'specter', speed: 70, hpMult: 0.8, dmgMult: 1.4, weight: 10 });
             if (f >= 6) monsterPool.push({ type: 'mummy', name: '木乃伊', ai: 'chase', speed: 55, hpMult: 1.3, dmgMult: 0.9, weight: 10 });
-            if (f >= 7) monsterPool.push({ type: 'vampire', name: '吸血鬼', ai: 'ranged', speed: 80, hpMult: 1.2, dmgMult: 1.1, weight: 10 });
+            if (f >= 7) monsterPool.push({ type: 'vampire', name: '吸血鬼', ai: 'vampire', speed: 60, hpMult: 1.2, dmgMult: 1.3, weight: 10 });
 
             // 按权重随机选择怪物
             const totalWeight = monsterPool.reduce((sum, m) => sum + m.weight, 0);
@@ -4416,12 +3705,12 @@ function enterFloor(f, spawnAt = 'start') {
             // 基础属性
             let baseHp = 30 + Math.floor(f * f * 5);
             let baseDmg = 5 + f * 2;
-            let baseXp = 20 + f * 5;
+            let baseXp = 20 + f * 5 + Math.floor(f * f * 0.2);
 
             if (isInHell) {
                 baseHp = 60 + Math.floor(f * f * 10);
                 baseDmg = 10 + f * 4;
-                baseXp = 40 + f * 10;
+                baseXp = 40 + f * 10 + Math.floor(f * f * 0.4);
             }
 
             // 应用难度系数和怪物类型倍率
@@ -4483,17 +3772,41 @@ function enterFloor(f, spawnAt = 'start') {
                 xpValue = Math.floor(xpValue * 1.5);
             }
 
-            enemies.push(EnemyPool.acquire({
+            // 获取 Boss 预设配置
+            const bossPreset = BOSS_AFFIX_PRESETS[bossData.originalName] || { ai: 'chase', affixes: [], bossTraits: {} };
+
+            // 构建词缀列表（从预设中获取）
+            const bossAffixes = bossPreset.affixes.map(affixId =>
+                ELITE_AFFIXES.find(a => a.id === affixId)
+            ).filter(Boolean);
+
+            // 噩梦+ 额外随机一个词缀
+            if (bossData.cycle >= 1) {
+                const extraAffix = ELITE_AFFIXES[Math.floor(Math.random() * ELITE_AFFIXES.length)];
+                if (!bossAffixes.find(a => a.id === extraAffix.id)) {
+                    bossAffixes.push(extraAffix);
+                }
+            }
+
+            const bossEnemy = EnemyPool.acquire({
                 x, y, hp, maxHp: hp, dmg, speed, radius: 30,
                 dead: false, cooldown: 0, name: bossData.name,
                 isBoss: true,
-                isQuestTarget: isQuestTarget, // 标记是否为任务目标
+                isQuestTarget: isQuestTarget,
                 xpValue: xpValue,
-                ai: 'chase',
+                ai: bossPreset.ai,  // 使用预设 AI
                 frameIndex: getBossFrameIndex(bossData.originalName),
-                // 赋予一些精英词缀
-                eliteAffixes: isInHell || f > 10 ? [ELITE_AFFIXES[Math.floor(Math.random() * ELITE_AFFIXES.length)]] : []
-            }));
+                eliteAffixes: bossAffixes,
+                // Boss 特殊属性
+                bossTraits: { ...bossPreset.bossTraits },
+                bossCooldowns: {},  // 技能冷却计时器
+                enraged: false      // 狂暴状态
+            });
+
+            // 应用 Boss 特殊属性
+            applyBossTraits(bossEnemy, bossData.originalName, dmg);
+
+            enemies.push(bossEnemy);
 
             const noticeText = isQuestTarget ? `警告：发现了 ${bossData.name}！` : `遭遇强敌：${bossData.name}！`;
             showNotification(noticeText);
@@ -4515,14 +3828,42 @@ function enterFloor(f, spawnAt = 'start') {
         else { player.x = dungeonEntrance.x; player.y = dungeonEntrance.y; }
     }
     player.targetX = null; updateQuestTracker(); SaveSystem.save();
+
+    // 生成地图缓存（离屏Canvas优化）
+    generateMapCache();
 }
 
 function generateTown() {
     mapData = []; visitedMap = [];
     for (let y = 0; y < MAP_HEIGHT; y++) { mapData.push(new Array(MAP_WIDTH).fill(0)); visitedMap.push(new Array(MAP_WIDTH).fill(true)); }
-    const cx = Math.floor(MAP_WIDTH / 2), cy = Math.floor(MAP_HEIGHT / 2); const r = 10;
-    for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) if (Math.hypot(x - cx, y - cy) < r) mapData[y][x] = 1;
-    dungeonEntrance = { x: cx * TILE_SIZE, y: cy * TILE_SIZE }; dungeonExit = { x: cx * TILE_SIZE, y: (cy - r + 2) * TILE_SIZE };
+    const cx = Math.floor(MAP_WIDTH / 2), cy = Math.floor(MAP_HEIGHT / 2);
+    const r = 10;           // 主区域半径
+    const marketExtend = 8; // 集市区向右延伸格数
+
+    // 生成主圆形区域 (NPC区)
+    for (let y = cy - r; y <= cy + r; y++) {
+        for (let x = cx - r; x <= cx + r; x++) {
+            if (Math.hypot(x - cx, y - cy) < r) mapData[y][x] = 1;
+        }
+    }
+
+    // 生成集市区 (右侧椭圆延伸)
+    const marketCx = cx + r - 2;  // 集市中心偏右
+    const marketRx = marketExtend; // 水平半径
+    const marketRy = r - 2;        // 垂直半径（略小于主区域）
+    for (let y = cy - marketRy; y <= cy + marketRy; y++) {
+        for (let x = marketCx; x <= marketCx + marketRx; x++) {
+            // 椭圆判定
+            const dx = (x - marketCx) / marketRx;
+            const dy = (y - cy) / marketRy;
+            if (dx * dx + dy * dy < 1) mapData[y][x] = 1;
+        }
+    }
+
+    dungeonEntrance = { x: cx * TILE_SIZE, y: cy * TILE_SIZE };
+    dungeonExit = { x: cx * TILE_SIZE, y: (cy - r + 2) * TILE_SIZE };
+    // 固定传送门位置：地牢入口右侧
+    townPortalSpot = { x: dungeonExit.x + 80, y: dungeonExit.y };
 }
 
 // 验证并修正传送门位置，确保在罗格营地的有效区域内
@@ -4604,24 +3945,211 @@ function validateAndFixDungeonPortalPosition(x, y) {
 function generateDungeon() {
     mapData = []; visitedMap = [];
     for (let y = 0; y < MAP_HEIGHT; y++) { mapData.push(new Array(MAP_WIDTH).fill(0)); visitedMap.push(new Array(MAP_WIDTH).fill(false)); }
-    let floors = 0, target = MAP_WIDTH * MAP_HEIGHT * 0.3;
     let cx = Math.floor(MAP_WIDTH / 2), cy = Math.floor(MAP_HEIGHT / 2);
     dungeonEntrance = { x: cx * TILE_SIZE + TILE_SIZE / 2, y: cy * TILE_SIZE + TILE_SIZE / 2 };
-    while (floors < target) {
-        mapData[cy][cx] = 1; floors++;
+
+    // 辅助函数：挖掘2x2区域（走廊加宽，防止自动战斗卡住）
+    const carve = (x, y) => {
+        for (let dy = 0; dy <= 1; dy++) {
+            for (let dx = 0; dx <= 1; dx++) {
+                const nx = x + dx, ny = y + dy;
+                if (nx >= 1 && nx < MAP_WIDTH - 1 && ny >= 1 && ny < MAP_HEIGHT - 1) {
+                    mapData[ny][nx] = 1;
+                }
+            }
+        }
+    };
+
+    // 地图大小随层数增长：1层最小，10层后固定最大
+    const currentFloor = player.isInHell ? player.hellFloor : player.floor;
+    const floorScale = Math.min(1, 0.4 + currentFloor * 0.06);  // 1层40%，10层100%
+    const iterations = Math.floor(MAP_WIDTH * MAP_HEIGHT * 0.2 * floorScale);
+    for (let i = 0; i < iterations; i++) {
+        carve(cx, cy);
         const d = Math.floor(Math.random() * 4);
-        if (d === 0) cy--; else if (d === 1) cy++; else if (d === 2) cx--; else cx++;
-        if (cx < 1) cx = 1; if (cx > MAP_WIDTH - 2) cx = MAP_WIDTH - 2; if (cy < 1) cy = 1; if (cy > MAP_HEIGHT - 2) cy = MAP_HEIGHT - 2;
-        if (mapData[cy][cx] === 0) { mapData[cy][cx] = 1; floors++; }
+        if (d === 0) cy -= 2; else if (d === 1) cy += 2; else if (d === 2) cx -= 2; else cx += 2;
+        if (cx < 2) cx = 2; if (cx > MAP_WIDTH - 3) cx = MAP_WIDTH - 3;
+        if (cy < 2) cy = 2; if (cy > MAP_HEIGHT - 3) cy = MAP_HEIGHT - 3;
     }
-    let maxD = 0; let sx = Math.floor(dungeonEntrance.x / TILE_SIZE), sy = Math.floor(dungeonEntrance.y / TILE_SIZE);
-    for (let y = 0; y < MAP_HEIGHT; y++) for (let x = 0; x < MAP_WIDTH; x++) if (mapData[y][x] === 1) { const d = Math.hypot(x - sx, y - sy); if (d > maxD) { maxD = d; dungeonExit.x = x * TILE_SIZE + TILE_SIZE / 2; dungeonExit.y = y * TILE_SIZE + TILE_SIZE / 2; } }
+    let maxD = 0;
+    let sx = Math.floor(dungeonEntrance.x / TILE_SIZE), sy = Math.floor(dungeonEntrance.y / TILE_SIZE);
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            if (mapData[y][x] === 1) {
+                const d = Math.hypot(x - sx, y - sy);
+                if (d > maxD) {
+                    maxD = d;
+                    dungeonExit.x = x * TILE_SIZE + TILE_SIZE / 2;
+                    dungeonExit.y = y * TILE_SIZE + TILE_SIZE / 2;
+                }
+            }
+        }
+    }
+
+    // 放置可破坏物体 (确保在地图生成完成后调用)
+    seedDestructibles();
+}
+
+function seedDestructibles() {
+    destructibles = [];
+    // 罗格营地不生成可破坏物体
+    if (player.floor === 0) return;
+    const count = 15 + Math.floor(Math.random() * 20); // 每层15-35个
+    for (let i = 0; i < count; i++) {
+        let x, y, v = false;
+        let attempts = 0;
+        while (!v && attempts < 50) {
+            const tx = Math.floor(Math.random() * MAP_WIDTH);
+            const ty = Math.floor(Math.random() * MAP_HEIGHT);
+            if (mapData[ty][tx] === 1) {
+                // 检查是否离入口/出口太近
+                const dx = tx * TILE_SIZE + 16 - dungeonEntrance.x;
+                const dy = ty * TILE_SIZE + 16 - dungeonEntrance.y;
+                if (dx * dx + dy * dy > 10000) { // 100px away
+                    const typeIdx = Math.floor(Math.random() * DESTRUCTIBLE_CONFIG.types.length);
+                    destructibles.push({
+                        x: tx * TILE_SIZE + 16,
+                        y: ty * TILE_SIZE + 16,
+                        type: DESTRUCTIBLE_CONFIG.types[typeIdx],
+                        broken: false,
+                        radius: 12,
+                        hp: 1
+                    });
+                    v = true;
+                }
+            }
+            attempts++;
+        }
+    }
+}
+
+// 生成地图缓存（离屏Canvas优化，避免每帧重复绘制静态地图）
+function generateMapCache() {
+    const fullWidth = MAP_WIDTH * TILE_SIZE;
+    const fullHeight = MAP_HEIGHT * TILE_SIZE;
+
+    // 创建或重用离屏Canvas
+    if (!mapCacheCanvas) {
+        mapCacheCanvas = document.createElement('canvas');
+        mapCacheCanvas.width = fullWidth;
+        mapCacheCanvas.height = fullHeight;
+        mapCacheCtx = mapCacheCanvas.getContext('2d');
+    }
+
+    const cctx = mapCacheCtx;
+    cctx.clearRect(0, 0, fullWidth, fullHeight);
+
+    // 初始化血迹离屏层
+    initBloodCanvas();
+
+    // 获取当前层群系样式
+    const biome = getBiomeStyle(player.floor);
+
+    // 绘制整个地图到缓存
+    for (let r = 0; r < MAP_HEIGHT; r++) {
+        for (let c = 0; c < MAP_WIDTH; c++) {
+            const x = c * TILE_SIZE, y = r * TILE_SIZE;
+
+            if (mapData[r][c] === 0) {
+                // 墙壁
+                let drawnSprite = false;
+
+                if (biome && envSpritesLoaded && processedEnvSprites) {
+                    // 先画地板底色
+                    if (floorTilesLoaded) {
+                        const floorIndex = getFloorTextureIndex(player.floor);
+                        const tileHeight = floorTiles.height / 3;
+                        cctx.drawImage(floorTiles, 0, floorIndex * tileHeight, floorTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
+                    } else {
+                        cctx.fillStyle = '#151515';
+                        cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    }
+                    // 地板色调叠加
+                    cctx.fillStyle = biome.tint;
+                    cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+                    // 绘制 Sprite
+                    drawnSprite = drawBiomeWallDetails(cctx, x, y, TILE_SIZE, biome.type, r * 1000 + c);
+                }
+
+                if (!drawnSprite) {
+                    if (wallTilesLoaded) {
+                        const wallIndex = getWallTextureIndex(player.floor);
+                        const tileHeight = wallTiles.height / 3;
+                        cctx.drawImage(wallTiles, 0, wallIndex * tileHeight, wallTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
+                        if (biome) {
+                            cctx.fillStyle = biome.tint;
+                            cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        }
+                    } else {
+                        cctx.fillStyle = COLORS.wall;
+                        cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        if (biome) {
+                            cctx.fillStyle = biome.tint;
+                            cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        }
+                        cctx.fillStyle = '#111';
+                        cctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10);
+                    }
+                }
+            } else {
+                // 地板
+                if (floorTilesLoaded) {
+                    const floorIndex = getFloorTextureIndex(player.floor);
+                    const tileHeight = floorTiles.height / 3;
+                    cctx.drawImage(floorTiles, 0, floorIndex * tileHeight, floorTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
+
+                    // 棋盘格
+                    if ((c + r) % 2 === 0) {
+                        cctx.fillStyle = 'rgba(0,0,0,0.1)';
+                        cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    }
+
+                    if (biome) {
+                        cctx.fillStyle = biome.tint;
+                        cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+                        // 冰面反光效果
+                        if (biome.type === 'ice' && (c + r) % 3 === 0) {
+                            cctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                            cctx.beginPath();
+                            cctx.moveTo(x + 10, y + TILE_SIZE - 10);
+                            cctx.lineTo(x + TILE_SIZE - 10, y + 10);
+                            cctx.lineTo(x + TILE_SIZE - 5, y + 15);
+                            cctx.lineTo(x + 15, y + TILE_SIZE - 5);
+                            cctx.fill();
+                        }
+                    }
+                } else {
+                    cctx.fillStyle = ((c + r) % 2 === 0) ? '#151515' : '#1a1a1a';
+                    cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    if (biome) {
+                        cctx.fillStyle = biome.tint;
+                        cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    }
+                }
+            }
+        }
+    }
+
+    // 只有当必要的贴图都加载完成时才标记缓存有效
+    // 否则会显示黑屏（缓存内容为空）
+    const texturesReady = floorTilesLoaded && wallTilesLoaded;
+    mapCacheValid = texturesReady;
 }
 
 function gameLoop(ts) {
     if (!gameActive) return;
     let dt = Math.min((ts - lastTime) / 1000, 0.1);
     lastTime = ts;
+
+    // Juice 顿帧逻辑优先处理
+    if (Juice.update(dt)) {
+        // 顿帧期间不更新物理逻辑，但继续渲染
+        draw();
+        requestAnimationFrame(gameLoop);
+        return;
+    }
 
     // 应用慢动作时间缩放
     if (slowMotion.active) {
@@ -4639,6 +4167,31 @@ function gameLoop(ts) {
 }
 // Main Update Loop
 function update(dt) {
+    // 地面物品物理系统 (Physics Loot)
+    groundItems.forEach(i => {
+        if (i.z > 0 || i.vz !== 0) {
+            i.z += i.vz * dt;
+            i.vz -= 800 * dt; // Gravity
+            i.x += (i.vx || 0) * dt;
+            i.y += (i.vy || 0) * dt;
+
+            // 落地碰撞检测
+            if (i.z <= 0) {
+                i.z = 0;
+                if (Math.abs(i.vz) > 20) {
+                    i.vz = -i.vz * 0.4; // Bounce
+                    if (i.vx) i.vx *= 0.6; // Friction
+                    if (i.vy) i.vy *= 0.6;
+
+                } else {
+                    i.vz = 0;
+                    i.vx = 0;
+                    i.vy = 0;
+                }
+            }
+        }
+    });
+
     // 天赋商店打开时暂停游戏（不更新敌人和战斗）
     if (talentShopOpen) return;
 
@@ -4658,6 +4211,7 @@ function update(dt) {
 
 
     mouse.worldX = mouse.x + camera.x; mouse.worldY = mouse.y + camera.y;
+    updateSmoothUI(dt); // 每帧更新平滑UI数据并渲染重要指标
     // 基础生命/法力恢复（大幅降低基础值，装备回复改为百分比加成）
     let hpRegen = 0.5;  // 基础0.5/秒
     let mpRegen = 1.0;  // 基础1/秒（从1.5降低）
@@ -4751,6 +4305,22 @@ function update(dt) {
     if (player.isDead) {
         player.deathTimer -= dt;
         if (player.deathTimer <= 0) {
+            // 深渊模式死亡特殊处理
+            if (typeof AbyssSystem !== 'undefined' && AbyssSystem.isActive) {
+                player.isDead = false;
+                player.deathTimer = 0;
+                document.getElementById('game-container').classList.remove('dead-filter');
+
+                // 先结算（会显示面板）
+                AbyssSystem.exit(true);
+
+                // 立即传送回营地并恢复满血
+                player.hp = player.maxHp;
+                player.mp = player.maxMp;
+                enterFloor(0);
+                return;
+            }
+
             // 倒计时结束，执行回城
             player.isDead = false;
             player.deathTimer = 0;
@@ -4829,11 +4399,17 @@ function update(dt) {
         groundItems = groundItems.filter(item => {
             if (!item.dropTime) return true; // 没有时间戳的物品保留（兼容旧存档）
             const age = now - item.dropTime;
-            // 暗金(4)、套装(5)、金币 永不消失
-            if (item.rarity >= 4 || item.type === 'gold') return true;
-            // 黄装(3) 5分钟后消失
+
+            // 套装(5) 10分钟后消失
+            if (item.rarity === 5) return age < GAME_CONFIG.ITEM_DESPAWN_SET;
+
+            // 金币 和 暗金(4) 3分钟后消失
+            if (item.type === 'gold' || item.rarity === 4) return age < GAME_CONFIG.ITEM_DESPAWN_UNIQUE;
+
+            // 黄装(3) 2分钟后消失
             if (item.rarity === 3) return age < GAME_CONFIG.ITEM_DESPAWN_RARE;
-            // 白/蓝装及其他 2分钟后消失
+
+            // 白/蓝装及其他 1分钟后消失
             return age < GAME_CONFIG.ITEM_DESPAWN_COMMON;
         });
         if (groundItems.length < oldCount) {
@@ -4861,6 +4437,11 @@ function update(dt) {
         player.freezeImmuneTimer -= dt;
     }
 
+    // 处理闪电过载视觉计时器
+    if (player.lightningOverloadTimer > 0) {
+        player.lightningOverloadTimer -= dt;
+    }
+
     // 处理中毒伤害
     if (player.poisoned && player.poisonTimer > 0) {
         player.poisonTimer -= dt;
@@ -4871,7 +4452,7 @@ function update(dt) {
             player.lastPoisonTick = 0;
             const poisonDmg = Math.max(1, Math.floor(player.poisonDamage * (1 - player.resistances.poison / 100)));
             player.hp -= poisonDmg;
-            createDamageNumber(player.x, player.y - 20, poisonDmg, '#00ff00');
+            createDamageNumber(player.x, player.y - 20, poisonDmg, COLORS.poison); // 绿色数字
             checkPlayerDeath();
         }
         if (player.poisonTimer <= 0) {
@@ -4881,6 +4462,11 @@ function update(dt) {
     }
 
     // 自动战斗系统（营地不执行）
+    // 深渊模式强制禁用自动战斗
+    if (player.isInHell && typeof AbyssSystem !== 'undefined' && AbyssSystem.isActive) {
+        AutoBattle.enabled = false;
+    }
+
     if (AutoBattle.enabled && !player.frozen && player.floor !== 0) {
         AutoBattle.decideAction(dt);
     }
@@ -4890,17 +4476,17 @@ function update(dt) {
     if (distExit < GAME_CONFIG.INTERACTION_RANGE) {
         const isInHell = player.isInHell || false;
         if (player.floor === 0) {
-            interactionTarget = { type: 'next', label: '进入地牢 1层' };
+            interactionTarget = { type: 'next', label: `进入 ${getFloorName(1)}` };
         } else {
             if (isInHell) {
                 // 在地狱中，出口逻辑
                 if (player.hellFloor >= 10) {
                     interactionTarget = { type: 'prev', label: '返回营地' };
                 } else {
-                    interactionTarget = { type: 'next', label: `进入地狱 ${player.hellFloor + 1}层` };
+                    interactionTarget = { type: 'next', label: `进入 ${getFloorName(player.hellFloor + 1, true)}` };
                 }
             } else {
-                interactionTarget = { type: 'next', label: `进入地牢 ${player.floor + 1}层` };
+                interactionTarget = { type: 'next', label: `进入 ${getFloorName(player.floor + 1)}` };
             }
         }
     }
@@ -4914,38 +4500,36 @@ function update(dt) {
                 if (player.hellFloor === 1) {
                     interactionTarget = { type: 'prev', label: '返回营地' };
                 } else {
-                    interactionTarget = { type: 'prev', label: `回到地狱 ${player.hellFloor - 1}层` };
+                    interactionTarget = { type: 'prev', label: `回到 ${getFloorName(player.hellFloor - 1, true)}` };
                 }
             } else {
-                const label = player.floor === 1 ? '回到罗格营地' : `回到地牢 ${player.floor - 1}层`;
+                const label = player.floor === 1 ? '回到罗格营地' : `回到 ${getFloorName(player.floor - 1)}`;
                 interactionTarget = { type: 'prev', label: label };
             }
         }
     }
     // 传送门交互只在普通地牢中有效，地狱中无效
     if (townPortal && townPortal.activeFloor === player.floor && !player.isInHell) {
-        const distPortal = Math.hypot(player.x - townPortal.x, player.y - townPortal.y);
-        if (distPortal < 60) {
-            const label = player.floor === 0 ? '进入传送门' : '回到罗格营地';
-            interactionTarget = { type: 'portal', label: label };
+        const portalPos = getPortalDisplayPosition();
+        if (portalPos) {
+            const distPortal = Math.hypot(player.x - portalPos.x, player.y - portalPos.y);
+            if (distPortal < 60) {
+                const label = player.floor === 0 ? '进入传送门' : '回到罗格营地';
+                interactionTarget = { type: 'portal', label: label };
+            }
         }
     }
 
-    const promptEl = document.getElementById('interaction-msg');
-    if (interactionTarget) {
-        promptEl.style.display = 'block';
-        promptEl.innerHTML = `按 [Enter] ${interactionTarget.label}`;
-    } else {
-        promptEl.style.display = 'none';
-    }
-
     // 自动拾取系统：金币、药水、卷轴（吸入效果）
+    const pickupMultiplier = typeof getTalentEffect !== 'undefined' ? getTalentEffect('pickupRange', 1) : 1;
+    const pickupRange = 80 * pickupMultiplier;
+
     for (let i = groundItems.length - 1; i >= 0; i--) {
         let item = groundItems[i];
         const distance = Math.hypot(item.x - player.x, item.y - player.y);
 
-        // 检查是否在拾取范围内（60像素）
-        if (distance < 60) {
+        // 检查是否在拾取范围内
+        if (distance < pickupRange) {
             let shouldPickup = false;
             let pickupType = null;
 
@@ -4970,43 +4554,35 @@ function update(dt) {
         }
     }
 
-    // 更新飞行拾取粒子
-    for (let i = flyingPickups.length - 1; i >= 0; i--) {
-        const fp = flyingPickups[i];
-        fp.time += dt;
-
-        // 贝塞尔曲线插值：从起点经控制点到终点（玩家位置）
-        const t = Math.min(fp.time / fp.duration, 1);
-        const t2 = t * t;
-        const t3 = t2 * t;
-        // 三次贝塞尔曲线
-        fp.x = (1 - t) * (1 - t) * (1 - t) * fp.startX +
-            3 * (1 - t) * (1 - t) * t * fp.controlX1 +
-            3 * (1 - t) * t * t * fp.controlX2 +
-            t3 * player.x;
-        fp.y = (1 - t) * (1 - t) * (1 - t) * fp.startY +
-            3 * (1 - t) * (1 - t) * t * fp.controlY1 +
-            3 * (1 - t) * t * t * fp.controlY2 +
-            t3 * (player.y - 20); // 稍微向上偏移
-
-        // 到达玩家位置，执行实际拾取
-        if (t >= 1) {
-            if (fp.type === 'gold') {
-                addGold(fp.value);
-                createDamageNumber(player.x, player.y - 40, `+${fp.value} G`, 'gold');
-                AudioSys.play('gold');
-            } else if (fp.type === 'potion' || fp.type === 'scroll') {
-                if (addItemToInventory(fp.item)) {
-                    showNotification(`拾取：${fp.item.displayName || fp.item.name}`);
-                }
-            }
-            flyingPickups.splice(i, 1);
-        }
-    }
+    // 更新飞行拾取粒子 (逻辑已移至 createFlyingPickup 中的 GSAP 驱动)
+    // 此处无需再手动更新坐标，GSAP 会在每一帧自动修改 fp.x 和 fp.y
 
     if (mouse.leftDown && !isHoveringUI()) {
         const t = getEnemyAtCursor();
+        const d = getDestructibleAtCursor();
         const npc = getNPCAtCursor();
+
+        // 摊位点击检测（仅在罗格营地）
+        if (mouse.leftClick && isInTown() && typeof MarketSystem !== 'undefined') {
+            const stallPoint = MarketSystem.getStallAtPosition(mouse.worldX, mouse.worldY);
+            if (stallPoint) {
+                // 检查距离
+                const distToStall = Math.hypot(stallPoint.x - player.x, stallPoint.y - player.y);
+                if (distToStall < 80) {
+                    MarketSystem.onStallClick(stallPoint);
+                    mouse.leftClick = false;
+                    player.targetX = null;
+                    return; // 阻止后续处理
+                } else {
+                    // 走向摊位
+                    player.targetX = stallPoint.x;
+                    player.targetY = stallPoint.y;
+                    mouse.leftClick = false;
+                    return;
+                }
+            }
+        }
+
         // NPC交互只在点击瞬间触发一次，避免面板闪烁
         if (npc && Math.hypot(npc.x - player.x, npc.y - player.y) < 60) {
             if (mouse.leftClick) {
@@ -5014,10 +4590,37 @@ function update(dt) {
                 interactNPC(npc);
                 mouse.leftClick = false; // 消费掉点击，避免重复触发
             }
+        } else if (mouse.leftClick && interactionTarget && isClickOnInteraction()) {
+            // 点击在出口/入口/传送门上时才触发
+            handleInteraction();
+            player.targetX = null;
+            mouse.leftClick = false;
         } else if (t) {
             if (Math.hypot(t.x - player.x, t.y - player.y) < 50) { player.targetX = null; performAttack(t); }
             else { player.targetX = t.x; player.targetY = t.y; }
+        } else if (d) {
+            // 点击可破坏物体：走向并破坏
+            const dist = Math.hypot(d.x - player.x, d.y - player.y);
+            if (dist < 60) {
+                player.targetX = null;
+                if (player.attackCooldown <= 0) {
+                    DestructibleSystem.break(d);
+                    player.attackAnim = 1;
+                    player.attackCooldown = 0.4; // 短暂冷却
+                    AudioSys.play('hit');
+                }
+            } else {
+                player.targetX = d.x;
+                player.targetY = d.y;
+            }
         } else { player.targetX = mouse.worldX; player.targetY = mouse.worldY; }
+    }
+
+
+    // 摆摊时禁止移动，或者摆摊面板打开时也禁止
+    if (typeof MarketSystem !== 'undefined' && (MarketSystem.isStalling || MarketSystem.isPanelOpen)) {
+        player.targetX = null;
+        player.targetY = null;
     }
 
     if (player.targetX !== null) {
@@ -5061,16 +4664,25 @@ function update(dt) {
 
                             if (isHighPriority && AutoBattle.enabled) {
                                 // 尝试丢弃低价值装备腾空间
-                                const forSet = item.rarity === 5 || item.name === CONSUMABLE_NAME.MANA_POTION || item.name === CONSUMABLE_NAME.HEALTH_POTION;
+                                const forSet = item.rarity === 5;
                                 let dropped = false;
                                 for (let i = 0; i < player.inventory.length; i++) {
                                     const it = player.inventory[i];
                                     if (!it) continue;
-                                    // 永远不丢：套装、暗金、药水、卷轴
-                                    if (isProtectedItem(it)) continue;
-                                    // 为高优先级物品腾空间时，稀有(黄)也可以丢
-                                    if (forSet || it.rarity < 3) {
-                                        // 丢弃这件装备
+                                    // 套装永远不丢
+                                    if (it.rarity === 5) continue;
+                                    // 药水、卷轴永远不丢
+                                    if (it.type === 'potion' || it.type === 'scroll') continue;
+                                    // 为套装腾空间时，暗金(4)和稀有(3)也可以丢
+                                    if (forSet && it.rarity >= 3) {
+                                        groundItems.push({ ...it, x: player.x + (Math.random() - 0.5) * 40, y: player.y + (Math.random() - 0.5) * 40 });
+                                        player.inventory[i] = null;
+                                        showNotification(`丢弃 ${it.displayName || it.name} 腾出空间`);
+                                        dropped = true;
+                                        break;
+                                    }
+                                    // 非套装情况：暗金不丢，只丢蓝装及以下
+                                    if (!forSet && it.rarity < 3) {
                                         groundItems.push({ ...it, x: player.x + (Math.random() - 0.5) * 40, y: player.y + (Math.random() - 0.5) * 40 });
                                         player.inventory[i] = null;
                                         showNotification(`丢弃 ${it.displayName || it.name} 腾出空间`);
@@ -5115,11 +4727,13 @@ function update(dt) {
 
     updateEnemies(dt);
 
-    projectiles.forEach((p, i) => {
+    for (let i = projectiles.length - 1; i >= 0; i--) {
+        const p = projectiles[i];
         p.life -= dt; p.x += Math.cos(p.angle) * p.speed * dt; p.y += Math.sin(p.angle) * p.speed * dt;
 
-        // 火球拖尾粒子
-        if (p.type === 'fireball' && Math.random() < 0.6) {
+        // 火球拖尾粒子（概率根据画质动态调整）
+        const pConfig = getParticleConfig();
+        if (p.type === 'fireball' && Math.random() < pConfig.fireballTrail) {
             const trailColors = ['#ff4400', '#ff6600', '#ff8800', '#ffaa00'];
             particles.push({
                 x: p.x + (Math.random() - 0.5) * 10,
@@ -5133,8 +4747,8 @@ function update(dt) {
             });
         }
 
-        // 多重射击拖尾粒子
-        if (p.type === 'multishot' && Math.random() < 0.4) {
+        // 多重射击拖尾粒子（概率根据画质动态调整）
+        if (p.type === 'multishot' && Math.random() < pConfig.multishotTrail) {
             const trailColors = ['#aaff00', '#88ff44', '#ffff00', '#ccff88'];
             particles.push({
                 x: p.x + (Math.random() - 0.5) * 6,
@@ -5150,9 +4764,9 @@ function update(dt) {
 
         if (isWall(p.x, p.y)) { p.life = 0; for (let j = 0; j < 3; j++)createParticle(p.x, p.y, '#aaa', 2); }
 
-        // 如果投射物有owner（怪物发射的），检测是否击中玩家
         if (p.owner && p.owner !== player) {
-            if (Math.hypot(p.x - player.x, p.y - player.y) < player.radius + 10 && player.invincibleTimer <= 0) {
+            const dx = p.x - player.x, dy = p.y - player.y;
+            if (dx * dx + dy * dy < (player.radius + 10) ** 2 && player.invincibleTimer <= 0) {
                 const dmg = Math.max(0, p.damage - player.armor * 0.1);
                 player.hp -= dmg;
                 player.lastDamageSource = p.owner.name + '的远程攻击';
@@ -5172,17 +4786,35 @@ function update(dt) {
         } else {
             // 玩家发射的投射物，检测是否击中敌人
             let hitTarget = null;
-            enemies.forEach(e => {
-                if (!e.dead && e !== p.owner && Math.hypot(p.x - e.x, p.y - e.y) < e.radius + 10) {
-                    takeDamage(e, p.damage, true);  // 第三个参数标记为技能伤害
-                    p.life = 0;
-                    hitTarget = e; // 记录被击中的目标
-                    addCombo(1);   // 增加连击
-                    // 已移除投射物击中震屏，优化性能
-                    if (p.freeze) { e.frozenTimer = p.freeze; createDamageNumber(e.x, e.y - 40, "冻结!", COLORS.ice); }
-                    for (let j = 0; j < 5; j++)createParticle(p.x, p.y, p.color || '#ff4400');
+            for (let e of enemies) {
+                if (!e.dead && e !== p.owner) {
+                    const dx = p.x - e.x, dy = p.y - e.y;
+                    if (dx * dx + dy * dy < (e.radius + 10) ** 2) {
+                        takeDamage(e, p.damage, true);
+                        p.life = 0;
+                        hitTarget = e;
+                        addCombo(1);
+                        if (p.freeze) { e.frozenTimer = p.freeze; createDamageNumber(e.x, e.y - 40, "冻结!", COLORS.ice); }
+                        for (let j = 0; j < 5; j++) createParticle(p.x, p.y, p.color || '#ff4400');
+                        break;
+                    }
                 }
-            });
+            }
+
+            // 检测可破坏物体碰撞
+            if (!hitTarget) {
+                for (let d of destructibles) {
+                    if (!d.broken) {
+                        const dx = p.x - d.x, dy = p.y - d.y;
+                        if (dx * dx + dy * dy < (d.radius + 10) ** 2) {
+                            DestructibleSystem.break(d);
+                            p.life = 0;
+                            hitTarget = d; // 标记为已击中物体
+                            break;
+                        }
+                    }
+                }
+            }
 
             // 火球爆炸效果（5级以上）
             if (hitTarget && p.type === 'fireball' && player.skills.fireball >= 5) {
@@ -5195,8 +4827,10 @@ function update(dt) {
                 const explosionDamage = p.damage * explosionDamageRatio;
 
                 // 对范围内的其他敌人造成伤害
+                const rSq = explosionRadius * explosionRadius;
                 enemies.forEach(e => {
-                    if (!e.dead && e !== hitTarget && Math.hypot(p.x - e.x, p.y - e.y) < explosionRadius) {
+                    const dx = p.x - e.x, dy = p.y - e.y;
+                    if (!e.dead && e !== hitTarget && dx * dx + dy * dy < rSq) {
                         takeDamage(e, explosionDamage, true);
                     }
                 });
@@ -5238,48 +4872,105 @@ function update(dt) {
         }
 
         if (p.life <= 0) projectiles.splice(i, 1);
-    });
-
-    particles.forEach((p, i) => {
-        p.life -= dt;
-        // 处理不同类型的粒子
-        if (p.type === 'drop_beam') {
-            // 光柱不移动，只减少生命
-        } else if (p.type === 'rising_spark') {
-            // 上升光点
-            p.y += p.vy * dt;
-            p.vy += 50 * dt;  // 轻微减速
-        } else {
-            // 普通粒子
-            if (p.vx) p.x += p.vx * dt;
-            if (p.vy) p.y += p.vy * dt;
-            if (p.gravity) p.vy += p.gravity * dt;  // 重力
-        }
-        if (p.life <= 0) particles.splice(i, 1);
-    });
-    // 粒子数量上限裁剪（移除最老的粒子）
-    if (particles.length > MAX_PARTICLES) {
-        particles.splice(0, particles.length - MAX_PARTICLES);
     }
 
-    // 伤害数字物理更新
-    damageNumbers.forEach((d, i) => {
+    // 粒子物理更新与回收
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+
+        if (p.type === 'rising_spark') {
+            p.y += p.vy * dt;
+            p.vy += 50 * dt;
+        } else if (p.type === 'impact') {
+            // 高级物理粒子 (带 Z 轴)
+            p.x += (p.vx || 0) * dt;
+            p.y += (p.vy || 0) * dt;
+            if (p.z !== undefined) {
+                p.z += (p.vz || 0) * dt;
+                p.vz -= (p.gravity || 800) * dt;
+
+                // 落地检测
+                if (p.z <= 0) {
+                    p.z = 0;
+                    if (Math.abs(p.vz) > 30) {
+                        p.vz = -p.vz * 0.3; // 反弹
+                        p.vx *= 0.6; p.vy *= 0.6; // 摩擦
+                    } else {
+                        // 彻底落地
+                        p.vz = 0; p.vx = 0; p.vy = 0;
+
+                        // 性能核心：烘焙到静态血迹层 (使用原有有机血迹风格)
+                        if (p.canBake && bloodCtx) {
+                            const splatSize = p.size * (1.5 + Math.random());
+                            drawSplatToCtx(bloodCtx, p.x, p.y, splatSize, p.color, 0.5 + Math.random() * 0.3);
+                            p.life = 0; // 标记回收
+                        }
+                    }
+                }
+            }
+        } else if (p.type !== 'drop_beam') {
+            if (p.vx) p.x += p.vx * dt;
+            if (p.vy) p.y += p.vy * dt;
+            if (p.gravity) p.vy += p.gravity * dt;
+        }
+
+        if (p.life <= 0) {
+            ParticlePool.release(p);
+            particles.splice(i, 1);
+        }
+    }
+
+    // 粒子数量上限强制回收
+    const maxP = getParticleConfig().maxParticles;
+    while (particles.length > maxP) {
+        ParticlePool.release(particles.shift());
+    }
+
+    // 伤害数字物理更新与回收
+    for (let i = damageNumbers.length - 1; i >= 0; i--) {
+        const d = damageNumbers[i];
         d.life -= dt;
 
-        // 应用物理效果
         if (d.vx !== undefined) {
             d.x += d.vx * dt;
             d.y += d.vy * dt;
-            d.vy += d.gravity * dt; // 重力下坠
-
-            // 简单的边界反弹（可选，这里不需要）
+            d.vy += d.gravity * dt;
         } else {
-            // 兼容旧的简单上浮逻辑
             d.y -= 20 * dt;
         }
 
-        if (d.life <= 0) damageNumbers.splice(i, 1);
-    });
+        // --- DOM 同步逻辑 (High Quality Mode) ---
+        if (d.isHTML && d.el) {
+            d.flickerTimer = (d.flickerTimer || 0) + dt;
+            let drawX = d.x - camera.x;
+            let drawY = d.y - camera.y;
+
+            if (d.isLightning && Math.floor(d.flickerTimer * 20) % 2 === 0) {
+                drawX += (Math.random() - 0.5) * 15;
+                drawY += (Math.random() - 0.5) * 15;
+            }
+
+            // 应用位移 (相对于初始放置位置的偏移)
+            d.el.style.transform = `translate(${drawX - d.sx}px, ${drawY - d.sy}px)`;
+
+            // 应用缩放效果
+            let scale = 1;
+            if (d.isPoison) scale = 0.8 + d.life * 0.2;
+            else if (d.isIce) scale = 1.1 - (d.maxLife - d.life) * 0.2;
+            else if (d.isLightning) scale = 1.2 + Math.sin(d.flickerTimer * 40) * 0.2;
+            else scale = 1 + d.life * 0.1;
+
+            d.el.style.transform += ` scale(${scale})`;
+            d.el.style.opacity = d.life > 0.4 ? 1 : d.life / 0.4;
+        }
+
+        if (d.life <= 0) {
+            if (d.isHTML && d.el) d.el.remove();
+            DamageNumberPool.release(d);
+            damageNumbers.splice(i, 1);
+        }
+    }
 
     slashEffects.forEach((s, i) => { s.life -= dt * 5; if (s.life <= 0) slashEffects.splice(i, 1); });
 
@@ -5301,13 +4992,8 @@ function update(dt) {
 
     // 敌人清理已移至定期清理（每3秒），使用对象池回收
 
-    // 更新血迹生命周期
-    for (let i = bloodSplats.length - 1; i >= 0; i--) {
-        bloodSplats[i].life -= dt;
-        if (bloodSplats[i].life <= 0) {
-            bloodSplats.splice(i, 1);
-        }
-    }
+    // 更新可破坏物体
+    DestructibleSystem.update(dt);
 
     updateUI();
 }
@@ -5316,18 +5002,63 @@ function updateEnemies(dt) {
     enemies.forEach(e => {
         if (e.dead) return;
         if (e.hitFlashTimer > 0) e.hitFlashTimer -= dt; // 更新受击闪白
+
+        // Juice 视觉恢复逻辑
+        if (e.juiceScaleTimer > 0) {
+            e.juiceScaleTimer -= dt;
+            // 平滑恢复到 1.0
+            e.juiceScale += (1.0 - e.juiceScale) * 0.2;
+            if (e.juiceScaleTimer <= 0) e.juiceScale = 1.0;
+        }
+
+        // 处理中毒伤害 (DOT)
+        if (e.poisoned && e.poisonTimer > 0) {
+            e.poisonTimer -= dt;
+            if (!e.lastPoisonTick) e.lastPoisonTick = 0;
+            e.lastPoisonTick += dt;
+            if (e.lastPoisonTick >= 0.5) {
+                e.lastPoisonTick = 0;
+                const pDmg = Math.max(1, Math.floor(e.poisonDamagePerTick || 1));
+                e.hp -= pDmg;
+                createDamageNumber(e.x, e.y, pDmg, COLORS.poison);
+                if (e.hp <= 0) e.dead = true;
+            }
+            if (e.poisonTimer <= 0) e.poisoned = false;
+        }
+
         if (e.frozenTimer > 0) { e.frozenTimer -= dt; return; }
+        if (e.slowedTimer > 0) e.slowedTimer -= dt;
+        if (e.lightningOverloadTimer > 0) e.lightningOverloadTimer -= dt;
         if (e.cooldown > 0) e.cooldown -= dt;
 
-        const dist = Math.hypot(player.x - e.x, player.y - e.y);
+        // Boss 技能冷却更新
+        if (e.isBoss && e.bossCooldowns) {
+            for (const key in e.bossCooldowns) {
+                if (!key.endsWith('Max') && e.bossCooldowns[key] > 0) {
+                    e.bossCooldowns[key] -= dt;
+                }
+            }
+            // Boss 技能逻辑
+            updateBossSkills(e, dt);
+        }
+
+        const speedMultiplier = e.slowedTimer > 0 ? 0.4 : 1.0;
+        const currentSpeed = e.speed * speedMultiplier;
+
+        const dx = player.x - e.x, dy = player.y - e.y;
+        const distSq = dx * dx + dy * dy;
 
         if (e.ai === 'ranged') {
-            if (dist < 150) {
-                const dx = e.x - player.x, dy = e.y - player.y;
-                const moveX = e.x + (dx / dist) * e.speed * dt;
-                const moveY = e.y + (dy / dist) * e.speed * dt;
+            const hasLOS = hasLineOfSight(e.x, e.y, player.x, player.y);
+            if (distSq < 22500 && hasLOS) {
+                // 太近了，后退 (150^2 = 22500)
+                const dist = Math.sqrt(distSq);
+                const moveX = e.x - (dx / dist) * currentSpeed * dt;
+                const moveY = e.y - (dy / dist) * currentSpeed * dt;
                 if (!isWall(moveX, e.y)) e.x = moveX; if (!isWall(e.x, moveY)) e.y = moveY;
-            } else if (dist < 400) {
+            } else if (distSq < 160000 && hasLOS) {
+                // 有视线才能射击 (400^2 = 160000)
+                // 有视线才能射击
                 if (e.cooldown <= 0) {
                     const angle = Math.atan2(player.y - e.y, player.x - e.x);
                     projectiles.push({
@@ -5343,6 +5074,13 @@ function updateEnemies(dt) {
                     AudioSys.play('arrow');
                     e.cooldown = 2.0;
                 }
+            } else if (distSq < 160000 && !hasLOS) { // 400^2 = 160000
+                // 没有视线，尝试靠近
+                const dist = Math.sqrt(distSq);
+                const nx = e.x + (dx / dist) * currentSpeed * dt;
+                const ny = e.y + (dy / dist) * currentSpeed * dt;
+                if (!isWall(nx, e.y)) e.x = nx;
+                if (!isWall(e.x, ny)) e.y = ny;
             }
         } else if (e.ai === 'revive') {
             if (e.cooldown <= 0) {
@@ -5387,17 +5125,19 @@ function updateEnemies(dt) {
                     return;
                 }
             }
-            if (dist < 300 && dist > 100) {
-                const nx = e.x + ((player.x - e.x) / dist) * e.speed * dt, ny = e.y + ((player.y - e.y) / dist) * e.speed * dt;
+            if (distSq < 90000 && distSq > 10000) { // 300^2=90000, 100^2=10000
+                const dist = Math.sqrt(distSq);
+                const nx = e.x + (dx / dist) * currentSpeed * dt, ny = e.y + (dy / dist) * currentSpeed * dt;
                 if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
             }
         } else if (e.ai === 'phase') {
             // 幽灵AI：可以穿墙，直线追击玩家
-            if (dist < 400 && dist > 35) {
-                e.x += ((player.x - e.x) / dist) * e.speed * dt;
-                e.y += ((player.y - e.y) / dist) * e.speed * dt;
+            if (distSq < 160000 && distSq > 1225) { // 400^2=160000, 35^2=1225
+                const dist = Math.sqrt(distSq);
+                e.x += (dx / dist) * currentSpeed * dt;
+                e.y += (dy / dist) * currentSpeed * dt;
             }
-            if (dist <= 40 && e.cooldown <= 0 && player.invincibleTimer <= 0) {
+            if (distSq <= 1600 && e.cooldown <= 0 && player.invincibleTimer <= 0) { // 40^2 = 1600
                 let physicalDmg = e.ignoreArmor ? e.dmg : Math.max(1, e.dmg - player.armor * 0.1);
                 player.hp -= physicalDmg;
                 createDamageNumber(player.x, player.y - 30, Math.floor(physicalDmg), '#ff4444');
@@ -5405,13 +5145,142 @@ function updateEnemies(dt) {
                 e.cooldown = 1.5;
                 AudioSys.play('hit');
             }
+        } else if (e.ai === 'vampire') {
+            // 吸血鬼AI：突进攻击 + 吸血
+            if (!e.dashCooldown) e.dashCooldown = 0;
+            if (e.dashCooldown > 0) e.dashCooldown -= dt;
+
+            // 正在突进中
+            if (e.isDashing) {
+                e.dashTimer -= dt;
+                if (e.dashTimer <= 0) {
+                    e.isDashing = false;
+                }
+                // 突进移动（快速接近目标位置）
+                const dashSpeed = 600;
+                const dx = e.dashTargetX - e.x;
+                const dy = e.dashTargetY - e.y;
+                const dashDist = Math.hypot(dx, dy);
+                if (dashDist > 5) {
+                    e.x += (dx / dashDist) * dashSpeed * dt;
+                    e.y += (dy / dashDist) * dashSpeed * dt;
+                    // 突进时创建红色残影
+                    if (Math.random() < 0.5) {
+                        particles.push({
+                            x: e.x, y: e.y,
+                            vx: (Math.random() - 0.5) * 20,
+                            vy: (Math.random() - 0.5) * 20,
+                            life: 0.3,
+                            maxLife: 0.3,
+                            color: '#aa0000',
+                            size: 15,
+                            type: 'vampire_trail'
+                        });
+                    }
+                }
+                // 突进到达后攻击
+                if (dashDist <= 40 && e.cooldown <= 0 && player.invincibleTimer <= 0) {
+                    let physicalDmg = e.ignoreArmor ? e.dmg : Math.max(1, e.dmg - player.armor * 0.1);
+                    player.hp -= physicalDmg;
+                    createDamageNumber(player.x, player.y - 30, Math.floor(physicalDmg), '#ff4444');
+                    // 吸血效果
+                    const healAmount = Math.floor(physicalDmg * (e.lifeSteal || 0.2));
+                    if (healAmount > 0) {
+                        e.hp = Math.min(e.maxHp, e.hp + healAmount);
+                        createDamageNumber(e.x, e.y - 30, '+' + healAmount, '#00ff00');
+                        // 吸血粒子效果
+                        for (let i = 0; i < 5; i++) {
+                            particles.push({
+                                x: player.x + (Math.random() - 0.5) * 30,
+                                y: player.y + (Math.random() - 0.5) * 30,
+                                vx: (e.x - player.x) * 2 + (Math.random() - 0.5) * 50,
+                                vy: (e.y - player.y) * 2 + (Math.random() - 0.5) * 50,
+                                life: 0.4,
+                                maxLife: 0.4,
+                                color: '#ff0000',
+                                size: 6,
+                                type: 'lifesteal'
+                            });
+                        }
+                    }
+                    combo.active = false; combo.count = 0;
+                    e.cooldown = 1.5;
+                    e.isDashing = false;
+                    AudioSys.play('hit');
+                }
+            } else {
+                // 非突进状态
+                if (distSq < 40000 && distSq > 1600 && e.dashCooldown <= 0) { // 200^2=40000, 40^2=1600
+                    // 发动突进！
+                    e.isDashing = true;
+                    e.dashTimer = 0.3; // 突进持续0.3秒
+                    e.dashTargetX = player.x;
+                    e.dashTargetY = player.y;
+                    e.dashCooldown = 3.0; // 3秒突进冷却
+                    AudioSys.play('swing');
+                } else if (distSq < 160000 && distSq > 10000) { // 400^2=160000, 100^2=10000
+                    // 缓慢靠近
+                    const dist = Math.sqrt(distSq);
+                    const nx = e.x + (dx / dist) * currentSpeed * dt;
+                    const ny = e.y + (dy / dist) * currentSpeed * dt;
+                    if (!isWall(nx, e.y)) e.x = nx;
+                    if (!isWall(e.x, ny)) e.y = ny;
+                } else if (distSq <= 1600 && e.cooldown <= 0 && player.invincibleTimer <= 0) { // 40^2 = 1600
+                    // 近身普通攻击
+                    let physicalDmg = e.ignoreArmor ? e.dmg : Math.max(1, e.dmg - player.armor * 0.1);
+                    player.hp -= physicalDmg;
+                    createDamageNumber(player.x, player.y - 30, Math.floor(physicalDmg), '#ff4444');
+                    const healAmount = Math.floor(physicalDmg * (e.lifeSteal || 0.2));
+                    if (healAmount > 0) {
+                        e.hp = Math.min(e.maxHp, e.hp + healAmount);
+                        createDamageNumber(e.x, e.y - 30, '+' + healAmount, '#00ff00');
+                    }
+                    combo.active = false; combo.count = 0;
+                    e.cooldown = 1.5;
+                    AudioSys.play('hit');
+                }
+            }
+        } else if (e.ai === 'specter') {
+            // 闪电幽魂AI：穿墙移动 + 远程闪电球 + 保持距离
+            const hasLOS = hasLineOfSight(e.x, e.y, player.x, player.y);
+            if (distSq < 14400 && hasLOS) { // 120^2 = 14400
+                // 太近了，后退（可穿墙）
+                const dist = Math.sqrt(distSq);
+                e.x -= (dx / dist) * currentSpeed * dt;
+                e.y -= (dy / dist) * currentSpeed * dt;
+            } else if (distSq < 122500 && hasLOS) { // 350^2 = 122500
+                // 有视线才能发射闪电球
+                if (e.cooldown <= 0) {
+                    const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                    projectiles.push({
+                        x: e.x,
+                        y: e.y,
+                        angle: angle,
+                        speed: 280,
+                        life: 2,
+                        damage: e.dmg,
+                        color: '#66ccff',
+                        owner: e,
+                        type: 'lightning_ball'  // 闪电球类型
+                    });
+                    // 发射音效（轻柔版）
+                    AudioSys.play('specter_bolt');
+                    e.cooldown = 1.8;
+                }
+            } else if (distSq < 202500) { // 450^2 = 202500
+                // 靠近玩家（可穿墙）- 无视线时也会穿墙过来
+                const dist = Math.sqrt(distSq);
+                e.x += (dx / dist) * currentSpeed * dt;
+                e.y += (dy / dist) * currentSpeed * dt;
+            }
         } else {
             // 普通chase AI
-            if (dist < 400 && dist > 35) {
-                const nx = e.x + ((player.x - e.x) / dist) * e.speed * dt, ny = e.y + ((player.y - e.y) / dist) * e.speed * dt;
+            if (distSq < 160000 && distSq > 1225) { // 400^2=160000, 35^2=1225
+                const dist = Math.sqrt(distSq);
+                const nx = e.x + (dx / dist) * currentSpeed * dt, ny = e.y + (dy / dist) * currentSpeed * dt;
                 if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
             }
-            if (dist <= 40 && e.cooldown <= 0 && player.invincibleTimer <= 0) {
+            if (distSq <= 1600 && e.cooldown <= 0 && player.invincibleTimer <= 0) { // 40^2 = 1600
                 // 计算物理伤害（受护甲影响）
                 let physicalDmg = e.ignoreArmor ? e.dmg : Math.max(1, e.dmg - player.armor * 0.1);
 
@@ -5428,7 +5297,10 @@ function updateEnemies(dt) {
                     }
                     if (e.elementalDmg.lightning) {
                         const lightningDmg = e.elementalDmg.lightning * (1 - player.resistances.lightning / 100);
-                        totalDmg += Math.max(0, lightningDmg);
+                        if (lightningDmg > 0) {
+                            totalDmg += lightningDmg;
+                            player.lightningOverloadTimer = 0.5; // 0.5秒视觉过载
+                        }
                     }
                     if (e.elementalDmg.poison) {
                         const poisonDmg = e.elementalDmg.poison * (1 - player.resistances.poison / 100);
@@ -5443,6 +5315,9 @@ function updateEnemies(dt) {
                 }
 
                 player.hp -= totalDmg;
+                // 触发受击反馈：血球震动
+                if (cachedUI.hpOrb) GSAPAnims.shake(cachedUI.hpOrb, 8);
+
                 player.lastDamageSource = e.name;
                 player.invincibleTimer = 0.3;  // 0.3秒无敌帧
                 e.cooldown = 1.5;
@@ -5471,10 +5346,12 @@ function updateEnemies(dt) {
 
                 // 中毒效果（木乃伊或精英词缀）
                 if (e.poisonOnHit && e.poisonDamage) {
+                    if (!player.poisoned) {
+                        createDamageNumber(player.x, player.y - 45, "中毒!", COLORS.poison);
+                    }
                     player.poisoned = true;
-                    player.poisonTimer = 3.0;  // 持续3秒
-                    player.poisonDamage = e.poisonDamage;
-                    createDamageNumber(player.x, player.y - 45, "中毒!", '#00ff00');
+                    player.poisonTimer = Math.max(player.poisonTimer || 0, 3.0);
+                    player.poisonDamage = Math.max(player.poisonDamage || 0, e.poisonDamage);
                 }
 
                 // 冰冻：硬控玩家（免疫期内无效）
@@ -5512,106 +5389,46 @@ function draw() {
 
     ctx.save(); ctx.translate(-Math.floor(camera.x) + shakeX, -Math.floor(camera.y) + shakeY);
 
-    const sc = Math.floor(camera.x / TILE_SIZE), ec = sc + (canvas.width / TILE_SIZE) + 1;
-    const sr = Math.floor(camera.y / TILE_SIZE), er = sr + (canvas.height / TILE_SIZE) + 1;
+    // 使用离屏Canvas缓存绘制地图（性能优化：从每帧5000+次ctx调用降为1次）
+    let mapDrawn = false;
+    if (mapCacheValid && mapCacheCanvas) {
+        // 计算源区域（从缓存中裁剪的区域）
+        const cacheW = mapCacheCanvas.width;
+        const cacheH = mapCacheCanvas.height;
 
-    // 获取当前层群系样式
-    const biome = getBiomeStyle(player.floor);
+        // 源坐标（缓存中的位置），需要限制在有效范围内
+        const srcX = Math.max(0, Math.floor(camera.x));
+        const srcY = Math.max(0, Math.floor(camera.y));
 
-    for (let r = sr - 1; r < er + 1; r++) {
-        for (let c = sc - 1; c < ec + 1; c++) {
-            if (r >= 0 && r < MAP_HEIGHT && c >= 0 && c < MAP_WIDTH) {
-                const x = c * TILE_SIZE, y = r * TILE_SIZE;
-                if (mapData[r][c] === 0) {
-                    let drawnSprite = false;
+        // 目标坐标（画布上的位置）
+        const dstX = Math.max(0, -Math.floor(camera.x));
+        const dstY = Math.max(0, -Math.floor(camera.y));
 
-                    // 尝试使用 Sprite 绘制墙壁 (仅在有群系时，Camp层除外)
-                    if (biome && envSpritesLoaded && processedEnvSprites) {
-                        // 1. 先画地板作为底色 (防止树后面透出黑色背景)
-                        if (floorTilesLoaded) {
-                            const floorIndex = getFloorTextureIndex(player.floor);
-                            const tileHeight = floorTiles.height / 3;
-                            ctx.drawImage(floorTiles, 0, floorIndex * tileHeight, floorTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
-                        } else {
-                            ctx.fillStyle = '#151515';
-                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        }
-                        // 地板色调叠加
-                        ctx.fillStyle = biome.tint;
-                        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+        // 绘制宽高
+        const drawW = Math.min(canvas.width - dstX, cacheW - srcX);
+        const drawH = Math.min(canvas.height - dstY, cacheH - srcY);
 
-                        // 2. 绘制 Sprite
-                        drawnSprite = drawBiomeWallDetails(ctx, x, y, TILE_SIZE, biome.type, r * 1000 + c);
-                    }
+        if (drawW > 0 && drawH > 0) {
+            ctx.drawImage(mapCacheCanvas, srcX, srcY, drawW, drawH, srcX, srcY, drawW, drawH);
+            mapDrawn = true;
+        }
+    }
 
-                    // 如果没有绘制 Sprite (例如 Camp 层，或资源未加载)，则绘制标准墙壁
-                    if (!drawnSprite) {
-                        if (wallTilesLoaded) {
-                            const wallIndex = getWallTextureIndex(player.floor);
-                            const tileHeight = wallTiles.height / 3;
+    // 缓存无效或绘制失败时的后备方案
+    if (!mapDrawn) {
+        const sc = Math.floor(camera.x / TILE_SIZE), ec = sc + (canvas.width / TILE_SIZE) + 1;
+        const sr = Math.floor(camera.y / TILE_SIZE), er = sr + (canvas.height / TILE_SIZE) + 1;
 
-                            ctx.drawImage(wallTiles,
-                                0, wallIndex * tileHeight, wallTiles.width, tileHeight,
-                                x, y, TILE_SIZE, TILE_SIZE
-                            );
-
-                            // 群系色调叠加（墙壁）
-                            if (biome) {
-                                ctx.fillStyle = biome.tint;
-                                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                            }
-                        } else {
-                            ctx.fillStyle = COLORS.wall;
-                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                            if (biome) {
-                                ctx.fillStyle = biome.tint;
-                                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                            }
-                            ctx.fillStyle = '#111';
-                            ctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10);
-                        }
-                    }
-                }
-                else {
+        for (let r = sr - 1; r < er + 1; r++) {
+            for (let c = sc - 1; c < ec + 1; c++) {
+                if (r >= 0 && r < MAP_HEIGHT && c >= 0 && c < MAP_WIDTH) {
                     const x = c * TILE_SIZE, y = r * TILE_SIZE;
-                    if (floorTilesLoaded) {
-                        const floorIndex = getFloorTextureIndex(player.floor);
-                        const tileHeight = floorTiles.height / 3;
-
-                        ctx.drawImage(floorTiles,
-                            0, floorIndex * tileHeight, floorTiles.width, tileHeight,
-                            x, y, TILE_SIZE, TILE_SIZE
-                        );
-
-                        // Subtle checkerboard pattern for variety
-                        if ((c + r) % 2 === 0) {
-                            ctx.fillStyle = 'rgba(0,0,0,0.1)';
-                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        }
-
-                        // 群系色调叠加（地板）
-                        if (biome) {
-                            ctx.fillStyle = biome.tint;
-                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-
-                            // 冰面反光效果
-                            if (biome.type === 'ice' && (c + r) % 3 === 0) {
-                                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-                                ctx.beginPath();
-                                ctx.moveTo(x + 10, y + TILE_SIZE - 10);
-                                ctx.lineTo(x + TILE_SIZE - 10, y + 10);
-                                ctx.lineTo(x + TILE_SIZE - 5, y + 15);
-                                ctx.lineTo(x + 15, y + TILE_SIZE - 5);
-                                ctx.fill();
-                            }
-                        }
+                    if (mapData[r][c] === 0) {
+                        ctx.fillStyle = COLORS.wall;
+                        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
                     } else {
                         ctx.fillStyle = ((c + r) % 2 === 0) ? '#151515' : '#1a1a1a';
                         ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        if (biome) {
-                            ctx.fillStyle = biome.tint;
-                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        }
                     }
                 }
             }
@@ -5621,147 +5438,130 @@ function draw() {
     // Render Exits
     if (isInTown()) {
         // 罗格营地：只显示去地牢1层
-        drawDungeonExit(dungeonExit.x, dungeonExit.y, "去地牢 1层");
+        drawDungeonExit(dungeonExit.x, dungeonExit.y, `去 ${getFloorName(1)}`);
     } else if (player.isInHell) {
         // 地狱模式：显示地狱的入口和出口
-        let exitLabel = player.hellFloor >= 10 ? "返回罗格营地" : `进入地狱 ${player.hellFloor + 1}层`;
+        const nextHellFloor = player.hellFloor + 1;
+        let exitLabel = player.hellFloor >= 10 ? "返回罗格营地" : `去 ${getFloorName(nextHellFloor, true)}`;
         drawDungeonExit(dungeonExit.x, dungeonExit.y, exitLabel);
 
-        let entranceLabel = player.hellFloor === 1 ? "返回罗格营地" : `回到地狱 ${player.hellFloor - 1}层`;
+        const prevHellFloor = player.hellFloor - 1;
+        let entranceLabel = player.hellFloor === 1 ? "返回罗格营地" : `回 ${getFloorName(prevHellFloor, true)}`;
         drawDungeonEntrance(dungeonEntrance.x, dungeonEntrance.y, entranceLabel);
     } else {
         // 普通地牢：显示地牢的入口和出口
-        let exitLabel = `去地牢 ${player.floor + 1}层`;
+        const nextFloor = player.floor + 1;
+        let exitLabel = `去 ${getFloorName(nextFloor)}`;
         drawDungeonExit(dungeonExit.x, dungeonExit.y, exitLabel);
 
-        let entranceLabel = player.floor === 1 ? "去罗格营地" : `去地牢 ${player.floor - 1}层`;
+        const prevFloor = player.floor - 1;
+        let entranceLabel = player.floor === 1 ? "去罗格营地" : `回 ${getFloorName(prevFloor)}`;
         drawDungeonEntrance(dungeonEntrance.x, dungeonEntrance.y, entranceLabel);
     }
 
     // 传送门只在普通地牢中显示，地狱中不显示
     if (townPortal && townPortal.activeFloor === player.floor && !player.isInHell) {
-        let label = player.floor === 0 ? '传送门' : '传送门 (回罗格营地)';
-        drawPortal(townPortal.x, townPortal.y, label);
+        const portalPos = getPortalDisplayPosition();
+        if (portalPos) {
+            let label = player.floor === 0 ? '传送门' : '传送门 (回罗格营地)';
+            drawPortal(portalPos.x, portalPos.y, label);
+        }
     }
 
-    groundItems.forEach(i => {
-        // 物品过滤：默认只显示蓝色以上（rarity >= 2），按住Alt显示所有
-        // 金币、药水、卷轴始终显示
-        const isConsumable = i.type === 'gold' || i.type === 'potion' || i.type === 'scroll';
-        if (!isAltPressed && !isConsumable && i.rarity < 2) {
-            return; // 跳过低品质物品的渲染
-        }
-
-        if (itemSpritesLoaded && processedItemSprites) {
-            const coords = getItemSpriteCoords(i);
-            const size = 32; // draw size
-            const spriteSize = processedItemSprites.width / 4;
-
-            // Draw Item Sprite (使用去除黑底的精灵图)
-            ctx.drawImage(processedItemSprites,
-                coords.col * spriteSize, coords.row * spriteSize, spriteSize, spriteSize,
-                i.x - size / 2, i.y - size / 2, size, size
-            );
-
-            // Rarity Name (显示在物品上方)
-            if (isAltPressed || i.rarity >= 3) {
-                ctx.fillStyle = getItemColor(i.rarity); ctx.textAlign = 'center';
-                ctx.font = '12px Cinzel';
-                ctx.fillText(i.displayName || i.name, i.x, i.y - 22);
-            }
-        } else {
-            ctx.beginPath(); ctx.fillStyle = getItemColor(i.rarity); ctx.textAlign = 'center';
-            ctx.font = '20px serif'; ctx.fillText(i.icon || '📦', i.x, i.y + 7);
-        }
-        if (i.rarity >= 3) { ctx.globalAlpha = 0.2; ctx.beginPath(); ctx.moveTo(i.x, i.y); ctx.lineTo(i.x - 10, i.y - 100); ctx.lineTo(i.x + 10, i.y - 100); ctx.fill(); ctx.globalAlpha = 1; }
-    });
-
     npcs.forEach(n => {
+        const nx = Math.round(n.x);
+        const ny = Math.round(n.y);
         if (spritesLoaded && processedSpriteSheet && n.frameIndex !== undefined) {
             const frame = getNPCFrame(n.frameIndex);
             const renderHeight = 52;
             const renderWidth = renderHeight * frame.width / frame.height;
             ctx.drawImage(processedSpriteSheet, frame.x, frame.y, frame.width, frame.height,
-                n.x - renderWidth / 2, n.y - renderHeight, renderWidth, renderHeight);
+                nx - renderWidth / 2, ny - renderHeight, renderWidth, renderHeight);
         } else {
-            ctx.fillStyle = COLORS.npc; ctx.beginPath(); ctx.arc(n.x, n.y, 15, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = COLORS.npc; ctx.beginPath(); ctx.arc(nx, ny, 15, 0, Math.PI * 2); ctx.fill();
         }
 
         // Quest Indicators (above name)
         if (n.type === 'healer') {
             if (player.questState === 0) {
-                ctx.fillStyle = '#ffff00'; ctx.font = '20px Arial'; ctx.fillText("!", n.x, n.y - 80);
+                ctx.fillStyle = '#ffff00'; ctx.font = '20px Arial'; ctx.fillText("!", nx, ny - 80);
             } else if (player.questState === 2) {
-                ctx.fillStyle = '#ffff00'; ctx.font = '20px Arial'; ctx.fillText("?", n.x, n.y - 80);
+                ctx.fillStyle = '#ffff00'; ctx.font = '20px Arial'; ctx.fillText("?", nx, ny - 80);
             }
         }
 
         // Name (above character)
-        ctx.fillStyle = '#fff'; ctx.font = '12px Cinzel'; ctx.textAlign = 'center'; ctx.fillText(n.name, n.x, n.y - 70);
-    });
+        ctx.fillStyle = '#fff'; ctx.font = '12px Cinzel'; ctx.textAlign = 'center'; ctx.fillText(n.name, nx, ny - 70);
 
-    // 绘制地面血迹（在敌人之前，让尸体覆盖在血迹上）
-    bloodSplats.forEach(splat => {
-        ctx.save();
-        ctx.translate(splat.x, splat.y);
-        ctx.rotate(splat.angle);
-        ctx.scale(splat.scaleX, splat.scaleY);
-
-        // 血迹透明度随时间减少
-        const fadeStart = 5; // 最后5秒开始淡出
-        let alpha = splat.alpha;
-        if (splat.life < fadeStart) {
-            alpha *= splat.life / fadeStart;
+        // 深渊守卫特殊显示：本周王者
+        if (n.type === 'difficulty' && typeof AbyssSystem !== 'undefined') {
+            const champion = AbyssSystem.currentChampion || '虚位以待';
+            ctx.save();
+            ctx.font = '10px Cinzel';
+            ctx.fillStyle = '#ff8800';
+            ctx.shadowColor = '#ff4400';
+            ctx.shadowBlur = 8;
+            ctx.fillText(`🔥 本周王者: ${champion}`, nx, ny - 85);
+            ctx.restore();
         }
-
-        // 绘制血迹（深红色渐变）
-        const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, splat.radius);
-        gradient.addColorStop(0, `rgba(120, 0, 0, ${alpha})`);
-        gradient.addColorStop(0.5, `rgba(80, 0, 0, ${alpha * 0.8})`);
-        gradient.addColorStop(1, `rgba(50, 0, 0, 0)`);
-
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, splat.radius, splat.radius * 0.6, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.restore();
     });
+
+    // 渲染摊位（仅在罗格营地）
+    if (isInTown() && typeof MarketSystem !== 'undefined') {
+        MarketSystem.drawStalls(ctx);
+    }
+
+    // 渲染离屏血迹层（原本几百个对象循环，现在恒定 1 次 drawImage）
+    if (bloodCanvas) {
+        const sx = Math.max(0, camera.x);
+        const sy = Math.max(0, camera.y);
+        const sw = Math.min(bloodCanvas.width - sx, canvas.width);
+        const sh = Math.min(bloodCanvas.height - sy, canvas.height);
+        if (sw > 0 && sh > 0) {
+            ctx.drawImage(bloodCanvas, sx, sy, sw, sh, sx, sy, sw, sh);
+        }
+    }
+
+    // 渲染可破坏物体
+    DestructibleSystem.draw(ctx);
 
     enemies.forEach(e => {
-        if (e.dead) return; // 死亡的敌人不再显示，只留血迹
+        if (e.dead) return;
+        // 视口剔除
+        if (e.x < camera.x - 100 || e.x > camera.x + canvas.width + 100 ||
+            e.y < camera.y - 120 || e.y > camera.y + canvas.height + 100) return;
+
+        const rx = Math.round(e.x);
+        const ry = Math.round(e.y);
 
         // BOSS脚下光环
         if (e.isBoss) {
-            ctx.save();
-            ctx.beginPath();
-            ctx.arc(e.x, e.y, (e.radius + 5) / 2, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(180, 0, 0, 0.25)';
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(255, 50, 50, 0.5)';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-            ctx.restore();
+            ctx.beginPath(); ctx.arc(rx, ry, (e.radius + 5) / 2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(180, 0, 0, 0.25)'; ctx.fill();
+            ctx.strokeStyle = 'rgba(255, 50, 50, 0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
         }
 
         if (spritesLoaded && processedSpriteSheet && e.frameIndex !== undefined) {
-            // BOSS使用第3排，普通怪物使用第2排
             const frame = e.isBoss ? getBossFrame(e.frameIndex) : getMonsterFrame(e.frameIndex);
-            const renderHeight = e.isBoss ? 44 * 1.5 : 44;  // BOSS 1.5倍大
+            const renderHeight = e.isBoss ? 66 : 44;
             const renderWidth = renderHeight * frame.width / frame.height;
-            ctx.drawImage(processedSpriteSheet, frame.x, frame.y, frame.width, frame.height,
-                e.x - renderWidth / 2, e.y - renderHeight, renderWidth, renderHeight);
 
-            // 受击闪白效果
-            if (e.hitFlashTimer > 0) {
-                ctx.save();
-                ctx.globalAlpha = Math.min(1, e.hitFlashTimer * 5); // 闪烁效果
-                ctx.filter = 'brightness(500%) sepia(100%) saturate(0%) invert(0)'; // 极端亮度使其变白
-                // 重绘一遍精灵图，利用滤镜变白，且保留透明度
-                ctx.drawImage(processedSpriteSheet, frame.x, frame.y, frame.width, frame.height,
-                    e.x - renderWidth / 2, e.y - renderHeight, renderWidth, renderHeight);
-                ctx.restore();
-            }
+            // 确定绘制源（消除 ctx.filter）
+            let source = processedSpriteSheet;
+            if (e.hitFlashTimer > 0) source = TintCache.white;
+            else if (e.frozenTimer > 0 || e.slowedTimer > 0) source = TintCache.ice;
+            else if (e.poisonTimer > 0) source = TintCache.poison;
+            else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = TintCache.lightning;
+
+            ctx.save();
+            ctx.translate(rx, ry);
+            // 应用 Juice 缩放 (受击挤压效果)
+            const juiceScale = e.juiceScale || 1.0;
+            ctx.scale(juiceScale, 1.0 / juiceScale); // 保持体积一致性 (Squash and Stretch)
+
+            ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
+                -renderWidth / 2, -renderHeight, renderWidth, renderHeight);
+            ctx.restore();
         } else {
             // 优先级：受击闪白 > 冰冻 > 精英/Boss/普通颜色
             if (e.hitFlashTimer > 0) {
@@ -5770,15 +5570,15 @@ function draw() {
                 ctx.fillStyle = e.frozenTimer > 0 ? COLORS.ice : (e.rarity > 0 ? '#ffaa00' : (e.isBoss ? '#9000cc' : '#880000'));
             }
             if (e.isQuestTarget) ctx.fillStyle = '#ff00aa';
-            ctx.beginPath(); ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(rx, ry, e.radius, 0, Math.PI * 2); ctx.fill();
         }
 
-        ctx.fillStyle = '#500'; ctx.fillRect(e.x - 15, e.y - e.radius - 8, 30, 4);
-        ctx.fillStyle = '#f00'; ctx.fillRect(e.x - 15, e.y - e.radius - 8, 30 * (e.hp / e.maxHp), 4);
+        ctx.fillStyle = '#500'; ctx.fillRect(rx - 15, ry - e.radius - 8, 30, 4);
+        ctx.fillStyle = '#f00'; ctx.fillRect(rx - 15, ry - e.radius - 8, 30 * (e.hp / e.maxHp), 4);
         ctx.fillStyle = e.isBoss ? '#f33' : (e.rarity > 0 ? '#fa0' : '#ccc');
         ctx.font = '10px Cinzel';
         ctx.textAlign = 'center';
-        ctx.fillText(e.isBoss ? '☠️ ' + e.name : e.name, e.x, e.y - e.radius - 35);
+        ctx.fillText(e.isBoss ? '☠️ ' + e.name : e.name, rx, ry - e.radius - 35);
 
         // 渲染精英词缀
         if (e.eliteAffixes && e.eliteAffixes.length > 0) {
@@ -5854,91 +5654,107 @@ function draw() {
     }
 
     if (player.targetX !== null) { ctx.strokeStyle = '#333'; ctx.beginPath(); ctx.arc(player.targetX, player.targetY, 5, 0, Math.PI * 2); ctx.stroke(); }
+    const px = Math.round(player.x);
+    const py = Math.round(player.y);
+
     if (spritesLoaded && processedSpriteSheet) {
         const frame = getHeroFrame(player.direction);
         const renderHeight = 48;
         const renderWidth = renderHeight * frame.width / frame.height;
         const scale = 1 + player.attackAnim * 0.2;
-        ctx.save();
-        ctx.translate(player.x, player.y - renderHeight / 2);
-        ctx.scale(scale, scale);
-        ctx.drawImage(processedSpriteSheet, frame.x, frame.y, frame.width, frame.height,
-            -renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
-        ctx.restore();
+
+        let source = processedSpriteSheet;
+        if (player.frozen || player.slowedTimer > 0) source = TintCache.ice;
+        else if (player.poisoned) source = TintCache.poison;
+        else if (player.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = TintCache.lightning;
+
+        if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) {
+            ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
+                px - renderWidth / 2, py - renderHeight / 2, renderWidth, renderHeight);
+        } else if (scale === 1) {
+            ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
+                px - renderWidth / 2, py - renderHeight, renderWidth, renderHeight);
+        } else {
+            ctx.save();
+            ctx.translate(px, py - renderHeight / 2);
+            ctx.scale(scale, scale);
+            ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
+                -renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
+            ctx.restore();
+        }
     } else {
-        ctx.fillStyle = player.color; ctx.beginPath(); ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = player.color; ctx.beginPath(); ctx.arc(px, py, player.radius, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // 渲染玩家头顶称号
+    if (player.abyssTitle) {
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 12px Cinzel';
+
+        // 根据称号等级设置颜色和特效
+        const titleConfig = {
+            '深渊魔王': { color: '#ff4400', glow: '#ff0000', icon: '🔥' },
+            '深渊领主': { color: '#cc2222', glow: '#880000', icon: '⚔️' },
+            '深渊使者': { color: '#9933ff', glow: '#6600cc', icon: '💀' },
+            '深渊行者': { color: '#888888', glow: '#444444', icon: '🌑' }
+        };
+
+        const config = titleConfig[player.abyssTitle] || { color: '#ffffff', glow: '#888888', icon: '' };
+
+        // 发光效果
+        ctx.shadowColor = config.glow;
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = config.color;
+
+        // 渲染称号文字
+        const titleText = config.icon + ' ' + player.abyssTitle + ' ' + config.icon;
+        ctx.fillText(titleText, px, py - 55);
+
+        ctx.restore();
     }
 
     projectiles.forEach(p => {
+        // 视口剔除
+        if (p.x < camera.x - 50 || p.x > camera.x + canvas.width + 50 ||
+            p.y < camera.y - 50 || p.y > camera.y + canvas.height + 50) return;
+
         ctx.strokeStyle = p.color || '#fa0';
         ctx.fillStyle = p.color || '#fa0';
         ctx.lineWidth = 2;
 
-        // 多重射击 - 绘制箭矢
         if (p.type === 'multishot') {
             ctx.save();
             ctx.translate(p.x, p.y);
             ctx.rotate(p.angle);
-
-            // 箭身（细长三角形）
             ctx.fillStyle = '#aaff00';
             ctx.beginPath();
-            ctx.moveTo(8, 0);    // 箭头尖端
-            ctx.lineTo(-12, -2); // 左侧尾部
-            ctx.lineTo(-8, 0);   // 尾部中心凹陷
-            ctx.lineTo(-12, 2);  // 右侧尾部
-            ctx.closePath();
-            ctx.fill();
-
-            // 箭头高光
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.moveTo(8, 0);
-            ctx.lineTo(2, -1);
-            ctx.lineTo(2, 1);
-            ctx.closePath();
-            ctx.fill();
-
-            // 尾羽
-            ctx.strokeStyle = '#88ff44';
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(-10, -3);
-            ctx.lineTo(-14, -5);
-            ctx.moveTo(-10, 3);
-            ctx.lineTo(-14, 5);
-            ctx.stroke();
-
+            ctx.moveTo(8, 0); ctx.lineTo(-12, -2); ctx.lineTo(-8, 0); ctx.lineTo(-12, 2);
+            ctx.closePath(); ctx.fill();
             ctx.restore();
-        }
-        // 怪物箭矢 - 画成线条
-        else if (p.color === '#ffaa00' && p.owner !== player) {
+        } else if (p.color === '#ffaa00' && p.owner !== player) {
             const len = 15;
-            const endX = p.x - Math.cos(p.angle) * len;
-            const endY = p.y - Math.sin(p.angle) * len;
             ctx.beginPath();
-            ctx.moveTo(endX, endY);
+            ctx.moveTo(p.x - Math.cos(p.angle) * len, p.y - Math.sin(p.angle) * len);
             ctx.lineTo(p.x, p.y);
             ctx.stroke();
         } else {
-            // 火球等投射物 - 画成圆形
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
         }
     });
 
     particles.forEach((p) => {
+        // 视口剔除
+        if (p.x < camera.x - 100 || p.x > camera.x + canvas.width + 100 ||
+            p.y < camera.y - 120 || p.y > camera.y + canvas.height + 100) return;
+
         if (p.type === 'lightning') {
             ctx.beginPath();
             ctx.moveTo(p.points[0].x, p.points[0].y);
-            for (let j = 1; j < p.points.length; j++) {
-                ctx.lineTo(p.points[j].x, p.points[j].y);
-            }
+            for (let j = 1; j < p.points.length; j++) ctx.lineTo(p.points[j].x, p.points[j].y);
             ctx.strokeStyle = p.color;
-            ctx.lineWidth = p.width * (p.life / 0.2); // 随时间变细
+            ctx.lineWidth = p.width * (p.life / 0.2);
             ctx.stroke();
-            // 闪光效果
             setGlow(ctx, 20, p.color);
             ctx.stroke();
             clearGlow(ctx);
@@ -6022,8 +5838,22 @@ function draw() {
             ctx.fill();
             clearGlow(ctx);
             ctx.globalAlpha = 1.0;
+        } else if (p.type === 'impact') {
+            // 击中喷溅粒子 (带高度和阴影)
+            if (p.z > 0) {
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                ctx.beginPath();
+                ctx.ellipse(p.x, p.y, p.size, p.size / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.life;
+            ctx.beginPath();
+            // 飞行中也使用椭圆，更有动态感
+            ctx.ellipse(p.x, p.y - (p.z || 0), p.size * 1.2, p.size * 0.8, Math.atan2(p.vy, p.vx), 0, Math.PI * 2);
+            ctx.fill();
         } else {
-            ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.beginPath(); ctx.arc(p.x, p.y - (p.z || 0), p.size, 0, Math.PI * 2); ctx.fill();
         }
     });
     ctx.globalAlpha = 1;
@@ -6031,7 +5861,7 @@ function draw() {
     // 绘制飞行拾取粒子（吸入效果）
     flyingPickups.forEach(fp => {
         ctx.save();
-        const progress = fp.time / fp.duration;
+        const progress = fp.progress || 0;
         const alpha = 1 - progress * 0.3; // 渐变透明
         const scale = 1 + progress * 0.5; // 逐渐放大
 
@@ -6091,6 +5921,77 @@ function draw() {
 
         // 清除发光效果
         clearGlow(ctx);
+    });
+
+    // 渲染墙壁遮挡修复 (Occlusion Fix)
+    // 极简方案：在实体绘制完成后，将实体下方一行(r+1)的墙壁重新绘制一遍，以实现遮挡
+    if (mapCacheCanvas) {
+        const occlusionTiles = new Set();
+        const collectOcclusion = (obj) => {
+            const r = Math.floor(obj.y / TILE_SIZE), c = Math.floor(obj.x / TILE_SIZE);
+            for (let dx = -1; dx <= 1; dx++) {
+                if (mapData[r + 1] && mapData[r + 1][c + dx] === 0) {
+                    occlusionTiles.add(`${c + dx},${r + 1}`);
+                }
+            }
+        };
+        enemies.forEach(e => { if (!e.dead) collectOcclusion(e); });
+        collectOcclusion(player);
+        occlusionTiles.forEach(key => {
+            const [c, r] = key.split(',').map(Number);
+            const tx = c * TILE_SIZE, ty = r * TILE_SIZE;
+            ctx.drawImage(mapCacheCanvas, tx, ty, TILE_SIZE, TILE_SIZE, tx, ty, TILE_SIZE, TILE_SIZE);
+        });
+    }
+
+    // 渲染地面物品 (放在遮挡修复后，防止闪烁)
+    groundItems.forEach(i => {
+        // 视口剔除 (Culling)
+        if (i.x < camera.x - 100 || i.x > camera.x + canvas.width + 100 ||
+            i.y < camera.y - 100 || i.y > camera.y + canvas.height + 100) return;
+
+        const isConsumable = i.type === 'gold' || i.type === 'potion' || i.type === 'scroll';
+        if (!isAltPressed && !isConsumable && i.rarity < 2) return;
+
+        const rx = Math.round(i.x);
+        const ry = Math.round(i.y);
+        const rz = Math.round(i.z || 0);
+
+        if (itemSpritesLoaded && processedItemSprites) {
+            const coords = getItemSpriteCoords(i);
+            const size = 32;
+            const spriteSize = processedItemSprites.width / 4;
+
+            // 绘制阴影
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath();
+            ctx.ellipse(rx, ry, i.z > 0 ? 8 : 10, i.z > 0 ? 4 : 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.drawImage(processedItemSprites,
+                coords.col * spriteSize, coords.row * spriteSize, spriteSize, spriteSize,
+                rx - size / 2, ry - rz - size / 2, size, size
+            );
+
+            if (isAltPressed || i.rarity >= 3) {
+                ctx.fillStyle = getItemColor(i.rarity); ctx.textAlign = 'center';
+                ctx.font = '12px Cinzel';
+                ctx.fillText(i.displayName || i.name, rx, ry - rz - 22);
+            }
+        } else {
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.beginPath();
+            ctx.ellipse(rx, ry, 10, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath(); ctx.fillStyle = getItemColor(i.rarity); ctx.textAlign = 'center';
+            ctx.font = '20px serif'; ctx.fillText(i.icon || '📦', rx, ry - rz + 7);
+        }
+        if (i.rarity >= 4) {
+            ctx.globalAlpha = 0.2;
+            ctx.fillStyle = getItemColor(i.rarity);
+            ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 10, ry - 100); ctx.lineTo(rx + 10, ry - 100); ctx.fill();
+            ctx.globalAlpha = 1;
+        }
     });
 
     ctx.textAlign = 'center';
@@ -6173,54 +6074,12 @@ function draw() {
         ctx.restore();
     }
 
-    // 连击计数器渲染 (HUD)
+    // 连击计数器渲染 (HUD) - 已移动至 DOM 渲染（updateSmoothUI），此处保留逻辑以供非平滑模式或以后扩展
+    /*
     if (combo.active && combo.count > 1) {
-        ctx.save();
-        // 直接使用屏幕坐标（之前已经restore了camera transform）
-
-        // 移至屏幕中上方，避开小地图和自动战斗按钮
-        const cx = canvas.width / 2;
-        const cy = 80;
-        const scale = combo.scale;
-
-        ctx.translate(cx, cy);
-        ctx.scale(scale, scale);
-
-        // 连击数颜色
-        let color = '#ffff00'; // 黄
-        if (combo.count >= 50) color = '#ff00ff'; // 紫
-        else if (combo.count >= 20) color = '#ff0000'; // 红
-        else if (combo.count >= 10) color = '#ff8800'; // 橙
-
-        // 连击文字
-        ctx.textAlign = 'center';
-        ctx.font = 'italic 900 16px Arial';
-        ctx.fillStyle = color;
-        setGlow(ctx, 10, color);
-        ctx.fillText('COMBO', 0, -25);
-
-        ctx.font = 'italic 900 48px Arial';
-        ctx.fillStyle = '#fff';
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.fillText(combo.count, 0, 20);
-        ctx.strokeText(combo.count, 0, 20);
-
-        // 倒计时条
-        const barW = 80;
-        const barH = 6;
-        const pct = combo.timer / combo.maxTimer;
-
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(-barW / 2, 30, barW, barH);
-
-        ctx.fillStyle = color;
-        setGlow(ctx, 5, color);
-        ctx.fillRect(-barW / 2, 30, barW * pct, barH);
-
-        clearGlow(ctx);
-        ctx.restore();
+        ... (已注销，因为 DOM 渲染效果更好且无锯齿)
     }
+    */
 
     updateLabelsPosition();
     drawMinimap();
@@ -6230,7 +6089,7 @@ function draw() {
 function updateLabelsPosition() {
     groundItems.forEach(i => {
         if (i.el) {
-            const sx = i.x - camera.x, sy = i.y - camera.y - 25; // 标签显示在物品上方
+            const sx = i.x - camera.x, sy = i.y - camera.y - (i.z || 0) - 25; // 标签跟随物理运动
             if (sx > 0 && sx < canvas.width && sy > 0 && sy < canvas.height) {
                 i.el.style.display = 'block'; i.el.style.left = sx + 'px'; i.el.style.top = sy + 'px';
             } else i.el.style.display = 'none';
@@ -6243,7 +6102,7 @@ function drawMinimap() {
     const s = 150 / MAP_WIDTH;
     for (let y = 0; y < MAP_HEIGHT; y++) for (let x = 0; x < MAP_WIDTH; x++) {
         if (visitedMap[y][x]) {
-            miniCtx.fillStyle = mapData[y][x] === 0 ? '#444' : '#111';
+            miniCtx.fillStyle = mapData[y][x] === 0 ? '#777' : '#333';
             miniCtx.fillRect(x * s, y * s, s, s);
         }
     }
@@ -6478,7 +6337,7 @@ function showHellPortalDialog() {
 
     if (isInHell) {
         // 在地狱中，显示返回营地或继续
-        showDialog('地狱守卫', `已在地狱第${currentFloor}层。`, [
+        showDialog('深渊守卫', `已在深渊第${currentFloor}层。`, [
             {
                 text: '返回营地',
                 action: () => {
@@ -6496,7 +6355,7 @@ function showHellPortalDialog() {
     } else {
         // 检查是否已解锁地狱模式（击败巴尔）
         if (!player.defeatedBaal) {
-            showDialog('地狱守卫', "你需要先去击杀10层Boss才能开启地狱模式。", [
+            showDialog('深渊守卫', `你需要先去击杀第10层「${getFloorName(10)}」的Boss才能开启深渊挑战。`, [
                 {
                     text: '知道了',
                     action: () => closeDialog()
@@ -6506,13 +6365,19 @@ function showHellPortalDialog() {
         }
 
         // 在地牢或营地中，询问是否进入地狱
+        // 深渊模式入口
+        if (typeof AbyssSystem !== 'undefined') {
+            AbyssSystem.showEntrancePanel();
+            return;
+        }
+
         const infoText = `进入地狱模式：\n• 怪物伤害×4，血量×6\n• 获得经验值×5\n• 掉落品质提升至250%\n• 所有抗性-100%\n• 40%怪物有元素免疫`;
 
-        showDialog('地狱守卫', infoText, [
+        showDialog('深渊守卫', infoText, [
             {
-                text: '进入地狱',
+                text: '挑战深渊 (本周挑战)',
                 action: () => {
-                    enterHell();
+                    enterHell(); // Calls AbyssSystem.enter()
                     closeDialog();
                 }
             },
@@ -6527,17 +6392,22 @@ function showHellPortalDialog() {
 }
 
 function enterHell() {
-    // 进入地狱（如果之前已经进入过，保持进度；否则从第1层开始）
-    player.isInHell = true;
-    if (!player.hellFloor || player.hellFloor < 1) {
-        player.hellFloor = 1;
+    // 兼容旧代码调用，转发给深渊系统
+    if (typeof AbyssSystem !== 'undefined') {
+        AbyssSystem.enter();
+    } else {
+        // Fallback (should not happen if abyss-system.js is loaded)
+        player.isInHell = true;
+        if (!player.hellFloor || player.hellFloor < 1) player.hellFloor = 1;
+        enterFloor(player.hellFloor, 'start');
     }
-    showNotification(`已进入地狱第${player.hellFloor}层！`);
-    updateHellIndicator();
-    enterFloor(player.hellFloor, 'start');  // 从入口进入地狱（start = 入口位置）
 }
 
 function exitHell() {
+    if (typeof AbyssSystem !== 'undefined' && AbyssSystem.isActive) {
+        AbyssSystem.exit(false); // 主动退出视为放弃
+        return;
+    }
     // 返回营地（地狱守卫在营地，所以总是返回营地）
     player.isInHell = false;
     showNotification('已返回罗格营地');
@@ -6547,13 +6417,12 @@ function exitHell() {
 
 function updateHellIndicator() {
     // 在UI中显示当前是否在地狱
-    const indicator = document.getElementById('hell-indicator');
-    if (indicator) {
+    if (cachedUI.hellIndicator) {
         if (player.isInHell) {
-            indicator.style.display = 'block';
-            indicator.innerText = '地狱';
+            cachedUI.hellIndicator.style.display = 'block';
+            cachedUI.hellIndicator.innerText = '地狱';
         } else {
-            indicator.style.display = 'none';
+            cachedUI.hellIndicator.style.display = 'none';
         }
     }
 }
@@ -6605,32 +6474,53 @@ function updateQuestUI() {
 
     d.innerHTML = html + (d.innerHTML || '');
     list.appendChild(d);
+
+    // 每日任务区域
+    if (typeof DailyQuestSystem !== 'undefined') {
+        DailyQuestSystem.updateUI();
+    }
 }
 
 function updateQuestTracker() {
     const el = document.getElementById('quest-tracker');
-    el.innerHTML = '';
+    if (!el) return;
 
-    const currentQ = getCurrentQuest();
-    if (!currentQ || player.questState === 0) return;
-
-    let text = "";
-    let titleColor = "#c7b377";
-
-    if (player.questState === 2) {
-        text = "任务完成！回去找阿卡拉";
-        titleColor = "#0f0";
-    } else {
-        if (currentQ.type === 'kill_count') {
-            text = `进度: ${player.questProgress} / ${currentQ.target}`;
-            if (player.floor !== currentQ.floor) text += ` (目标在: 地牢 ${currentQ.floor}层)`;
-        } else if (currentQ.type === 'kill_elite' || currentQ.type === 'kill_boss') {
-            text = `目标: ${currentQ.targetName}`;
-            if (player.floor !== currentQ.floor) text += ` (目标在: 地牢 ${currentQ.floor}层)`;
-        }
+    // 使用独立子容器，避免与每日任务互相干扰
+    let mainTracker = document.getElementById('main-quest-tracker');
+    if (!mainTracker) {
+        mainTracker = document.createElement('div');
+        mainTracker.id = 'main-quest-tracker';
+        el.insertBefore(mainTracker, el.firstChild);
     }
 
-    el.innerHTML += `<div><span class="tracker-title" style="color:${titleColor}">${currentQ.title}</span><br><span class="tracker-desc">${text}</span></div>`;
+    // 主任务追踪
+    const currentQ = getCurrentQuest();
+    if (!currentQ || player.questState === 0) {
+        mainTracker.innerHTML = '';
+    } else {
+        let text = "";
+        let titleColor = "#c7b377";
+
+        if (player.questState === 2) {
+            text = "任务完成！回去找阿卡拉";
+            titleColor = "#0f0";
+        } else {
+            if (currentQ.type === 'kill_count') {
+                text = `进度: ${player.questProgress} / ${currentQ.target}`;
+                if (player.floor !== currentQ.floor) text += ` (目标在: 第${currentQ.floor}层「${getFloorName(currentQ.floor)}」)`;
+            } else if (currentQ.type === 'kill_elite' || currentQ.type === 'kill_boss') {
+                text = `目标: ${currentQ.targetName}`;
+                if (player.floor !== currentQ.floor) text += ` (目标在: 第${currentQ.floor}层「${getFloorName(currentQ.floor)}」)`;
+            }
+        }
+
+        mainTracker.innerHTML = `<div><span class="tracker-title" style="color:${titleColor}">${currentQ.title}</span><br><span class="tracker-desc">${text}</span></div>`;
+    }
+
+    // 每日任务追踪器（始终更新，独立于主任务）
+    if (typeof DailyQuestSystem !== 'undefined') {
+        DailyQuestSystem.updateTracker();
+    }
 }
 
 function renderAchievements() {
@@ -6638,36 +6528,91 @@ function renderAchievements() {
     if (!list) return;
     list.innerHTML = '';
 
-    ACHIEVEMENTS.forEach(ach => {
+    // 统计信息
+    const stats = getAchievementStats();
+
+    // 统计头部
+    const header = document.createElement('div');
+    header.className = 'ach-header';
+    header.innerHTML = `
+        <div class="ach-stats">
+            <span class="ach-completed">完成 ${stats.completed}/${stats.total}</span>
+            <span class="ach-points">成就点 ${stats.points}/${stats.maxPoints}</span>
+        </div>
+        <div class="ach-tabs" id="ach-tabs"></div>
+    `;
+    list.appendChild(header);
+
+    // 类别标签
+    const tabsContainer = header.querySelector('#ach-tabs');
+    const currentFilter = list.dataset.filter || 'kill';
+
+    // 各类别标签 - 使用纯文字
+    Object.keys(ACHIEVEMENT_CATEGORIES).forEach(cat => {
+        const catInfo = ACHIEVEMENT_CATEGORIES[cat];
+        const tab = document.createElement('span');
+        tab.className = 'ach-tab' + (currentFilter === cat ? ' active' : '');
+        tab.style.color = currentFilter === cat ? catInfo.color : '';
+        tab.textContent = catInfo.name;  // 使用中文名而非emoji
+        tab.onclick = () => { list.dataset.filter = cat; renderAchievements(); };
+        tabsContainer.appendChild(tab);
+    });
+
+    // 成就列表容器
+    const listContainer = document.createElement('div');
+    listContainer.className = 'ach-list-container';
+    list.appendChild(listContainer);
+
+    // 筛选并渲染成就
+    const filteredAch = ACHIEVEMENTS.filter(ach =>
+        ach.category === currentFilter
+    );
+
+    filteredAch.forEach(ach => {
         const progress = player.achievements[ach.id];
         if (!progress) return;
 
-        const div = document.createElement('div');
-        div.className = 'achievement-item' + (progress.completed ? ' completed' : '');
+        const isCompleted = progress.completed;
+        const catInfo = ACHIEVEMENT_CATEGORIES[ach.category] || {};
 
+        const div = document.createElement('div');
+        div.className = 'achievement-item' + (isCompleted ? ' completed' : '');
+
+        // 计算进度百分比
+        let currentProgress = progress.progress || 0;
+        let progressPercent = Math.min(100, Math.floor((currentProgress / ach.target) * 100));
+
+        // 进度文本
         let progressText = '';
-        if (ach.type === 'collect_unique_set') {
-            const uniqueItems = [];
-            Object.values(player.equipment).forEach(item => {
-                if (item && item.unique) uniqueItems.push(item);
-            });
-            progressText = `${uniqueItems.length} / 8 装备栏位`;
+        if (isCompleted) {
+            progressText = '✓ 已完成';
         } else if (ach.type === 'reach_floor') {
-            progressText = progress.completed ? '已完成' : `当前 ${player.floor} / ${ach.target} 层`;
-        } else if (ach.type === 'no_death_floor') {
-            progressText = progress.completed ? '已完成' : `未死亡到达第${player.floor}层`;
+            progressText = `${player.floor}/${ach.target}层`;
+            progressPercent = Math.min(100, Math.floor((player.floor / ach.target) * 100));
         } else if (ach.type === 'reach_level') {
-            progressText = progress.completed ? '已完成' : `当前等级 ${player.lvl} / ${ach.target}`;
+            progressText = `Lv.${player.lvl}/${ach.target}`;
+            progressPercent = Math.min(100, Math.floor((player.lvl / ach.target) * 100));
+        } else if (ach.type === 'total_damage' || ach.type === 'total_gold') {
+            // 大数值格式化
+            const formatNum = n => n >= 1000000 ? (n / 1000000).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(1) + 'K' : n;
+            progressText = `${formatNum(currentProgress)}/${formatNum(ach.target)}`;
         } else {
-            progressText = `${progress.progress || 0} / ${ach.target}`;
+            progressText = `${currentProgress}/${ach.target}`;
         }
 
         div.innerHTML = `
-                    <div class="ach-name">${ach.name}</div>
-                    <div class="ach-desc">${ach.description}</div>
-                    <div class="ach-progress">${progressText}</div>
-                `;
-        list.appendChild(div);
+            <div class="ach-content">
+                <div class="ach-name">${ach.name} <span class="ach-pts">+${ach.points || 0}</span></div>
+                <div class="ach-desc">${ach.description}</div>
+                <div class="ach-bar-container">
+                    <div class="ach-bar" style="width:${progressPercent}%;background:${isCompleted ? '#4a4' : catInfo.color || '#666'}"></div>
+                </div>
+                <div class="ach-progress-text">${progressText}</div>
+            </div>
+        `;
+        // 添加左侧色条
+        div.style.borderLeftColor = catInfo.color || '#666';
+        listContainer.appendChild(div);
     });
 }
 
@@ -6675,7 +6620,10 @@ function renderAchievements() {
 function updateMenuIndicators() {
     document.getElementById('badge-stats').style.display = player.points > 0 ? 'block' : 'none';
     document.getElementById('badge-skills').style.display = player.skillPoints > 0 ? 'block' : 'none';
-    document.getElementById('badge-quest').style.display = player.questState === 2 ? 'block' : 'none';
+    // 任务红点：主线任务可交付 或 每日任务有可领取奖励
+    const hasMainQuestReward = player.questState === 2;
+    const hasDailyReward = typeof DailyQuestSystem !== 'undefined' && DailyQuestSystem.hasClaimableReward();
+    document.getElementById('badge-quest').style.display = (hasMainQuestReward || hasDailyReward) ? 'block' : 'none';
 }
 
 function spawnEnemyTimer() {
@@ -6717,7 +6665,7 @@ function spawnEnemyTimer() {
         }
         // 5层+: 闪电幽魂
         if (f >= 5) {
-            monsterPool.push({ type: 'specter', name: '闪电幽魂', ai: 'ranged', speed: 75, hpMult: 1, dmgMult: 1.3, weight: 10 });
+            monsterPool.push({ type: 'specter', name: '闪电幽魂', ai: 'specter', speed: 70, hpMult: 0.8, dmgMult: 1.4, weight: 10 });
         }
         // 6层+: 木乃伊
         if (f >= 6) {
@@ -6725,7 +6673,7 @@ function spawnEnemyTimer() {
         }
         // 7层+: 吸血鬼
         if (f >= 7) {
-            monsterPool.push({ type: 'vampire', name: '吸血鬼', ai: 'ranged', speed: 80, hpMult: 1.2, dmgMult: 1.1, weight: 10 });
+            monsterPool.push({ type: 'vampire', name: '吸血鬼', ai: 'vampire', speed: 60, hpMult: 1.2, dmgMult: 1.3, weight: 10 });
         }
 
         // 按权重随机选择怪物
@@ -6816,6 +6764,8 @@ function takeDamage(e, dmg, isSkillDamage = false) {
 
     // 处理新的伤害系统：支持物理和元素伤害
     let totalDamage = 0;
+    const isCrit = typeof dmg === 'object' && dmg.isCrit;
+    const angle = Math.atan2(e.y - player.y, e.x - player.x);
 
     if (typeof dmg === 'number') {
         // 兼容旧代码：纯数值伤害
@@ -6848,7 +6798,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         const threshold = TALENTS.executioner.effect.executeThreshold;
         if (e.hp / e.maxHp < threshold) {
             totalDamage *= 2;
-            createDamageNumber(e.x, e.y - 25, "处刑!", '#ff4444');
+            createDamageNumber(e.x, e.y - 25, "处刑!", '#ff4444', angle);
         }
     }
 
@@ -6856,8 +6806,8 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     if (hasTalent('gambler')) {
         const mult = 0.5 + Math.random() * 1.5; // 0.5 ~ 2.0
         totalDamage *= mult;
-        if (mult > 1.5) createDamageNumber(e.x, e.y - 25, "幸运!", '#ffff00');
-        else if (mult < 0.7) createDamageNumber(e.x, e.y - 25, "倒霉...", '#888888');
+        if (mult > 1.5) createDamageNumber(e.x, e.y - 25, "幸运!", '#ffff00', angle);
+        else if (mult < 0.7) createDamageNumber(e.x, e.y - 25, "倒霉...", '#888888', angle);
     }
 
     // 烈焰之魂：附加火焰伤害
@@ -6877,7 +6827,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         // 魔法抗性：技能伤害减免70%
         if (isSkillDamage && e.magicResist) {
             totalDamage *= (1 - e.magicResist);
-            createDamageNumber(e.x, e.y - 20, "抗性!", '#aa00ff');
+            createDamageNumber(e.x, e.y - 20, "抗性!", '#aa00ff', angle);
         }
 
         // 石肤：所有伤害减少50%
@@ -6889,15 +6839,86 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     e.hp -= totalDamage;
     e.hitFlashTimer = 0.1; // 触发受击闪白
 
-    // 已移除大伤害震屏，优化性能
+    // 成就追踪：累计伤害和暴击
+    trackAchievement('total_damage', { damage: Math.floor(totalDamage) });
+    if (isCrit) trackAchievement('crit_count');
 
-    createDamageNumber(e.x, e.y, Math.floor(totalDamage), '#fff');
-    AudioSys.play('hit');
+    // 击退逻辑 (Micro-Knockback)
+    const kbForce = isCrit ? 12 : 6;
+    const nx = e.x + Math.cos(angle) * kbForce;
+    const ny = e.y + Math.sin(angle) * kbForce;
+    if (typeof isWall !== 'undefined') {
+        if (!isWall(nx, e.y)) e.x = nx;
+        if (!isWall(e.x, ny)) e.y = ny;
+    } else {
+        e.x = nx; e.y = ny;
+    }
+
+    // 击中粒子 (Impact Particles)
+    let particleColor = '#ff3333';
+    if (e.frozenTimer > 0 || e.slowedTimer > 0) particleColor = '#33ccff';
+    else if (e.poisonTimer > 0) particleColor = '#33ff33';
+    else if (e.lightningOverloadTimer > 0) particleColor = '#ffff33';
+
+    if (typeof createImpactParticles !== 'undefined') {
+        createImpactParticles(e.x, e.y, particleColor, isCrit ? 8 : 4);
+    }
+
+    // 触发打击感
+    Juice.hit(e, isCrit, false);
+
+    // 检测近战可能波及的可破坏物体
+    DestructibleSystem.checkMeleeCollision(e.x, e.y, 40);
+
+    // 元素状态处理
+    if (typeof dmg === 'object') {
+        if (dmg.cold > 0) {
+            // 冰霜：减速/冰冻效果已经在各技能中处理，此处补充视觉计时
+            e.slowedTimer = Math.max(e.slowedTimer || 0, 2.0);
+        }
+        if (dmg.lightning > 0) {
+            // 闪电：设置过载视觉
+            e.lightningOverloadTimer = 0.5;
+        }
+    }
+
+    // 淬毒之刃引发中毒 DOT
+    if (hasTalent('poison_blade')) {
+        const poisonVal = (typeof dmg === 'object' && dmg.poison) ? dmg.poison : (totalDamage * 0.2);
+        if (poisonVal > 0) {
+            if (!e.poisoned) {
+                createDamageNumber(e.x, e.y - 25, "中毒!", COLORS.poison, angle);
+            }
+            e.poisoned = true;
+            e.poisonTimer = 3.0; // 3秒中毒
+            e.poisonDamagePerTick = poisonVal * 0.5; // 每跳伤害
+        }
+    }
+
+    // 根据主导属性选择伤害颜色
+    let dmgColor = '#fff';
+    if (typeof dmg === 'object') {
+        if (dmg.poison > (dmg.physical || 0)) dmgColor = COLORS.poison;
+        else if (dmg.cold > (dmg.physical || 0)) dmgColor = COLORS.ice;
+        else if (dmg.lightning > (dmg.physical || 0)) dmgColor = COLORS.lightning;
+        else if (dmg.fire > (dmg.physical || 0)) dmgColor = COLORS.fire;
+    }
+
+    createDamageNumber(e.x, e.y, Math.floor(totalDamage), dmgColor, angle);
+
+    // 层次感打击音效触发
+    if (e.hp <= 0) {
+        AudioSys.play('hit_kill');
+    } else if (isCrit) {
+        AudioSys.play('hit_crit');
+    } else {
+        AudioSys.play('hit');
+    }
 
     if (e.hp <= 0) {
         // 怪物死亡 - 强烈的果汁感
         e.dead = true;
-        // 已移除普通怪物死亡震屏，优化性能
+        Juice.hit(e, false, true); // 击杀反馈
 
         // 创建地面血迹
         createBloodSplat(e.x, e.y, e.radius);
@@ -6905,6 +6926,11 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         player.kills++;
         // 新手引导：步骤5 - 击杀第一只怪物
         if (player.kills === 1) advanceTutorial(5);
+
+        // 每日任务：击杀怪物
+        if (typeof DailyQuestSystem !== 'undefined') {
+            DailyQuestSystem.updateProgress('kill', 1);
+        }
 
         // 更新击杀统计
         player.stats.currentStreak++;
@@ -6919,11 +6945,19 @@ function takeDamage(e, dmg, isSkillDamage = false) {
             if (typeof OnlineSystem !== 'undefined') {
                 OnlineSystem.announce('boss_kill', e.name);
             }
+            // 每日任务：击杀Boss
+            if (typeof DailyQuestSystem !== 'undefined') {
+                DailyQuestSystem.updateProgress('kill_boss', 1);
+            }
         }
         if (e.isElite) {
             player.stats.eliteKills++;
             // 精英怪死亡特效：比普通怪华丽，比Boss轻
             triggerEliteDeathEffect(e, totalDamage);
+            // 每日任务：击杀精英怪
+            if (typeof DailyQuestSystem !== 'undefined') {
+                DailyQuestSystem.updateProgress('kill_elite', 1);
+            }
         }
 
         // ========== 击杀相关天赋效果 ==========
@@ -6944,7 +6978,8 @@ function takeDamage(e, dmg, isSkillDamage = false) {
                     const dist = Math.hypot(other.x - e.x, other.y - e.y);
                     if (dist < chainRange) {
                         other.hp -= chainDamage;
-                        createDamageNumber(other.x, other.y, Math.floor(chainDamage), '#88ffff');
+                        const chainAngle = Math.atan2(other.y - e.y, other.x - e.x);
+                        createDamageNumber(other.x, other.y, Math.floor(chainDamage), '#88ffff', chainAngle);
                         // 创建闪电视觉效果
                         particles.push({
                             x: e.x, y: e.y,
@@ -6977,13 +7012,33 @@ function takeDamage(e, dmg, isSkillDamage = false) {
             player.bossRespawn[player.floor] = Date.now() + cooldown;
         }
 
-        // 计算经验（检查双倍经验buff）
+        // 计算经验（检查双倍/三倍经验buff + 等级差系数）
         let xpGain = e.xpValue || 15;
-        if (player.xpBuffExpiry && Date.now() < player.xpBuffExpiry) {
-            xpGain *= 2;  // 双倍经验
+
+        // 等级差经验系数：鼓励玩家打匹配等级的怪物
+        const currentFloor = player.isInHell ? player.hellFloor : player.floor;
+        const monsterLevel = currentFloor * 2;  // 怪物等级 ≈ 层数 × 2
+        const levelDiff = player.lvl - monsterLevel;
+        let levelMultiplier = 1;
+        if (levelDiff > 5) {
+            // 玩家比怪物高5级以上，经验骤降（每级-15%，最低10%）
+            levelMultiplier = Math.max(0.1, 1 - (levelDiff - 5) * 0.15);
+        } else if (levelDiff < -5) {
+            // 玩家比怪物低5级以上，经验略增（每级+5%，最高130%）
+            levelMultiplier = Math.min(1.3, 1 + Math.abs(levelDiff + 5) * 0.05);
         }
+        xpGain *= levelMultiplier;
+
+        // 双倍/三倍经验buff
+        let xpMultiplier = 1;
+        if (player.xpBuffTripleExpiry && Date.now() < player.xpBuffTripleExpiry) {
+            xpMultiplier = 3;  // 三倍经验优先
+        } else if (player.xpBuffExpiry && Date.now() < player.xpBuffExpiry) {
+            xpMultiplier = 2;  // 双倍经验
+        }
+        xpGain *= xpMultiplier;
         player.xp += xpGain;
-        createDamageNumber(player.x, player.y - 50, "+" + xpGain + " XP", '#4d69cd');
+        createDamageNumber(player.x, player.y - 50, "+" + Math.floor(xpGain) + " XP", '#4d69cd');
         dropLoot(e);
         checkLevelUp();
 
@@ -7022,8 +7077,13 @@ function takeDamage(e, dmg, isSkillDamage = false) {
 }
 
 function showNotification(msg) {
-    const el = document.getElementById('notification-area');
-    el.innerText = msg; el.style.opacity = 1; setTimeout(() => el.style.opacity = 0, 2000);
+    if (cachedUI.notificationArea) {
+        cachedUI.notificationArea.innerText = msg;
+        cachedUI.notificationArea.style.opacity = 1;
+        setTimeout(() => {
+            if (cachedUI.notificationArea) cachedUI.notificationArea.style.opacity = 0;
+        }, 2000);
+    }
 }
 
 // ========== 天赋商店系统逻辑 ==========
@@ -7074,6 +7134,7 @@ function generateTalentShop() {
 let pendingNextFloor = null;
 // 天赋商店是否打开（打开时暂停游戏）
 let talentShopOpen = false;
+let talentShopIsFree = false; // 深渊模式下免费
 
 // 天赋上限
 const MAX_TALENTS = 5;
@@ -7081,7 +7142,8 @@ const MAX_TALENTS = 5;
 // 显示天赋商店（在下楼前调用）
 // nextFloor: 即将进入的楼层号
 // isHell: 是否是地狱模式
-function showTalentShop(nextFloor, isHell = false) {
+// isFree: 是否免费（深渊模式）
+function showTalentShop(nextFloor, isHell = false, isFree = false) {
     // 第1层不显示商店（刚从营地出来）
     if (nextFloor === 1 && !isHell) {
         proceedToNextFloor(nextFloor, isHell);
@@ -7116,6 +7178,7 @@ function showTalentShop(nextFloor, isHell = false) {
 
     // 保存待进入的楼层信息
     pendingNextFloor = { floor: nextFloor, isHell: isHell };
+    talentShopIsFree = isFree;
 
     // 生成商店天赋
     generateTalentShop();
@@ -7126,7 +7189,10 @@ function showTalentShop(nextFloor, isHell = false) {
     const goldEl = document.getElementById('talent-shop-gold');
     const gridEl = document.getElementById('talent-grid');
 
-    floorEl.innerText = isHell ? `即将进入 地狱${nextFloor}层` : `即将进入 第${nextFloor}层`;
+    floorEl.innerText = isHell ? `即将进入 深渊${nextFloor}层` : `即将进入 第${nextFloor}层`;
+    if (isFree) {
+        floorEl.innerText += " (免费选取)";
+    }
     goldEl.innerText = player.gold;
 
     // 生成天赋卡片
@@ -7136,7 +7202,8 @@ function showTalentShop(nextFloor, isHell = false) {
         if (!talent) continue;
 
         const isOwned = player.talents.includes(talentId);
-        const canAfford = player.gold >= talent.price;
+        const canAfford = isFree ? true : player.gold >= talent.price;
+        const displayPrice = isFree ? "免费" : `${talent.price} 金`;
 
         const card = document.createElement('div');
         card.className = `talent-card tier-${talent.tier}`;
@@ -7147,7 +7214,7 @@ function showTalentShop(nextFloor, isHell = false) {
             <div class="talent-card-icon">${talent.icon}</div>
             <div class="talent-card-name" style="color: ${TALENT_TIER_COLORS[talent.tier]}">${talent.name}</div>
             <div class="talent-card-desc">${talent.desc}</div>
-            <div class="talent-price">${talent.price} 金</div>
+            <div class="talent-price">${displayPrice}</div>
         `;
 
         if (!isOwned) {
@@ -7173,8 +7240,17 @@ function showTalentShop(nextFloor, isHell = false) {
 
 // 确认进入下一层
 function proceedToNextFloor(floor, isHell) {
+    // 每日任务：通关楼层（进入下一层说明通关了当前层）
+    if (typeof DailyQuestSystem !== 'undefined' && floor > 1) {
+        DailyQuestSystem.updateProgress('clear_floor', 1);
+    }
+
     if (isHell) {
         player.isInHell = true;
+        // 同步深渊系统的层数
+        if (typeof AbyssSystem !== 'undefined' && AbyssSystem.isActive) {
+            AbyssSystem.currentFloor = floor;
+        }
         enterFloor(floor, 'start');
     } else {
         enterFloor(floor, 'start');
@@ -7197,14 +7273,17 @@ function buyTalent(talentId) {
     }
 
     // 检查金币是否足够
-    if (player.gold < talent.price) {
+    // 如果是免费模式(深渊)，不检查金币
+    if (!talentShopIsFree && player.gold < talent.price) {
         showNotification('金币不足！');
         AudioSys.play('hit');
         return;
     }
 
-    // 扣除金币
-    player.gold -= talent.price;
+    // 扣除金币 (仅非免费模式)
+    if (!talentShopIsFree) {
+        player.gold -= talent.price;
+    }
 
     // 添加天赋
     player.talents.push(talentId);
@@ -7215,6 +7294,9 @@ function buyTalent(talentId) {
 
     // 更新HUD
     updateTalentHUD();
+
+    // 成就追踪：购买天赋
+    trackAchievement('talent_bought');
 
     // 保存游戏
     SaveSystem.save();
@@ -7285,6 +7367,7 @@ function refreshTalentShop() {
 // 关闭天赋商店并进入下一层
 function closeTalentShop() {
     talentShopOpen = false;  // 恢复游戏
+    talentShopIsFree = false; // 重置免费状态
     const overlay = document.getElementById('talent-shop-overlay');
     overlay.classList.remove('active');
 
@@ -7300,7 +7383,8 @@ function updateTalentHUD() {
     const hudEl = document.getElementById('talent-hud');
     if (!hudEl) return;
 
-    hudEl.innerHTML = '';
+    // 只移除天赋图标，保留buff图标
+    hudEl.querySelectorAll('.talent-hud-icon:not(.buff-hud-icon)').forEach(el => el.remove());
 
     for (const talentId of player.talents) {
         const talent = TALENTS[talentId];
@@ -7309,7 +7393,31 @@ function updateTalentHUD() {
         const icon = document.createElement('div');
         icon.className = `talent-hud-icon tier-${talent.tier}`;
         icon.innerText = talent.icon;
-        icon.title = `${talent.name}: ${talent.desc}`;
+        icon.style.cursor = 'default'; // 不显示手形指针
+
+        // 鼠标悬停显示详细信息
+        icon.addEventListener('mouseenter', (e) => {
+            const tooltip = document.getElementById('tooltip');
+            const tierColors = { normal: '#888', rare: '#4850b8', epic: '#a335ee', legendary: '#ff8000' };
+            const tierColor = tierColors[talent.tier] || '#888';
+            tooltip.innerHTML = `<div style="color:${tierColor}; font-weight:bold; margin-bottom:4px;">${talent.icon} ${talent.name}</div>
+                <div style="color:#88ff88;">${talent.desc}</div>`;
+            tooltip.style.display = 'block';
+            tooltip.style.left = (e.clientX + 10) + 'px';
+            tooltip.style.top = (e.clientY + 10) + 'px';
+        });
+        icon.addEventListener('mouseleave', () => {
+            document.getElementById('tooltip').style.display = 'none';
+        });
+        icon.addEventListener('mousemove', (e) => {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.left = (e.clientX + 10) + 'px';
+            tooltip.style.top = (e.clientY + 10) + 'px';
+        });
+        // 阻止点击穿透到游戏画布
+        icon.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+        });
 
         hudEl.appendChild(icon);
     }
@@ -7481,6 +7589,8 @@ function selectDivineBlessing(index) {
     updateStats();
     updateStatsUI();
     updateDivineBlessingHUD();
+    // 成就追踪：获得赐福
+    trackAchievement('blessing_count');
     SaveSystem.save();
 
     // 还有待领取的，继续弹出
@@ -7694,7 +7804,28 @@ function claimDailyReward() {
         case 'buff_xp':
             // 24小时双倍经验buff
             player.xpBuffExpiry = Date.now() + reward.amount * 60 * 60 * 1000;  // 小时转毫秒
-            showNotification('双倍经验已激活！持续24小时');
+            showNotification(`双倍经验已激活！持续${reward.amount}小时`);
+            break;
+        case 'buff_gold':
+            // 双倍金币buff
+            player.goldBuffExpiry = Date.now() + reward.amount * 60 * 60 * 1000;
+            showNotification(`双倍金币已激活！持续${reward.amount}小时`);
+            break;
+        case 'buff_drop':
+            // 双倍掉落buff
+            player.dropBuffExpiry = Date.now() + reward.amount * 60 * 60 * 1000;
+            showNotification(`双倍掉落已激活！持续${reward.amount}小时`);
+            break;
+        case 'buff_xp_triple':
+            // 三倍经验buff + 套装装备
+            player.xpBuffTripleExpiry = Date.now() + reward.amount * 60 * 60 * 1000;
+            showNotification(`🔥 三倍经验已激活！持续${reward.amount}小时`);
+            // 生成一件随机套装装备
+            const setItem = generateRandomSetItem(Math.max(player.lvl, 10));
+            if (setItem) {
+                addItemToInventory(setItem);
+                showNotification(`🏆 获得套装：${setItem.displayName || setItem.name}`);
+            }
             break;
         case 'unique_item':
             // 生成一个随机暗金装备（从BASE_ITEMS中筛选可装备物品）
@@ -7720,6 +7851,9 @@ function claimDailyReward() {
     renderInventory();
     showDailyLoginPanel(); // 刷新面板显示
     SaveSystem.save();
+
+    // 延迟1.5秒后自动关闭面板
+    setTimeout(() => closeDailyLoginPanel(), 1500);
 }
 
 // 每日奖励领取特效
@@ -7801,12 +7935,35 @@ function showPortalFloorChoice(lastFloor, maxFloor) {
     dialogName.innerText = '传送门';
     dialogText.innerText = '选择要前往的层数：';
 
-    dialogOptions.innerHTML = `
-        <button class="dialog-btn" onclick="selectPortalFloor(${lastFloor})">第 ${lastFloor} 层 (上次离开)</button>
-        <button class="dialog-btn" onclick="selectPortalFloor(${maxFloor})">第 ${maxFloor} 层 (最高记录)</button>
-        <button class="dialog-btn" onclick="closeDialog()">取消</button>
-    `;
+    // 构建层数列表：lastFloor优先，maxFloor次之，其他倒序
+    let floors = [];
 
+    // 1. 上次所在层（如果 > 1）
+    if (lastFloor > 1) {
+        floors.push({ floor: lastFloor, label: `${lastFloor}层 ${getFloorName(lastFloor)} (上次)` });
+    }
+
+    // 2. 最高层（如果不等于上次所在层且 > 1）
+    if (maxFloor > 1 && maxFloor !== lastFloor) {
+        floors.push({ floor: maxFloor, label: `${maxFloor}层 ${getFloorName(maxFloor)} (最高)` });
+    }
+
+    // 3. 其他层倒序（排除已添加的和1层）
+    for (let i = maxFloor; i >= 2; i--) {
+        if (i !== lastFloor && i !== maxFloor) {
+            floors.push({ floor: i, label: `${i}层 ${getFloorName(i)}` });
+        }
+    }
+
+    // 生成按钮HTML
+    let buttonsHtml = '<div class="portal-floor-list">';
+    floors.forEach(f => {
+        buttonsHtml += `<button class="dialog-btn portal-floor-btn" onclick="selectPortalFloor(${f.floor})">${f.label}</button>`;
+    });
+    buttonsHtml += '</div>';
+    buttonsHtml += '<button class="dialog-btn" onclick="closeDialog()">取消</button>';
+
+    dialogOptions.innerHTML = buttonsHtml;
     dialogBox.style.display = 'block';
 }
 
@@ -7817,157 +7974,17 @@ function selectPortalFloor(floor) {
 }
 
 // 计算装备需求
-function calculateItemRequirements(item, level, rarity) {
-    // 药水和卷轴不需要需求
-    if (item.type === 'potion' || item.type === 'scroll') {
-        return null;
-    }
+// calculateItemRequirements (已移至 item-system.js)
 
-    const requirements = {};
-
-    // 基础等级需求 = 楼层等级
-    let levelReq = Math.max(1, level);
-
-    // 根据稀有度增加等级需求
-    if (rarity === 2) levelReq += 2;  // 魔法
-    if (rarity === 3) levelReq += 5;  // 稀有
-    if (rarity === 4) levelReq += 10; // 暗金
-
-    requirements.level = levelReq;
-
-    // 根据装备类型设置力量/敏捷需求
-    if (item.type === 'weapon') {
-        // 武器：基于伤害值
-        if (item.minDmg) {
-            const avgDmg = (item.minDmg + item.maxDmg) / 2;
-            requirements.str = Math.floor(avgDmg * 2);
-            requirements.dex = Math.floor(avgDmg * 1.5);
-        }
-    } else if (item.type === 'armor' || item.type === 'helm' || item.type === 'gloves' ||
-        item.type === 'boots' || item.type === 'belt') {
-        // 防具：基于防御值
-        if (item.def) {
-            requirements.str = Math.floor(item.def * 1.5);
-        }
-    } else if (item.type === 'ring' || item.type === 'amulet') {
-        // 饰品：较低需求
-        requirements.str = Math.floor(levelReq / 2);
-        requirements.dex = Math.floor(levelReq / 2);
-    }
-
-    // 确保需求不为0
-    if (requirements.str) requirements.str = Math.max(5, requirements.str);
-    if (requirements.dex) requirements.dex = Math.max(5, requirements.dex);
-
-    return requirements;
-}
-
-function createItem(baseName, level) {
-    let base = BASE_ITEMS.find(i => i.name === baseName) || BASE_ITEMS[Math.floor(Math.random() * BASE_ITEMS.length)];
-    let item = { ...base, id: Math.random().toString(36), stats: {}, displayName: base.name, quantity: 1 };
-
-    if (!item.icon) {
-        if (item.type === 'weapon') item.icon = '⚔️';
-        if (item.type === 'armor') item.icon = '🛡️';
-        if (item.type === 'ring') item.icon = '💍';
-    }
-
-    if (level > 1) {
-        if (item.minDmg) { item.minDmg += level; item.maxDmg += level * 2; }
-        if (item.def) item.def += level;
-    }
-    if (item.type !== 'potion' && item.type !== 'scroll') {
-        const rand = Math.random(); item.rarity = rand < 0.05 ? 4 : rand < 0.2 ? 3 : rand < 0.5 ? 2 : 1;
-    }
-    if (item.rarity >= 2) {
-        const p = AFFIXES.prefixes[Math.floor(Math.random() * AFFIXES.prefixes.length)];
-        item.displayName = p.name + " " + item.name; item.stats[p.stat] = Math.floor(Math.random() * (p.max - p.min)) + p.min;
-    }
-    if (item.rarity >= 3) {
-        const s = AFFIXES.suffixes[Math.floor(Math.random() * AFFIXES.suffixes.length)];
-        item.displayName += s.name; item.stats[s.stat] = (item.stats[s.stat] || 0) + Math.floor(Math.random() * (s.max - s.min)) + s.min;
-    }
-    if (item.rarity === 4) { item.displayName = "暗金·" + item.name; item.stats.allSkills = 1; item.stats.dmgPct = 50; item.stats.lifeSteal = 5; }
-
-    // 计算并添加装备需求
-    const requirements = calculateItemRequirements(item, level || 1, item.rarity);
-    if (requirements) {
-        item.requirements = requirements;
-    }
-
-    return item;
-}
+// createItem (已移至 item-system.js)
 
 // 生成套装物品
-function createSetItem(setId, pieceSlot, level) {
-    const setData = SET_ITEMS[setId];
-    if (!setData || !setData.pieces[pieceSlot]) {
-        console.error(`Invalid set item: ${setId} - ${pieceSlot}`);
-        return null;
-    }
-
-    const pieceData = setData.pieces[pieceSlot];
-
-    // 创建套装物品
-    const item = {
-        ...pieceData,
-        setId: setId,
-        setName: setData.name,
-        rarity: 5,  // 套装稀有度为5（绿色）
-        displayName: pieceData.name,
-        id: Math.random().toString(36),
-        quantity: 1,
-        stats: { ...pieceData.stats }  // 复制属性对象
-    };
-
-    // 根据等级提升属性
-    if (level > 1) {
-        if (item.minDmg) {
-            item.minDmg += Math.floor(level * 1.5);
-            item.maxDmg += Math.floor(level * 2.5);
-        }
-        if (item.def) {
-            item.def += Math.floor(level * 2);
-        }
-    }
-
-    // 添加装备需求
-    const requirements = calculateItemRequirements(item, level || 1, 5);
-    if (requirements) {
-        item.requirements = requirements;
-    }
-
-    return item;
-}
+// createSetItem (已移至 item-system.js)
 
 // 随机生成一个套装物品（从所有套装中随机选择）
-function generateRandomSetItem(level) {
-    const setIds = Object.keys(SET_ITEMS);
-    const randomSetId = setIds[Math.floor(Math.random() * setIds.length)];
-    const setData = SET_ITEMS[randomSetId];
-    const pieceSlots = Object.keys(setData.pieces);
-    const randomSlot = pieceSlots[Math.floor(Math.random() * pieceSlots.length)];
+// generateRandomSetItem (已移至 item-system.js)
 
-    return createSetItem(randomSetId, randomSlot, level);
-}
-
-function addItemToInventory(i) {
-    if (i.stackable) {
-        const existing = player.inventory.find(invItem => invItem && invItem.name === i.name);
-        if (existing) { existing.quantity = (existing.quantity || 1) + 1; renderInventory(); updateBeltUI(); AudioSys.play('gold'); return true; }
-    }
-    const idx = player.inventory.findIndex(x => !x); if (idx < 0) return false; player.inventory[idx] = i; renderInventory(); updateBeltUI(); AudioSys.play('gold');
-
-    // 追踪稀有物品发现
-    trackItemFound(i);
-
-    // 检查套装收藏成就
-    if (i.setId) {
-        checkSetAchievements();
-    }
-
-    return true;
-}
+// addItemToInventory (已移至 item-system.js)
 
 function createLightningEffect(targetX, targetY) {
     // 闪电效果：从目标正上方落下
@@ -8136,23 +8153,69 @@ function createNovaEffect(x, y, color) {
     }
 }
 
-// 创建伤害数字（支持物理效果）
-// 创建伤害数字（支持物理效果）
-function createDamageNumber(x, y, val, color) {
-    const isCrit = color === COLORS.critical || val === "暴击!" || (typeof val === 'string' && val.includes('!'));
+// 创建伤害数字（高性能版本：支持对象池与中央物理驱动）
+function createDamageNumber(x, y, val, color, angle = null) {
+    const isCrit = color === COLORS.critical || val === "暴击!" || (typeof val === 'string' && (val.includes('!') || val.includes('Crit')));
+    const isGold = color === 'gold' || (typeof val === 'string' && val.includes(' G'));
 
-    damageNumbers.push({
-        x, y, val, color,
-        life: 1,
-        // 物理属性：向两侧随机溅射，受到重力影响
-        // 暴击时溅射范围更大
-        vx: (Math.random() - 0.5) * (isCrit ? 200 : 120),
-        vy: -150 - Math.random() * (isCrit ? 150 : 100), // 向上跳起
-        gravity: 600,
-        fontSize: isCrit ? 24 : 16 // 暴击字体更大
-    });
+    // 物理参数预计算
+    let vx = 0, vy = 0, gravity = 400, life = 1.0;
+    const isPoison = color === COLORS.poison || color === '#00ff00' || color === 'poison';
+    const isIce = color === COLORS.ice || color === '#00ccff' || color === 'ice';
+    const isLightning = color === COLORS.lightning || color === '#ffff00' || color === 'lightning';
+
+    if (isPoison) {
+        vx = (Math.random() - 0.5) * 60; vy = -40 - Math.random() * 30; gravity = 150; life = 0.8;
+    } else if (isIce) {
+        vx = (Math.random() - 0.5) * 20; vy = -20 - Math.random() * 10; gravity = 50; life = 1.2;
+    } else if (isLightning) {
+        vx = (Math.random() - 0.5) * 300; vy = -180 - Math.random() * 120; gravity = 800; life = 0.6;
+    } else {
+        if (angle !== null) {
+            const speed = isCrit ? 150 : 80;
+            vx = Math.cos(angle) * speed + (Math.random() - 0.5) * 50;
+            vy = Math.sin(angle) * speed - 100;
+        } else {
+            vx = (Math.random() - 0.5) * (isCrit ? 200 : 100);
+            vy = isCrit ? -250 : -150;
+        }
+        gravity = isCrit ? 600 : 400;
+    }
+
+    // 高级排版渲染 (DOM Mode)
+    if (player.graphicsQuality === 'high' && cachedUI.floatingTexts) {
+        const div = document.createElement('div');
+        const className = isCrit ? 'dmg-crit' : (isGold ? 'dmg-gold' : 'dmg-normal');
+        div.className = `damage-number ${className}`;
+        div.innerText = val;
+        if (!isCrit && !isGold) div.style.color = color;
+
+        // 记录初始屏幕坐标
+        const screenX = x - camera.x;
+        const screenY = y - camera.y;
+        div.style.left = screenX + 'px';
+        div.style.top = screenY + 'px';
+        cachedUI.floatingTexts.appendChild(div);
+
+        // 如果是暴击，触发 GSAP 特效弹出
+        if (isCrit) GSAPAnims.critPop(div);
+
+        damageNumbers.push(DamageNumberPool.acquire({
+            x, y, val, color, isHTML: true, el: div,
+            vx, vy, gravity, life, maxLife: life,
+            sx: screenX, sy: screenY,
+            isLightning, isPoison, isIce, isCrit, flickerTimer: 0
+        }));
+    } else {
+        // 基础渲染 (Canvas Mode)
+        damageNumbers.push(DamageNumberPool.acquire({
+            x, y, val, color,
+            life: isCrit ? 1.0 : 0.8,
+            vx, vy, gravity,
+            fontSize: isCrit ? 24 : 16
+        }));
+    }
 }
-
 
 // 触发震屏
 function createSlashEffect(fromX, fromY, toX, toY, damage = 50, isCrit = false) {
@@ -8186,8 +8249,7 @@ function createSlashEffect(fromX, fromY, toX, toY, damage = 50, isCrit = false) 
 
 function createFloatingText(x, y, text, color = '#ffff00', duration = 2) {
     // 创建DOM元素显示浮动文字
-    const container = document.getElementById('floating-texts-container');
-    if (!container) return;
+    if (!cachedUI.floatingTexts) return;
 
     const el = document.createElement('div');
     el.className = 'floating-text';
@@ -8197,7 +8259,7 @@ function createFloatingText(x, y, text, color = '#ffff00', duration = 2) {
     el.style.top = (y - camera.y - 20) + 'px';
     el.style.opacity = '1';
 
-    container.appendChild(el);
+    cachedUI.floatingTexts.appendChild(el);
 
     // 使用动画而不是存储在数组中
     let life = 0;
@@ -8223,10 +8285,41 @@ function createFloatingText(x, y, text, color = '#ffff00', duration = 2) {
 
     animate();
 }
-const MAX_PARTICLES = 200;  // 粒子上限，优化性能
+// 画质相关的粒子配置
+const PARTICLE_CONFIG = {
+    high: { maxParticles: 200, fireballTrail: 0.6, multishotTrail: 0.4 },
+    low: { maxParticles: 100, fireballTrail: 0.25, multishotTrail: 0.15 }
+};
+
+function getParticleConfig() {
+    return PARTICLE_CONFIG[player.graphicsQuality] || PARTICLE_CONFIG.high;
+}
+
 function createParticle(x, y, color, size = 3) {
-    if (particles.length >= MAX_PARTICLES) return;  // 超出上限不创建
-    particles.push({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size });
+    const maxParticles = getParticleConfig().maxParticles;
+    if (particles.length >= maxParticles) return;  // 超出上限不创建
+    particles.push(ParticlePool.acquire({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size }));
+}
+
+function createImpactParticles(x, y, color, count = 5) {
+    const maxP = getParticleConfig().maxParticles;
+    for (let i = 0; i < count; i++) {
+        if (particles.length >= maxP) break;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 40 + Math.random() * 80;
+        particles.push(ParticlePool.acquire({
+            x: x, y: y, z: 5 + Math.random() * 5,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            vz: 80 + Math.random() * 80,
+            color: color || '#ff0000',
+            life: 0.6 + Math.random() * 0.4,
+            size: 1.5 + Math.random() * 1.5,
+            gravity: 800,
+            type: 'impact',
+            canBake: color === '#ff3333' // 只有红血可以烘焙到地面
+        }));
+    }
 }
 
 // ========== 掉落特效系统 ==========
@@ -8236,10 +8329,12 @@ let screenShake = { intensity: 0, duration: 0 };
 // force=true 时强制设置（用于Boss死亡、暗金掉落等关键特效）
 function setGlow(ctx, blur, color, force = false) {
     if (player.graphicsQuality === 'high' || force) {
+        // Canvas 的 shadowBlur 是性能杀手，仅在极高画质且非极多对象时开启
+        // 我们通过简单判断粒子或物品数量来动态降级
+        if (particles.length > 50 && !force) return;
         ctx.shadowBlur = blur;
         ctx.shadowColor = color;
     }
-    // 性能模式且非强制时，不设置 shadowBlur（保持为0）
 }
 
 function clearGlow(ctx) {
@@ -8253,126 +8348,7 @@ function triggerScreenShake(intensity = 10, duration = 0.3) {
 }
 
 // 创建掉落光柱特效
-function createDropBeam(x, y, rarity) {
-    const isUnique = rarity === 4;
-    const isSet = rarity === 5;
-
-    if (!isUnique && !isSet) return;
-
-    // 光柱颜色
-    const beamColor = isUnique ? '#ffd700' : '#00ff88';
-    const glowColor = isUnique ? 'rgba(255, 215, 0, 0.6)' : 'rgba(0, 255, 136, 0.6)';
-
-    // 创建光柱粒子
-    particles.push({
-        type: 'drop_beam',
-        x: x,
-        y: y,
-        color: beamColor,
-        glowColor: glowColor,
-        life: 1.5,           // 持续1.5秒
-        maxLife: 1.5,
-        height: 200,         // 光柱高度
-        width: isUnique ? 40 : 30,
-        isUnique: isUnique
-    });
-
-    // 火花粒子
-    const sparkCount = isUnique ? 25 : 15;
-    for (let i = 0; i < sparkCount; i++) {
-        const angle = (Math.PI * 2 / sparkCount) * i + Math.random() * 0.3;
-        const speed = 80 + Math.random() * 120;
-        const sparkColor = isUnique ?
-            ['#ffd700', '#ffaa00', '#ff8800', '#ffffff'][Math.floor(Math.random() * 4)] :
-            ['#00ff88', '#00ffaa', '#88ffcc', '#ffffff'][Math.floor(Math.random() * 4)];
-
-        particles.push({
-            x: x,
-            y: y - 20,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed - 100,  // 向上偏移
-            color: sparkColor,
-            life: 0.6 + Math.random() * 0.4,
-            size: 2 + Math.random() * 3,
-            gravity: 150  // 重力效果
-        });
-    }
-
-    // 上升光点
-    for (let i = 0; i < 10; i++) {
-        particles.push({
-            type: 'rising_spark',
-            x: x + (Math.random() - 0.5) * 30,
-            y: y,
-            vy: -150 - Math.random() * 100,
-            color: beamColor,
-            life: 1.0 + Math.random() * 0.5,
-            size: 3 + Math.random() * 2
-        });
-    }
-
-    // 播放音效和震屏
-    if (isUnique) {
-        AudioSys.play('drop_unique');
-        triggerScreenShake(8, 0.25);
-    } else {
-        AudioSys.play('drop_set');
-        triggerScreenShake(5, 0.2);
-    }
-}
-
-// 创建传送门光柱特效（复用掉落光柱样式，蓝色主题）
-function createPortalBeam(x, y) {
-    // 光柱颜色：蓝紫色主题
-    const beamColor = '#6699ff';
-    const glowColor = 'rgba(100, 150, 255, 0.6)';
-
-    // 创建光柱粒子
-    particles.push({
-        type: 'drop_beam',
-        x: x,
-        y: y,
-        color: beamColor,
-        glowColor: glowColor,
-        life: 1.2,           // 持续1.2秒
-        maxLife: 1.2,
-        height: 250,         // 光柱更高
-        width: 50,
-        isUnique: true       // 使用更亮的效果
-    });
-
-    // 火花粒子（蓝色系）
-    const sparkCount = 30;
-    for (let i = 0; i < sparkCount; i++) {
-        const angle = (Math.PI * 2 / sparkCount) * i + Math.random() * 0.3;
-        const speed = 100 + Math.random() * 150;
-        const sparkColor = ['#6699ff', '#88aaff', '#aaccff', '#ffffff'][Math.floor(Math.random() * 4)];
-
-        particles.push({
-            x: x,
-            y: y - 20,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed - 120,  // 向上偏移
-            color: sparkColor,
-            life: 0.8 + Math.random() * 0.4,
-            size: 2 + Math.random() * 4,
-            gravity: 120  // 重力效果
-        });
-    }
-
-    // 上升光点
-    for (let i = 0; i < 15; i++) {
-        particles.push({
-            type: 'rising_spark',
-            x: x + (Math.random() - 0.5) * 40,
-            y: y,
-            vy: -180 - Math.random() * 120,
-            color: beamColor,
-            life: 1.0 + Math.random() * 0.5,
-            size: 3 + Math.random() * 3
-        });
-    }
-}
+// createDropBeam & createPortalBeam (已移至 item-system.js)
 
 // 创建飞行拾取粒子（类《幸存者》吸入效果）
 function createFlyingPickup(item, type) {
@@ -8400,7 +8376,7 @@ function createFlyingPickup(item, type) {
         color = '#aaaaff';
     }
 
-    flyingPickups.push({
+    const fp = {
         type: type,
         item: item,
         value: item.val || 0,
@@ -8412,10 +8388,28 @@ function createFlyingPickup(item, type) {
         controlY1: controlY1,
         controlX2: controlX2,
         controlY2: controlY2,
-        time: 0,
-        duration: 0.25 + Math.random() * 0.1,  // 0.25-0.35秒飞行时间
+        progress: 0,
         color: color,
         size: type === 'gold' ? 4 : 6
+    };
+
+    flyingPickups.push(fp);
+
+    // 调用 GSAP 驱动飞行实现
+    GSAPAnims.lootFly(fp, player, () => {
+        // 飞行结束后的奖励逻辑
+        if (fp.type === 'gold') {
+            addGold(fp.value);
+            createDamageNumber(player.x, player.y - 40, `+${fp.value} G`, 'gold');
+            AudioSys.play('gold');
+        } else if (fp.type === 'potion' || fp.type === 'scroll') {
+            if (addItemToInventory(fp.item)) {
+                showNotification(`拾取：${fp.item.displayName || fp.item.name}`);
+            }
+        }
+        // 从数组中移除
+        const idx = flyingPickups.indexOf(fp);
+        if (idx !== -1) flyingPickups.splice(idx, 1);
     });
 }
 
@@ -8491,90 +8485,7 @@ function createLevelUpBeam(x, y) {
 }
 
 // Boss死亡特效：慢动作 + 爆炸粒子 + 巨型伤害数字
-function triggerBossDeathEffect(boss, damage) {
-    // 启动慢动作
-    slowMotion.active = true;
-    slowMotion.timer = 0.8;  // 0.8秒慢动作
-    slowMotion.scale = 0.15; // 15%速度（非常慢）
-
-    // 强力震屏
-    triggerScreenShake(20, 0.6);
-
-    // 播放专属音效（可以复用暗金掉落音效，更史诗）
-    AudioSys.play('drop_unique');
-
-    // 巨型伤害数字（红色，更大）
-    damageNumbers.push({
-        x: boss.x,
-        y: boss.y - 50,
-        val: `💀 ${Math.floor(damage)} 💀`,
-        color: '#ff0000',
-        life: 2.5,
-        fontSize: 48, // 巨大字体
-        vx: (Math.random() - 0.5) * 30,
-        vy: -80,
-        gravity: 60
-    });
-
-    // Boss名字显示
-    damageNumbers.push({
-        x: boss.x,
-        y: boss.y - 100,
-        val: `⚔️ ${boss.name} 已被击败 ⚔️`,
-        color: '#ffd700',
-        life: 3.0,
-        fontSize: 28,
-        vx: 0,
-        vy: -30,
-        gravity: 0
-    });
-
-    // 大量爆炸粒子
-    const particleCount = 60;
-    for (let i = 0; i < particleCount; i++) {
-        const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.3;
-        const speed = 200 + Math.random() * 300;
-        const sparkColor = ['#ff4400', '#ff8800', '#ffcc00', '#ffffff', '#ff0000'][Math.floor(Math.random() * 5)];
-
-        particles.push({
-            x: boss.x,
-            y: boss.y,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed - 100,
-            color: sparkColor,
-            life: 1.5 + Math.random() * 1.0,
-            size: 4 + Math.random() * 6,
-            gravity: 150
-        });
-    }
-
-    // 创建红色光柱
-    particles.push({
-        type: 'drop_beam',
-        x: boss.x,
-        y: boss.y,
-        color: '#ff4400',
-        glowColor: 'rgba(255, 68, 0, 0.6)',
-        life: 1.5,
-        maxLife: 1.5,
-        height: 400,
-        width: 80,
-        isUnique: true
-    });
-
-    // 上升火焰
-    for (let i = 0; i < 20; i++) {
-        particles.push({
-            type: 'rising_spark',
-            x: boss.x + (Math.random() - 0.5) * 80,
-            y: boss.y,
-            vy: -250 - Math.random() * 200,
-            color: ['#ff4400', '#ff8800', '#ffcc00'][Math.floor(Math.random() * 3)],
-            life: 1.5 + Math.random() * 0.5,
-            size: 5 + Math.random() * 4
-        });
-    }
-}
+// Boss死亡特效：慢动作 + 爆炸粒子 + 巨型伤害数字 (已移至 enemy-system.js)
 
 // 精英怪死亡特效：比普通怪华丽，比Boss轻
 function triggerEliteDeathEffect(elite, damage) {
@@ -8869,32 +8780,42 @@ function drawDungeonEntrance(x, y, label) {
     ctx.fillText(label, x, y - size - 12);
 }
 
-// 创建地面血迹
-function createBloodSplat(x, y, size) {
-    const splatCount = 2 + Math.floor(Math.random() * 3); // 2-4个血迹
+// 绘制有机血迹/喷溅的通用工具函数
+function drawSplatToCtx(targetCtx, x, y, radius, baseColor, alpha) {
+    targetCtx.save();
+    targetCtx.translate(x, y);
+    targetCtx.rotate(Math.random() * Math.PI * 2);
+    // 随机拉伸，模拟液体喷溅的不规则感
+    targetCtx.scale(0.8 + Math.random() * 0.4, 0.6 + Math.random() * 0.4);
 
-    for (let i = 0; i < splatCount; i++) {
-        const offsetX = (Math.random() - 0.5) * size * 2;
-        const offsetY = (Math.random() - 0.5) * size * 2;
-        const splatSize = (size * 0.5) + Math.random() * size;
-
-        bloodSplats.push({
-            x: x + offsetX,
-            y: y + offsetY,
-            radius: splatSize,
-            angle: Math.random() * Math.PI * 2,
-            scaleX: 0.8 + Math.random() * 0.4,
-            scaleY: 0.6 + Math.random() * 0.3,
-            life: 15 + Math.random() * 10,  // 15-25秒后消失
-            maxLife: 25,
-            alpha: 0.6 + Math.random() * 0.2
-        });
+    const gradient = targetCtx.createRadialGradient(0, 0, 0, 0, 0, radius);
+    if (baseColor === '#ff3333' || baseColor === COLORS.poison) {
+        // 针对不同属性使用对应的深浅渐变
+        const darkColor = baseColor === '#ff3333' ? 'rgba(80, 0, 0, 0)' : 'rgba(0, 50, 0, 0)';
+        const midColor = baseColor === '#ff3333' ? `rgba(140, 0, 0, ${alpha})` : `rgba(0, 140, 0, ${alpha})`;
+        gradient.addColorStop(0, midColor);
+        gradient.addColorStop(1, darkColor);
+    } else {
+        gradient.addColorStop(0, baseColor);
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
     }
 
-    // 限制血迹数量，避免性能问题
-    const MAX_BLOOD_SPLATS = 100;
-    if (bloodSplats.length > MAX_BLOOD_SPLATS) {
-        bloodSplats.splice(0, bloodSplats.length - MAX_BLOOD_SPLATS);
+    targetCtx.fillStyle = gradient;
+    targetCtx.beginPath();
+    targetCtx.ellipse(0, 0, radius, radius * 0.7, 0, 0, Math.PI * 2);
+    targetCtx.fill();
+    targetCtx.restore();
+}
+
+// 创建地面血迹 (优化：直接写入离屏画布，并减少垃圾回收)
+function createBloodSplat(x, y, size) {
+    if (!bloodCtx) return;
+    const splatCount = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < splatCount; i++) {
+        const sx = x + (Math.random() - 0.5) * size * 2;
+        const sy = y + (Math.random() - 0.5) * size * 2;
+        const radius = (size * 0.5) + Math.random() * size;
+        drawSplatToCtx(bloodCtx, sx, sy, radius, '#ff3333', 0.4 + Math.random() * 0.3);
     }
 }
 
@@ -8935,8 +8856,9 @@ function checkPlayerDeath() {
             OnlineSystem.submitScore({
                 level: player.lvl,
                 kills: player.kills,
-                maxFloor: player.isInHell ? player.hellFloor + 10 : player.floor,
-                isHell: player.isInHell
+                maxFloor: player.isInHell ? (player.maxHellFloor || player.hellFloor) + 10 : player.maxFloor,
+                isHell: player.isInHell,
+                gold: player.gold || 0
             });
         }
 
@@ -8955,11 +8877,102 @@ function checkPlayerDeath() {
     }
 }
 
+// 仓库扩建费用配置
+const STASH_EXPAND_COSTS = [1000, 5000, 20000];
+const STASH_BASE_SIZE = 36;
+const STASH_EXPAND_PER_LEVEL = 6;
+const STASH_MAX_LEVEL = 3;
+
+// 获取当前仓库大小
+function getStashSize() {
+    return STASH_BASE_SIZE + (player.stashLevel || 0) * STASH_EXPAND_PER_LEVEL;
+}
+
+// 获取下次扩建费用（已满级返回null）
+function getStashExpandCost() {
+    if (player.stashLevel >= STASH_MAX_LEVEL) return null;
+    return STASH_EXPAND_COSTS[player.stashLevel];
+}
+
+// 扩建仓库
+function expandStash() {
+    const cost = getStashExpandCost();
+    if (cost === null) {
+        showNotification('仓库已达最大容量！');
+        return;
+    }
+    if (player.gold < cost) {
+        showNotification(`金币不足！需要 ${cost} G`);
+        return;
+    }
+
+    player.gold -= cost;
+    player.stashLevel++;
+
+    // 扩展仓库数组
+    const newSize = getStashSize();
+    while (player.stash.length < newSize) {
+        player.stash.push(null);
+    }
+
+    // 扣钱数字提示 + 声音（使用 DOM 元素，层级高于面板）
+    createFloatingText(player.x, player.y - 40, `-${cost}G`, '#ffd700', 1.5);
+    AudioSys.play('gold');
+
+    showNotification(`仓库扩建成功！当前容量: ${newSize} 格`);
+    renderStash();
+    updateUI();
+
+    // 同时更新物品面板的金币显示
+    document.getElementById('gold-display').innerText = player.gold;
+}
+
 function renderStash() {
     const c = document.getElementById('stash-grid');
     c.innerHTML = '';
 
-    player.stash.forEach((item, idx) => {
+    const stashSize = getStashSize();
+    const cols = 6 + (player.stashLevel || 0); // 基础6列，每级+1列
+
+    // 更新面板宽度（小屏幕让CSS控制，大屏幕用JS计算）
+    const panel = document.getElementById('stash-panel');
+    if (window.innerWidth >= 768) {
+        const stashWidth = cols * 50 + 40;
+        const embeddedBagWidth = 6 * 40 + 40; // 6列内嵌背包
+        panel.style.width = Math.max(stashWidth, embeddedBagWidth) + 'px';
+    }
+
+    // 更新grid列数
+    c.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+    // 确保stash数组足够大
+    while (player.stash.length < stashSize) {
+        player.stash.push(null);
+    }
+
+    // 更新容量显示
+    const sizeInfo = document.getElementById('stash-size-info');
+    if (sizeInfo) {
+        const usedSlots = player.stash.filter(i => i !== null).length;
+        sizeInfo.textContent = `(${usedSlots}/${stashSize})`;
+    }
+
+    // 更新扩建按钮
+    const expandBtn = document.getElementById('stash-expand-btn');
+    if (expandBtn) {
+        const cost = getStashExpandCost();
+        if (cost === null) {
+            expandBtn.style.display = 'none';
+        } else {
+            expandBtn.style.display = 'block';
+            const canAfford = player.gold >= cost;
+            expandBtn.innerHTML = `🔨 扩建 +${STASH_EXPAND_PER_LEVEL}格 <span style="color:${canAfford ? '#ffd700' : '#f66'}">${cost} G</span>`;
+            expandBtn.className = 'stash-expand-btn' + (canAfford ? '' : ' disabled');
+        }
+    }
+
+    for (let idx = 0; idx < stashSize; idx++) {
+        const item = player.stash[idx];
         const slot = document.createElement('div');
         slot.className = 'bag-slot';
 
@@ -8990,233 +9003,24 @@ function renderStash() {
                 e.stopPropagation();
                 moveItemFromStash(idx);
             };
-            slot.onmouseenter = (e) => showTooltip(item, e);
-            slot.onmouseleave = hideTooltip;
+            bindItemTooltip(slot, item);
             slot.onmousedown = (e) => e.stopPropagation();
         }
 
         c.appendChild(slot);
-    });
+    }
+
+    // 渲染内嵌背包
+    renderEmbeddedBag('stash');
 }
 
-function moveItemToStash(inventoryIdx) {
-    const item = player.inventory[inventoryIdx];
-    if (!item) return;
+// moveItemToStash/FromStash (已移至 item-system.js)
 
-    // 寻找仓库空位
-    const stashIdx = player.stash.findIndex(i => !i);
-    if (stashIdx === -1) {
-        showNotification('仓库已满！');
-        return;
-    }
-
-    // 移动物品
-    player.stash[stashIdx] = item;
-    player.inventory[inventoryIdx] = null;
-
-    // 刷新UI
-    renderInventory();
-    renderStash();
-    showNotification(`已将 ${item.displayName || item.name} 存入仓库`);
-
-    // 检查套装收藏成就
-    if (item.setId) {
-        checkSetAchievements();
-    }
-}
-
-function moveItemFromStash(stashIdx) {
-    const item = player.stash[stashIdx];
-    if (!item) return;
-
-    // 寻找背包空位
-    const inventoryIdx = player.inventory.findIndex(i => !i);
-    if (inventoryIdx === -1) {
-        showNotification('背包已满！');
-        return;
-    }
-
-    // 移动物品
-    player.inventory[inventoryIdx] = item;
-    player.stash[stashIdx] = null;
-
-    // 刷新UI
-    renderInventory();
-    renderStash();
-    showNotification(`已从仓库取出 ${item.displayName || item.name}`);
-
-    // 检查套装收藏成就
-    if (item.setId) {
-        checkSetAchievements();
-    }
-}
-
-function dropLoot(monster) {
-    // 成就追踪：击杀沉沦魔
-    trackAchievement('kill_monster', { monsterName: monster.name });
-
-    // 成就追踪：击杀BOSS
-    if (monster.isBoss || monster.isQuestTarget) {
-        trackAchievement('kill_boss', { isBoss: monster.isBoss, isQuestTarget: monster.isQuestTarget });
-    }
-
-    const x = monster.x;
-    const y = monster.y;
-    const f = player.isInHell ? player.hellFloor : player.floor;
-    const isBoss = monster.isBoss || monster.isQuestTarget;
-    const isElite = monster.rarity > 0;
-
-    // ========== 金币掉落（层数加成） ==========
-    let goldBase = 10 + f * 5;  // 基础金币随层数增加
-    let goldAmount = Math.floor(goldBase + Math.random() * goldBase);
-    if (isBoss) goldAmount *= 3;
-    else if (isElite) goldAmount *= 1.5;
-
-    // 贪婪天赋+天神赐福：金币加成
-    const greedBonus = getTalentEffect('goldPct', 0) + (player.goldPct || 0);
-    if (greedBonus > 0) {
-        goldAmount = Math.floor(goldAmount * (1 + greedBonus / 100));
-    }
-
-    groundItems.push({
-        type: 'gold', val: Math.floor(goldAmount),
-        x: x + Math.random() * 20 - 10, y: y + Math.random() * 20 - 10,
-        rarity: 0, name: Math.floor(goldAmount) + " 金币", icon: '💰', dropTime: Date.now()
-    });
-
-    // ========== 消耗品保底机制 ==========
-    player.killsSincePotion = (player.killsSincePotion || 0) + 1;
-    if (player.killsSincePotion >= 8 || isBoss) {
-        // 每8只怪或击杀BOSS必掉消耗品
-        const rand = Math.random();
-        let dropItem;
-        if (rand < 0.6) {
-            dropItem = { type: 'potion', name: '治疗药剂', heal: 50, rarity: 0, stackable: true, count: 1 };
-        } else if (rand < 0.88) {
-            dropItem = { type: 'potion', name: '法力药剂', mana: 30, rarity: 0, stackable: true, count: 1 };
-        } else {
-            dropItem = { type: 'scroll', name: '回城卷轴', rarity: 0, stackable: true, count: 1 };
-        }
-        groundItems.push({
-            ...dropItem,
-            x: x + Math.random() * 20 - 10,
-            y: y + Math.random() * 20 - 10,
-            dropTime: Date.now()
-        });
-        player.killsSincePotion = 0;
-    }
-
-    // ========== 装备掉落系统 ==========
-    // 层数加成：每层+2%掉落率，+1%品质提升（降低加成幅度）
-    const floorDropBonus = Math.min(f * 0.02, 0.25);      // 最高+25%
-    const floorQualityBonus = Math.min(f * 0.01, 0.15);   // 最高+15%
-
-    // 累积幸运加成：每次没掉好东西+1，最高50（降低影响）
-    const luckBonus = Math.min((player.luckAccumulator || 0) * 0.005, 0.15);  // 最高+15%
-
-    // 寻宝者天赋+天神赐福：掉落率加成
-    const treasureHunterBonus = (getTalentEffect('dropRatePct', 0) + (player.dropRatePct || 0)) / 100;
-
-    // 计算最终掉落参数
-    let dropChance, dropCount, qualityBonus;
-
-    if (isBoss) {
-        dropChance = 1.0;
-        dropCount = 2;  // BOSS固定2件
-        qualityBonus = 0.20 + floorQualityBonus;  // BOSS基础+20%品质（降低）
-    } else if (isElite) {
-        dropChance = 0.45 + floorDropBonus + luckBonus + treasureHunterBonus;  // 45%起步（降低）
-        dropCount = 1;
-        qualityBonus = 0.10 + floorQualityBonus + luckBonus;  // 降低
-    } else {
-        dropChance = 0.25 + floorDropBonus + luckBonus + treasureHunterBonus;  // 25%起步（降低）
-        dropCount = 1;
-        qualityBonus = floorQualityBonus + luckBonus;
-    }
-
-    let droppedGoodItem = false;  // 是否掉落了好东西（蓝装以上）
-
-    for (let i = 0; i < dropCount; i++) {
-        if (Math.random() < dropChance) {
-            let item = null;
-
-            // ========== 套装掉落 ==========
-            // 套装是稀有物品，大幅降低概率：BOSS 5%, 精英 0.5%, 普通怪 0.1%
-            const setBaseChance = isBoss ? 0.05 : (isElite ? 0.005 : 0.001);
-            const setFloorBonus = f >= 10 ? 0.01 : 0;  // 10层以上+1%
-            const setLuckBonus = luckBonus * 0.05;     // 幸运值影响降到5%
-            const setChance = setBaseChance + setFloorBonus + setLuckBonus;
-            if (Math.random() < setChance) {
-                item = generateRandomSetItem(f);
-                if (item) {
-                    droppedGoodItem = true;
-                    // 全服公告：获得套装
-                    if (typeof OnlineSystem !== 'undefined') {
-                        OnlineSystem.announce('set_drop', item.displayName || item.name);
-                    }
-                }
-            }
-
-            // ========== 普通装备掉落 ==========
-            if (!item) {
-                item = createItem(null, f);
-
-                // 品质重roll（应用所有加成）
-                const qualityRoll = Math.random();
-                const adjustedRoll = qualityRoll - qualityBonus;  // 加成越高，越容易出好东西
-
-                if (isBoss) {
-                    // BOSS保底蓝装，降低暗金概率
-                    if (adjustedRoll < 0.03) { item.rarity = 4; droppedGoodItem = true; }       // 3%+加成 暗金
-                    else if (adjustedRoll < 0.25) { item.rarity = 3; droppedGoodItem = true; }  // 22%+加成 稀有
-                    else { item.rarity = 2; droppedGoodItem = true; }                           // 保底魔法
-                } else if (isElite) {
-                    // 精英怪
-                    if (adjustedRoll < 0.015) { item.rarity = 4; droppedGoodItem = true; }      // 1.5% 暗金
-                    else if (adjustedRoll < 0.12) { item.rarity = 3; droppedGoodItem = true; }  // 10.5% 稀有
-                    else if (adjustedRoll < 0.45) { item.rarity = 2; droppedGoodItem = true; }  // 33% 魔法
-                    else item.rarity = 1;
-                } else {
-                    // 普通怪
-                    if (adjustedRoll < 0.005) { item.rarity = 4; droppedGoodItem = true; }      // 0.5% 暗金
-                    else if (adjustedRoll < 0.04) { item.rarity = 3; droppedGoodItem = true; }  // 3.5% 稀有
-                    else if (adjustedRoll < 0.20) { item.rarity = 2; droppedGoodItem = true; }  // 16% 魔法
-                    else item.rarity = 1;
-                }
-
-                // 更新显示名称（如果品质被修改）
-                if (item.rarity === 4 && !item.displayName.startsWith('暗金')) {
-                    item.displayName = "暗金·" + item.name;
-                    item.stats.allSkills = (item.stats.allSkills || 0) + 1;
-                    item.stats.dmgPct = (item.stats.dmgPct || 0) + 50;
-                    item.stats.lifeSteal = (item.stats.lifeSteal || 0) + 5;
-                }
-            }
-
-            item.x = x + Math.random() * 30 - 15 + i * 20;
-            item.y = y + Math.random() * 30 - 15;
-            item.dropTime = Date.now();
-            groundItems.push(item);
-
-            // 暗金/套装掉落特效
-            if (item.rarity === 4 || item.rarity === 5) {
-                createDropBeam(item.x, item.y, item.rarity);
-            }
-        }
-    }
-
-    // ========== 更新累积幸运值 ==========
-    if (droppedGoodItem) {
-        player.luckAccumulator = 0;  // 掉到好东西，重置幸运值
-    } else {
-        player.luckAccumulator = Math.min((player.luckAccumulator || 0) + 1, 50);  // 没掉好东西，累积+1
-    }
-
-    updateWorldLabels();
-}
+// dropLoot (已移至 item-system.js)
 
 function updateWorldLabels() {
-    const c = document.getElementById('world-labels'); c.innerHTML = '';
+    if (!cachedUI.worldLabels) return;
+    cachedUI.worldLabels.innerHTML = '';
     groundItems.forEach(i => {
         // 物品过滤：默认只显示蓝色以上（rarity >= 2），按住Alt显示所有
         // 金币、药水、卷轴始终显示
@@ -9266,14 +9070,11 @@ function updateWorldLabels() {
         };
 
         i.el = d;
-        c.appendChild(d);
+        cachedUI.worldLabels.appendChild(d);
     });
 }
 
-function getItemColor(r) {
-    // 直接使用 getRarityColor 函数
-    return getRarityColor(r);
-}
+// getItemColor (已移至 item-system.js)
 function isWall(x, y) { const c = Math.floor(x / TILE_SIZE), r = Math.floor(y / TILE_SIZE); return c < 0 || r < 0 || c >= MAP_WIDTH || r >= MAP_HEIGHT || mapData[r][c] === 0; }
 
 // 检查两点之间是否有墙阻挡
@@ -9317,6 +9118,17 @@ function getEnemyAtCursor() {
 }
 function getNPCAtCursor() {
     for (let n of npcs) if (Math.hypot(n.x - mouse.worldX, n.y - mouse.worldY) < n.radius + 10) return n;
+    return null;
+}
+
+function getDestructibleAtCursor() {
+    const range = 25;
+    if (!destructibles) return null;
+    for (let d of destructibles) {
+        if (!d.broken && Math.hypot(mouse.worldX - d.x, mouse.worldY - d.y) < range + 10) {
+            return d;
+        }
+    }
     return null;
 }
 
@@ -9423,6 +9235,7 @@ function castSkill(skillName) {
     if (skillName === 'fireball') {
         if (player.mp < 5) {
             createFloatingText(player.x, player.y - 40, '法力不足！(需要 5 法力)', '#4d94ff', 1.5);
+            if (cachedUI.mpOrb) GSAPAnims.shake(cachedUI.mpOrb, 5);
             return;
         }
         if (player.skillCooldowns.fireball > 0) return;
@@ -9440,18 +9253,23 @@ function castSkill(skillName) {
             color: '#ff4400'
         });
         AudioSys.play('fireball');
+        // 每日任务和成就：使用技能
+        if (typeof DailyQuestSystem !== 'undefined') {
+            DailyQuestSystem.updateProgress('use_skill', 1);
+        }
+        trackAchievement('skill_use');
     } else if (skillName === 'thunder') {
         const cost = 8 + (player.skills.thunder - 1) * 0.5;
         if (player.mp < cost) {
             createFloatingText(player.x, player.y - 60, "法力不足!", '#55aaff');
+            if (cachedUI.mpOrb) GSAPAnims.shake(cachedUI.mpOrb, 5);
             return;
         }
+        if (player.skillCooldowns.thunder > 0) return;
 
-        // 获取鼠标指向的敌人
-        const target = getEnemyAtCursor();
+        // 获取鼠标指向的敌人或物体
+        const target = getEnemyAtCursor() || getDestructibleAtCursor();
         if (!target) {
-            // 如果没有指向敌人，可以不做任何事，或者给个提示
-            // 这里选择不做任何事，或者可以播放一个失败音效
             return;
         }
 
@@ -9463,6 +9281,15 @@ function castSkill(skillName) {
 
         player.mp -= cost;
         player.skillCooldowns.thunder = 2; // 2秒冷却
+
+        // 如果击中可破坏物体
+        if (target.broken !== undefined) {
+            DestructibleSystem.break(target);
+            createLightningEffect(target.x, target.y);
+            AudioSys.play('thunder');
+            if (typeof DailyQuestSystem !== 'undefined') DailyQuestSystem.updateProgress('use_skill', 1);
+            return;
+        }
 
         // 伤害计算：基础伤害 + 技能等级加成
         // 假设每级增加 15 点基础伤害
@@ -9478,6 +9305,11 @@ function castSkill(skillName) {
 
         // 音效
         AudioSys.play('thunder');
+        // 每日任务和成就：使用技能
+        if (typeof DailyQuestSystem !== 'undefined') {
+            DailyQuestSystem.updateProgress('use_skill', 1);
+        }
+        trackAchievement('skill_use');
 
         // ====== 溅射机制 ======
         // Lv1: 无溅射
@@ -9541,10 +9373,16 @@ function castSkill(skillName) {
     } else if (skillName === 'multishot') {
         if (player.mp < 8) {
             createFloatingText(player.x, player.y - 40, '法力不足！(需要 8 法力)', '#4d94ff', 1.5);
+            if (cachedUI.mpOrb) GSAPAnims.shake(cachedUI.mpOrb, 5);
             return;
         }
         if (player.skillCooldowns.multishot > 0) return;
         player.mp -= 8; player.skillCooldowns.multishot = 1;
+        // 每日任务和成就：使用技能
+        if (typeof DailyQuestSystem !== 'undefined') {
+            DailyQuestSystem.updateProgress('use_skill', 1);
+        }
+        trackAchievement('skill_use');
         const base = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
         const cnt = 2 + player.skills.multishot;
 
@@ -9625,7 +9463,7 @@ function renderInventory() {
                 }
             }
             s.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); dropItemFromInventory(idx); }
-            s.onmouseenter = (e) => showTooltip(i, e); s.onmouseleave = hideTooltip;
+            bindItemTooltip(s, i);
             s.onmousedown = (e) => e.stopPropagation();
         }
         c.appendChild(s);
@@ -9650,9 +9488,9 @@ function renderInventory() {
             if (i.enhanceLvl > 0) {
                 el.innerHTML += `<span class="enhance-level">+${i.enhanceLvl}</span>`;
             }
-            el.onmouseenter = (e) => showTooltip(i, e); el.onmouseleave = hideTooltip;
+            bindItemTooltip(el, i);
             el.onmousedown = (e) => e.stopPropagation();
-        } else { el.onmouseenter = null; el.onmouseleave = null; }
+        } else { el.onmouseenter = null; el.onmouseleave = null; el.ontouchstart = null; }
     });
     // Additional slots
     ['helm', 'gloves', 'boots', 'belt', 'amulet'].forEach(sn => {
@@ -9677,138 +9515,19 @@ function renderInventory() {
             if (i.enhanceLvl > 0) {
                 el.innerHTML += `<span class="enhance-level">+${i.enhanceLvl}</span>`;
             }
-            el.onmouseenter = (e) => showTooltip(i, e); el.onmouseleave = hideTooltip;
+            bindItemTooltip(el, i);
             el.onmousedown = (e) => e.stopPropagation();
-        } else { el.onmouseenter = null; el.onmouseleave = null; }
+        } else { el.onmouseenter = null; el.onmouseleave = null; el.ontouchstart = null; }
     });
 
     document.getElementById('gold-display').innerText = player.gold;
 }
 
-function useOrEquipItem(idx) {
-    const item = player.inventory[idx]; if (!item) return;
-
-    const shop = document.getElementById('shop-panel');
-    if (shop.style.display === 'block') {
-        let val = 50;
-        if (item.rarity > 1) val *= item.rarity * 2;
-        addGold(val);
-
-        if (item.stackable && item.quantity > 1) {
-            item.quantity--;
-        } else {
-            player.inventory[idx] = null;
-        }
-
-        createDamageNumber(player.x, player.y - 40, `+${val} G`, 'gold');
-        AudioSys.play('gold');
-        renderInventory();
-        updateBeltUI();
-
-        // 在物品槽位上显示卖出提示
-        showSellTooltip(idx, val);
-        return;
-    }
-
-    if (item.type === 'potion') {
-        if (item.heal) {
-            player.hp = Math.min(player.maxHp, player.hp + item.heal);
-            player.stats.currentStreak = 0; // 喝红药重置连杀
-        }
-        if (item.mana) player.mp = Math.min(player.maxMp, player.mp + item.mana);
-        AudioSys.play('potion'); // 播放喝药音效
-
-        if (item.quantity > 1) {
-            item.quantity--;
-        } else {
-            player.inventory[idx] = null;
-        }
-    }
-    else if (item.type === 'scroll') {
-        // 地狱中无法使用回城卷轴
-        if (player.isInHell) {
-            showNotification("地狱中无法使用回城卷轴");
-            return;
-        }
-        if (player.floor !== 0) {
-            // 启动回城仪式
-            portalRitual.active = true;
-            portalRitual.phase = 0;
-            portalRitual.timer = PORTAL_RITUAL_DURATIONS.casting;
-            portalRitual.returnFloor = player.floor;
-            portalRitual.scrollIdx = idx;
-            portalRitual.flashAlpha = 0;
-
-            // 消耗卷轴
-            if (item.quantity > 1) item.quantity--; else player.inventory[idx] = null;
-
-            // 立刻触发光柱效果和音效（不等施法完成）
-            createPortalBeam(player.x, player.y);
-            AudioSys.playPortalOpen();
-            triggerScreenShake(4, 0.2);
-
-            showNotification("正在施法回城...");
-        } else {
-            showNotification("你已经在营地了");
-        }
-    }
-    else {
-        let s = null;
-        if (item.type === 'weapon') s = 'mainhand'; if (item.type === 'armor') s = 'body'; if (item.type === 'ring') s = 'ring';
-        if (item.type === 'helm') s = 'helm'; if (item.type === 'gloves') s = 'gloves'; if (item.type === 'boots') s = 'boots';
-        if (item.type === 'belt') s = 'belt'; if (item.type === 'amulet') s = 'amulet';
-
-        if (s) {
-            // 检查装备需求
-            if (item.requirements) {
-                const req = item.requirements;
-                const failedReqs = [];
-
-                if (req.level && player.lvl < req.level) {
-                    failedReqs.push(`等级${req.level}`);
-                }
-                if (req.str && player.str < req.str) {
-                    failedReqs.push(`力量${req.str}`);
-                }
-                if (req.dex && player.dex < req.dex) {
-                    failedReqs.push(`敏捷${req.dex}`);
-                }
-
-                // 如果不满足需求，拒绝装备
-                if (failedReqs.length > 0) {
-                    createFloatingText(player.x, player.y - 40, `需求不足: ${failedReqs.join(', ')}`, '#ff4444', 2);
-                    return;
-                }
-            }
-
-            // 满足需求，执行装备
-            const cur = player.equipment[s];
-            player.equipment[s] = item;
-            player.inventory[idx] = cur;
-            updateStats();
-        }
-    }
-    renderInventory(); updateStatsUI(); updateBeltUI();
-}
-
-function useQuickItem(type) {
-    let targetName = "";
-    if (type === 'health') targetName = CONSUMABLE_NAME.HEALTH_POTION;
-    if (type === 'mana') targetName = CONSUMABLE_NAME.MANA_POTION;
-    if (type === 'scroll') targetName = CONSUMABLE_NAME.TOWN_PORTAL;
-
-    const idx = player.inventory.findIndex(i => i && i.name === targetName);
-    if (idx !== -1) {
-        useOrEquipItem(idx);
-    } else {
-        showNotification("没有该物品!");
-    }
-}
+// useOrEquipItem & useQuickItem (已移至 item-system.js)
 
 function updateBeltUI() {
     const countItem = (name) => {
-        const item = player.inventory.find(i => i && i.name === name);
-        return item ? (item.quantity || 1) : 0;
+        return player.inventory.filter(i => i && i.name === name).reduce((sum, i) => sum + (i.quantity || 1), 0);
     };
     const updateSlot = (slotId, name, type, heal) => {
         const el = document.getElementById(slotId);
@@ -9895,6 +9614,32 @@ function buyItem(type) {
     if (type === 'health') { cost = 50; itemName = CONSUMABLE_NAME.HEALTH_POTION; }
     else if (type === 'mana') { cost = 50; itemName = CONSUMABLE_NAME.MANA_POTION; }
     else if (type === 'scroll') { cost = 100; itemName = CONSUMABLE_NAME.TOWN_PORTAL; }
+    else if (type === 'xp_scroll') {
+        // 双倍经验卷轴：直接使用，不进背包
+        cost = 1000;
+        if (player.gold < cost) {
+            showNotification("金币不足");
+            return false;
+        }
+        player.gold -= cost;
+        const duration = 1 * 60 * 60 * 1000; // 1小时
+        const now = Date.now();
+        if (player.xpBuffExpiry && now < player.xpBuffExpiry) {
+            // 已有buff，延长时间
+            player.xpBuffExpiry += duration;
+            showNotification('⚡ 双倍经验延长1小时！');
+        } else {
+            // 无buff，新增
+            player.xpBuffExpiry = now + duration;
+            showNotification('⚡ 双倍经验已激活！持续1小时');
+        }
+        createDamageNumber(player.x, player.y - 40, `-${cost}G`, 'gold');
+        AudioSys.play('gold');
+        updateBuffIndicators();
+        renderInventory();
+        renderEmbeddedBag('shop');
+        return true;
+    }
 
     if (player.gold >= cost) {
         const item = createItem(itemName, 0);
@@ -9903,6 +9648,7 @@ function buyItem(type) {
             createDamageNumber(player.x, player.y - 40, `-${cost}G`, 'gold');
             showNotification(`花费 ${cost} G - 购买 ${itemName}`);
             renderInventory();
+            renderEmbeddedBag('shop');
             return true;  // 购买成功
         } else {
             createFloatingText(player.x, player.y - 40, "背包已满！", COLORS.warning, 1.5);
@@ -9944,12 +9690,21 @@ function stopBuyHold() {
 function initBuyButtons() {
     document.querySelectorAll('.buy-slot').forEach(slot => {
         const type = slot.dataset.type;
+        // 鼠标事件（桌面端）
         slot.addEventListener('mousedown', (e) => {
             e.preventDefault();
             startBuyHold(type, e);
         });
         slot.addEventListener('mouseup', stopBuyHold);
         slot.addEventListener('mouseleave', stopBuyHold);
+
+        // 触摸事件（移动端）
+        slot.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            startBuyHold(type, e);
+        }, { passive: false });
+        slot.addEventListener('touchend', stopBuyHold);
+        slot.addEventListener('touchcancel', stopBuyHold);
     });
 }
 
@@ -10084,6 +9839,11 @@ function updateStats() {
 
         if (!setData) continue;
 
+        // 深渊挑战中禁用深渊征服者套装效果（公平竞技）
+        if (setId === 'abyss_conqueror' && typeof AbyssSystem !== 'undefined' && AbyssSystem.isActive) {
+            continue;
+        }
+
         // 应用所有已激活的套装加成
         for (let requiredPieces in setData.bonuses) {
             if (pieceCount >= parseInt(requiredPieces)) {
@@ -10140,6 +9900,10 @@ function updateStats() {
     player.lifeSteal = ls;
     player.attackSpeed = ias;
     player.critChance = Math.min(100, 5 + dex * 0.5 + bonusCritChance);
+
+    // 基础移动速度重置与天赋/装备加成 (基准 180)
+    const talentSpeedPct = typeof getTalentEffect !== 'undefined' ? getTalentEffect('speedPct', 0) : 0;
+    player.speed = 180 * (1 + talentSpeedPct / 100);
 
     // 更新特殊属性
     player.hpRegen = hpRegen;
@@ -10207,55 +9971,186 @@ function updateStats() {
 
     // 检查套装成就
     checkSetAchievements();
+
+    // ========== 深渊契约惩罚 ==========
+    const isContractPanelOpen = document.getElementById('abyss-contract-panel')?.classList.contains('active');
+    if (typeof AbyssSystem !== 'undefined' && (AbyssSystem.isActive || isContractPanelOpen) && AbyssSystem.selectedContracts.length > 0) {
+        AbyssSystem.selectedContracts.forEach(id => {
+            switch (id) {
+                case 'low_hp': player.maxHp = Math.floor(player.maxHp * 0.7); break;
+                case 'glass_cannon': player.armor = Math.floor(player.armor * 0.5); break;
+                case 'slow_motion': player.speed *= 0.8; break;
+                case 'elemental_curse':
+                    player.resistances.fire -= 40;
+                    player.resistances.cold -= 40;
+                    player.resistances.lightning -= 40;
+                    player.resistances.poison -= 40;
+                    break;
+                case 'vampire_bane': player.lifeSteal = 0; break;
+            }
+        });
+        // 修正血量和蓝量不超过上限
+        player.hp = Math.min(player.hp, player.maxHp);
+        player.mp = Math.min(player.mp, player.maxMp);
+        // 修正抗性下限
+        player.resistances.fire = Math.max(-100, player.resistances.fire);
+        player.resistances.cold = Math.max(-100, player.resistances.cold);
+        player.resistances.lightning = Math.max(-100, player.resistances.lightning);
+        player.resistances.poison = Math.max(-100, player.resistances.poison);
+    }
 }
 
 function updateUI() {
-    document.getElementById('hp-fill').style.height = Math.max(0, Math.min(100, player.hp / player.maxHp * 100)) + '%';
-    document.getElementById('hp-text').innerText = Math.floor(player.hp);
-    document.getElementById('mp-fill').style.height = Math.max(0, Math.min(100, player.mp / player.maxMp * 100)) + '%';
-    document.getElementById('mp-text').innerText = Math.floor(player.mp);
+    // 更新深渊HUD
+    if (typeof AbyssSystem !== 'undefined') {
+        AbyssSystem.updateHUD();
+    }
 
-    // 濒危视觉警告：HP < 20% 时显示红光
-    const vignette = document.getElementById('low-hp-vignette');
-    if (vignette) {
-        const hpPercent = player.hp / player.maxHp;
-        if (hpPercent < GAME_CONFIG.LOW_HP_THRESHOLD && player.hp > 0) {
-            vignette.classList.add('active');
-        } else {
-            vignette.classList.remove('active');
+    // 基础 UI 现在由 updateSmoothUI 每帧或节流平稳渲染，此处仅作为触发脏检查或处理极低频逻辑
+    uiDisplayState.dirty = true;
+}
+
+// 更新增益buff指示器（追加到天赋HUD区域）
+let lastBuffState = ''; // 用于检测buff状态是否变化
+function updateBuffIndicators() {
+    if (!cachedUI.talentHud) return;
+
+    const now = Date.now();
+
+    // 构建当前buff状态字符串（用于检测变化）
+    const currentState = [
+        player.xpBuffTripleExpiry > now ? 'triple' : '',
+        player.xpBuffExpiry > now ? 'xp' : '',
+        player.goldBuffExpiry > now ? 'gold' : '',
+        player.dropBuffExpiry > now ? 'drop' : ''
+    ].join(',');
+
+    // 只在buff状态变化时才重建图标
+    const existingIcons = cachedUI.talentHud.getElementsByClassName('buff-hud-icon');
+    if (existingIcons.length > 0 && currentState === lastBuffState) {
+        const timeSpans = cachedUI.talentHud.getElementsByClassName('buff-time-text');
+        let spanIdx = 0;
+
+        // 再次获取最新的时间数据用于更新文字
+        const updatedBuffs = [];
+        if (player.xpBuffTripleExpiry && now < player.xpBuffTripleExpiry) {
+            updatedBuffs.push(formatBuffTime(Math.ceil((player.xpBuffTripleExpiry - now) / 1000 / 60)).short);
+        } else if (player.xpBuffExpiry && now < player.xpBuffExpiry) {
+            updatedBuffs.push(formatBuffTime(Math.ceil((player.xpBuffExpiry - now) / 1000 / 60)).short);
         }
+        if (player.goldBuffExpiry && now < player.goldBuffExpiry) {
+            updatedBuffs.push(formatBuffTime(Math.ceil((player.goldBuffExpiry - now) / 1000 / 60)).short);
+        }
+        if (player.dropBuffExpiry && now < player.dropBuffExpiry) {
+            updatedBuffs.push(formatBuffTime(Math.ceil((player.dropBuffExpiry - now) / 1000 / 60)).short);
+        }
+
+        updatedBuffs.forEach((timeStr, i) => {
+            if (timeSpans[i]) timeSpans[i].textContent = timeStr;
+        });
+        return;
+    }
+    lastBuffState = currentState;
+
+    // 移除之前的buff图标
+    Array.from(existingIcons).forEach(el => el.remove());
+
+    const buffs = [];
+
+    // 检查各种buff
+    if (player.xpBuffTripleExpiry && now < player.xpBuffTripleExpiry) {
+        const remaining = Math.ceil((player.xpBuffTripleExpiry - now) / 1000 / 60);
+        const time = formatBuffTime(remaining);
+        buffs.push({ icon: '🔥', name: '三倍经验', timeShort: time.short, timeFull: time.full, color: '#ff6600' });
+    } else if (player.xpBuffExpiry && now < player.xpBuffExpiry) {
+        const remaining = Math.ceil((player.xpBuffExpiry - now) / 1000 / 60);
+        const time = formatBuffTime(remaining);
+        buffs.push({ icon: '⚡', name: '双倍经验', timeShort: time.short, timeFull: time.full, color: '#ffff00' });
     }
 
-    let xpPct = 0;
-    if (player.xpNext > 0) {
-        xpPct = (player.xp / player.xpNext * 100);
-    }
-    document.getElementById('xp-fill').style.width = Math.min(100, xpPct) + '%';
-    document.getElementById('xp-percentage').innerText = xpPct.toFixed(2) + '%';
-    document.getElementById('hud-lvl').innerText = player.lvl;
-
-    updateLabelsPosition();
-    updateHellIndicator();  // 更新地狱模式指示器
-
-    document.querySelectorAll('.skill-btn').forEach(b => b.classList.remove('active'));
-    if (player.activeSkill === 'attack') document.getElementById('skill-attack').classList.add('active');
-    else {
-        const btns = document.querySelectorAll('.skill-btn');
-        if (player.activeSkill === 'fireball') btns[1].classList.add('active');
-        if (player.activeSkill === 'thunder') btns[2].classList.add('active');
-        if (player.activeSkill === 'multishot') btns[3].classList.add('active');
+    if (player.goldBuffExpiry && now < player.goldBuffExpiry) {
+        const remaining = Math.ceil((player.goldBuffExpiry - now) / 1000 / 60);
+        const time = formatBuffTime(remaining);
+        buffs.push({ icon: '💰', name: '双倍金币', timeShort: time.short, timeFull: time.full, color: '#ffd700' });
     }
 
-    const promptEl = document.getElementById('interaction-msg');
-    if (interactionTarget) {
-        promptEl.style.display = 'block';
-        promptEl.innerHTML = `按 [Enter] ${interactionTarget.label}`;
+    if (player.dropBuffExpiry && now < player.dropBuffExpiry) {
+        const remaining = Math.ceil((player.dropBuffExpiry - now) / 1000 / 60);
+        const time = formatBuffTime(remaining);
+        buffs.push({ icon: '🎁', name: '双倍掉落', timeShort: time.short, timeFull: time.full, color: '#88ff88' });
+    }
+
+    // 追加buff图标到天赋HUD
+    buffs.forEach(b => {
+        const icon = document.createElement('div');
+        icon.className = 'buff-hud-icon';
+        icon.style.cssText = `
+            box-sizing: border-box;
+            width: 32px;
+            height: 32px;
+            background: rgba(20, 20, 25, 0.9);
+            border: 2px solid ${b.color};
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            cursor: default;
+            position: relative;
+        `;
+        icon.innerHTML = `${b.icon}<span class="buff-time-text" style="font-size:7px; color:${b.color}; position:absolute; bottom:0px; white-space:nowrap;">${b.timeShort}</span>`;
+
+        // 鼠标悬停显示详细信息
+        icon.addEventListener('mouseenter', (e) => {
+            if (cachedUI.tooltip) {
+                cachedUI.tooltip.innerHTML = `<div style="color:${b.color}; font-weight:bold; margin-bottom:4px;">${b.icon} ${b.name}</div>
+                    <div style="color:#aaa;">剩余时间: ${b.timeFull}</div>`;
+                cachedUI.tooltip.style.display = 'block';
+                cachedUI.tooltip.style.left = (e.clientX + 10) + 'px';
+                cachedUI.tooltip.style.top = (e.clientY + 10) + 'px';
+            }
+        });
+        icon.addEventListener('mouseleave', () => {
+            if (cachedUI.tooltip) cachedUI.tooltip.style.display = 'none';
+        });
+        icon.addEventListener('mousemove', (e) => {
+            if (cachedUI.tooltip) {
+                cachedUI.tooltip.style.left = (e.clientX + 10) + 'px';
+                cachedUI.tooltip.style.top = (e.clientY + 10) + 'px';
+            }
+        });
+        // 阻止点击穿透到游戏画布
+        icon.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+        });
+
+        cachedUI.talentHud.appendChild(icon);
+    });
+}
+
+// 格式化buff剩余时间（短格式用于图标，长格式用于tooltip）
+function formatBuffTime(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+
+    // 短格式（图标显示）
+    let short;
+    if (hours > 0) {
+        short = mins > 0 ? `${hours}h${mins}m` : `${hours}h`;
     } else {
-        promptEl.style.display = 'none';
+        short = `${mins}m`;
     }
 
-    // 更新技能冷却扇形遮罩
-    updateSkillCooldownUI();
+    // 长格式（tooltip显示）
+    let full;
+    if (hours > 0) {
+        full = mins > 0 ? `${hours}小时${mins}分钟` : `${hours}小时`;
+    } else {
+        full = `${mins}分钟`;
+    }
+
+    return { short, full };
 }
 
 // 技能最大冷却时间
@@ -10272,8 +10167,8 @@ function updateSkillCooldownUI() {
     skills.forEach(skill => {
         const cd = player.skillCooldowns[skill];
         const maxCd = SKILL_MAX_CD[skill];
-        const sweepEl = document.getElementById(`cd-sweep-${skill}`);
-        const timeEl = document.getElementById(`cd-time-${skill}`);
+        const sweepEl = cachedUI.cdSweeps[skill];
+        const timeEl = cachedUI.cdTimes[skill];
 
         if (!sweepEl || !timeEl) return;
 
@@ -10337,6 +10232,25 @@ function updateSkillsUI() {
     const thunderCost = getSkillManaCost('thunder', player.skills.thunder);
     const thunderCostEl = document.getElementById('thunder-mana-cost');
     if (thunderCostEl) thunderCostEl.innerText = `法力: ${Math.ceil(thunderCost)}`;
+
+    // 禁用未学习的技能
+    const skills = ['fireball', 'thunder', 'multishot'];
+    const qKeys = ['Q', 'W', 'E'];
+
+    skills.forEach((skill, index) => {
+        const skillBtn = document.getElementById(`skill-${skill}`);
+        if (skillBtn) {
+            if (player.skills[skill] === 0) {
+                // 未学习的技能
+                skillBtn.classList.add('disabled');
+                skillBtn.title = `按 ${qKeys[index]} 学习此技能`;
+            } else {
+                // 已学习的技能
+                skillBtn.classList.remove('disabled');
+                skillBtn.title = '';
+            }
+        }
+    });
 }
 
 function checkLevelUp() {
@@ -10357,7 +10271,7 @@ function checkLevelUp() {
         }
 
         player.xp -= player.xpNext;
-        player.xpNext = Math.floor(player.xpNext * 1.5);
+        player.xpNext = Math.floor(player.xpNext * 1.38);
         player.points += 5;
         player.skillPoints += 1;
         player.maxHp += 10;
@@ -10385,8 +10299,9 @@ function checkLevelUp() {
             OnlineSystem.submitScore({
                 level: player.lvl,
                 kills: player.kills,
-                maxFloor: player.isInHell ? player.hellFloor + 10 : player.floor,
-                isHell: player.isInHell
+                maxFloor: player.isInHell ? (player.maxHellFloor || player.hellFloor) + 10 : player.maxFloor,
+                isHell: player.isInHell,
+                gold: player.gold || 0
             });
         }
     }
@@ -10394,48 +10309,17 @@ function checkLevelUp() {
     SaveSystem.save();
 }
 
-function togglePanel(id) {
-    const panelElement = document.getElementById(id + '-panel');
-    const isOpening = panelElement.style.display !== 'block';
-
-    if (isOpening) {
-        // 打开面板
-        panelElement.style.display = 'block';
-
-        // 使用面板管理器动态调整位置和层级
-        if (panelManager && panelManager.panels[id]) {
-            panelManager.open(id);
-        }
-
-        // 根据面板类型调用相应的UI更新函数
-        const updateFunctions = {
-            'inventory': renderInventory,
-            'skills': updateSkillsUI,
-            'stats': updateStatsUI,
-            'quest': updateQuestUI,
-            'achievements': renderAchievements,
-            'shop': () => { },
-            'stash': () => { },
-            'blacksmith': renderBlacksmithPanel
-        };
-
-        if (updateFunctions[id]) {
-            updateFunctions[id]();
-        }
-    } else {
-        // 关闭面板
-        panelElement.style.display = 'none';
-
-        // 隐藏tooltip，避免残留
-        hideTooltip();
-
-        // 更新面板管理器状态
-        if (panelManager && panelManager.panels[id]) {
-            panelManager.close(id);
-        }
+// togglePanel 已迁移到 ui-panels.js
+function selectSkill(k) {
+    // 检查技能是否已学习
+    if (player.skills[k] === 0) {
+        showNotification(`技能还未学习！打开技能面板(T)升级`);
+        return;
     }
+    player.activeSkill = k;
+    updateUI();
 }
-function selectSkill(k) { player.activeSkill = k; updateUI(); }
+
 function addStat(t) {
     if (player.points > 0) {
         player[t]++;
@@ -10457,101 +10341,292 @@ function upgradeSkill(t) {
 }
 
 
-function isHoveringUI() {
-    if (mouse.y > window.innerHeight - 140) return true;
-    const panels = ['stats-panel', 'inventory-panel', 'skills-panel', 'shop-panel', 'menu-btns', 'quest-panel', 'achievements-panel', 'dialog-box'];
-    for (let id of panels) {
-        const el = document.getElementById(id);
-        if (el && (el.style.display === 'block' || id === 'menu-btns')) {
-            const r = el.getBoundingClientRect();
-            if (mouse.x >= r.left && mouse.x <= r.right && mouse.y >= r.top && mouse.y <= r.bottom) return true;
-        }
-    }
-    return false;
+// isHoveringUI 已迁移到 ui-panels.js
+
+// ========== 物品详情 Tooltip 系统 ==========
+// 长按检测配置
+const LONG_PRESS_DURATION = 400; // 400ms 触发长按
+let longPressTimer = null;
+let tooltipLocked = false;  // tooltip 是否被锁定（手机长按后锁定，需要手动关闭）
+
+// 属性key到标签的映射
+function getStatLabel(k) {
+    const map = {
+        str: "力量", dex: "敏捷", vit: "体力", ene: "能量", def: "防御",
+        maxHp: "生命", maxMp: "法力", hp: "生命", mp: "法力",
+        lifeSteal: "吸血%", attackSpeed: "攻速%", critChance: "暴击%", critDamage: "暴伤%",
+        dmgPct: "伤害%", allSkills: "技能",
+        fireRes: "火抗", coldRes: "冰抗", lightningRes: "电抗", poisonRes: "毒抗", allRes: "全抗",
+        fireDmg: "火伤", coldDmg: "冰伤", lightningDmg: "电伤", poisonDmg: "毒伤",
+        hpRegen: "生命/秒", mpRegen: "法力%", blockChance: "格挡%",
+        reflectDamage: "反伤%", damageReduction: "减伤%",
+        armorPierce: "穿透%", knockback: "击退%", slow: "减速%",
+        doubleHit: "连击%", attackRating: "命中", magicFind: "MF%"
+    };
+    return map[k] || k;
 }
 
-function showTooltip(item, e) {
-    const tt = document.getElementById('tooltip'); tt.style.display = 'block'; tt.style.left = (e.clientX + 15) + 'px'; tt.style.top = (e.clientY + 15) + 'px';
-    let html = `<div class="tooltip-title" style="color:${getItemColor(item.rarity)}">${item.displayName || item.name}</div><div class="tooltip-type">${item.type}</div>`;
+// 生成单个物品的属性 HTML（用于对比视图的单列）
+function generateItemStatsHTML(item) {
+    let lines = [];
 
-    // 如果是套装物品，显示套装名称
-    if (item.setId && SET_ITEMS[item.setId]) {
-        html += `<div style="color:${COLORS.setGreen}; font-size:12px; margin-top:3px;">${SET_ITEMS[item.setId].name}</div>`;
+    if (item.minDmg) {
+        const avg = Math.floor((item.minDmg + item.maxDmg) / 2);
+        lines.push({ label: '伤害', value: avg, display: `${item.minDmg}-${item.maxDmg}` });
     }
-
-    if (item.quantity > 1) html += `<div class="tooltip-stat">数量: ${item.quantity}</div>`;
-    if (item.minDmg) html += `<div class="tooltip-stat">伤害: ${item.minDmg}-${item.maxDmg}</div>`;
-    if (item.def) html += `<div class="tooltip-stat">防御: ${item.def}</div>`;
-    if (item.heal) html += `<div class="tooltip-stat" style="color:#d00">恢复: ${item.heal}</div>`;
+    if (item.def) {
+        lines.push({ label: '防御', value: item.def, display: `+${item.def}` });
+    }
     if (item.stats) {
         for (let [k, v] of Object.entries(item.stats)) {
-            let label = k;
-            if (k === 'str') label = "力量";
-            if (k === 'dex') label = "敏捷";
-            if (k === 'vit') label = "体力";
-            if (k === 'ene') label = "能量";
-            if (k === 'def') label = "防御";
-            if (k === 'lifeSteal') label = "%吸血";
-            if (k === 'attackSpeed') label = "%攻速";
-            if (k === 'dmgPct') label = "%伤害";
-            if (k === 'allSkills') label = "所有技能";
-            if (k === 'allRes') label = "全抗性";
-            if (k === 'fireDmg') label = "火焰伤害";
-            if (k === 'lightningDmg') label = "闪电伤害";
-            if (k === 'mpRegen') label = "法力恢复";
-            if (k === 'hpRegen') label = "生命恢复";
-            if (k === 'critDamage') label = "%暴击伤害";
-            html += `<div class="tooltip-stat" style="color:#4850b8">+${v} ${label}</div>`;
+            lines.push({ label: getStatLabel(k), value: v, display: `+${v}`, key: k });
         }
     }
-
-    // 显示套装加成
-    if (item.setId && SET_ITEMS[item.setId]) {
-        const setData = SET_ITEMS[item.setId];
-        const equippedCount = player.equippedSets[item.setId] || 0;
-        const totalPieces = Object.keys(setData.pieces).length;
-
-        html += `<div style="margin-top:8px; border-top:1px solid #20ff20; padding-top:5px;">`;
-        html += `<div style="color:${COLORS.setGreen}; font-size:11px; margin-bottom:5px;">套装加成 (${equippedCount}/${totalPieces}):</div>`;
-
-        // 显示所有套装加成（已激活的高亮显示）
-        for (let requiredPieces in setData.bonuses) {
-            const isActive = equippedCount >= parseInt(requiredPieces);
-            const color = isActive ? COLORS.setGreen : '#666';
-            const bonus = setData.bonuses[requiredPieces];
-            html += `<div style="color:${color}; font-size:11px;">(${requiredPieces}) ${bonus.desc}</div>`;
-        }
-
-        html += `</div>`;
-    }
-
-    // 显示装备需求
-    if (item.requirements) {
-        const req = item.requirements;
-        html += `<div style="margin-top:5px; border-top:1px solid #444; padding-top:5px;"><div style="color:#888; font-size:11px; margin-bottom:3px;">需求:</div>`;
-
-        if (req.level) {
-            const meetsReq = player.lvl >= req.level;
-            const color = meetsReq ? '#aaa' : '#ff4444';
-            html += `<div class="tooltip-stat" style="color:${color}">等级 ${req.level}</div>`;
-        }
-        if (req.str) {
-            const meetsReq = player.str >= req.str;
-            const color = meetsReq ? '#aaa' : '#ff4444';
-            html += `<div class="tooltip-stat" style="color:${color}">力量 ${req.str}</div>`;
-        }
-        if (req.dex) {
-            const meetsReq = player.dex >= req.dex;
-            const color = meetsReq ? '#aaa' : '#ff4444';
-            html += `<div class="tooltip-stat" style="color:${color}">敏捷 ${req.dex}</div>`;
-        }
-
-        html += `</div>`;
-    }
-
-    tt.innerHTML = html;
+    return lines;
 }
-function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
+
+// 生成 tooltip 内容（统一的内容生成函数，支持装备对比）
+function generateTooltipHTML(item, showCloseBtn = false) {
+    // 查找身上对应部位的装备
+    let slot = null;
+    if (item.type === 'weapon') slot = 'mainhand';
+    else if (item.type === 'armor') slot = 'body';
+    else if (item.type === 'ring') slot = 'ring';
+    else if (item.type === 'helm') slot = 'helm';
+    else if (item.type === 'gloves') slot = 'gloves';
+    else if (item.type === 'boots') slot = 'boots';
+    else if (item.type === 'belt') slot = 'belt';
+    else if (item.type === 'amulet') slot = 'amulet';
+
+    const equipped = slot ? player.equipment[slot] : null;
+    const isComparing = equipped && item !== equipped;
+
+    let html = '';
+
+    // 关闭按钮（手机端用）
+    if (showCloseBtn) {
+        html += `<div class="tooltip-close" onclick="hideTooltip()">×</div>`;
+    }
+
+    // ========== 对比模式：两列并排 ==========
+    if (isComparing) {
+        html += `<div class="tooltip-compare">`;
+
+        // 左列：查看中的物品
+        html += `<div class="tooltip-col tooltip-col-left">`;
+        html += `<div class="tooltip-col-header">查看中</div>`;
+        html += `<div class="tooltip-title" style="color:${getItemColor(item.rarity)}">${item.displayName || item.name}</div>`;
+        if (item.setId && SET_ITEMS[item.setId]) {
+            html += `<div style="color:${COLORS.setGreen}; font-size:10px;">${SET_ITEMS[item.setId].name}</div>`;
+        }
+
+        const itemStats = generateItemStatsHTML(item);
+        const equippedStats = generateItemStatsHTML(equipped);
+
+        // 合并所有属性标签
+        const allLabels = new Set();
+        itemStats.forEach(s => allLabels.add(s.label));
+        equippedStats.forEach(s => allLabels.add(s.label));
+
+        // 左列属性（带差值显示）
+        for (let label of allLabels) {
+            const stat = itemStats.find(s => s.label === label);
+            const eqStat = equippedStats.find(s => s.label === label);
+            if (stat) {
+                let diffClass = '';
+                let diffText = '';
+                if (eqStat) {
+                    const diff = stat.value - eqStat.value;
+                    if (diff > 0) {
+                        diffClass = 'stat-better';
+                        diffText = ` <span class="stat-diff">(+${diff})</span>`;
+                    } else if (diff < 0) {
+                        diffClass = 'stat-worse';
+                        diffText = ` <span class="stat-diff">(${diff})</span>`;
+                    }
+                } else {
+                    diffClass = 'stat-better';  // 对方没有，我有，更好
+                    diffText = ` <span class="stat-diff">(+${stat.value})</span>`;
+                }
+                html += `<div class="tooltip-stat ${diffClass}">${stat.display} ${label}${diffText}</div>`;
+            } else {
+                // 我没有，对方有
+                const eqVal = eqStat ? eqStat.value : 0;
+                html += `<div class="tooltip-stat stat-worse">- ${label} <span class="stat-diff">(-${eqVal})</span></div>`;
+            }
+        }
+        html += `</div>`;
+
+        // 右列：已装备的物品
+        html += `<div class="tooltip-col tooltip-col-right">`;
+        html += `<div class="tooltip-col-header">已装备</div>`;
+        html += `<div class="tooltip-title" style="color:${getItemColor(equipped.rarity)}">${equipped.displayName || equipped.name}</div>`;
+        if (equipped.setId && SET_ITEMS[equipped.setId]) {
+            html += `<div style="color:${COLORS.setGreen}; font-size:10px;">${SET_ITEMS[equipped.setId].name}</div>`;
+        }
+
+        // 右列属性
+        for (let label of allLabels) {
+            const stat = itemStats.find(s => s.label === label);
+            const eqStat = equippedStats.find(s => s.label === label);
+            if (eqStat) {
+                html += `<div class="tooltip-stat">${eqStat.display} ${label}</div>`;
+            } else {
+                html += `<div class="tooltip-stat stat-missing">- ${label}</div>`;
+            }
+        }
+        html += `</div>`;
+
+        html += `</div>`;  // .tooltip-compare
+
+        // 装备需求（放在对比区域下方）
+        if (item.requirements) {
+            const req = item.requirements;
+            html += `<div class="tooltip-req">`;
+            if (req.level) {
+                const ok = player.lvl >= req.level;
+                html += `<span style="color:${ok ? '#888' : '#f44'}">Lv${req.level}</span> `;
+            }
+            if (req.str) {
+                const ok = player.str >= req.str;
+                html += `<span style="color:${ok ? '#888' : '#f44'}">力${req.str}</span> `;
+            }
+            if (req.dex) {
+                const ok = player.dex >= req.dex;
+                html += `<span style="color:${ok ? '#888' : '#f44'}">敏${req.dex}</span>`;
+            }
+            html += `</div>`;
+        }
+
+    } else {
+        // ========== 普通模式：单列显示 ==========
+        html += `<div class="tooltip-title" style="color:${getItemColor(item.rarity)}">${item.displayName || item.name}</div>`;
+        html += `<div class="tooltip-type">${item.type.toUpperCase()}</div>`;
+
+        if (item.setId && SET_ITEMS[item.setId]) {
+            html += `<div style="color:${COLORS.setGreen}; font-size:12px; margin-top:3px;">${SET_ITEMS[item.setId].name}</div>`;
+        }
+
+        if (item.quantity > 1) html += `<div class="tooltip-stat">数量: ${item.quantity}</div>`;
+        if (item.minDmg) html += `<div class="tooltip-stat">伤害: ${item.minDmg}-${item.maxDmg}</div>`;
+        if (item.def) html += `<div class="tooltip-stat">防御: +${item.def}</div>`;
+        if (item.heal) html += `<div class="tooltip-stat" style="color:#d00">恢复: ${item.heal}</div>`;
+
+        if (item.stats) {
+            for (let [k, v] of Object.entries(item.stats)) {
+                html += `<div class="tooltip-stat" style="color:#4850b8">+${v} ${getStatLabel(k)}</div>`;
+            }
+        }
+
+        // 套装加成
+        if (item.setId && SET_ITEMS[item.setId]) {
+            const setData = SET_ITEMS[item.setId];
+            const equippedCount = player.equippedSets[item.setId] || 0;
+            const totalPieces = Object.keys(setData.pieces).length;
+
+            html += `<div style="margin-top:8px; border-top:1px solid #20ff20; padding-top:5px;">`;
+            html += `<div style="color:${COLORS.setGreen}; font-size:11px; margin-bottom:5px;">套装 (${equippedCount}/${totalPieces}):</div>`;
+            for (let req in setData.bonuses) {
+                const active = equippedCount >= parseInt(req);
+                html += `<div style="color:${active ? COLORS.setGreen : '#666'}; font-size:11px;">(${req}) ${setData.bonuses[req].desc}</div>`;
+            }
+            html += `</div>`;
+        }
+
+        // 装备需求
+        if (item.requirements) {
+            const req = item.requirements;
+            html += `<div style="margin-top:5px; border-top:1px solid #444; padding-top:5px; color:#888; font-size:11px;">`;
+            if (req.level) {
+                const ok = player.lvl >= req.level;
+                html += `<span style="color:${ok ? '#888' : '#f44'}">等级${req.level}</span> `;
+            }
+            if (req.str) {
+                const ok = player.str >= req.str;
+                html += `<span style="color:${ok ? '#888' : '#f44'}">力量${req.str}</span> `;
+            }
+            if (req.dex) {
+                const ok = player.dex >= req.dex;
+                html += `<span style="color:${ok ? '#888' : '#f44'}">敏捷${req.dex}</span>`;
+            }
+            html += `</div>`;
+        }
+    }
+
+    return html;
+}
+
+// 显示 tooltip（电脑端 hover 用，跟随鼠标）
+function showTooltip(item, e) {
+    if (tooltipLocked || !cachedUI.tooltip) return;  // 如果被锁定（手机长按中），不响应 hover
+
+    const tt = cachedUI.tooltip;
+    tt.style.display = 'block';
+    tt.style.transform = 'none';  // 重置 transform
+
+    // 边缘检测防止溢出屏幕
+    let left = e.clientX + 15;
+    let top = e.clientY + 15;
+    if (left + 250 > window.innerWidth) left = e.clientX - 265;
+    if (top + 200 > window.innerHeight) top = e.clientY - 200;
+
+    tt.style.left = left + 'px';
+    tt.style.top = top + 'px';
+    tt.innerHTML = generateTooltipHTML(item, false);
+}
+
+// 显示 tooltip（手机端长按用，居中显示）
+function showTooltipAtCenter(item) {
+    if (!cachedUI.tooltip) return;
+    const tt = cachedUI.tooltip;
+    tt.style.display = 'block';
+    tt.style.left = '50%';
+    tt.style.top = '35%';
+    tt.style.transform = 'translate(-50%, -50%)';
+    tt.classList.add('locked');  // 允许点击关闭按钮
+    tt.innerHTML = generateTooltipHTML(item, true);
+    tooltipLocked = true;
+}
+
+// 隐藏 tooltip
+function hideTooltip() {
+    if (!cachedUI.tooltip) return;
+    const tt = cachedUI.tooltip;
+    tt.style.display = 'none';
+    tt.style.transform = 'none';
+    tt.classList.remove('locked');
+    tooltipLocked = false;
+    clearTimeout(longPressTimer);
+}
+
+// 绑定物品 tooltip 事件（统一绑定函数，同时支持电脑 hover 和手机长按）
+function bindItemTooltip(element, item) {
+    // 电脑端：hover
+    element.onmouseenter = (e) => showTooltip(item, e);
+    element.onmouseleave = () => { if (!tooltipLocked) hideTooltip(); };
+
+    // 手机端：长按
+    element.ontouchstart = (e) => {
+        clearTimeout(longPressTimer);
+        longPressTimer = setTimeout(() => {
+            e.preventDefault();
+            showTooltipAtCenter(item);
+        }, LONG_PRESS_DURATION);
+    };
+    element.ontouchend = element.ontouchcancel = () => {
+        clearTimeout(longPressTimer);
+    };
+    element.ontouchmove = () => {
+        clearTimeout(longPressTimer);  // 移动时取消长按
+    };
+}
+
+// 点击其他区域关闭 tooltip（手机端用）
+document.addEventListener('touchstart', (e) => {
+    if (tooltipLocked && !e.target.closest('#tooltip')) {
+        hideTooltip();
+    }
+}, { passive: true });
 
 // Input
 window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
@@ -10571,9 +10646,175 @@ window.addEventListener('mouseup', e => {
     }
 });
 window.addEventListener('contextmenu', e => e.preventDefault());
+
+// ============= 移动端触摸事件映射 =============
+const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || ('ontouchstart' in window);
+
+// 触摸状态管理
+const touchState = {
+    activeTouchId: null,      // 当前活动的触摸ID
+    startX: 0,                // 触摸起始X
+    startY: 0,                // 触摸起始Y
+    startTime: 0,             // 触摸起始时间
+    isTap: false,             // 是否为点击（非滑动）
+    isLongPress: false,       // 是否为长按
+    longPressTimer: null,     // 长按检测定时器
+    lastTapTime: 0,           // 上次点击时间（用于双击检测）
+    TAP_THRESHOLD: 10,        // 位移阈值：小于此值认为是点击
+    LONG_PRESS_DELAY: 500     // 长按触发时间（毫秒）
+};
+
+// 获取canvas相对于视口的位置
+function getTouchPosition(touch) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: touch.clientX,
+        y: touch.clientY,
+        // 相对于canvas的位置（如果需要）
+        canvasX: touch.clientX - rect.left,
+        canvasY: touch.clientY - rect.top
+    };
+}
+
+// 触摸开始
+function handleTouchStart(e) {
+    // 检查是否点击在UI元素上
+    if (e.target !== canvas && !e.target.closest('#gameCanvas')) {
+        return; // 允许UI元素正常处理触摸
+    }
+
+    e.preventDefault();
+
+    const touch = e.changedTouches[0];
+    const pos = getTouchPosition(touch);
+
+    touchState.activeTouchId = touch.identifier;
+    touchState.startX = pos.x;
+    touchState.startY = pos.y;
+    touchState.startTime = Date.now();
+    touchState.isTap = true;
+    touchState.isLongPress = false;
+
+    // 更新鼠标位置（触摸映射）
+    mouse.x = pos.x;
+    mouse.y = pos.y;
+    mouse.leftDown = true;
+    mouse.leftClick = true;
+
+    // 尝试启动BGM
+    AudioSys.tryAutoStartBGM();
+
+    // 设置长按检测
+    clearTimeout(touchState.longPressTimer);
+    touchState.longPressTimer = setTimeout(() => {
+        if (touchState.isTap && touchState.activeTouchId !== null) {
+            touchState.isLongPress = true;
+            // 长按行为：释放当前技能（模拟右键）
+            castSkill(player.activeSkill);
+            advanceTutorial(6);
+        }
+    }, touchState.LONG_PRESS_DELAY);
+}
+
+// 触摸移动
+function handleTouchMove(e) {
+    if (touchState.activeTouchId === null) return;
+
+    e.preventDefault();
+
+    // 找到匹配的触摸点
+    let touch = null;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === touchState.activeTouchId) {
+            touch = e.changedTouches[i];
+            break;
+        }
+    }
+    if (!touch) return;
+
+    const pos = getTouchPosition(touch);
+
+    // 检查移动距离，判断是否仍为点击
+    const dx = pos.x - touchState.startX;
+    const dy = pos.y - touchState.startY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > touchState.TAP_THRESHOLD) {
+        touchState.isTap = false;
+        clearTimeout(touchState.longPressTimer);
+    }
+
+    // 更新鼠标位置
+    mouse.x = pos.x;
+    mouse.y = pos.y;
+}
+
+// 触摸结束
+function handleTouchEnd(e) {
+    e.preventDefault();
+
+    // 找到匹配的触摸点
+    let touch = null;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === touchState.activeTouchId) {
+            touch = e.changedTouches[i];
+            break;
+        }
+    }
+
+    clearTimeout(touchState.longPressTimer);
+
+    if (touch) {
+        const pos = getTouchPosition(touch);
+        mouse.x = pos.x;
+        mouse.y = pos.y;
+
+        // 双击检测（用于技能释放）
+        const now = Date.now();
+        if (touchState.isTap && now - touchState.lastTapTime < 300) {
+            // 双击：释放技能
+            castSkill(player.activeSkill);
+            advanceTutorial(6);
+        }
+        touchState.lastTapTime = now;
+    }
+
+    // 重置状态
+    mouse.leftDown = false;
+    mouse.leftClick = false;
+    touchState.activeTouchId = null;
+}
+
+// 触摸取消
+function handleTouchCancel(e) {
+    clearTimeout(touchState.longPressTimer);
+    mouse.leftDown = false;
+    mouse.leftClick = false;
+    touchState.activeTouchId = null;
+}
+
+// 绑定触摸事件到canvas
+if (isMobileDevice) {
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', handleTouchCancel, { passive: false });
+
+    // 移动端样式优化
+    document.body.style.touchAction = 'none';  // 禁用默认手势
+    document.body.style.userSelect = 'none';   // 禁用文本选择
+    document.body.style.webkitUserSelect = 'none';
+    document.body.style.webkitTouchCallout = 'none';
+
+    console.log('📱 移动端触摸控制已启用');
+}
+
 window.addEventListener('keydown', e => {
     // 任何键盘交互时尝试自动启动BGM
     AudioSys.tryAutoStartBGM();
+
+    // 聊天输入框聚焦时，禁用游戏快捷键
+    if (window.chatInputFocused) return;
 
     // Alt键控制物品过滤显示
     if (e.key === 'Alt') {
@@ -10596,62 +10837,80 @@ window.addEventListener('keydown', e => {
     if (e.key === '3') useQuickItem('scroll');
 
     if (e.key === 'Enter') {
-        if (interactionTarget) {
-            if (interactionTarget.type === 'next') {
-                const isInHell = player.isInHell || false;
-                if (isInHell) {
-                    // 在地狱中，进入下一层（先显示天赋商店）
-                    if (player.hellFloor < 10) {
-                        showTalentShop(player.hellFloor + 1, true);
-                    }
-                } else {
-                    // 普通地牢，进入下一层（先显示天赋商店）
-                    showTalentShop(player.floor + 1, false);
-                }
-            }
-            else if (interactionTarget.type === 'prev') {
-                const isInHell = player.isInHell || false;
-                if (isInHell) {
-                    // 在地狱中
-                    if (player.hellFloor === 1) {
-                        // 地狱第1层，返回营地
-                        exitHell();
-                    } else {
-                        // 返回上一层地狱
-                        enterFloor(player.hellFloor - 1, 'end');
-                    }
-                } else {
-                    // 普通地牢，返回上一层
-                    enterFloor(player.floor - 1, 'end');
-                }
-            }
-            else if (interactionTarget.type === 'portal') {
-                if (player.floor === 0) {
-                    // 从罗格营地返回地牢时
-                    if (townPortal) {
-                        const safeDungeonPos = validateAndFixDungeonPortalPosition(townPortal.x, townPortal.y);
-                        townPortal.x = safeDungeonPos.x;
-                        townPortal.y = safeDungeonPos.y;
-                    }
-                    // 检查是否需要选择层数
-                    if (player.lastFloor > 0 && player.maxFloor > 0 && player.lastFloor !== player.maxFloor) {
-                        // 显示选择对话框
-                        showPortalFloorChoice(player.lastFloor, player.maxFloor);
-                    } else {
-                        // 直接传送（lastFloor 和 maxFloor 相同，或只有一个有效）
-                        // 优先级：lastFloor > maxFloor > townPortal.returnFloor
-                        const targetFloor = player.lastFloor > 0 ? player.lastFloor :
-                            (player.maxFloor > 0 ? player.maxFloor : townPortal.returnFloor);
-                        enterFloor(targetFloor, 'portal');
-                    }
-                }
-                else enterFloor(0, 'portal');
-            }
-        } else {
-            showNotification("附近没有可互动的目标");
-        }
+        handleInteraction();
     }
 });
+
+// 检测鼠标是否点击在交互目标（出口/入口/传送门）上
+function isClickOnInteraction() {
+    const clickRange = 25; // 点击判定范围
+    // 检测出口
+    if (Math.hypot(mouse.worldX - dungeonExit.x, mouse.worldY - dungeonExit.y) < clickRange) return true;
+    // 检测入口
+    if (Math.hypot(mouse.worldX - dungeonEntrance.x, mouse.worldY - dungeonEntrance.y) < clickRange) return true;
+    // 检测传送门（使用显示位置）
+    if (townPortal && townPortal.activeFloor === player.floor) {
+        const portalPos = getPortalDisplayPosition();
+        if (portalPos && Math.hypot(mouse.worldX - portalPos.x, mouse.worldY - portalPos.y) < clickRange) return true;
+    }
+    return false;
+}
+
+// 处理交互（进入出口/入口/传送门）
+function handleInteraction() {
+    if (!interactionTarget) return false;
+    if (interactionTarget.type === 'next') {
+        const isInHell = player.isInHell || false;
+        if (isInHell) {
+            // 深渊模式：无限楼层，每层免费选天赋
+            if (typeof AbyssSystem !== 'undefined' && AbyssSystem.isActive) {
+                showTalentShop(player.hellFloor + 1, true, true);
+            }
+            // 兼容旧地狱模式逻辑（如果有的话）
+            else if (player.hellFloor < 10) {
+                showTalentShop(player.hellFloor + 1, true);
+            } else {
+                // 旧地狱超过10层直接进入
+                enterFloor(player.hellFloor + 1, 'start');
+            }
+        } else {
+            showTalentShop(player.floor + 1, false);
+        }
+    }
+    else if (interactionTarget.type === 'prev') {
+        const isInHell = player.isInHell || false;
+        if (isInHell) {
+            if (player.hellFloor === 1) {
+                exitHell();
+            } else {
+                enterFloor(player.hellFloor - 1, 'end');
+            }
+        } else {
+            enterFloor(player.floor - 1, 'end');
+        }
+    }
+    else if (interactionTarget.type === 'portal') {
+        if (player.floor === 0) {
+            if (townPortal) {
+                const safeDungeonPos = validateAndFixDungeonPortalPosition(townPortal.x, townPortal.y);
+                townPortal.x = safeDungeonPos.x;
+                townPortal.y = safeDungeonPos.y;
+            }
+            if (player.maxFloor > 2) {
+                // 有多个选项时显示选择界面
+                showPortalFloorChoice(player.lastFloor || player.maxFloor, player.maxFloor);
+            } else if (player.maxFloor === 2) {
+                // 只有第2层可选，直接进入
+                enterFloor(2, 'portal');
+            } else {
+                // maxFloor <= 1，直接进入1层
+                enterFloor(1, 'portal');
+            }
+        }
+        else enterFloor(0, 'portal');
+    }
+    return true;
+}
 
 // Alt键释放时恢复物品过滤
 window.addEventListener('keyup', e => {
@@ -10663,7 +10922,11 @@ window.addEventListener('keyup', e => {
 
 // Prevent move on UI clicks
 document.querySelectorAll('.sys-btn, .skill-btn, .stat-btn, .gamble-slot, .equip-slot, .bag-slot, .panel, .belt-slot').forEach(el => {
-    el.onmousedown = (e) => e.stopPropagation();
+    el.onmousedown = (e) => {
+        // 如果点击的是面板标题逻辑（.panel-header），允许它冒泡到 document 处理拖拽
+        if (e.target.closest('.panel-header')) return;
+        e.stopPropagation();
+    };
 });
 
 // --- Dragging Logic ---
@@ -10672,43 +10935,96 @@ function initDragging() {
     let dragOffsetX = 0;
     let dragOffsetY = 0;
 
-    document.querySelectorAll('.panel-header').forEach(header => {
-        header.onmousedown = function (e) {
+    function startDrag(header, clientX, clientY) {
+        dragObj = header.parentElement;
+        if (typeof panelManager !== 'undefined') {
+            // 如果是面板管理器管理的面板，同步层级
+            const entry = Object.entries(panelManager.panels).find(([k, p]) => p.id === dragObj.id);
+            if (entry) panelManager.bringToFront(entry[0]);
+        }
+        // 确保深渊等动态面板也能在最前
+        if (parseInt(dragObj.style.zIndex) < 2000) {
+            dragObj.style.zIndex = 2500;
+        }
+
+        const rect = dragObj.getBoundingClientRect();
+        dragObj.style.left = rect.left + 'px';
+        dragObj.style.top = rect.top + 'px';
+        dragObj.style.transform = 'none';
+
+        dragOffsetX = clientX - rect.left;
+        dragOffsetY = clientY - rect.top;
+    }
+
+    function moveDrag(clientX, clientY) {
+        if (!dragObj) return;
+        // 边界检测
+        const maxX = window.innerWidth - 50;
+        const maxY = window.innerHeight - 50;
+        const newX = Math.max(0, Math.min(clientX - dragOffsetX, maxX));
+        const newY = Math.max(0, Math.min(clientY - dragOffsetY, maxY));
+        dragObj.style.left = newX + 'px';
+        dragObj.style.top = newY + 'px';
+    }
+
+    function endDrag() {
+        dragObj = null;
+    }
+
+    // 使用事件委托实现拖拽，支持动态生成的面板（如深渊面板）
+    document.addEventListener('mousedown', function (e) {
+        if (window.innerWidth < 768) return;
+        const header = e.target.closest('.panel-header');
+        if (header) {
             e.preventDefault();
             e.stopPropagation();
-
-            dragObj = header.parentElement;
-
-            document.querySelectorAll('.panel').forEach(p => p.style.zIndex = 60);
-            dragObj.style.zIndex = 61;
-
-            const rect = dragObj.getBoundingClientRect();
-            dragObj.style.left = rect.left + 'px';
-            dragObj.style.top = rect.top + 'px';
-            dragObj.style.transform = 'none';
-
-            dragOffsetX = e.clientX - rect.left;
-            dragOffsetY = e.clientY - rect.top;
-        };
-    });
-
-    document.addEventListener('mousemove', function (e) {
-        if (dragObj) {
-            e.preventDefault();
-            dragObj.style.left = (e.clientX - dragOffsetX) + 'px';
-            dragObj.style.top = (e.clientY - dragOffsetY) + 'px';
+            startDrag(header, e.clientX, e.clientY);
         }
     });
 
-    document.addEventListener('mouseup', function () {
-        dragObj = null;
+    document.addEventListener('touchstart', function (e) {
+        if (window.innerWidth < 768) return;
+        const header = e.target.closest('.panel-header');
+        if (header) {
+            e.preventDefault();
+            e.stopPropagation();
+            const touch = e.touches[0];
+            startDrag(header, touch.clientX, touch.clientY);
+        }
+    }, { passive: false });
+
+    // 鼠标移动
+    document.addEventListener('mousemove', function (e) {
+        if (dragObj) {
+            e.preventDefault();
+            moveDrag(e.clientX, e.clientY);
+        }
     });
+
+    // 触摸移动（小屏幕禁用）
+    document.addEventListener('touchmove', function (e) {
+        if (window.innerWidth < 768) return;
+        if (dragObj) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            moveDrag(touch.clientX, touch.clientY);
+        }
+    }, { passive: false });
+
+    // 鼠标释放
+    document.addEventListener('mouseup', endDrag);
+    // 触摸结束
+    document.addEventListener('touchend', endDrag);
+    document.addEventListener('touchcancel', endDrag);
 }
 
 function updateMenuIndicators() {
-    document.getElementById('badge-stats').style.display = player.points > 0 ? 'block' : 'none';
-    document.getElementById('badge-skills').style.display = player.skillPoints > 0 ? 'block' : 'none';
-    document.getElementById('badge-quest').style.display = player.questState === 2 ? 'block' : 'none';
+    if (cachedUI.badges.stats) cachedUI.badges.stats.style.display = player.points > 0 ? 'block' : 'none';
+    if (cachedUI.badges.skills) cachedUI.badges.skills.style.display = player.skillPoints > 0 ? 'block' : 'none';
+    // 任务红点：主线任务完成 或 每日任务有可领取奖励
+    const hasMainQuestReward = player.questState === 2;
+    const hasDailyQuestReward = typeof DailyQuestSystem !== 'undefined' && DailyQuestSystem.hasClaimableReward();
+    if (cachedUI.badges.quest) cachedUI.badges.quest.style.display = (hasMainQuestReward || hasDailyQuestReward) ? 'block' : 'none';
 }
 
 // 在物品槽位上显示卖出提示
@@ -10756,159 +11072,17 @@ function showSellTooltip(idx, val) {
     }, 2000);
 }
 
-// 修复：恢复智能对比 Tooltip
-function showTooltip(item, e) {
-    const tt = document.getElementById('tooltip');
-    tt.style.display = 'block';
-
-    // 边缘检测防止溢出屏幕
-    let left = e.clientX + 15;
-    let top = e.clientY + 15;
-    if (left + 250 > window.innerWidth) left = e.clientX - 265;
-    if (top + 200 > window.innerHeight) top = e.clientY - 200;
-
-    tt.style.left = left + 'px';
-    tt.style.top = top + 'px';
-
-    // 查找身上对应部位的装备
-    let slot = null;
-    // 简单的类型映射，与 useOrEquipItem 逻辑一致
-    if (item.type === 'weapon') slot = 'mainhand';
-    else if (item.type === 'armor') slot = 'body';
-    else if (item.type === 'ring') slot = 'ring';
-    else if (item.type === 'helm') slot = 'helm';
-    else if (item.type === 'gloves') slot = 'gloves';
-    else if (item.type === 'boots') slot = 'boots';
-    else if (item.type === 'belt') slot = 'belt';
-    else if (item.type === 'amulet') slot = 'amulet';
-
-    const equipped = slot ? player.equipment[slot] : null;
-    // 只有当物品在背包或商店，且身上有装备时才显示对比，避免悬停身上装备时自己比自己
-    const isComparing = equipped && item !== equipped;
-
-    const diffSpan = (val, eqVal) => {
-        if (!isComparing || eqVal === undefined) return "";
-        const diff = val - eqVal;
-        if (diff > 0) return ` <span style="color:#00ff00; font-size:0.9em;">(+${diff})</span>`;
-        if (diff < 0) return ` <span style="color:#ff4444; font-size:0.9em;">(${diff})</span>`;
-        return "";
-    };
-
-    let html = `<div class="tooltip-title" style="color:${getItemColor(item.rarity)}">${item.displayName || item.name}</div><div class="tooltip-type">${item.type.toUpperCase()}</div>`;
-
-    if (item.quantity > 1) html += `<div class="tooltip-stat">数量: ${item.quantity}</div>`;
-
-    if (item.minDmg) {
-        // 计算平均伤害差异
-        let dmgDiff = "";
-        if (isComparing && equipped.minDmg) {
-            const avg = (item.minDmg + item.maxDmg) / 2;
-            const eqAvg = (equipped.minDmg + equipped.maxDmg) / 2;
-            const d = Math.floor(avg - eqAvg);
-            if (d > 0) dmgDiff = ` <span style="color:#00ff00; font-size:0.9em;">(均伤 +${d})</span>`;
-            if (d < 0) dmgDiff = ` <span style="color:#ff4444; font-size:0.9em;">(均伤 ${d})</span>`;
-        }
-        html += `<div class="tooltip-stat">伤害: ${item.minDmg}-${item.maxDmg}${dmgDiff}</div>`;
-    }
-
-    if (item.def) html += `<div class="tooltip-stat">防御: ${item.def}${diffSpan(item.def, equipped ? equipped.def : 0)}</div>`;
-    if (item.heal) html += `<div class="tooltip-stat" style="color:#d00">恢复: ${item.heal}</div>`;
-
-    if (item.stats) {
-        for (let [k, v] of Object.entries(item.stats)) {
-            let label = k;
-            let color = '#4850b8';  // 默认蓝色
-            let prefix = '+';
-            let elementClass = '';  // 元素高亮 class
-
-            // 基础属性
-            if (k === 'str') label = "力量";
-            else if (k === 'dex') label = "敏捷";
-            else if (k === 'vit') label = "体力";
-            else if (k === 'ene') label = "能量";
-            else if (k === 'def') label = "防御";
-            else if (k === 'maxHp') { label = "最大生命"; color = '#ff4444'; }
-            else if (k === 'maxMp' || k === 'mp') { label = "最大法力"; color = '#4444ff'; }
-            else if (k === 'hp') { label = "生命"; color = '#ff4444'; }
-            else if (k === 'lifeSteal') label = "%吸血";
-            else if (k === 'attackSpeed') label = "%攻速";
-            else if (k === 'critChance') { label = "%暴击率"; color = '#ffff00'; }
-            else if (k === 'dmgPct') label = "%伤害";
-            else if (k === 'allSkills') label = "所有技能";
-
-            // 抗性类
-            else if (k === 'fireRes') { label = "🔥火焰抗性"; color = '#ff6644'; elementClass = 'fire-stat'; }
-            else if (k === 'coldRes') { label = "❄️冰霜抗性"; color = '#4488ff'; elementClass = 'cold-stat'; }
-            else if (k === 'lightningRes') { label = "⚡闪电抗性"; color = '#ffff44'; elementClass = 'lightning-stat'; }
-            else if (k === 'poisonRes') { label = "☠️毒素抗性"; color = '#44ff44'; elementClass = 'poison-stat'; }
-            else if (k === 'allRes') { label = "所有抗性"; color = '#ffaa44'; }
-
-            // 元素伤害
-            else if (k === 'fireDmg') { label = "火焰伤害"; color = '#ff4400'; elementClass = 'fire-stat'; }
-            else if (k === 'lightningDmg') { label = "闪电伤害"; color = '#ffff00'; elementClass = 'lightning-stat'; }
-            else if (k === 'poisonDmg') { label = "毒素伤害"; color = '#00ff00'; elementClass = 'poison-stat'; }
-
-            // 特殊效果
-            else if (k === 'hpRegen') { label = "生命回复/秒"; color = '#ff4444'; }
-            else if (k === 'mpRegen') { label = "%法力回复"; color = '#4444ff'; }
-            else if (k === 'blockChance') { label = "%格挡几率"; color = '#ffaa00'; }
-            else if (k === 'reflectDamage') { label = "%反射伤害"; color = '#ff00ff'; }
-            else if (k === 'damageReduction') { label = "%伤害减免"; color = '#aaaaaa'; }
-            else if (k === 'critDamage') { label = "%暴击伤害"; color = '#ffff00'; }
-            else if (k === 'armorPierce') { label = "%护甲穿透"; color = '#ff8800'; }
-            else if (k === 'knockback') { label = "%击退几率"; color = '#88ff88'; }
-            else if (k === 'slow') { label = "%减速几率"; color = '#8888ff'; elementClass = 'cold-stat'; }
-            else if (k === 'doubleHit') { label = "%连击几率"; color = '#ff88ff'; }
-            else if (k === 'attackRating') { label = "攻击等级"; color = '#ffaa00'; }
-            else if (k === 'magicFind') { label = "%魔法发现"; color = '#00ffff'; }
-
-            // 对比属性
-            let eqStat = 0;
-            if (equipped && equipped.stats && equipped.stats[k]) eqStat = equipped.stats[k];
-
-            html += `<div class="tooltip-stat ${elementClass}" style="color:${color}">${prefix}${v} ${label}${diffSpan(v, eqStat)}</div>`;
-        }
-    }
-
-    // 显示装备需求
-    if (item.requirements) {
-        const req = item.requirements;
-        html += `<div style="margin-top:5px; border-top:1px solid #444; padding-top:5px;"><div style="color:#888; font-size:11px; margin-bottom:3px;">需求:</div>`;
-
-        if (req.level) {
-            const meetsReq = player.lvl >= req.level;
-            const color = meetsReq ? '#aaa' : '#ff4444';
-            html += `<div class="tooltip-stat" style="color:${color}">等级 ${req.level}</div>`;
-        }
-        if (req.str) {
-            const meetsReq = player.str >= req.str;
-            const color = meetsReq ? '#aaa' : '#ff4444';
-            html += `<div class="tooltip-stat" style="color:${color}">力量 ${req.str}</div>`;
-        }
-        if (req.dex) {
-            const meetsReq = player.dex >= req.dex;
-            const color = meetsReq ? '#aaa' : '#ff4444';
-            html += `<div class="tooltip-stat" style="color:${color}">敏捷 ${req.dex}</div>`;
-        }
-
-        html += `</div>`;
-    }
-
-    // 如果是对比状态，显示提示
-    if (isComparing) {
-        html += `<div style="margin-top:5px; border-top:1px solid #444; padding-top:2px; color:#666; font-size:10px;">正在与已装备物品对比</div>`;
-    }
-
-    tt.innerHTML = html;
-}
-
-function hideTooltip() { document.getElementById('tooltip').style.display = 'none'; }
-
 // ============= 自动战斗UI交互函数 =============
 
 function toggleAutoBattle() {
     const btn = document.getElementById('auto-battle-btn');
     const icon = document.getElementById('auto-battle-icon');
+
+    // 深渊模式禁止开启自动战斗
+    if (!AutoBattle.enabled && typeof AbyssSystem !== 'undefined' && AbyssSystem.isActive) {
+        showNotification('深渊挑战中禁止使用自动战斗');
+        return;
+    }
 
     // 营地时拒绝开启
     if (!AutoBattle.enabled && isInTown()) {
@@ -10942,6 +11116,9 @@ function updateAutoBattleSettings() {
     AutoBattle.settings.emergencyHp = parseInt(document.getElementById('auto-emergency-hp').value) / 100;
     AutoBattle.settings.pickupUnique = document.getElementById('auto-pickup-unique').checked;
     AutoBattle.settings.pickupSet = document.getElementById('auto-pickup-set').checked;
+
+    // 同步打击感设置
+    player.juiceEnabled = document.getElementById('chk-juice').checked;
 }
 
 function syncAutoBattleUI() {
@@ -10953,6 +11130,7 @@ function syncAutoBattleUI() {
     document.getElementById('auto-emergency-hp').value = Math.round(s.emergencyHp * 100);
     document.getElementById('auto-pickup-unique').checked = s.pickupUnique;
     document.getElementById('auto-pickup-set').checked = s.pickupSet;
+    document.getElementById('chk-juice').checked = player.juiceEnabled || false;
     updateDistanceDisplay(); updateHpDisplay(); updateMpDisplay(); updateEmergencyDisplay();
 }
 
@@ -11042,8 +11220,7 @@ function renderBlacksmithPanel() {
             el.appendChild(iconDiv);
 
             // Tooltip
-            el.onmouseenter = (e) => showTooltip(item, e);
-            el.onmouseleave = hideTooltip;
+            bindItemTooltip(el, item);
         } else {
             el.style.borderColor = '#555';
             el.style.boxShadow = 'inset 0 0 10px #000';
@@ -11082,12 +11259,11 @@ function renderBlacksmithPanel() {
             // 假设每次强化提升 10% 基础属性 (防御/伤害)
             const statIncrease = 10;
 
-            let previewHtml = `强化至 <span style="color:#00ff00">+${nextLvl}</span><br>`;
-            previewHtml += `成功率: <span style="color:${successRate >= 80 ? '#00ff00' : (successRate >= 50 ? '#ffff00' : '#ff4444')}">${successRate}%</span><br>`;
-            previewHtml += `基础属性提升约 ${statIncrease}%`;
+            let previewHtml = `强化至 <span style="color:#00ff00">+${nextLvl}</span> · 成功率 <span style="color:${successRate >= 80 ? '#00ff00' : (successRate >= 50 ? '#ffff00' : '#ff4444')}">${successRate}%</span><br>`;
+            previewHtml += `属性提升 ${statIncrease}%`;
 
             if (currentLvl >= 6) {
-                previewHtml += `<br><span style="color:#ff4444; font-size:11px;">⚠️ 失败可能导致强化等级下降</span>`;
+                previewHtml += ` · <span style="color:#ff4444;">⚠失败可能降级</span>`;
             }
 
             previewText.innerHTML = previewHtml;
@@ -11112,7 +11288,7 @@ function renderBlacksmithPanel() {
             }
         }
     } else {
-        previewText.innerHTML = `请放入需要强化的装备<br><span style="color:#888; font-size:12px;">(最高可强化至 +9)</span>`;
+        previewText.innerHTML = `请放入需要强化的装备 <span style="color:#888;">(最高 +9)</span><div style="color:#666; font-size:10px; margin-top:4px;">同部位同稀有度祭品 · 成功提升属性 · +6以上有失败风险</div>`;
         costDisplay.style.display = 'none';
         btn.disabled = true;
         btn.classList.remove('highlight-btn');
@@ -11163,8 +11339,10 @@ function moveItemToForge(inventoryIdx) {
         }
     }
 
+    hideTooltip();
     renderInventory();
     renderBlacksmithPanel();
+    renderEmbeddedBag('blacksmith');
 }
 
 function returnItemFromForge(slotKey) {
@@ -11177,8 +11355,10 @@ function returnItemFromForge(slotKey) {
         // 如果取下主装备，祭品也一并退回 (为了防止误操作，或者单纯保留在上面也行？保留着比较方便)
         // 这里选择保留祭品，但渲染时会重新检查
 
+        hideTooltip();
         renderInventory();
         renderBlacksmithPanel();
+        renderEmbeddedBag('blacksmith');
     } else {
         showNotification("背包已满");
     }
@@ -11272,10 +11452,13 @@ function forgeItem(successRate, cost) {
         // 特效粒子? (简化：用现有的 floating text)
         createFloatingText(player.x, player.y - 60, "强化成功!", '#00ff00', 2);
 
-        // 全服公告：强化+7以上成功
-        if (mainItem.enhanceLvl >= 7 && typeof OnlineSystem !== 'undefined') {
+        // 全服公告：强化成功
+        if (typeof OnlineSystem !== 'undefined') {
             OnlineSystem.announce('enhance_success', mainItem.displayName);
         }
+
+        // 成就追踪：最高强化等级
+        trackAchievement('max_enhance', { level: mainItem.enhanceLvl });
 
     } else {
         // 失败
@@ -11428,9 +11611,12 @@ function showChangelogPanel() {
             .map(h => `<li>${h}</li>`)
             .join('');
 
+        // 日期格式化：2025-12-14 → 12-14
+        const dateStr = item.date ? ` (${item.date.slice(5)})` : '';
+
         div.innerHTML = `
             <div class="changelog-version">
-                <span class="changelog-version-num">v${item.version}</span>
+                <span class="changelog-version-num">v${item.version}${dateStr}</span>
                 <span class="changelog-version-title">${item.title}</span>
             </div>
             <ul class="changelog-highlights">${highlightsHtml}</ul>
@@ -11456,6 +11642,10 @@ function closeChangelogPanel() {
 
 // 在页面加载完成后检查是否需要显示公告
 document.addEventListener('DOMContentLoaded', () => {
+    // 初始化深渊系统
+    if (typeof AbyssSystem !== 'undefined') {
+        AbyssSystem.init();
+    }
     // 延迟检查，等待首屏加载完成
     setTimeout(checkChangelog, 500);
 });
@@ -11467,14 +11657,23 @@ const TUTORIAL_TOWN_STEPS = [
     { id: 1, target: 'merchant', text: '在这里买卖装备和药水' },
     { id: 2, target: 'healer', text: '找她接取任务' },
     { id: 3, target: 'stash', text: '存放你的装备' },
-    { id: 4, target: 'exit', text: '点击进入地牢' }
+    { id: 4, target: 'exit', text: '这里是地牢入口' }
 ];
-// 战斗引导（步骤5-8，顶部提示）
-const TUTORIAL_BATTLE_STEPS = [
-    { id: 5, text: '点击怪物进行物理攻击', key: null },
-    { id: 6, text: '右键点击敌人释放火球术', key: '右键' },
-    { id: 7, text: '按 F 开启自动战斗，解放双手', key: 'F' }
-];
+// 战斗引导（步骤5-7，顶部提示）- 根据设备类型返回不同提示
+function getTutorialBattleSteps() {
+    if (isMobileDevice) {
+        return [
+            { id: 5, text: '点击怪物进行攻击', key: null },
+            { id: 6, text: '长按屏幕释放技能', key: '长按' },
+            { id: 7, text: '点击 ⚔️ 按钮开启自动战斗', key: null }
+        ];
+    }
+    return [
+        { id: 5, text: '点击怪物进行物理攻击', key: null },
+        { id: 6, text: '右键点击敌人释放火球术', key: '右键' },
+        { id: 7, text: '按 F 开启自动战斗，解放双手', key: 'F' }
+    ];
+}
 
 // 获取城镇引导目标的世界坐标
 function getTutorialTargetPos(targetType) {
@@ -11496,7 +11695,7 @@ function updateTutorialBubble() {
     if (!step) return;
 
     let bubble = document.getElementById('tutorial-bubble');
-    if (!bubble) {
+    if (!bubble && cachedUI.uiLayer) {
         bubble = document.createElement('div');
         bubble.id = 'tutorial-bubble';
         bubble.innerHTML = `
@@ -11512,8 +11711,10 @@ function updateTutorialBubble() {
             e.stopPropagation();
             advanceTutorial(player.tutorial.step);
         };
-        document.querySelector('.ui-layer').appendChild(bubble);
+        cachedUI.uiLayer.appendChild(bubble);
     }
+
+    if (!bubble) return;
 
     // UI元素定位（如物品按钮）
     if (step.isUI) {
@@ -11558,7 +11759,7 @@ function hideTutorialBubble() {
     if (bubble) bubble.style.display = 'none';
 }
 
-// 显示战斗引导提示（顶部）
+// 显示战斗引导提示（顶部或气泡）
 function showTutorialTip(step) {
     if (player.tutorial.completed) return;
     if (step !== player.tutorial.step) return;
@@ -11566,8 +11767,14 @@ function showTutorialTip(step) {
     // 城镇引导用气泡，不用顶部提示
     if (step < TUTORIAL_TOWN_STEPS.length) return;
 
-    const battleStep = TUTORIAL_BATTLE_STEPS.find(s => s.id === step);
+    const battleStep = getTutorialBattleSteps().find(s => s.id === step);
     if (!battleStep) return;
+
+    // 步骤7（自动战斗）使用气泡指向按钮
+    if (step === 7) {
+        showAutoBattleTutorialBubble(battleStep.text);
+        return;
+    }
 
     let el = document.getElementById('tutorial-tip');
     if (!el) {
@@ -11580,6 +11787,42 @@ function showTutorialTip(step) {
     el.style.display = 'flex';
     el.style.opacity = '0';
     setTimeout(() => el.style.opacity = '1', 50);
+}
+
+// 显示自动战斗引导气泡（指向按钮）
+function showAutoBattleTutorialBubble(text) {
+    let bubble = document.getElementById('tutorial-bubble');
+    if (!bubble) {
+        bubble = document.createElement('div');
+        bubble.id = 'tutorial-bubble';
+        bubble.innerHTML = `
+            <span class="bubble-text"></span>
+            <button class="bubble-btn">知道了</button>
+            <div class="bubble-arrow"></div>
+        `;
+        bubble.onmousedown = (e) => e.stopPropagation();
+        bubble.onclick = (e) => e.stopPropagation();
+        bubble.querySelector('.bubble-btn').onclick = (e) => {
+            e.stopPropagation();
+            advanceTutorial(player.tutorial.step);
+        };
+        document.querySelector('.ui-layer').appendChild(bubble);
+    }
+
+    const btn = document.querySelector('.auto-battle-btn');
+    if (!btn) return;
+
+    const rect = btn.getBoundingClientRect();
+    // 气泡在按钮左边，箭头指向右边
+    const screenX = rect.left - 10;
+    const screenY = rect.top + rect.height / 2;
+
+    bubble.querySelector('.bubble-text').textContent = text;
+    bubble.style.left = screenX + 'px';
+    bubble.style.top = screenY + 'px';
+    bubble.style.display = 'block';
+    bubble.classList.add('arrow-right');
+    bubble.classList.remove('arrow-down');
 }
 
 // 隐藏顶部引导提示
@@ -11600,7 +11843,7 @@ function advanceTutorial(completedStep) {
     hideTutorialBubble();
     player.tutorial.step++;
 
-    const totalSteps = TUTORIAL_TOWN_STEPS.length + TUTORIAL_BATTLE_STEPS.length;
+    const totalSteps = TUTORIAL_TOWN_STEPS.length + getTutorialBattleSteps().length;
     if (player.tutorial.step >= totalSteps) {
         player.tutorial.completed = true;
         showNotification('🎉 教程完成！祝你冒险愉快！');
@@ -11620,4 +11863,204 @@ function checkTutorial() {
         return;
     }
     // 新玩家，城镇气泡会在 updateTutorialBubble 中自动显示
+}
+
+// ========== 内嵌背包系统 ==========
+// 渲染内嵌背包（用于商店/仓库/锻造面板）
+function renderEmbeddedBag(panelType) {
+    const gridId = {
+        'shop': 'shop-embedded-bag',
+        'stash': 'stash-embedded-bag',
+        'blacksmith': 'forge-embedded-bag',
+        'stall': 'stall-inventory-grid'
+    }[panelType];
+
+    const grid = document.getElementById(gridId);
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    player.inventory.forEach((item, idx) => {
+        const slot = document.createElement('div');
+        slot.className = 'embedded-bag-slot';
+
+        if (item) {
+            // 稀有度样式
+            if (item.rarity >= 3 && item.rarity <= 4) slot.classList.add('rarity-unique');
+            else if (item.rarity === 5) slot.classList.add('rarity-set');
+            else if (item.rarity === 2) slot.classList.add('rarity-rare');
+
+            applyItemSpriteToElement(slot, item);
+
+            // 数量/强化等级标签
+            if (item.quantity && item.quantity > 1) {
+                slot.innerHTML += `<span class="item-count">${item.quantity}</span>`;
+            }
+            if (item.enhanceLvl > 0) {
+                slot.innerHTML += `<span class="enhance-level">+${item.enhanceLvl}</span>`;
+            }
+
+            // 点击事件
+            slot.onclick = (e) => {
+                e.stopPropagation();
+                handleEmbeddedBagClick(panelType, idx);
+            };
+
+            // 绑定tooltip
+            bindItemTooltip(slot, item);
+        }
+
+        grid.appendChild(slot);
+    });
+
+    // 更新金币显示（所有内嵌背包面板）
+    const goldDisplayIds = {
+        'shop': 'shop-gold-display',
+        'stash': 'stash-gold-display',
+        'forge': 'forge-gold-display',
+        'market': 'market-gold-display'
+    };
+    const goldDisplayId = goldDisplayIds[panelType];
+    if (goldDisplayId) {
+        const goldDisplay = document.getElementById(goldDisplayId);
+        if (goldDisplay) goldDisplay.textContent = '金币: ' + player.gold;
+    }
+}
+
+// 处理内嵌背包物品点击
+function handleEmbeddedBagClick(panelType, idx) {
+    const item = player.inventory[idx];
+    if (!item) return;
+
+    switch (panelType) {
+        case 'shop':
+            // 售卖物品
+            sellItemFromInventory(idx);
+            break;
+        case 'stash':
+            // 存入仓库
+            moveItemToStash(idx);
+            break;
+        case 'blacksmith':
+            // 添加到锻造槽
+            moveItemToForge(idx);
+            break;
+        case 'stall':
+            // 上架到摊位
+            if (typeof MarketSystem !== 'undefined') {
+                MarketSystem.addToShelf(idx);
+            }
+            break;
+    }
+
+    // 隐藏tooltip
+    hideTooltip();
+
+    // 刷新内嵌背包显示
+    renderEmbeddedBag(panelType);
+}
+
+// 从背包售卖物品（用于商店面板）
+function sellItemFromInventory(idx) {
+    const item = player.inventory[idx];
+    if (!item) return;
+
+    // 计算售价
+    let val = 50;
+    if (item.rarity > 1) val *= item.rarity * 2;
+
+    addGold(val);
+
+    if (item.stackable && item.quantity > 1) {
+        item.quantity--;
+    } else {
+        player.inventory[idx] = null;
+    }
+
+    createDamageNumber(player.x, player.y - 40, `+${val} G`, 'gold');
+    AudioSys.play('gold');
+    renderInventory();
+    updateBeltUI();
+}
+
+// ========== 一键整理功能 ==========
+// 物品类型排序优先级
+const SLOT_SORT_ORDER = {
+    'mainhand': 0, 'helm': 1, 'body': 2, 'offhand': 3,
+    'gloves': 4, 'belt': 5, 'boots': 6, 'ring': 7, 'amulet': 8,
+    'potion': 10, 'scroll': 11
+};
+
+// 获取物品排序键值
+function getItemSortKey(item) {
+    if (!item) return { type: 999, rarity: 0, enhance: 0, name: '' };
+
+    // 消耗品
+    if (item.type === 'potion') return { type: 10, rarity: 0, enhance: 0, name: item.name };
+    if (item.type === 'scroll') return { type: 11, rarity: 0, enhance: 0, name: item.name };
+
+    // 装备
+    const slotOrder = SLOT_SORT_ORDER[item.slot] ?? 9;
+    const rarity = item.rarity ?? 0;
+    const enhance = item.enhanceLevel ?? 0;
+
+    return { type: slotOrder, rarity, enhance, name: item.name || '' };
+}
+
+// 物品比较函数
+function compareItems(a, b) {
+    const keyA = getItemSortKey(a);
+    const keyB = getItemSortKey(b);
+
+    // 1. 按类型/槽位排序
+    if (keyA.type !== keyB.type) return keyA.type - keyB.type;
+
+    // 2. 同类型按稀有度降序（稀有度高的在前）
+    if (keyA.rarity !== keyB.rarity) return keyB.rarity - keyA.rarity;
+
+    // 3. 同稀有度按强化等级降序
+    if (keyA.enhance !== keyB.enhance) return keyB.enhance - keyA.enhance;
+
+    // 4. 按名称排序
+    return keyA.name.localeCompare(keyB.name);
+}
+
+// 整理背包
+function sortInventory() {
+    // 提取所有非空物品
+    const items = player.inventory.filter(item => item !== null);
+
+    // 排序
+    items.sort(compareItems);
+
+    // 重新填充背包
+    const size = player.inventory.length;
+    player.inventory = [];
+    for (let i = 0; i < size; i++) {
+        player.inventory[i] = items[i] || null;
+    }
+
+    renderInventory();
+    showNotification('背包已整理');
+    AudioSys.play('gold');
+}
+
+// 整理仓库
+function sortStash() {
+    // 提取所有非空物品
+    const items = player.stash.filter(item => item !== null);
+
+    // 排序
+    items.sort(compareItems);
+
+    // 重新填充仓库
+    const size = player.stash.length;
+    player.stash = [];
+    for (let i = 0; i < size; i++) {
+        player.stash[i] = items[i] || null;
+    }
+
+    renderStash();
+    showNotification('仓库已整理');
+    AudioSys.play('gold');
 }
