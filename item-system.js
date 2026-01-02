@@ -198,6 +198,7 @@ function createSetItem(setId, pieceSlot, level) {
   const item = {
     ...pieceData,
     setId: setId,
+    setPieceKey: pieceSlot,  // 添加部件槽位标识，用于图鉴追踪
     setName: setData.name,
     rarity: RARITY.SET,  // 套装稀有度为5（绿色）
     displayName: pieceData.name,
@@ -261,8 +262,9 @@ function addItemToInventory(i) {
   // 追踪稀有物品发现
   trackItemFound(i);
 
-  // 检查套装收藏成就
+  // 检查套装收藏成就和图鉴发现
   if (i.setId) {
+    if (typeof discoverSetPiece !== 'undefined') discoverSetPiece(i);
     if (typeof checkSetAchievements !== 'undefined') checkSetAchievements();
   }
 

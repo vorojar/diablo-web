@@ -1239,6 +1239,384 @@
             overflow-y: auto;
         }
 
+        /* ========== 套装图鉴面板 ========== */
+        #set-collection-panel {
+            top: 10%;
+            left: 20px;
+            width: 340px;
+            max-height: 85%;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #444 rgba(0, 0, 0, 0.3);
+        }
+
+        #set-collection-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #set-collection-panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        #set-collection-panel::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+            border: 1px solid #666;
+        }
+
+        .set-collection-header {
+            padding: 10px 12px;
+            border-bottom: 1px solid #333;
+            margin-bottom: 10px;
+        }
+
+        .set-collection-stats {
+            display: flex;
+            justify-content: space-between;
+            color: #888;
+            font-size: 12px;
+        }
+
+        .set-collection-stats span:first-child {
+            color: var(--text-gold);
+        }
+
+        /* 单个套装卡片 */
+        .set-card {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid #333;
+            border-radius: 6px;
+            margin: 0 10px 10px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .set-card:hover {
+            border-color: #555;
+            background: rgba(30, 30, 30, 0.6);
+        }
+
+        .set-card.discovered {
+            border-left: 3px solid #20ff20;
+        }
+
+        .set-card.locked {
+            opacity: 0.5;
+        }
+
+        .set-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+        }
+
+        .set-card-header:hover {
+            background: rgba(40, 40, 40, 0.5);
+        }
+
+        .set-card-title {
+            color: #20ff20;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .set-card.locked .set-card-title {
+            color: #666;
+        }
+
+        .set-card-progress {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .set-card-progress .collected {
+            color: #20ff20;
+        }
+
+        /* 套装部件网格 */
+        .set-pieces-grid {
+            display: none;
+            padding: 10px 12px;
+            border-top: 1px solid #222;
+        }
+
+        .set-card.expanded .set-pieces-grid {
+            display: block;
+        }
+
+        .set-piece-row {
+            display: flex;
+            align-items: center;
+            padding: 6px 8px;
+            margin-bottom: 4px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            border-left: 2px solid #333;
+        }
+
+        .set-piece-row.owned {
+            border-left-color: #20ff20;
+            background: rgba(32, 255, 32, 0.05);
+        }
+
+        .set-piece-icon {
+            width: 24px;
+            text-align: center;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+
+        .set-piece-row.owned .set-piece-icon {
+            filter: none;
+        }
+
+        .set-piece-row:not(.owned) .set-piece-icon {
+            filter: grayscale(100%) opacity(0.4);
+        }
+
+        .set-piece-name {
+            flex: 1;
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .set-piece-row:not(.owned) .set-piece-name {
+            color: #555;
+        }
+
+        .set-piece-status {
+            font-size: 11px;
+            color: #20ff20;
+        }
+
+        .set-piece-row:not(.owned) .set-piece-status {
+            color: #444;
+        }
+
+        /* 套装效果预览 */
+        .set-bonuses {
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid #222;
+        }
+
+        .set-bonus-row {
+            display: flex;
+            align-items: flex-start;
+            padding: 4px 0;
+            font-size: 11px;
+        }
+
+        .set-bonus-count {
+            min-width: 24px;
+            color: #888;
+            margin-right: 8px;
+        }
+
+        .set-bonus-desc {
+            color: #666;
+            flex: 1;
+        }
+
+        .set-bonus-row.active .set-bonus-count {
+            color: #20ff20;
+        }
+
+        .set-bonus-row.active .set-bonus-desc {
+            color: #20ff20;
+        }
+
+        /* 展开/收起图标 */
+        .set-card-toggle {
+            color: #666;
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+
+        .set-card.expanded .set-card-toggle {
+            transform: rotate(180deg);
+        }
+
+        /* ========== 图鉴Tab系统 ========== */
+        .codex-tabs {
+            display: flex;
+            gap: 5px;
+            padding: 8px 10px;
+            border-bottom: 1px solid #333;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .codex-tab {
+            flex: 1;
+            padding: 8px 12px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #444;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .codex-tab:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #666;
+        }
+
+        .codex-tab.active {
+            background: rgba(199, 179, 119, 0.2);
+            border-color: var(--text-gold);
+            color: var(--text-gold);
+        }
+
+        .codex-content {
+            display: none;
+        }
+
+        .codex-content.active {
+            display: block;
+        }
+
+        /* ========== 怪物图鉴 ========== */
+        .monster-codex-header {
+            padding: 10px 12px;
+            border-bottom: 1px solid #333;
+            margin-bottom: 10px;
+        }
+
+        .monster-codex-stats {
+            color: var(--text-gold);
+            font-size: 12px;
+        }
+
+        .monster-section-title {
+            padding: 8px 12px;
+            color: #888;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #222;
+            margin: 10px 0 5px;
+        }
+
+        .monster-section-title.boss {
+            color: #ff6600;
+        }
+
+        /* 怪物卡片 */
+        .monster-card {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            margin: 0 10px 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid #333;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .monster-card:hover {
+            border-color: #555;
+            background: rgba(30, 30, 30, 0.6);
+        }
+
+        .monster-card.discovered {
+            border-left: 3px solid #20ff20;
+        }
+
+        .monster-card.boss.discovered {
+            border-left-color: #ff6600;
+        }
+
+        .monster-card.locked {
+            opacity: 0.5;
+        }
+
+        /* 怪物图标容器 */
+        .monster-icon {
+            width: 48px;
+            height: 48px;
+            margin-right: 12px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .monster-icon canvas {
+            image-rendering: pixelated;
+        }
+
+        .monster-card.locked .monster-icon {
+            filter: grayscale(100%) brightness(0.3);
+        }
+
+        .monster-icon .unknown-icon {
+            font-size: 24px;
+            color: #444;
+        }
+
+        /* 怪物信息 */
+        .monster-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .monster-name {
+            font-size: 13px;
+            font-weight: bold;
+            color: #ccc;
+            margin-bottom: 3px;
+        }
+
+        .monster-card.boss .monster-name {
+            color: #ff6600;
+        }
+
+        .monster-card.locked .monster-name {
+            color: #555;
+        }
+
+        .monster-desc {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .monster-card.locked .monster-desc {
+            color: #444;
+        }
+
+        .monster-floor {
+            font-size: 10px;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        /* 怪物击杀统计 */
+        .monster-kills {
+            text-align: right;
+            font-size: 11px;
+            color: #888;
+        }
+
+        .monster-kills .count {
+            font-size: 14px;
+            color: #20ff20;
+            font-weight: bold;
+        }
+
+        .monster-card.boss .monster-kills .count {
+            color: #ff6600;
+        }
+
         #stash-panel {
             top: 15%;
             right: 20px;
@@ -1391,7 +1769,7 @@
             border: 1px solid var(--text-gold);
             padding: 10px;
             pointer-events: none;
-            z-index: 1000;
+            z-index: 99999;
             display: none;
             max-width: 320px;
             font-size: 14px;
@@ -6270,26 +6648,116 @@
             border: 1px solid #844;
         }
 
+        /* --- 深渊神格化称号特效 --- */
+        @keyframes gold-shine {
+            0% {
+                text-shadow: 0 0 5px #ff0, 0 0 10px #f90;
+                filter: brightness(1);
+            }
+
+            50% {
+                text-shadow: 0 0 20px #ff0, 0 0 30px #f90;
+                filter: brightness(1.5);
+            }
+
+            100% {
+                text-shadow: 0 0 5px #ff0, 0 0 10px #f90;
+                filter: brightness(1);
+            }
+        }
+
+        @keyframes silver-shine {
+            0% {
+                text-shadow: 0 0 5px #fff;
+                opacity: 0.8;
+            }
+
+            50% {
+                text-shadow: 0 0 15px #fff;
+                opacity: 1;
+            }
+
+            100% {
+                text-shadow: 0 0 5px #fff;
+                opacity: 0.8;
+            }
+        }
+
+        @keyframes purple-flame {
+            0% {
+                text-shadow: 0 0 5px #a0f;
+                color: #d8f;
+            }
+
+            50% {
+                text-shadow: 0 0 15px #f0f;
+                color: #fff;
+            }
+
+            100% {
+                text-shadow: 0 0 5px #a0f;
+                color: #d8f;
+            }
+        }
+
         .lb-item-rank {
             width: 40px;
             text-align: center;
             font-weight: bold;
             color: #888;
+            transition: all 0.3s;
         }
 
-        .lb-item-rank.top1 {
+        /* 冠军：金光呼吸 */
+        .lb-item.top1 {
+            background: rgba(100, 80, 0, 0.15) !important;
+            border-left: 3px solid #fe0 !important;
+        }
+
+        .lb-item.top1 .lb-item-rank {
             color: #fe0;
-            font-size: 18px;
+            font-size: 22px;
+            animation: gold-shine 2s infinite ease-in-out;
+            transform: scale(1.1);
         }
 
-        .lb-item-rank.top2 {
+        .lb-item.top1 .lb-item-name {
+            color: #fe0 !important;
+            font-weight: bold;
+            text-shadow: 0 0 8px rgba(255, 230, 0, 0.5);
+        }
+
+        /* 亚军：银光流转 */
+        .lb-item.top2 {
+            background: rgba(100, 100, 100, 0.1) !important;
+            border-left: 3px solid #ddd !important;
+        }
+
+        .lb-item.top2 .lb-item-rank {
             color: #ddd;
-            font-size: 16px;
+            font-size: 18px;
+            animation: silver-shine 3s infinite ease-in-out;
         }
 
-        .lb-item-rank.top3 {
+        .lb-item.top2 .lb-item-name {
+            color: #fff !important;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+        }
+
+        /* 季军：紫金升腾 */
+        .lb-item.top3 {
+            background: rgba(80, 40, 100, 0.1) !important;
+            border-left: 3px solid #b84 !important;
+        }
+
+        .lb-item.top3 .lb-item-rank {
             color: #b84;
-            font-size: 16px;
+            font-size: 17px;
+            animation: purple-flame 2.5s infinite ease-in-out;
+        }
+
+        .lb-item.top3 .lb-item-name {
+            color: #d8f !important;
         }
 
         .lb-item-info {

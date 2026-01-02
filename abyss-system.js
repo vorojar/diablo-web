@@ -650,9 +650,11 @@ const AbyssSystem = {
         return;
       }
 
-      container.innerHTML = data.list.map(item => `
-        <div class="lb-item ${item.isSelf ? 'self' : ''}">
-            <div class="lb-item-rank ${item.rank <= 3 ? 'top' + item.rank : ''}">${item.rank}</div>
+      container.innerHTML = data.list.map(item => {
+        const rankDisplay = item.rank === 1 ? '🥇' : item.rank === 2 ? '🥈' : item.rank === 3 ? '🥉' : item.rank;
+        return `
+        <div class="lb-item ${item.isSelf ? 'self' : ''} ${item.rank <= 3 ? 'top' + item.rank : ''}">
+            <div class="lb-item-rank">${rankDisplay}</div>
             <div class="lb-item-info">
                 <div class="lb-item-name">${item.name} <span style="color:#666; font-size:11px;">Lv.${item.lvl}</span></div>
             </div>
@@ -661,7 +663,8 @@ const AbyssSystem = {
                 <div class="lb-item-floor">深渊第${item.floor}层</div>
             </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }, bracket.range[0], bracket.range[1]);
   },
 
@@ -684,7 +687,7 @@ const AbyssSystem = {
 
     // 构建HTML
     const html = `
-      <div class="panel-header" style="color:${isDeath ? '#f44' : '#fff'}">${title}</div>
+  < div class="panel-header" style = "color:${isDeath ? '#f44' : '#fff'}" > ${title}</div >
     <div class="panel-content" style="padding:20px; text-align:center;">
       <div style="font-size:18px; margin-bottom:10px;">到达层数: <span style="color:#fb0">${this.currentFloor} 层</span></div>
       <div style="font-size:14px; color:#aaa; margin-bottom:10px;">耗时: ${timeStr}</div>
@@ -754,7 +757,8 @@ const AbyssSystem = {
 
     const bestFloor = localStorage.getItem('abyss_best_floor') || 0;
     const bestScore = localStorage.getItem('abyss_best_score') || 0;
-    const currentRank = localStorage.getItem('abyss_last_rank') || '-';
+    const lastRank = localStorage.getItem('abyss_last_rank');
+    const currentRank = (lastRank && lastRank !== '0') ? lastRank : '-';
 
     const html = `
       <div class="panel-header">🔥 深渊挑战 <div class="panel-close" onclick="AbyssSystem.closeEntrancePanel()"></div></div>
@@ -765,7 +769,7 @@ const AbyssSystem = {
       </div>
       <div class="abyss-info-row">
         <span class="abyss-info-label">当前排名:</span>
-        <span class="abyss-info-value" style="color: #ff8800;">${currentRank === '-' ? '暂无记录' : '第' + currentRank + '名'}</span>
+        <span class="abyss-info-value" style="color: #ff8800;">${currentRank === '-' ? '未入榜' : '第' + currentRank + '名'}</span>
       </div>
 
       <div class="abyss-time-left">
@@ -844,9 +848,9 @@ const AbyssSystem = {
       hud.className = 'active';
       hud.innerHTML = `
         <div class="abyss-hud-floor"></div>
-            <div class="abyss-hud-time"></div>
-            <div class="abyss-hud-warning">💀 禁用自动战斗</div>
-`;
+        <div class="abyss-hud-time"></div>
+        <div class="abyss-hud-warning">💀 禁用自动战斗</div>
+      `;
       document.body.appendChild(hud);
     }
     hud.style.display = 'block';

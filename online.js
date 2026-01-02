@@ -1236,13 +1236,25 @@ const OnlineSystem = {
         */
     },
 
-    // 提交分数到排行榜
+    // 提交分数到排行榜（双轨匹配：优先 sync_code，兜底 user_id）
     async submitScore(data) {
         if (!this.userId || !this.nickname) return;
+
+        // 获取 sync_code（优先云同步码，否则用临时ID）
+        let syncCode = CloudSync.syncCode;
+        if (!syncCode) {
+            let tempId = localStorage.getItem('temp_user_id');
+            if (!tempId) {
+                tempId = Math.random().toString(36).substr(2, 6).toUpperCase();
+                localStorage.setItem('temp_user_id', tempId);
+            }
+            syncCode = tempId;
+        }
 
         const currentWeekStart = this.getWeekStart();
         const scoreData = {
             user_id: this.userId,
+            sync_code: syncCode,  // 新增：同时写入 sync_code
             nickname: this.nickname,
             level: data.level || 1,
             kills: data.kills || 0,
@@ -1253,9 +1265,17 @@ const OnlineSystem = {
         };
 
         try {
-            const records = await pb.collection('leaderboard').getList(1, 1, {
-                filter: `user_id = "${this.userId}"`
+            // 双轨查询：优先用 sync_code，fallback 用 user_id
+            let records = await pb.collection('leaderboard').getList(1, 1, {
+                filter: `sync_code = "${syncCode}"`
             });
+
+            // 如果 sync_code 没找到，尝试用 user_id 找老记录
+            if (records.items.length === 0) {
+                records = await pb.collection('leaderboard').getList(1, 1, {
+                    filter: `user_id = "${this.userId}"`
+                });
+            }
 
             if (records.items.length > 0) {
                 const old = records.items[0];
@@ -1281,12 +1301,14 @@ const OnlineSystem = {
                 scoreData.week_score = weekScore;
                 scoreData.week_start = currentWeekStart;
 
-                // 分数更高 或 金币更高 或 周数据变化 都触发更新
+                // 分数更高 或 金币更高 或 周数据变化 或 需要迁移 sync_code 都触发更新
+                const needsMigration = !old.sync_code || old.sync_code !== syncCode;
                 const shouldUpdate = scoreData.score > old.score ||
                     scoreData.gold > (old.gold || 0) ||
                     isNewWeek ||
                     weekKills > (old.week_kills || 0) ||
-                    weekScore > (old.week_score || 0);
+                    weekScore > (old.week_score || 0) ||
+                    needsMigration;
 
                 if (shouldUpdate) {
                     await pb.collection('leaderboard').update(old.id, scoreData);
@@ -1300,7 +1322,7 @@ const OnlineSystem = {
                 await pb.collection('leaderboard').create(scoreData);
                 this.loadLeaderboard(true);  // 强制刷新
             }
-        } catch (e) { }
+        } catch (e) { console.error('[Leaderboard] submitScore error:', e); }
     },
 
     // 加载排行榜（带缓存）
@@ -1434,7 +1456,9 @@ const OnlineSystem = {
             }
             sortedItems.forEach((item, i) => {
                 const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
-                const isMe = item.user_id === this.userId;
+                // 双轨匹配：优先 sync_code，兜底 user_id
+                const mySyncCode = CloudSync.syncCode || localStorage.getItem('temp_user_id');
+                const isMe = (mySyncCode && item.sync_code === mySyncCode) || item.user_id === this.userId;
                 const valueText = this.getValueText(item);
                 html += `<div class="stat-row" style="${isMe ? 'color: #ffff00; background: rgba(255,255,0,0.1);' : ''}">
                     <span>${medal} ${item.nickname}</span>

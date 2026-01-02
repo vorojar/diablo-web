@@ -27,10 +27,10 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=202512301131">
+    <link rel="stylesheet" href="style.css?v=202601011500">
 </head>
 
-<!-- 版本标记: v6.6 周榜系统 -->
+<!-- 版本标记: v6.7 图鉴系统 -->
 
 <body>
 
@@ -246,6 +246,32 @@
                 <div class="panel-close" onclick="togglePanel('achievements')"></div>
                 <div class="panel-header">🏆 成就</div>
                 <div id="achievement-list"></div>
+            </div>
+
+            <div id="set-collection-panel" class="panel">
+                <div class="panel-close" onclick="togglePanel('set-collection')"></div>
+                <div class="panel-header">📚 图鉴</div>
+                <div class="codex-tabs">
+                    <div class="codex-tab active" data-tab="sets" onclick="switchCodexTab('sets')">套装</div>
+                    <div class="codex-tab" data-tab="monsters" onclick="switchCodexTab('monsters')">怪物</div>
+                </div>
+                <div id="codex-sets" class="codex-content active">
+                    <div class="set-collection-header">
+                        <div class="set-collection-stats">
+                            <span>已发现: <span id="set-discovered-count">0</span>/9 套装</span>
+                            <span>已收集: <span id="set-pieces-count">0</span> 部件</span>
+                        </div>
+                    </div>
+                    <div id="set-collection-list"></div>
+                </div>
+                <div id="codex-monsters" class="codex-content">
+                    <div class="monster-codex-header">
+                        <div class="monster-codex-stats">
+                            <span>已发现: <span id="monster-discovered-count">0</span>/15</span>
+                        </div>
+                    </div>
+                    <div id="monster-codex-list"></div>
+                </div>
             </div>
 
             <div id="shop-panel" class="panel">
@@ -643,6 +669,7 @@
                 <button class="sys-btn" id="btn-quest" onclick="togglePanel('quest')">任务 (J)<span
                         class="notification-badge" id="badge-quest"></span></button>
                 <button class="sys-btn" id="btn-achievements" onclick="togglePanel('achievements')">成就 (A)</button>
+                <button class="sys-btn" id="btn-set-collection" onclick="togglePanel('set-collection')">图鉴 (G)</button>
             </div>
 
             <div id="bottom-hud">
@@ -714,21 +741,21 @@
 
     <script src="gsap.min.js"></script>
     <script src="gsap-animations.js?v=202512301047"></script>
-    <script src="ui-panels.js?v=202512301121"></script>
+    <script src="ui-panels.js?v=202601011500"></script>
     <!-- 业务逻辑脚本 -->
-    <script src="changelog.js?v=202512301030"></script>
+    <script src="changelog.js?v=202601011500"></script>
     <script src="constants.js?v=202512230743"></script>
     <script src="items-data.js?v=202512191630"></script>
     <script src="set-items.js?v=202512301030"></script>
-    <script src="item-system.js?v=202512301030"></script>
+    <script src="item-system.js?v=202601011500"></script>
     <script src="audio.js?v=202512191630"></script>
     <script src="daily-quest.js?v=202512230805"></script>
     <script src="save-system.js?v=202512291600"></script>
     <script src="enemy-system.js?v=202512291600"></script>
-    <script src="abyss-system.js?v=202512301130"></script>
-    <script src="game.js?v=202512301123"></script>
+    <script src="abyss-system.js?v=202512301147"></script>
+    <script src="game.js?v=202601011500"></script>
     <script src="pocketbase.umd.js"></script>
-    <script src="online.js?v=202512301030"></script>
+    <script src="online.js?v=202512301452"></script>
     <script src="market.js?v=202512301030"></script>
     <script>
         // 显示欢迎回来信息
