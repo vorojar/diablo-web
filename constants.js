@@ -215,6 +215,199 @@ function getSkillManaCost(skillName, level) {
     return config.baseMana + (level - 1) * config.manaPerLevel;
 }
 
+// ========== 技能树配置 ==========
+const SKILL_TREE = {
+    fireball: {
+        name: '火球术',
+        key: 'Q',
+        desc: '发射火球攻击敌人',
+        stage2: {
+            explosion: {
+                name: '爆炸强化',
+                desc: '爆炸范围+15%/级，爆炸伤害+8%/级',
+                effect: { explosionRadius: 0.15, explosionDamage: 0.08 }
+            },
+            burn: {
+                name: '灼烧',
+                desc: '附加灼烧DOT，每秒6%伤害/级，持续2+0.4秒/级',
+                effect: { burnDPS: 0.06, burnDuration: 0.4, burnBase: 2 }
+            }
+        },
+        stage3: {
+            explosion: {
+                meteor: {
+                    name: '陨石术',
+                    desc: '火球变陨石，爆炸伤害+100%，落点燃烧3秒',
+                    effect: { meteorMode: true, explosionBonus: 1.0, groundFire: 3 }
+                },
+                nova: {
+                    name: '火焰新星',
+                    desc: '释放时同时以自身为中心爆发火焰波',
+                    effect: { novaMode: true, novaDamageRatio: 0.5, knockback: true }
+                }
+            },
+            burn: {
+                spread: {
+                    name: '蔓延',
+                    desc: '灼烧传染给周围敌人，传染伤害60%',
+                    effect: { burnSpread: true, spreadRatio: 0.6 }
+                },
+                detonate: {
+                    name: '焚尽',
+                    desc: '灼烧中敌人受火伤+30%，灼烧结束时引爆',
+                    effect: { burnAmplify: 0.3, burnDetonate: true }
+                }
+            }
+        }
+    },
+    thunder: {
+        name: '雷电术',
+        key: 'W',
+        desc: '召唤雷电打击敌人',
+        stage2: {
+            chain: {
+                name: '连锁',
+                desc: '弹射目标+1/级，弹射衰减-5%/级',
+                effect: { chainTargets: 1, chainDecayReduce: 0.05 }
+            },
+            shock: {
+                name: '感电',
+                desc: '麻痹0.3+0.1秒/级，受雷伤+10%/级',
+                effect: { stunBase: 0.3, stunPerLevel: 0.1, lightningAmp: 0.1 }
+            }
+        },
+        stage3: {
+            chain: {
+                storm: {
+                    name: '雷暴',
+                    desc: '创造雷暴区域3秒，每0.5秒落雷，区域减速30%',
+                    effect: { stormMode: true, stormDuration: 3, stormInterval: 0.5, slowAmount: 0.3 }
+                },
+                overload: {
+                    name: '超载',
+                    desc: '击杀时爆炸，爆炸=敌人10%最大生命',
+                    effect: { killExplode: true, explodeHpRatio: 0.1 }
+                }
+            },
+            shock: {
+                torture: {
+                    name: '电刑',
+                    desc: '感电期间持续掉血，每秒=雷电伤害×20%',
+                    effect: { shockDOT: true, shockDPS: 0.2 }
+                },
+                shield: {
+                    name: '电弧护盾',
+                    desc: '击中获得护盾=伤害×15%，护盾期间免控',
+                    effect: { arcShield: true, shieldRatio: 0.15, immuneCC: true }
+                }
+            }
+        }
+    },
+    multishot: {
+        name: '多重射击',
+        key: 'E',
+        desc: '扇形发射多支箭矢',
+        stage2: {
+            pierce: {
+                name: '穿透',
+                desc: '穿透+1敌人/级，穿透衰减-4%/级',
+                effect: { pierceTargets: 1, pierceDecayReduce: 0.04 }
+            },
+            spread: {
+                name: '扩散',
+                desc: '额外箭矢+1/级，扩散角+5°/级',
+                effect: { extraArrows: 1, spreadAngle: 5 }
+            }
+        },
+        stage3: {
+            pierce: {
+                rain: {
+                    name: '箭雨',
+                    desc: '箭矢飞行后分裂下落，覆盖范围伤害=单箭×60%',
+                    effect: { rainMode: true, rainDamageRatio: 0.6 }
+                },
+                snipe: {
+                    name: '狙击',
+                    desc: '长按蓄力2秒，伤害+50%/秒，穿透+3',
+                    effect: { snipeMode: true, chargeDamage: 0.5, chargeMaxTime: 2, chargePierce: 3 }
+                }
+            },
+            spread: {
+                barrage: {
+                    name: '弹幕',
+                    desc: '连发3波，间隔0.2秒，总伤害+80%',
+                    effect: { barrageMode: true, barrageWaves: 3, barrageInterval: 0.2, barrageDamage: 0.8 }
+                },
+                split: {
+                    name: '分裂箭',
+                    desc: '箭矢飞行中分裂成2支，小箭伤害50%',
+                    effect: { splitMode: true, splitCount: 2, splitDamage: 0.5 }
+                }
+            }
+        }
+    }
+};
+
+// 技能树常量
+const SKILL_TREE_MAX_LEVEL = 5;  // 每阶段最大等级
+
+// 工具函数：获取技能总等级（用于兼容现有系统）
+function getSkillTotalLevel(skillName) {
+    if (!player.skillTree || !player.skillTree[skillName]) {
+        return player.skills ? player.skills[skillName] || 0 : 0;
+    }
+    const tree = player.skillTree[skillName];
+    return tree.stage1 + (tree.stage2.level || 0) + (tree.stage3.level || 0);
+}
+
+// 工具函数：检查阶段是否解锁
+function isStageUnlocked(skillName, stage) {
+    if (!player.skillTree || !player.skillTree[skillName]) return stage === 1;
+    const tree = player.skillTree[skillName];
+    if (stage === 1) return true;
+    if (stage === 2) return tree.stage1 >= SKILL_TREE_MAX_LEVEL;
+    if (stage === 3) return tree.stage2.level >= SKILL_TREE_MAX_LEVEL;
+    return false;
+}
+
+// 工具函数：获取技能树效果加成
+function getSkillTreeBonus(skillName) {
+    const bonus = {};
+    if (!player.skillTree || !player.skillTree[skillName]) return bonus;
+
+    const tree = player.skillTree[skillName];
+    const config = SKILL_TREE[skillName];
+    if (!config) return bonus;
+
+    // 阶段2加成
+    if (tree.stage2.chosen && tree.stage2.level > 0) {
+        const s2Config = config.stage2[tree.stage2.chosen];
+        if (s2Config && s2Config.effect) {
+            for (const key in s2Config.effect) {
+                bonus[key] = s2Config.effect[key] * tree.stage2.level;
+            }
+        }
+    }
+
+    // 阶段3加成（固定效果，不按等级）
+    if (tree.stage3.chosen && tree.stage3.level > 0) {
+        const s2Choice = tree.stage2.chosen;
+        const s3Config = config.stage3[s2Choice]?.[tree.stage3.chosen];
+        if (s3Config && s3Config.effect) {
+            for (const key in s3Config.effect) {
+                // 阶段3是终极技能，等级只影响是否激活
+                if (typeof s3Config.effect[key] === 'boolean') {
+                    bonus[key] = s3Config.effect[key];
+                } else {
+                    bonus[key] = (bonus[key] || 0) + s3Config.effect[key] * tree.stage3.level;
+                }
+            }
+        }
+    }
+
+    return bonus;
+}
+
 // ========== 游戏配置常量 ==========
 const GAME_CONFIG = {
     // 怪物生成

@@ -27,7 +27,7 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=202601011500">
+    <link rel="stylesheet" href="style.css?v=202601021035">
 </head>
 
 <!-- 版本标记: v6.7 图鉴系统 -->
@@ -189,50 +189,17 @@
                 </div>
             </div>
 
-            <div id="skills-panel" class="panel">
+            <div id="skills-panel" class="panel skill-tree-panel">
                 <div class="panel-close" onclick="togglePanel('skills')"></div>
                 <div class="panel-header">技能树</div>
-                <div style="text-align:center; color:var(--text-gold); margin-bottom:10px;">剩余技能点: <span
-                        id="skill-points">0</span></div>
-                <div class="skill-row">
-                    <div class="skill-icon">
-                        <div class="skill-sprite skill-fireball"></div>
-                    </div>
-                    <div class="skill-info">
-                        <div class="skill-name">火球术 [Q]</div>
-                        <div class="skill-desc">发射火球 (射程: 中等)<br>
-                            <span style="color:#88ff88; font-size:10px;">Lv5+: 解锁爆炸效果</span>
-                        </div>
-                        <div class="skill-cost" style="color:#4d94ff; font-size:11px;">法力: 10</div>
-                    </div>
-                    <div style="font-size:12px; color:#fff">Lv <span id="lvl-fireball">1</span> <button class="stat-btn"
-                            onclick="upgradeSkill('fireball')">+</button></div>
+                <div class="skill-tree-points">技能点: <span id="skill-points">0</span></div>
+                <div class="skill-tree-tabs">
+                    <div class="skill-tree-tab active" data-skill="fireball" onclick="switchSkillTab('fireball')">🔥 火焰</div>
+                    <div class="skill-tree-tab" data-skill="thunder" onclick="switchSkillTab('thunder')">⚡ 雷电</div>
+                    <div class="skill-tree-tab" data-skill="multishot" onclick="switchSkillTab('multishot')">🏹 射击</div>
                 </div>
-                <div class="skill-row">
-                    <div class="skill-icon">
-                        <div class="skill-sprite skill-thunder"></div>
-                    </div>
-                    <div class="skill-info">
-                        <div class="skill-name">雷电术 [W]</div>
-                        <div class="skill-desc">召唤雷电打击敌人 (射程: 中等)<br>
-                            <span style="color:#88ff88; font-size:10px;">Lv2+: 解锁闪电链效果</span>
-                        </div>
-                        <div class="skill-cost" id="cost-thunder" style="color:#4d94ff; font-size:11px;">法力: 8</div>
-                    </div>
-                    <div style="font-size:12px; color:#fff">Lv <span id="lvl-thunder">0</span> <button class="stat-btn"
-                            onclick="upgradeSkill('thunder')">+</button></div>
-                </div>
-                <div class="skill-row">
-                    <div class="skill-icon">
-                        <div class="skill-sprite skill-multishot"></div>
-                    </div>
-                    <div class="skill-info">
-                        <div class="skill-name">多重射击 [E]</div>
-                        <div class="skill-desc">扇形箭矢</div>
-                        <div class="skill-cost" style="color:#4d94ff; font-size:11px;">法力: 10</div>
-                    </div>
-                    <div style="font-size:12px; color:#fff">Lv <span id="lvl-multishot">0</span> <button
-                            class="stat-btn" onclick="upgradeSkill('multishot')">+</button></div>
+                <div id="skill-tree-content" class="skill-tree-scroll">
+                    <!-- 动态生成技能树内容 -->
                 </div>
             </div>
 
@@ -744,7 +711,7 @@
     <script src="ui-panels.js?v=202601011500"></script>
     <!-- 业务逻辑脚本 -->
     <script src="changelog.js?v=202601011500"></script>
-    <script src="constants.js?v=202512230743"></script>
+    <script src="constants.js?v=202601021030"></script>
     <script src="items-data.js?v=202512191630"></script>
     <script src="set-items.js?v=202512301030"></script>
     <script src="item-system.js?v=202601011500"></script>
@@ -753,7 +720,7 @@
     <script src="save-system.js?v=202512291600"></script>
     <script src="enemy-system.js?v=202512291600"></script>
     <script src="abyss-system.js?v=202512301147"></script>
-    <script src="game.js?v=202601011500"></script>
+    <script src="game.js?v=202601021035"></script>
     <script src="pocketbase.umd.js"></script>
     <script src="online.js?v=202512301452"></script>
     <script src="market.js?v=202512301030"></script>

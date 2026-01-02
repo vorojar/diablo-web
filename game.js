@@ -554,6 +554,24 @@ const player = {
     resistances: { fire: 0, cold: 0, lightning: 0, poison: 0 },  // 抗性系统
     elementalDamage: { fire: 0, cold: 0, lightning: 0, poison: 0 },  // 元素伤害
     skills: { fireball: 1, thunder: 0, multishot: 0 }, activeSkill: 'fireball',
+    // 技能树系统
+    skillTree: {
+        fireball: {
+            stage1: 1,  // 阶段1等级（火球术初始1级）
+            stage2: { chosen: null, level: 0 },
+            stage3: { chosen: null, level: 0 }
+        },
+        thunder: {
+            stage1: 0,
+            stage2: { chosen: null, level: 0 },
+            stage3: { chosen: null, level: 0 }
+        },
+        multishot: {
+            stage1: 0,
+            stage2: { chosen: null, level: 0 },
+            stage3: { chosen: null, level: 0 }
+        }
+    },
     targetX: null, targetY: null, targetItem: null, attacking: false, attackCooldown: 0, attackAnim: 0,
     skillCooldowns: { fireball: 0, thunder: 0, multishot: 0 },
     // 存储当前激活的闪电特效
@@ -3384,6 +3402,53 @@ function startGame() {
         if (!player.equipment.amulet) player.equipment.amulet = null;
 
         if (!player.skills) player.skills = { fireball: 1, thunder: 0, multishot: 0 };
+
+        // 向后兼容：技能树系统迁移
+        if (!player.skillTree) {
+            // 从旧版 skills 迁移到技能树
+            player.skillTree = {
+                fireball: {
+                    stage1: Math.min(player.skills.fireball || 1, SKILL_TREE_MAX_LEVEL),
+                    stage2: { chosen: null, level: 0 },
+                    stage3: { chosen: null, level: 0 }
+                },
+                thunder: {
+                    stage1: Math.min(player.skills.thunder || 0, SKILL_TREE_MAX_LEVEL),
+                    stage2: { chosen: null, level: 0 },
+                    stage3: { chosen: null, level: 0 }
+                },
+                multishot: {
+                    stage1: Math.min(player.skills.multishot || 0, SKILL_TREE_MAX_LEVEL),
+                    stage2: { chosen: null, level: 0 },
+                    stage3: { chosen: null, level: 0 }
+                }
+            };
+            // 多余的点数退还
+            const oldTotal = (player.skills.fireball || 0) + (player.skills.thunder || 0) + (player.skills.multishot || 0);
+            const newTotal = player.skillTree.fireball.stage1 + player.skillTree.thunder.stage1 + player.skillTree.multishot.stage1;
+            const refund = oldTotal - newTotal;
+            if (refund > 0) {
+                player.skillPoints += refund;
+                console.log(`[技能树迁移] 退还 ${refund} 点技能点`);
+            }
+        } else {
+            // 确保技能树结构完整
+            for (const skillId of ['fireball', 'thunder', 'multishot']) {
+                if (!player.skillTree[skillId]) {
+                    player.skillTree[skillId] = {
+                        stage1: skillId === 'fireball' ? 1 : 0,
+                        stage2: { chosen: null, level: 0 },
+                        stage3: { chosen: null, level: 0 }
+                    };
+                }
+                if (!player.skillTree[skillId].stage2) {
+                    player.skillTree[skillId].stage2 = { chosen: null, level: 0 };
+                }
+                if (!player.skillTree[skillId].stage3) {
+                    player.skillTree[skillId].stage3 = { chosen: null, level: 0 };
+                }
+            }
+        }
 
         // 向后兼容：套装系统
         if (!player.equippedSets) player.equippedSets = {};
@@ -6389,6 +6454,25 @@ function respecPlayer(type) {
         player.skills.fireball = 1; // 火球术保持1级（初始技能）
         player.skills.thunder = 0;
         player.skills.multishot = 0;
+
+        // 重置技能树
+        player.skillTree = {
+            fireball: {
+                stage1: 1,  // 火球术保持1级
+                stage2: { chosen: null, level: 0 },
+                stage3: { chosen: null, level: 0 }
+            },
+            thunder: {
+                stage1: 0,
+                stage2: { chosen: null, level: 0 },
+                stage3: { chosen: null, level: 0 }
+            },
+            multishot: {
+                stage1: 0,
+                stage2: { chosen: null, level: 0 },
+                stage3: { chosen: null, level: 0 }
+            }
+        };
 
         // 返还所有技能点（减去火球术的1点）
         player.skillPoints = totalSkillPoints;
@@ -10719,18 +10803,23 @@ function updateStatsUI() {
 }
 
 function updateSkillsUI() {
-    document.getElementById('skill-points').innerText = player.skillPoints;
-    document.getElementById('lvl-fireball').innerText = player.skills.fireball;
-    document.getElementById('lvl-thunder').innerText = player.skills.thunder; // Changed from frostnova
-    document.getElementById('lvl-multishot').innerText = player.skills.multishot;
-    document.getElementById('bar-lvl-fireball').innerText = player.skills.fireball;
-    document.getElementById('bar-lvl-thunder').innerText = player.skills.thunder; // Changed from frostnova
-    document.getElementById('bar-lvl-multishot').innerText = player.skills.multishot;
+    // 更新技能点显示
+    const skillPointsEl = document.getElementById('skill-points');
+    if (skillPointsEl) skillPointsEl.innerText = player.skillPoints;
 
-    // 更新雷电术法力消耗显示
-    const thunderCost = getSkillManaCost('thunder', player.skills.thunder);
-    const thunderCostEl = document.getElementById('thunder-mana-cost');
-    if (thunderCostEl) thunderCostEl.innerText = `法力: ${Math.ceil(thunderCost)}`;
+    // 同步技能树到 skills（确保兼容）
+    syncSkillsFromTree();
+
+    // 更新技能栏等级显示
+    const barFireball = document.getElementById('bar-lvl-fireball');
+    const barThunder = document.getElementById('bar-lvl-thunder');
+    const barMultishot = document.getElementById('bar-lvl-multishot');
+    if (barFireball) barFireball.innerText = player.skills.fireball;
+    if (barThunder) barThunder.innerText = player.skills.thunder;
+    if (barMultishot) barMultishot.innerText = player.skills.multishot;
+
+    // 渲染技能树面板
+    renderSkillTree();
 
     // 禁用未学习的技能
     const skills = ['fireball', 'thunder', 'multishot'];
@@ -10836,6 +10925,383 @@ function upgradeSkill(t) {
         AudioSys.play('click');  // 加点音效
         updateSkillsUI();
         updateMenuIndicators();
+    }
+}
+
+// ========== 技能树系统 ==========
+
+// 当前选中的技能树Tab
+let currentSkillTab = 'fireball';
+
+// 切换技能Tab
+function switchSkillTab(skillId) {
+    currentSkillTab = skillId;
+
+    // 更新Tab样式
+    document.querySelectorAll('.skill-tree-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.skill === skillId);
+    });
+
+    // 重新渲染
+    renderSkillTree();
+}
+
+// 渲染技能树面板
+function renderSkillTree() {
+    const container = document.getElementById('skill-tree-content');
+    if (!container) return;
+
+    let html = '';
+    const skillId = currentSkillTab;
+    const skillIcons = { fireball: '🔥', thunder: '⚡', multishot: '🏹' };
+    const config = SKILL_TREE[skillId];
+    const tree = player.skillTree[skillId];
+    if (!config || !tree) {
+        container.innerHTML = '';
+        return;
+    }
+
+    html += `<div class="skill-tree-branch" data-skill="${skillId}">`;
+
+    // 阶段1：基础技能
+    const s1Level = tree.stage1;
+    const s1Maxed = s1Level >= SKILL_TREE_MAX_LEVEL;
+    const s1Class = s1Maxed ? 'maxed' : (s1Level > 0 ? 'active' : '');
+
+    html += `<div class="skill-tree-stage stage-1">`;
+    html += renderSkillNode({
+        skillId,
+        stage: 1,
+        nodeId: skillId,
+        name: `${config.name} [${config.key}]`,
+        desc: config.desc,
+        level: s1Level,
+        maxLevel: SKILL_TREE_MAX_LEVEL,
+        nodeClass: s1Class,
+        canUpgrade: player.skillPoints > 0 && !s1Maxed,
+        spriteClass: `skill-${skillId}`
+    });
+    html += `</div>`;
+
+    // 连接线：阶段1 → 阶段2
+    const s2Unlocked = s1Maxed;
+    html += `<div class="skill-tree-connector fork ${s2Unlocked ? 'active' : ''}">`;
+    html += `<div class="line-left"></div><div class="line-right"></div>`;
+    html += `</div>`;
+
+    // 阶段2：分叉选择
+    html += `<div class="skill-tree-stage stage-fork">`;
+    const s2Options = Object.keys(config.stage2);
+    for (const optId of s2Options) {
+        const opt = config.stage2[optId];
+        const isChosen = tree.stage2.chosen === optId;
+        const otherChosen = tree.stage2.chosen && tree.stage2.chosen !== optId;
+        const s2Level = isChosen ? tree.stage2.level : 0;
+        const s2Maxed = s2Level >= SKILL_TREE_MAX_LEVEL;
+
+        let nodeClass = '';
+        if (!s2Unlocked) {
+            nodeClass = 'locked';
+        } else if (otherChosen) {
+            nodeClass = 'other-locked';
+        } else if (s2Maxed) {
+            nodeClass = 'maxed';
+        } else if (isChosen) {
+            nodeClass = 'active';
+        } else {
+            nodeClass = 'selectable';
+        }
+
+        const canUpgrade = s2Unlocked && isChosen && player.skillPoints > 0 && !s2Maxed;
+        const canSelect = s2Unlocked && !tree.stage2.chosen;
+
+        html += renderSkillNode({
+            skillId,
+            stage: 2,
+            nodeId: optId,
+            name: opt.name,
+            desc: opt.desc,
+            level: s2Level,
+            maxLevel: SKILL_TREE_MAX_LEVEL,
+            nodeClass,
+            canUpgrade,
+            canSelect,
+            spriteClass: `skill-${skillId}`,
+            parent: skillId,
+            locked: !s2Unlocked,
+            otherLocked: otherChosen
+        });
+    }
+    html += `</div>`;
+
+    // 连接线：阶段2 → 阶段3
+    const s2Choice = tree.stage2.chosen;
+    const s3Unlocked = s2Choice && tree.stage2.level >= SKILL_TREE_MAX_LEVEL;
+    const s2LeftChosen = s2Options[0] === s2Choice;
+    const connectorClass = s3Unlocked ? 'active' : (s2Choice ? (s2LeftChosen ? 'active-left' : 'active-right') : '');
+    html += `<div class="skill-tree-connector fork ${connectorClass}">`;
+    html += `<div class="line-left"></div><div class="line-right"></div>`;
+    html += `</div>`;
+
+    // 阶段3：终极分叉
+    html += `<div class="skill-tree-stage stage-fork">`;
+    if (s2Choice && config.stage3[s2Choice]) {
+        const s3Options = Object.keys(config.stage3[s2Choice]);
+        for (const optId of s3Options) {
+            const opt = config.stage3[s2Choice][optId];
+            const isChosen = tree.stage3.chosen === optId;
+            const otherChosen = tree.stage3.chosen && tree.stage3.chosen !== optId;
+            const s3Level = isChosen ? tree.stage3.level : 0;
+            const s3Maxed = s3Level >= SKILL_TREE_MAX_LEVEL;
+
+            let nodeClass = '';
+            if (!s3Unlocked) {
+                nodeClass = 'locked';
+            } else if (otherChosen) {
+                nodeClass = 'other-locked';
+            } else if (s3Maxed) {
+                nodeClass = 'maxed';
+            } else if (isChosen) {
+                nodeClass = 'active';
+            } else {
+                nodeClass = 'selectable';
+            }
+
+            const canUpgrade = s3Unlocked && isChosen && player.skillPoints > 0 && !s3Maxed;
+            const canSelect = s3Unlocked && !tree.stage3.chosen;
+
+            html += renderSkillNode({
+                skillId,
+                stage: 3,
+                nodeId: optId,
+                name: opt.name,
+                desc: opt.desc,
+                level: s3Level,
+                maxLevel: SKILL_TREE_MAX_LEVEL,
+                nodeClass,
+                canUpgrade,
+                canSelect,
+                spriteClass: `skill-${skillId}`,
+                parent: skillId,
+                locked: !s3Unlocked,
+                otherLocked: otherChosen
+            });
+        }
+    } else {
+        // 阶段2未选择时，显示占位
+        html += `<div class="skill-tree-node locked" style="opacity:0.3">`;
+        html += `<div class="skill-node-icon"><div class="skill-sprite skill-${skillId}"></div></div>`;
+        html += `<div class="skill-node-name">???</div>`;
+        html += `<div class="skill-node-level">需阶段2选择</div>`;
+        html += `</div>`;
+        html += `<div class="skill-tree-node locked" style="opacity:0.3">`;
+        html += `<div class="skill-node-icon"><div class="skill-sprite skill-${skillId}"></div></div>`;
+        html += `<div class="skill-node-name">???</div>`;
+        html += `<div class="skill-node-level">需阶段2选择</div>`;
+        html += `</div>`;
+    }
+    html += `</div>`;
+
+    html += `</div>`; // skill-tree-branch
+
+    container.innerHTML = html;
+}
+
+// 渲染单个技能节点
+function renderSkillNode(opts) {
+    const {
+        skillId, stage, nodeId, name, desc, level, maxLevel,
+        nodeClass, canUpgrade, canSelect, spriteClass, parent,
+        locked, otherLocked
+    } = opts;
+
+    const progressPct = (level / maxLevel * 100).toFixed(0);
+    const levelText = locked ? '🔒' : `${level}/${maxLevel}`;
+
+    let html = `<div class="skill-tree-node ${nodeClass}"
+        data-skill="${skillId}" data-stage="${stage}" data-node="${nodeId}"
+        ${parent ? `data-parent="${parent}"` : ''}
+        onclick="onSkillNodeClick('${skillId}', ${stage}, '${nodeId}')"
+        title="${desc}">`;
+
+    html += `<div class="skill-node-icon"><div class="skill-sprite ${spriteClass}"></div></div>`;
+    html += `<div class="skill-node-name">${name}</div>`;
+    html += `<div class="skill-node-level">${levelText}</div>`;
+
+    if (!locked && !otherLocked) {
+        html += `<div class="skill-node-progress"><div class="skill-node-progress-fill" style="width:${progressPct}%"></div></div>`;
+    }
+
+    if (canUpgrade) {
+        html += `<div class="skill-node-upgrade" onclick="event.stopPropagation(); upgradeSkillTree('${skillId}', ${stage}, '${nodeId}')">+</div>`;
+    } else if (canSelect) {
+        html += `<div class="skill-node-hint">点击选择</div>`;
+    }
+
+    if (level >= maxLevel && !locked) {
+        html += `<span class="skill-node-check">✓</span>`;
+    } else if (locked) {
+        html += `<span class="skill-node-lock">🔒</span>`;
+    }
+
+    html += `</div>`;
+    return html;
+}
+
+// 技能节点点击处理
+function onSkillNodeClick(skillId, stage, nodeId) {
+    const tree = player.skillTree[skillId];
+    if (!tree) return;
+
+    if (stage === 1) {
+        // 阶段1直接升级
+        if (player.skillPoints > 0 && tree.stage1 < SKILL_TREE_MAX_LEVEL) {
+            upgradeSkillTree(skillId, 1, nodeId);
+        }
+    } else if (stage === 2) {
+        const s1Maxed = tree.stage1 >= SKILL_TREE_MAX_LEVEL;
+        if (!s1Maxed) return; // 未解锁
+
+        if (!tree.stage2.chosen) {
+            // 选择分叉
+            confirmSkillChoice(skillId, 2, nodeId);
+        } else if (tree.stage2.chosen === nodeId) {
+            // 已选择，升级
+            if (player.skillPoints > 0 && tree.stage2.level < SKILL_TREE_MAX_LEVEL) {
+                upgradeSkillTree(skillId, 2, nodeId);
+            }
+        }
+    } else if (stage === 3) {
+        const s2Maxed = tree.stage2.level >= SKILL_TREE_MAX_LEVEL;
+        if (!s2Maxed) return; // 未解锁
+
+        if (!tree.stage3.chosen) {
+            // 选择分叉
+            confirmSkillChoice(skillId, 3, nodeId);
+        } else if (tree.stage3.chosen === nodeId) {
+            // 已选择，升级
+            if (player.skillPoints > 0 && tree.stage3.level < SKILL_TREE_MAX_LEVEL) {
+                upgradeSkillTree(skillId, 3, nodeId);
+            }
+        }
+    }
+}
+
+// 确认选择分叉（使用通用游戏对话框）
+function confirmSkillChoice(skillId, stage, nodeId) {
+    const config = SKILL_TREE[skillId];
+    if (!config) return;
+
+    let nodeName = '';
+    let nodeDesc = '';
+    if (stage === 2) {
+        const nodeConfig = config.stage2[nodeId];
+        nodeName = nodeConfig?.name || nodeId;
+        nodeDesc = nodeConfig?.desc || '';
+    } else if (stage === 3) {
+        const s2Choice = player.skillTree[skillId].stage2.chosen;
+        const nodeConfig = config.stage3[s2Choice]?.[nodeId];
+        nodeName = nodeConfig?.name || nodeId;
+        nodeDesc = nodeConfig?.desc || '';
+    }
+
+    // 使用通用游戏对话框
+    const overlay = document.getElementById('game-dialog-overlay');
+    const header = document.getElementById('game-dialog-header');
+    const body = document.getElementById('game-dialog-body');
+    const btnCancel = document.getElementById('game-dialog-btn-cancel');
+    const btnConfirm = document.getElementById('game-dialog-btn-confirm');
+
+    header.textContent = '选择技能分支';
+    body.innerHTML = `<strong style="color:#ffd700;font-size:18px;">${nodeName}</strong><br><br>${nodeDesc}<br><br><span style="color:#ff6b6b;">⚠️ 选择后无法更改！</span>`;
+    btnCancel.style.display = 'block';
+    btnCancel.textContent = '取消';
+    btnConfirm.textContent = '确认选择';
+    overlay.classList.add('active');
+
+    const cleanup = () => {
+        btnConfirm.onclick = null;
+        btnCancel.onclick = null;
+    };
+
+    btnConfirm.onclick = () => {
+        overlay.classList.remove('active');
+        cleanup();
+        selectSkillBranch(skillId, stage, nodeId);
+    };
+
+    btnCancel.onclick = () => {
+        overlay.classList.remove('active');
+        cleanup();
+        AudioSys.play('click');
+    };
+
+    AudioSys.play('click');
+}
+
+// 选择技能分叉
+function selectSkillBranch(skillId, stage, nodeId) {
+    const tree = player.skillTree[skillId];
+    if (!tree) return;
+
+    if (stage === 2 && !tree.stage2.chosen) {
+        tree.stage2.chosen = nodeId;
+        AudioSys.play('pickup_unique');
+        createFloatingText(window.innerWidth / 2, 100, `已选择: ${SKILL_TREE[skillId].stage2[nodeId].name}`, '#ffd700');
+    } else if (stage === 3 && !tree.stage3.chosen) {
+        tree.stage3.chosen = nodeId;
+        AudioSys.play('pickup_unique');
+        const s2Choice = tree.stage2.chosen;
+        createFloatingText(window.innerWidth / 2, 100, `已选择: ${SKILL_TREE[skillId].stage3[s2Choice][nodeId].name}`, '#ffd700');
+    }
+
+    renderSkillTree();
+    syncSkillsFromTree();
+}
+
+// 升级技能树节点
+function upgradeSkillTree(skillId, stage, nodeId) {
+    if (player.skillPoints <= 0) return;
+
+    const tree = player.skillTree[skillId];
+    if (!tree) return;
+
+    let upgraded = false;
+
+    if (stage === 1) {
+        if (tree.stage1 < SKILL_TREE_MAX_LEVEL) {
+            tree.stage1++;
+            upgraded = true;
+        }
+    } else if (stage === 2) {
+        if (tree.stage2.chosen === nodeId && tree.stage2.level < SKILL_TREE_MAX_LEVEL) {
+            tree.stage2.level++;
+            upgraded = true;
+        }
+    } else if (stage === 3) {
+        if (tree.stage3.chosen === nodeId && tree.stage3.level < SKILL_TREE_MAX_LEVEL) {
+            tree.stage3.level++;
+            upgraded = true;
+        }
+    }
+
+    if (upgraded) {
+        player.skillPoints--;
+        AudioSys.play('click');
+        renderSkillTree();
+        syncSkillsFromTree();
+        updateSkillsUI();
+        updateMenuIndicators();
+    }
+}
+
+// 同步技能树等级到 player.skills（兼容现有系统）
+function syncSkillsFromTree() {
+    for (const skillId of ['fireball', 'thunder', 'multishot']) {
+        const tree = player.skillTree[skillId];
+        if (tree) {
+            player.skills[skillId] = tree.stage1 + tree.stage2.level + tree.stage3.level;
+        }
     }
 }
 
