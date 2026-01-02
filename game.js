@@ -554,24 +554,8 @@ const player = {
     resistances: { fire: 0, cold: 0, lightning: 0, poison: 0 },  // 抗性系统
     elementalDamage: { fire: 0, cold: 0, lightning: 0, poison: 0 },  // 元素伤害
     skills: { fireball: 1, thunder: 0, multishot: 0 }, activeSkill: 'fireball',
-    // 技能树系统
-    skillTree: {
-        fireball: {
-            stage1: 1,  // 阶段1等级（火球术初始1级）
-            stage2: { chosen: null, level: 0 },
-            stage3: { chosen: null, level: 0 }
-        },
-        thunder: {
-            stage1: 0,
-            stage2: { chosen: null, level: 0 },
-            stage3: { chosen: null, level: 0 }
-        },
-        multishot: {
-            stage1: 0,
-            stage2: { chosen: null, level: 0 },
-            stage3: { chosen: null, level: 0 }
-        }
-    },
+    // 技能树系统（初始化为null，存档加载时会处理）
+    skillTree: null,
     targetX: null, targetY: null, targetItem: null, attacking: false, attackCooldown: 0, attackAnim: 0,
     skillCooldowns: { fireball: 0, thunder: 0, multishot: 0 },
     // 存储当前激活的闪电特效
@@ -3404,7 +3388,7 @@ function startGame() {
         if (!player.skills) player.skills = { fireball: 1, thunder: 0, multishot: 0 };
 
         // 向后兼容：技能树系统迁移
-        if (!player.skillTree) {
+        if (!player.skillTree && player.skills) {
             // 从旧版 skills 迁移到技能树
             player.skillTree = {
                 fireball: {
@@ -3432,6 +3416,14 @@ function startGame() {
                 console.log(`[技能树迁移] 退还 ${refund} 点技能点`);
             }
         } else {
+            // 为新玩家初始化技能树
+            if (!player.skillTree) {
+                player.skillTree = {
+                    fireball: { stage1: 1, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } },
+                    thunder: { stage1: 0, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } },
+                    multishot: { stage1: 0, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } }
+                };
+            }
             // 确保技能树结构完整
             for (const skillId of ['fireball', 'thunder', 'multishot']) {
                 if (!player.skillTree[skillId]) {
@@ -11219,18 +11211,29 @@ function confirmSkillChoice(skillId, stage, nodeId) {
     btnConfirm.textContent = '确认选择';
     overlay.classList.add('active');
 
+    const stopEvent = (e) => e.stopPropagation();
     const cleanup = () => {
         btnConfirm.onclick = null;
         btnCancel.onclick = null;
+        btnConfirm.onmousedown = null;
+        btnCancel.onmousedown = null;
+        overlay.onmousedown = null;
     };
 
-    btnConfirm.onclick = () => {
+    // 阻止点击穿透
+    overlay.onmousedown = stopEvent;
+    btnConfirm.onmousedown = stopEvent;
+    btnCancel.onmousedown = stopEvent;
+
+    btnConfirm.onclick = (e) => {
+        e.stopPropagation();
         overlay.classList.remove('active');
         cleanup();
         selectSkillBranch(skillId, stage, nodeId);
     };
 
-    btnCancel.onclick = () => {
+    btnCancel.onclick = (e) => {
+        e.stopPropagation();
         overlay.classList.remove('active');
         cleanup();
         AudioSys.play('click');
