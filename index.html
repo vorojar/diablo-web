@@ -27,7 +27,7 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=202601031300">
+    <link rel="stylesheet" href="style.css?v=202601031600">
 </head>
 
 <!-- 版本标记: v6.91 自动战斗拾取优化 -->
@@ -732,7 +732,7 @@
     <script src="save-system.js?v=202512291600"></script>
     <script src="enemy-system.js?v=202512291600"></script>
     <script src="abyss-system.js?v=202512301147"></script>
-    <script src="game.js?v=202601021955"></script>
+    <script src="game.js?v=202601031059"></script>
     <script src="pocketbase.umd.js"></script>
     <script src="online.js?v=202512301452"></script>
     <script src="market.js?v=202512301030"></script>
@@ -792,6 +792,53 @@
                 <button class="offline-claim-btn" onclick="claimOfflineRewards()">领取奖励</button>
             </div>
             <div class="offline-tip">提示：离线收益最多8小时，以最高到达层数为挂机层数</div>
+        </div>
+    </div>
+
+    <!-- 死亡弹窗面板 -->
+    <div id="death-panel-overlay" class="death-panel-overlay" onmousedown="event.stopPropagation()">
+        <div class="death-panel" onmousedown="event.stopPropagation()">
+            <div class="death-panel-header">
+                <span class="death-icon">💀</span>
+                <span class="death-title">你已阵亡</span>
+            </div>
+            <div class="death-panel-body">
+                <div class="death-stat-row">
+                    <span class="death-stat-icon">🏆</span>
+                    <span class="death-stat-label">到达层数</span>
+                    <span class="death-stat-value" id="death-floor-text">第1层</span>
+                </div>
+                <div class="death-stat-row">
+                    <span class="death-stat-icon">💀</span>
+                    <span class="death-stat-label">击杀怪物</span>
+                    <span class="death-stat-value" id="death-kills-text">0 只</span>
+                </div>
+                <div class="death-stat-row">
+                    <span class="death-stat-icon">⭐</span>
+                    <span class="death-stat-label">当前等级</span>
+                    <span class="death-stat-value" id="death-level-text">Lv.1</span>
+                </div>
+                <hr class="death-divider">
+                <div class="death-cause">
+                    <span class="death-cause-icon">☠️</span>
+                    <span class="death-cause-text" id="death-cause-text">死因不明</span>
+                </div>
+            </div>
+            <div class="death-panel-footer">
+                <button class="death-btn revive-btn" id="death-revive-btn" onclick="DeathPanel.revive()">
+                    <span class="btn-icon">✨</span>
+                    <span class="btn-text">原地复活</span>
+                    <span class="btn-cost">💰 <span id="revive-cost-text">1000</span></span>
+                </button>
+                <button class="death-btn return-btn" onclick="DeathPanel.returnToTown()">
+                    <span class="btn-icon">🏠</span>
+                    <span class="btn-text">回城</span>
+                    <span class="btn-cost">(免费)</span>
+                </button>
+            </div>
+            <div class="death-gold-display">
+                💰 当前金币: <span id="death-gold-text">0</span>
+            </div>
         </div>
     </div>
 

@@ -3143,6 +3143,273 @@ const OfflineRewards = {
     }
 };
 
+// ========== 死亡面板系统 ==========
+const DeathPanel = {
+    // 配置常量
+    REVIVE_COST_PER_LEVEL: 500,     // 每级复活费用
+    REVIVE_SAFE_DISTANCE: 350,      // 复活安全距离（远离敌人）
+    REVIVE_INVINCIBLE_TIME: 1.5,    // 复活后无敌时间（秒）
+
+    // 计算复活费用：max(等级, 层数) × 500
+    getReviveCost() {
+        const floor = player.isInHell ? player.hellFloor : player.floor;
+        const base = Math.max(player.lvl, floor);
+        return base * this.REVIVE_COST_PER_LEVEL;
+    },
+
+    // 显示死亡面板
+    show() {
+        const overlay = document.getElementById('death-panel-overlay');
+        if (!overlay) return;
+
+        // 填充战绩数据
+        const floorText = player.isInHell
+            ? `地狱·第${player.hellFloor}层`
+            : `第${player.floor}层`;
+        document.getElementById('death-floor-text').innerText = floorText;
+        document.getElementById('death-kills-text').innerText = `${player.kills} 只`;
+        document.getElementById('death-level-text').innerText = `Lv.${player.lvl}`;
+
+        // 死因
+        const causeText = player.lastDamageSource
+            ? `被 ${player.lastDamageSource} 击杀`
+            : '死因不明';
+        document.getElementById('death-cause-text').innerText = causeText;
+
+        // 金币显示和复活费用
+        const reviveCost = this.getReviveCost();
+        document.getElementById('death-gold-text').innerText = player.gold.toLocaleString();
+        document.getElementById('revive-cost-text').innerText = reviveCost.toLocaleString();
+
+        // 复活按钮状态
+        const reviveBtn = document.getElementById('death-revive-btn');
+        if (player.gold >= reviveCost) {
+            reviveBtn.disabled = false;
+        } else {
+            reviveBtn.disabled = true;
+        }
+
+        // 显示面板
+        overlay.classList.add('active');
+
+        // 播放死亡音效（使用沉重的击杀音效）
+        AudioSys.play('hit_kill');
+    },
+
+    // 关闭面板
+    hide() {
+        const overlay = document.getElementById('death-panel-overlay');
+        if (overlay) {
+            overlay.classList.remove('active');
+        }
+    },
+
+    // 原地复活
+    revive() {
+        const reviveCost = this.getReviveCost();
+
+        // 检查金币
+        if (player.gold < reviveCost) {
+            showNotification('金币不足，无法复活！');
+            return;
+        }
+
+        // 扣除金币
+        player.gold -= reviveCost;
+
+        // 计算安全复活位置（远离最近敌人）
+        const safePos = this.findSafePosition(player.x, player.y);
+        player.x = safePos.x;
+        player.y = safePos.y;
+
+        // 恢复满血满蓝
+        player.hp = player.maxHp;
+        player.mp = player.maxMp;
+
+        // 设置无敌时间
+        player.invincibleTimer = this.REVIVE_INVINCIBLE_TIME;
+
+        // 清除死亡状态
+        player.isDead = false;
+        player.deathTimer = 0;
+
+        // 移除灰度滤镜
+        document.getElementById('game-container').classList.remove('dead-filter');
+
+        // 关闭面板
+        this.hide();
+
+        // 复活特效
+        this.playReviveEffect();
+
+        // 通知
+        showNotification(`复活成功！消耗 ${reviveCost.toLocaleString()} 金币`);
+
+        // 更新UI
+        updateStats();
+        updateUI();
+
+        // 保存
+        SaveSystem.save();
+    },
+
+    // 回城（免费）
+    returnToTown() {
+        // 清除死亡状态
+        player.isDead = false;
+        player.deathTimer = 0;
+
+        // 恢复满血满蓝
+        player.hp = player.maxHp;
+        player.mp = player.maxMp;
+
+        // 重置地狱状态
+        const wasInHell = player.isInHell;
+        player.isInHell = false;
+
+        // 移除灰度滤镜
+        document.getElementById('game-container').classList.remove('dead-filter');
+
+        // 关闭面板
+        this.hide();
+
+        // 传送回营地
+        enterFloor(0);
+
+        if (wasInHell) {
+            showNotification('已从地狱返回营地');
+        } else {
+            showNotification('已返回营地');
+        }
+
+        // 保存
+        SaveSystem.save();
+    },
+
+    // 检查位置是否安全（不在墙里，考虑玩家半径）
+    // 注意：mapData[y][x] === 0 是墙，=== 1 是地板
+    isPositionSafe(x, y) {
+        const radius = player.radius || 15;
+        // 检查中心点和四周的格子
+        const checkPoints = [
+            { x: x, y: y },                           // 中心
+            { x: x - radius, y: y },                  // 左
+            { x: x + radius, y: y },                  // 右
+            { x: x, y: y - radius },                  // 上
+            { x: x, y: y + radius },                  // 下
+            { x: x - radius * 0.7, y: y - radius * 0.7 }, // 左上
+            { x: x + radius * 0.7, y: y - radius * 0.7 }, // 右上
+            { x: x - radius * 0.7, y: y + radius * 0.7 }, // 左下
+            { x: x + radius * 0.7, y: y + radius * 0.7 }  // 右下
+        ];
+
+        for (const p of checkPoints) {
+            const tileX = Math.floor(p.x / TILE_SIZE);
+            const tileY = Math.floor(p.y / TILE_SIZE);
+
+            // 超出地图边界
+            if (tileX < 0 || tileX >= MAP_WIDTH || tileY < 0 || tileY >= MAP_HEIGHT) {
+                return false;
+            }
+            // 在墙里（mapData === 0 是墙，=== 1 是地板）
+            if (!mapData[tileY] || mapData[tileY][tileX] !== 1) {
+                return false;
+            }
+        }
+        return true;
+    },
+
+    // 寻找安全复活位置
+    findSafePosition(deathX, deathY) {
+        // 找到最近的敌人
+        let nearestEnemy = null;
+        let nearestDist = Infinity;
+
+        for (const e of enemies) {
+            if (e.hp > 0) {
+                const dist = Math.hypot(e.x - deathX, e.y - deathY);
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearestEnemy = e;
+                }
+            }
+        }
+
+        // 计算远离敌人的方向（如果没有敌人，随机方向）
+        const awayAngle = nearestEnemy
+            ? Math.atan2(deathY - nearestEnemy.y, deathX - nearestEnemy.x)
+            : Math.random() * Math.PI * 2;
+
+        // 尝试多个方向和距离找到安全位置
+        const distances = [this.REVIVE_SAFE_DISTANCE, 250, 200, 150, 100];
+        const angleOffsets = [0, Math.PI / 6, -Math.PI / 6, Math.PI / 3, -Math.PI / 3,
+            Math.PI / 2, -Math.PI / 2, Math.PI * 2 / 3, -Math.PI * 2 / 3,
+            Math.PI * 5 / 6, -Math.PI * 5 / 6, Math.PI];
+
+        for (const dist of distances) {
+            for (const offsetAngle of angleOffsets) {
+                const angle = awayAngle + offsetAngle;
+                const testX = deathX + Math.cos(angle) * dist;
+                const testY = deathY + Math.sin(angle) * dist;
+
+                if (this.isPositionSafe(testX, testY)) {
+                    return { x: testX, y: testY };
+                }
+            }
+        }
+
+        // 如果还是找不到，进行更密集的螺旋搜索
+        for (let r = 80; r <= 500; r += 40) {
+            for (let a = 0; a < Math.PI * 2; a += Math.PI / 12) {
+                const testX = deathX + Math.cos(a) * r;
+                const testY = deathY + Math.sin(a) * r;
+
+                if (this.isPositionSafe(testX, testY)) {
+                    return { x: testX, y: testY };
+                }
+            }
+        }
+
+        // 最后尝试：使用地牢入口位置
+        if (typeof dungeonEntrance !== 'undefined' && dungeonEntrance) {
+            const entranceX = dungeonEntrance.x * TILE_SIZE + TILE_SIZE / 2;
+            const entranceY = dungeonEntrance.y * TILE_SIZE + TILE_SIZE / 2;
+            if (this.isPositionSafe(entranceX, entranceY)) {
+                return { x: entranceX, y: entranceY };
+            }
+        }
+
+        // 实在找不到，返回死亡位置（极端情况）
+        console.warn('DeathPanel: 无法找到安全复活位置，使用原地');
+        return { x: deathX, y: deathY };
+    },
+
+    // 复活特效
+    playReviveEffect() {
+        // 播放音效
+        AudioSys.play('levelup');
+
+        // 创建复活光效粒子
+        for (let i = 0; i < 30; i++) {
+            const angle = (i / 30) * Math.PI * 2;
+            const speed = 100 + Math.random() * 100;
+            particles.push({
+                x: player.x,
+                y: player.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed - 50,
+                life: 1,
+                maxLife: 1,
+                color: '#ffdd44',
+                size: 4 + Math.random() * 3
+            });
+        }
+
+        // 创建飘字
+        createFloatingText(player.x, player.y - 50, '复活!', '#ffdd44', 2);
+    }
+};
+
 // 领取离线收益（UI调用）
 function claimOfflineRewards() {
     OfflineRewards.claimAndClose();
@@ -3703,6 +3970,19 @@ function startGame() {
 
     // 同步画质设置的选择框状态
     document.getElementById('select-graphics-quality').value = player.graphicsQuality || 'high';
+
+    // 死亡状态恢复：如果存档时处于死亡状态（弹窗未选择就刷新），自动回城
+    if (player.isDead) {
+        console.log('[存档加载] 检测到死亡状态，自动回城恢复');
+        player.isDead = false;
+        player.deathTimer = 0;
+        player.floor = 0;
+        player.isInHell = false;
+        player.hp = player.maxHp;
+        player.mp = player.maxMp;
+        // 移除可能残留的灰度滤镜
+        document.getElementById('game-container').classList.remove('dead-filter');
+    }
 
     updateStats(); enterFloor(player.floor, 'start'); renderInventory(); updateStatsUI(); updateSkillsUI(); updateUI(); updateBeltUI(); updateQuestUI(); updateMenuIndicators();
     updateTalentHUD(); // 更新天赋HUD显示
@@ -4337,8 +4617,16 @@ function update(dt) {
         if (i.z > 0 || i.vz !== 0) {
             i.z += i.vz * dt;
             i.vz -= 800 * dt; // Gravity
+            const oldX = i.x, oldY = i.y;
             i.x += (i.vx || 0) * dt;
             i.y += (i.vy || 0) * dt;
+            // 墙壁碰撞检测：防止物品飞入墙壁或地图外
+            if (isWall(i.x, i.y)) {
+                i.x = oldX;
+                i.y = oldY;
+                i.vx = -(i.vx || 0) * 0.5;
+                i.vy = -(i.vy || 0) * 0.5;
+            }
 
             // 落地碰撞检测
             if (i.z <= 0) {
@@ -4513,44 +4801,26 @@ function update(dt) {
         }
     }
 
-    // 处理死亡倒计时
+    // 处理死亡状态（现在由弹窗控制复活/回城，不再自动倒计时）
     if (player.isDead) {
-        player.deathTimer -= dt;
-        if (player.deathTimer <= 0) {
-            // 深渊模式死亡特殊处理
-            if (typeof AbyssSystem !== 'undefined' && AbyssSystem.isActive) {
-                player.isDead = false;
-                player.deathTimer = 0;
-                document.getElementById('game-container').classList.remove('dead-filter');
-
-                // 先结算（会显示面板）
-                AbyssSystem.exit(true);
-
-                // 立即传送回营地并恢复满血
-                player.hp = player.maxHp;
-                player.mp = player.maxMp;
-                enterFloor(0);
-                return;
-            }
-
-            // 倒计时结束，执行回城
+        // 深渊模式死亡特殊处理（深渊模式有自己的结算逻辑，立即执行）
+        if (typeof AbyssSystem !== 'undefined' && AbyssSystem.isActive) {
             player.isDead = false;
             player.deathTimer = 0;
-            player.hp = player.maxHp;
-
-            // 重置地狱状态（死亡后回到普通世界）
-            const wasInHell = player.isInHell;
-            player.isInHell = false;
-
-            // 移除灰度滤镜
             document.getElementById('game-container').classList.remove('dead-filter');
+            DeathPanel.hide(); // 关闭死亡面板
 
-            // 传送回营地
+            // 先结算（会显示面板）
+            AbyssSystem.exit(true);
+
+            // 立即传送回营地并恢复满血
+            player.hp = player.maxHp;
+            player.mp = player.maxMp;
             enterFloor(0);
-            if (wasInHell) {
-                showNotification('已从地狱返回');
-            }
+            return;
         }
+
+        // 普通死亡状态：等待玩家在弹窗中选择复活或回城
         return; // 死亡时不执行其他更新逻辑
     }
 
@@ -6345,23 +6615,7 @@ function draw() {
 
     ctx.restore();
 
-    // 死亡提示文字
-    if (player.isDead) {
-        // 设置 canvas filter 为 none，覆盖父容器的灰度滤镜，确保文字颜色正常
-        ctx.filter = 'none';
-
-        // 绘制死亡提示文字
-        ctx.save();
-
-
-
-        clearGlow(ctx);
-        ctx.fillStyle = '#fff';
-        ctx.font = '24px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`你已死亡，灵魂将在 ${Math.ceil(player.deathTimer)} 秒后返回罗格营地`, canvas.width / 2, canvas.height / 2 + 30);
-        ctx.restore();
-    }
+    // 死亡状态：弹窗已显示，不再需要 canvas 上的倒计时文字
 
     const g = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 200, canvas.width / 2, canvas.height / 2, canvas.width / 1.2);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.85)');
@@ -9635,9 +9889,9 @@ function checkPlayerDeath() {
         // 标记玩家曾经死亡
         player.died = true;
 
-        // 设置死亡状态和倒计时
+        // 设置死亡状态（不再使用倒计时，改为弹窗选择）
         player.isDead = true;
-        player.deathTimer = 5; // 5秒倒计时
+        player.deathTimer = 0;
 
         // 添加死亡全屏灰度滤镜
         document.getElementById('game-container').classList.add('dead-filter');
@@ -9653,11 +9907,9 @@ function checkPlayerDeath() {
             });
         }
 
-        // 显示死亡原因
+        // 显示死亡原因飘字
         const deathMsg = player.lastDamageSource ? `被 ${player.lastDamageSource} 击杀` : "你死了！";
         createFloatingText(player.x, player.y - 50, deathMsg, '#ff4444', 3);
-        showNotification(deathMsg);
-        AudioSys.play('hit'); // 播放死亡音效
 
         // 关闭自动战斗
         if (AutoBattle.enabled) {
@@ -9665,6 +9917,9 @@ function checkPlayerDeath() {
             document.getElementById('auto-battle-btn').classList.remove('active');
             document.getElementById('auto-battle-icon').textContent = '🛡️';
         }
+
+        // 弹出死亡面板（选择复活或回城）
+        DeathPanel.show();
     }
 }
 
