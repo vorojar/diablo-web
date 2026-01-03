@@ -345,6 +345,53 @@ const SKILL_TREE = {
                 }
             }
         }
+    },
+    holy_shield: {
+        name: '神圣护盾',
+        key: 'R',
+        desc: '召唤神圣护盾吸收伤害',
+        stage1: {
+            manaCost: 15,
+            cooldown: 12,
+            shieldRatio: 0.20,
+            shieldPerLevel: 0.02,
+            duration: 5,
+            durationPerLevel: 0.5
+        },
+        stage2: {
+            reflect: {
+                name: '反射护盾',
+                desc: '反弹部分伤害给攻击者',
+                effect: { reflectRatio: 0.10, reflectPerLevel: 0.03 }
+            },
+            guard: {
+                name: '守护护盾',
+                desc: '护盾消失时治疗自身',
+                effect: { healRatio: 0.10, healPerLevel: 0.02, ccReduction: 0.30, ccPerLevel: 0.05 }
+            }
+        },
+        stage3: {
+            retribution: {
+                name: '惩戒光环',
+                desc: '脉冲伤害并减速周围敌人',
+                effect: { auraDamageRatio: 0.02, slowAmount: 0.15, pulseInterval: 2 }
+            },
+            fortress: {
+                name: '绝对防御',
+                desc: '免疫暴击，击杀回血',
+                effect: { critImmunity: true, lifestealRatio: 0.05 }
+            },
+            angel: {
+                name: '守护天使',
+                desc: '护盾消失后短暂无敌',
+                effect: { invincibleDuration: 1.0, movespeedBonus: 0.40, canAttack: false }
+            },
+            link: {
+                name: '生命链接',
+                desc: '生成次级护盾',
+                effect: { secondaryShieldRatio: 0.30, secondaryDuration: 3 }
+            }
+        }
     }
 };
 

@@ -421,6 +421,85 @@
             pointer-events: none;
         }
 
+        /* 护盾填充层（隐藏，改用边框发光效果） */
+        .orb-shield-fill {
+            display: none;
+        }
+
+        /* 护盾激活时血球发光边框 */
+        #health-orb.shielded {
+            border-color: #ffd700 !important;
+            box-shadow:
+                0 0 10px rgba(255, 215, 0, 0.8),
+                0 0 20px rgba(255, 215, 0, 0.6),
+                0 0 35px rgba(255, 215, 0, 0.4),
+                0 0 50px rgba(255, 215, 0, 0.2),
+                inset 0 0 15px rgba(255, 215, 0, 0.3);
+            animation: shieldGlow 1.5s ease-in-out infinite;
+        }
+
+        @keyframes shieldGlow {
+
+            0%,
+            100% {
+                box-shadow:
+                    0 0 10px rgba(255, 215, 0, 0.8),
+                    0 0 20px rgba(255, 215, 0, 0.6),
+                    0 0 35px rgba(255, 215, 0, 0.4),
+                    0 0 50px rgba(255, 215, 0, 0.2),
+                    inset 0 0 15px rgba(255, 215, 0, 0.3);
+            }
+
+            50% {
+                box-shadow:
+                    0 0 15px rgba(255, 215, 0, 1),
+                    0 0 30px rgba(255, 215, 0, 0.8),
+                    0 0 50px rgba(255, 215, 0, 0.5),
+                    0 0 70px rgba(255, 215, 0, 0.3),
+                    inset 0 0 20px rgba(255, 215, 0, 0.4);
+            }
+        }
+
+        /* 护盾值文字 */
+        .shield-text {
+            position: absolute;
+            top: -22px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 0 0 3px #000, 0 0 6px #000, 0 0 12px rgba(255, 215, 0, 0.8);
+            z-index: 7;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* 护盾即将消失时快速闪烁 */
+        #health-orb.shield-low {
+            animation: shieldLowFlicker 0.3s ease-in-out infinite !important;
+        }
+
+        @keyframes shieldLowFlicker {
+
+            0%,
+            100% {
+                box-shadow:
+                    0 0 10px rgba(255, 215, 0, 0.8),
+                    0 0 20px rgba(255, 215, 0, 0.6),
+                    inset 0 0 15px rgba(255, 215, 0, 0.3);
+                border-color: #ffd700;
+            }
+
+            50% {
+                box-shadow:
+                    0 0 5px rgba(255, 100, 0, 0.6),
+                    0 0 10px rgba(255, 100, 0, 0.4),
+                    inset 0 0 8px rgba(255, 100, 0, 0.2);
+                border-color: #ff6400;
+            }
+        }
+
         #center-hud {
             display: flex;
             flex-direction: column;
@@ -1173,8 +1252,15 @@
         }
 
         @keyframes pulse-border {
-            0%, 100% { border-color: #446; }
-            50% { border-color: #88a; }
+
+            0%,
+            100% {
+                border-color: #446;
+            }
+
+            50% {
+                border-color: #88a;
+            }
         }
 
         /* 节点图标 */
@@ -1293,7 +1379,7 @@
         .skill-sprite {
             width: 32px;
             height: 32px;
-            background-image: url('skills.png');
+            background-image: url('skills.png?v=6.9');
             background-size: 400% 100%;
             background-repeat: no-repeat;
             display: inline-block;

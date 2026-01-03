@@ -54,6 +54,7 @@ const cachedUI = {
     // Orbs
     hpFill: null, hpGhostFill: null, hpText: null, hpOrb: null,
     mpFill: null, mpGhostFill: null, mpText: null, mpOrb: null,
+    shieldFill: null, shieldText: null,  // 护盾 HUD
     // XP & Level
     xpFill: null, xpPercentage: null, hudLvl: null, hudGold: null, floorDisplay: null,
     // Indicators & FX
@@ -85,6 +86,8 @@ function initUICache() {
     cachedUI.mpGhostFill = document.getElementById('mp-ghost-fill');
     cachedUI.mpText = document.getElementById('mp-text');
     cachedUI.mpOrb = document.getElementById('mana-orb');
+    cachedUI.shieldFill = document.getElementById('shield-fill');
+    cachedUI.shieldText = document.getElementById('shield-text');
 
     // XP & Level & Info
     cachedUI.xpFill = document.getElementById('xp-fill');
@@ -116,7 +119,7 @@ function initUICache() {
     cachedUI.uiLayer = document.querySelector('.ui-layer');
 
     // Skills
-    const skills = ['fireball', 'thunder', 'multishot'];
+    const skills = ['fireball', 'thunder', 'multishot', 'holy_shield'];
     skills.forEach(s => {
         cachedUI.skillBtns[s] = document.getElementById(`skill-${s}`);
         cachedUI.cdSweeps[s] = document.getElementById(`cd-sweep-${s}`);
@@ -558,6 +561,17 @@ const player = {
     skillTree: null,
     targetX: null, targetY: null, targetItem: null, attacking: false, attackCooldown: 0, attackAnim: 0,
     skillCooldowns: { fireball: 0, thunder: 0, multishot: 0 },
+    // 护盾系统
+    shield: {
+        active: false,
+        value: 0,
+        maxValue: 0,
+        timer: 0,
+        cooldown: 0,
+        type: null,
+        stage3: null,
+        invincibleTimer: 0
+    },
     // 存储当前激活的闪电特效
     activeLightning: null,
     equipment: {
@@ -661,6 +675,7 @@ const player = {
 let uiDisplayState = {
     hp: 100, hpGhost: 100, mp: 50, mpGhost: 50, xpPct: 0, lvl: -1, gold: -1,
     lastHp: -1, lastHpGhost: -1, lastMp: -1, lastMpGhost: -1, lastXpPct: -1,
+    shieldPct: -1,  // 护盾百分比
     activeSkill: '',
     lastLowHpState: null,
     lastPoisonedState: null,
@@ -723,6 +738,39 @@ function updateSmoothUI(dt) {
         uiDisplayState.lastMpGhost = uiDisplayState.mpGhost;
         if (cachedUI.mpGhostFill) cachedUI.mpGhostFill.style.height = uiDisplayState.mpGhost + '%';
     }
+
+    // 护盾条更新
+    const shieldActive = player.shield?.active && player.shield?.value > 0;
+    const shieldValue = shieldActive ? player.shield.value : 0;
+    const shieldMax = shieldActive ? player.shield.maxValue : 1;
+    const shieldPct = (shieldValue / shieldMax) * 100;
+    // 护盾百分比相对于血条高度（护盾叠加在血条上方）
+    const shieldHeightPct = shieldActive ? Math.min(100, (shieldValue / player.maxHp) * 100) : 0;
+
+    if (uiDisplayState.shieldPct !== shieldHeightPct) {
+        uiDisplayState.shieldPct = shieldHeightPct;
+        if (cachedUI.shieldFill) {
+            cachedUI.shieldFill.style.height = shieldHeightPct + '%';
+        }
+        if (cachedUI.shieldText) {
+            cachedUI.shieldText.textContent = shieldActive ? `🛡️${Math.floor(shieldValue)}` : '';
+        }
+        // 护盾激活状态
+        if (cachedUI.hpOrb) {
+            if (shieldActive) {
+                cachedUI.hpOrb.classList.add('shielded');
+                // 护盾值低于20%时闪烁警告
+                if (shieldPct < 20) {
+                    cachedUI.hpOrb.classList.add('shield-low');
+                } else {
+                    cachedUI.hpOrb.classList.remove('shield-low');
+                }
+            } else {
+                cachedUI.hpOrb.classList.remove('shielded', 'shield-low');
+            }
+        }
+    }
+
     if (Math.abs(uiDisplayState.xpPct - uiDisplayState.lastXpPct) > 0.001) {
         uiDisplayState.lastXpPct = uiDisplayState.xpPct;
         if (cachedUI.xpFill) cachedUI.xpFill.style.width = Math.min(100, uiDisplayState.xpPct) + '%';
@@ -2169,7 +2217,7 @@ const AutoBattle = {
 
             if (this.stuckPosTimer > 2) {
                 this.blacklistedTargets.push({ target: player.targetItem, until: Date.now() + 30000 });
-                createFloatingText(player.x, player.y - 70, "无法到达，放弃", "#ffaa00", 1.5);
+                // 静默放弃，不显示提示
                 player.targetItem = null;
                 player.targetX = null;
                 player.targetY = null;
@@ -2202,6 +2250,19 @@ const AutoBattle = {
         }
         if (player.mp / player.maxMp < this.settings.mpThreshold) {
             this.drinkPotion('mana');
+        }
+
+        // 2.5 生存：使用护盾技能（血量低于50%且没有护盾时自动释放）
+        if (this.settings.useSkill && hpPercent < 0.5) {
+            const shieldLevel = player.skillTree?.holy_shield?.stage1 || 0;
+            const shieldCooldown = player.shield?.cooldown || 0;
+            const shieldActive = player.shield?.active || false;
+            const manaCost = SKILL_TREE?.holy_shield?.stage1?.manaCost || 15;
+
+            // 护盾已学习、不在冷却中、当前没有激活的护盾、法力充足
+            if (shieldLevel > 0 && shieldCooldown <= 0 && !shieldActive && player.mp >= manaCost) {
+                castSkill('holy_shield');
+            }
         }
 
         // 3. 拾取物品
@@ -3405,6 +3466,11 @@ function startGame() {
                     stage1: Math.min(player.skills.multishot || 0, SKILL_TREE_MAX_LEVEL),
                     stage2: { chosen: null, level: 0 },
                     stage3: { chosen: null, level: 0 }
+                },
+                holy_shield: {
+                    stage1: 0,
+                    stage2: { chosen: null, level: 0 },
+                    stage3: { chosen: null, level: 0 }
                 }
             };
             // 多余的点数退还
@@ -3421,11 +3487,12 @@ function startGame() {
                 player.skillTree = {
                     fireball: { stage1: 1, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } },
                     thunder: { stage1: 0, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } },
-                    multishot: { stage1: 0, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } }
+                    multishot: { stage1: 0, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } },
+                    holy_shield: { stage1: 0, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } }
                 };
             }
             // 确保技能树结构完整
-            for (const skillId of ['fireball', 'thunder', 'multishot']) {
+            for (const skillId of ['fireball', 'thunder', 'multishot', 'holy_shield']) {
                 if (!player.skillTree[skillId]) {
                     player.skillTree[skillId] = {
                         stage1: skillId === 'fireball' ? 1 : 0,
@@ -4400,6 +4467,52 @@ function update(dt) {
     if (player.invincibleTimer > 0) player.invincibleTimer -= dt;  // 无敌帧倒计时
     for (let k in player.skillCooldowns) if (player.skillCooldowns[k] > 0) player.skillCooldowns[k] -= dt;
 
+    // 护盾系统更新
+    if (player.shield.cooldown > 0) player.shield.cooldown -= dt;
+    if (player.shield.active) {
+        player.shield.timer -= dt;
+
+        // 护盾时间到或值归零
+        if (player.shield.timer <= 0 || player.shield.value <= 0) {
+            // 触发守护护盾的治疗效果
+            if (player.shield.type === 'guard' && player.skillTree && player.skillTree.holy_shield) {
+                const level = player.skillTree.holy_shield.stage2 ? player.skillTree.holy_shield.stage2.level : 0;
+                if (level > 0) {
+                    const config = SKILL_TREE.holy_shield.stage2.guard;
+                    const healAmount = player.maxHp * (config.effect.healRatio + (level - 1) * config.effect.healPerLevel);
+                    player.hp = Math.min(player.maxHp, player.hp + healAmount);
+                    createDamageNumber(player.x, player.y - 40, '+' + Math.floor(healAmount), COLORS.green);
+                }
+            }
+
+            // 触发守护天使的无敌
+            if (player.shield.stage3 === 'angel' && player.shield.value > 0) {
+                player.shield.invincibleTimer = SKILL_TREE.holy_shield.stage3.angel.effect.invincibleDuration;
+            }
+
+            // 触发生命链接的次级护盾
+            if (player.shield.stage3 === 'link' && player.shield.value > 0) {
+                const secondaryValue = player.shield.maxValue * SKILL_TREE.holy_shield.stage3.link.effect.secondaryShieldRatio;
+                player.shield.value = secondaryValue;
+                player.shield.maxValue = secondaryValue;
+                player.shield.timer = SKILL_TREE.holy_shield.stage3.link.effect.secondaryDuration;
+                player.shield.stage3 = null; // 只触发一次
+            } else {
+                // 正常关闭护盾
+                player.shield.active = false;
+                player.shield.value = 0;
+                player.shield.timer = 0;
+                player.shield.type = null;
+                player.shield.stage3 = null;
+            }
+        }
+
+        // 更新守护天使的无敌计时
+        if (player.shield.invincibleTimer > 0) {
+            player.shield.invincibleTimer -= dt;
+        }
+    }
+
     // 处理死亡倒计时
     if (player.isDead) {
         player.deathTimer -= dt;
@@ -4622,6 +4735,7 @@ function update(dt) {
     // 自动拾取系统：金币、药水、卷轴（吸入效果）
     const pickupMultiplier = typeof getTalentEffect !== 'undefined' ? getTalentEffect('pickupRange', 1) : 1;
     const pickupRange = 80 * pickupMultiplier;
+    const pickupRangeEquipment = 100 * pickupMultiplier; // 装备拾取距离（与手动点击标签距离一致）
 
     for (let i = groundItems.length - 1; i >= 0; i--) {
         let item = groundItems[i];
@@ -4649,6 +4763,46 @@ function update(dt) {
                 createFlyingPickup(item, pickupType);
                 if (item.el) item.el.remove();
                 groundItems.splice(i, 1);
+            }
+        }
+        // **自动战斗装备远距离拾取**：仅限自动战斗时，在拾取范围内直接拾取装备
+        else if (AutoBattle.enabled && distance < pickupRangeEquipment && item.type !== 'gold' && item.type !== 'potion' && item.type !== 'scroll') {
+            // 检查是否是允许自动拾取的装备（暗金/套装）
+            let shouldAutoPickup = false;
+            if (item.rarity === RARITY.UNIQUE && AutoBattle.settings.pickupUnique) {
+                shouldAutoPickup = true;
+            } else if (item.rarity === RARITY.SET && AutoBattle.settings.pickupSet) {
+                shouldAutoPickup = true;
+            }
+
+            // 检查能否为物品腾出空间（复制自 AutoBattle.autoPickupItems 的逻辑）
+            const canMakeRoom = (targetRarity) => {
+                if (targetRarity < 2) return false;
+                for (let i = 0; i < player.inventory.length; i++) {
+                    const it = player.inventory[i];
+                    if (!it) continue;
+                    if (it.type === 'potion' || it.type === 'scroll') continue;
+                    if (it.rarity < targetRarity) return true;
+                }
+                return false;
+            };
+
+            if (shouldAutoPickup) {
+                // 背包满时尝试腾空间
+                const inventoryFull = player.inventory.filter(it => it !== null).length >= player.inventory.length;
+                if (inventoryFull && canMakeRoom(item.rarity)) {
+                    AutoBattle.dropLowestValueItem(item.rarity);
+                }
+
+                // 拾取装备
+                if (!inventoryFull || canMakeRoom(item.rarity)) {
+                    if (addItemToInventory(item)) {
+                        // 拾取成功
+                        if (item.el) item.el.remove();
+                        groundItems.splice(i, 1);
+                        createFloatingText(player.x, player.y - 40, `拾取了 ${item.name}`, '#4ade80', 1.5);
+                    }
+                }
             }
         }
     }
@@ -5776,6 +5930,63 @@ function draw() {
     const px = Math.round(player.x);
     const py = Math.round(player.y);
 
+    // 渲染护盾光环（椭圆形）
+    if (player.shield?.active && player.shield?.value > 0) {
+        const shieldPercent = player.shield.value / player.shield.maxValue;
+        const baseRadius = 35;
+        const breathScale = 1 + Math.sin(Date.now() / 300) * 0.05; // 呼吸动画
+        const radius = baseRadius * breathScale;
+        const scaleX = 0.6; // 宽度缩小为 60%，形成椭圆
+
+        // 选择护盾颜色（根据护盾类型）
+        let shieldColor = 'rgba(255, 215, 0, '; // 默认金色
+        if (player.shield.type === 'reflect') {
+            shieldColor = 'rgba(168, 85, 247, '; // 紫色：反射
+        } else if (player.shield.type === 'guard') {
+            shieldColor = 'rgba(34, 197, 94, '; // 绿色：守护
+        }
+
+        // 透明度随护盾值变化
+        const baseAlpha = 0.3 + shieldPercent * 0.3;
+        const pulseAlpha = baseAlpha + Math.sin(Date.now() / 200) * 0.1;
+
+        // 应用椭圆变换（上面位置固定，压缩下半部分）
+        ctx.save();
+        const scaleY = 0.7; // 高度缩小为 70%
+        const topOffset = -radius - 12; // 光环顶部位置
+        ctx.translate(px, py + topOffset + radius * scaleY);
+        ctx.scale(scaleX, scaleY);
+
+        // 外圈光晕
+        ctx.beginPath();
+        ctx.arc(0, 0, radius + 8, 0, Math.PI * 2);
+        const outerGlow = ctx.createRadialGradient(0, 0, radius - 5, 0, 0, radius + 15);
+        outerGlow.addColorStop(0, shieldColor + '0)');
+        outerGlow.addColorStop(0.5, shieldColor + (pulseAlpha * 0.5).toFixed(2) + ')');
+        outerGlow.addColorStop(1, shieldColor + '0)');
+        ctx.fillStyle = outerGlow;
+        ctx.fill();
+
+        // 内圈护盾
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        const innerGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+        innerGlow.addColorStop(0, shieldColor + '0)');
+        innerGlow.addColorStop(0.7, shieldColor + (pulseAlpha * 0.3).toFixed(2) + ')');
+        innerGlow.addColorStop(1, shieldColor + pulseAlpha.toFixed(2) + ')');
+        ctx.fillStyle = innerGlow;
+        ctx.fill();
+
+        // 护盾边缘
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = shieldColor + (pulseAlpha + 0.2).toFixed(2) + ')';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
     if (spritesLoaded && processedSpriteSheet) {
         const frame = getHeroFrame(player.direction);
         const renderHeight = 48;
@@ -6460,6 +6671,11 @@ function respecPlayer(type) {
                 stage3: { chosen: null, level: 0 }
             },
             multishot: {
+                stage1: 0,
+                stage2: { chosen: null, level: 0 },
+                stage3: { chosen: null, level: 0 }
+            },
+            holy_shield: {
                 stage1: 0,
                 stage2: { chosen: null, level: 0 },
                 stage3: { chosen: null, level: 0 }
@@ -9801,7 +10017,14 @@ function castSkill(skillName) {
     if (isInTown()) return;
 
     // 检查是否选择了未学习的技能
-    if (!player.skills[skillName] || player.skills[skillName] <= 0) {
+    // 护盾技能等级存储在 skillTree 中，其他技能存储在 skills 中
+    if (skillName === 'holy_shield') {
+        // 护盾技能检查 skillTree
+        if (!player.skillTree || !player.skillTree.holy_shield || player.skillTree.holy_shield.stage1 <= 0) {
+            showNotification('技能未学习：神圣护盾');
+            return;
+        }
+    } else if (!player.skills[skillName] || player.skills[skillName] <= 0) {
         const typeNames = { fireball: '火球术', thunder: '雷电术', multishot: '多重射击' };
         showNotification(`技能未学习：${typeNames[skillName] || skillName}`);
         return;
@@ -9875,8 +10098,43 @@ function castSkill(skillName) {
         // 造成闪电伤害（主目标）
         takeDamage(target, { lightning: dmg }, true);
 
-        // 视觉效果：闪电
-        createLightningEffect(target.x, target.y);
+        // 视觉效果：闪电（根据技能阶段增加数量，优先攻击不同敌人）
+        // 阶段1：1根雷电；阶段2：2根雷电；阶段3：4根雷电
+        const tree = player.skillTree?.thunder;
+        let thunderCount = 1;
+        if (tree?.stage3?.level > 0) {
+            thunderCount = 4;
+        } else if (tree?.stage2?.level > 0) {
+            thunderCount = 2;
+        }
+
+        // 查找附近可攻击的敌人（主目标附近120像素内）
+        const nearbyTargets = [target];
+        if (thunderCount > 1) {
+            const searchRange = 120;
+            for (let i = 0; i < enemies.length && nearbyTargets.length < thunderCount; i++) {
+                const e = enemies[i];
+                if (e.dead || e === target) continue;
+                const dist = Math.hypot(e.x - target.x, e.y - target.y);
+                if (dist <= searchRange) {
+                    nearbyTargets.push(e);
+                }
+            }
+        }
+
+        // 依次释放雷电
+        const extraDmgRatio = 0.7; // 额外目标承受70%伤害
+        for (let i = 0; i < thunderCount; i++) {
+            const t = nearbyTargets[i] || target; // 没有足够敌人就打主目标
+            const delay = i * 40;
+            setTimeout(() => {
+                createLightningEffect(t.x, t.y);
+                // 额外目标造成伤害
+                if (i > 0 && t !== target) {
+                    takeDamage(t, { lightning: Math.floor(dmg * extraDmgRatio) }, true);
+                }
+            }, delay);
+        }
 
         // 音效
         AudioSys.play('thunder');
@@ -9986,7 +10244,121 @@ function castSkill(skillName) {
             }));
         }
         AudioSys.play('attack');
+    } else if (skillName === 'holy_shield') {
+        // 检查冷却时间和法力值
+        if (player.shield.cooldown > 0) return;
+
+        const manaCost = SKILL_TREE.holy_shield.stage1.manaCost;
+        if (player.mp < manaCost) {
+            createFloatingText(player.x, player.y - 40, '法力不足！(需要 ' + manaCost + ' 法力)', '#4d94ff', 1.5);
+            if (cachedUI.mpOrb) GSAPAnims.shake(cachedUI.mpOrb, 5);
+            return;
+        }
+
+        // 获取技能等级
+        let skillLevel = 0;
+        if (player.skillTree && player.skillTree.holy_shield) {
+            skillLevel = player.skillTree.holy_shield.stage1 || 0;
+        }
+
+        if (skillLevel <= 0) {
+            showNotification('技能未学习：神圣护盾');
+            return;
+        }
+
+        // 施放护盾
+        const config = SKILL_TREE.holy_shield.stage1;
+        const shieldValue = player.maxHp * (config.shieldRatio + (skillLevel - 1) * config.shieldPerLevel);
+        const duration = config.duration + (skillLevel - 1) * config.durationPerLevel;
+
+        player.shield = {
+            active: true,
+            value: shieldValue,
+            maxValue: shieldValue,
+            timer: duration,
+            cooldown: config.cooldown,
+            type: null,
+            stage3: null,
+            invincibleTimer: 0
+        };
+
+        player.mp -= manaCost;
+
+        // 视觉效果
+        createParticle(player.x, player.y, '#ffd700', 15);
+        for (let i = 0; i < 20; i++) {
+            setTimeout(() => {
+                createParticle(
+                    player.x + (Math.random() - 0.5) * 40,
+                    player.y + (Math.random() - 0.5) * 40,
+                    '#ffd700',
+                    8
+                );
+            }, i * 20);
+        }
+
+        // 每日任务和成就
+        if (typeof DailyQuestSystem !== 'undefined') {
+            DailyQuestSystem.updateProgress('use_skill', 1);
+        }
+        trackAchievement('skill_use');
     }
+}
+
+// 处理玩家受到的伤害并应用护盾吸收
+function applyDamageToPlayer(damage, attacker) {
+    let actualDamage = damage;
+
+    // 先应用护盾吸收
+    if (player.shield.active && player.shield.value > 0) {
+        const absorbed = Math.min(player.shield.value, damage);
+        player.shield.value -= absorbed;
+        actualDamage = damage - absorbed;
+
+        // 护盾吸收伤害时的视觉效果
+        if (absorbed > 0) {
+            createParticle(player.x, player.y, '#ffd700', 5);
+        }
+
+        // 反射伤害（反射护盾）
+        if (player.shield.type === 'reflect' && attacker) {
+            let level = 0;
+            if (player.skillTree && player.skillTree.holy_shield && player.skillTree.holy_shield.stage2) {
+                level = player.skillTree.holy_shield.stage2.level || 0;
+            }
+            if (level > 0) {
+                const config = SKILL_TREE.holy_shield.stage2.reflect;
+                const reflectRatio = config.effect.reflectRatio + (level - 1) * config.effect.reflectPerLevel;
+                const reflectDamage = damage * reflectRatio * 0.5;
+
+                if (attacker.hp) {
+                    attacker.hp -= reflectDamage;
+                    if (attacker.hp <= 0) {
+                        // 击杀奖励和成就
+                        player.kills++;
+                        if (typeof DailyQuestSystem !== 'undefined') {
+                            DailyQuestSystem.updateProgress('kill_monster', 1);
+                        }
+                        trackKill(enemy);
+
+                        // 绝对防御的击杀回血
+                        if (player.shield.stage3 === 'fortress') {
+                            const lifesteal = reflectDamage * SKILL_TREE.holy_shield.stage3.fortress.effect.lifestealRatio;
+                            player.hp = Math.min(player.maxHp, player.hp + lifesteal);
+                        }
+                    }
+                    createDamageNumber(attacker.x, attacker.y - 20, '-' + Math.floor(reflectDamage), '#ffaa00');
+                }
+            }
+        }
+    }
+
+    // 守护天使的无敌效果
+    if (player.shield.invincibleTimer > 0) {
+        actualDamage = 0;
+    }
+
+    return actualDamage;
 }
 
 function spawnBoss(x, y) { enemies.push(EnemyPool.acquire({ x, y, hp: 500, maxHp: 500, dmg: 20, speed: 100, isBoss: true, radius: 30, dead: false, cooldown: 0, xpValue: 5000, name: "屠夫" })); }
@@ -10732,7 +11104,8 @@ function formatBuffTime(minutes) {
 const SKILL_MAX_CD = {
     fireball: 0.5,
     thunder: 2,
-    multishot: 1
+    multishot: 1,
+    holy_shield: 12  // 护盾冷却时间
 };
 
 // 更新技能冷却UI（扇形遮罩）
@@ -10760,6 +11133,26 @@ function updateSkillCooldownUI() {
             timeEl.textContent = '';
         }
     });
+
+    // 护盾技能特殊处理（冷却存储在 player.shield.cooldown）
+    const shieldSweep = cachedUI.cdSweeps['holy_shield'];
+    const shieldTime = cachedUI.cdTimes['holy_shield'];
+    if (shieldSweep && shieldTime) {
+        const cd = player.shield?.cooldown || 0;
+        const maxCd = SKILL_MAX_CD.holy_shield;
+
+        if (cd > 0) {
+            const progress = (cd / maxCd) * 100;
+            shieldSweep.style.setProperty('--cd-progress', `${progress}%`);
+            shieldSweep.classList.add('active');
+            shieldTime.classList.add('active');
+            shieldTime.textContent = cd.toFixed(1);
+        } else {
+            shieldSweep.classList.remove('active');
+            shieldTime.classList.remove('active');
+            shieldTime.textContent = '';
+        }
+    }
 }
 
 // 技能按钮点击效果
@@ -10806,21 +11199,33 @@ function updateSkillsUI() {
     const barFireball = document.getElementById('bar-lvl-fireball');
     const barThunder = document.getElementById('bar-lvl-thunder');
     const barMultishot = document.getElementById('bar-lvl-multishot');
+    const barHolyShield = document.getElementById('bar-lvl-holy_shield');
     if (barFireball) barFireball.innerText = player.skills.fireball;
     if (barThunder) barThunder.innerText = player.skills.thunder;
     if (barMultishot) barMultishot.innerText = player.skills.multishot;
+    if (barHolyShield) {
+        const shieldLevel = (player.skillTree && player.skillTree.holy_shield) ? player.skillTree.holy_shield.stage1 || 0 : 0;
+        barHolyShield.innerText = shieldLevel;
+    }
 
     // 渲染技能树面板
     renderSkillTree();
 
     // 禁用未学习的技能
-    const skills = ['fireball', 'thunder', 'multishot'];
-    const qKeys = ['Q', 'W', 'E'];
+    const skills = ['fireball', 'thunder', 'multishot', 'holy_shield'];
+    const qKeys = ['Q', 'W', 'E', 'R'];
 
     skills.forEach((skill, index) => {
         const skillBtn = document.getElementById(`skill-${skill}`);
         if (skillBtn) {
-            if (player.skills[skill] === 0) {
+            let isUnlocked = false;
+            if (skill === 'holy_shield') {
+                isUnlocked = player.skillTree && player.skillTree.holy_shield && player.skillTree.holy_shield.stage1 > 0;
+            } else {
+                isUnlocked = player.skills[skill] > 0;
+            }
+
+            if (!isUnlocked) {
                 // 未学习的技能
                 skillBtn.classList.add('disabled');
                 skillBtn.title = `按 ${qKeys[index]} 学习此技能`;
@@ -10892,7 +11297,13 @@ function checkLevelUp() {
 // togglePanel 已迁移到 ui-panels.js
 function selectSkill(k) {
     // 检查技能是否已学习
-    if (player.skills[k] === 0) {
+    if (k === 'holy_shield') {
+        // 护盾技能在skillTree中检查
+        if (!player.skillTree || !player.skillTree.holy_shield || player.skillTree.holy_shield.stage1 <= 0) {
+            showNotification(`技能还未学习！打开技能面板(T)升级`);
+            return;
+        }
+    } else if (player.skills[k] === 0) {
         showNotification(`技能还未学习！打开技能面板(T)升级`);
         return;
     }
@@ -11719,6 +12130,16 @@ function handleTouchMove(e) {
 
 // 触摸结束
 function handleTouchEnd(e) {
+    // 检查是否点击在UI元素上（与handleTouchStart保持一致）
+    if (e.target !== canvas && !e.target.closest('#gameCanvas')) {
+        // 允许UI元素正常处理触摸，不阻止默认行为，让click事件正常触发
+        clearTimeout(touchState.longPressTimer);
+        mouse.leftDown = false;
+        mouse.leftClick = false;
+        touchState.activeTouchId = null;
+        return;
+    }
+
     e.preventDefault();
 
     // 找到匹配的触摸点

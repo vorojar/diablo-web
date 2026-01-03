@@ -3,6 +3,35 @@
 // 依赖全局变量：player, enemies, groundItems, SET_ITEMS, BASE_ITEMS, AFFIXES, AudioSys, particles, damageNumbers
 // 依赖全局函数：updateUI, renderInventory, renderStash, updateBeltUI, showNotification, trackAchievement, getTalentEffect, triggerScreenShake
 
+// ========== 掉落位置修正工具函数 ==========
+// 确保物品掉落位置在可行走的瓦片上，避免A*寻路失败
+function ensureValidDropPosition(x, y) {
+    const col = Math.floor(x / TILE_SIZE);
+    const row = Math.floor(y / TILE_SIZE);
+
+    // 如果在地图内且是墙，找最近的地板
+    if (col >= 0 && col < MAP_WIDTH && row >= 0 && row < MAP_HEIGHT && mapData[row][col] === 0) {
+        // 在3x3范围内找地板
+        for (let radius = 1; radius <= 3; radius++) {
+            for (let dr = -radius; dr <= radius; dr++) {
+                for (let dc = -radius; dc <= radius; dc++) {
+                    const nr = row + dr;
+                    const nc = col + dc;
+                    if (nr >= 0 && nr < MAP_HEIGHT && nc >= 0 && nc < MAP_WIDTH && mapData[nr][nc] !== 0) {
+                        // 返回该瓦片的中心位置
+                        return {
+                            x: nc * TILE_SIZE + TILE_SIZE / 2,
+                            y: nr * TILE_SIZE + TILE_SIZE / 2
+                        };
+                    }
+                }
+            }
+        }
+    }
+    // 原位置没问题，直接返回
+    return { x, y };
+}
+
 // ========== 物品视觉配置 ==========
 
 const ITEM_FRAMES = {
@@ -563,9 +592,10 @@ function dropLoot(monster) {
     goldAmount *= 2;
   }
 
+  const validPos = ensureValidDropPosition(x, y);
   groundItems.push({
     type: 'gold', val: Math.floor(goldAmount),
-    x: x, y: y, z: 0,
+    x: validPos.x, y: validPos.y, z: 0,
     vx: (Math.random() - 0.5) * 150,
     vy: (Math.random() - 0.5) * 150,
     vz: 150 + Math.random() * 100,
@@ -587,9 +617,10 @@ function dropLoot(monster) {
     } else {
       dropItem = { type: 'scroll', name: '回城卷轴', rarity: RARITY.COMMON, stackable: true, count: 1 };
     }
+    const validPos = ensureValidDropPosition(x, y);
     groundItems.push({
       ...dropItem,
-      x: x, y: y, z: 0,
+      x: validPos.x, y: validPos.y, z: 0,
       vx: (Math.random() - 0.5) * 100,
       vy: (Math.random() - 0.5) * 100,
       vz: 120 + Math.random() * 80,
@@ -701,8 +732,9 @@ function dropLoot(monster) {
       const angle = (Math.PI * 2 / dropCount) * i + (Math.random() * 0.5 - 0.25);
       const speed = 80 + Math.random() * 60;
 
-      item.x = x;
-      item.y = y;
+      const validPos = ensureValidDropPosition(x, y);
+      item.x = validPos.x;
+      item.y = validPos.y;
       item.z = 0;
       item.vx = Math.cos(angle) * speed;
       item.vy = Math.sin(angle) * speed;
@@ -736,9 +768,10 @@ function dropLoot(monster) {
       const angle = (Math.PI * 2 / coinStacks) * i + (Math.random() * 0.5 - 0.25);
       const speed = 60 + Math.random() * 40;
 
+      const validPos = ensureValidDropPosition(x, y);
       groundItems.push({
         type: 'gold', val: Math.floor(goldAmount),
-        x: x, y: y, z: 0,
+        x: validPos.x, y: validPos.y, z: 0,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         vz: 120 + Math.random() * 80,
@@ -752,9 +785,12 @@ function dropLoot(monster) {
     const manaPotionCount = 1 + Math.floor(Math.random() * 2); // 1-2瓶
 
     for (let i = 0; i < healthPotionCount; i++) {
+      const angle = (Math.PI * 2 / healthPotionCount) * i + (Math.random() * 0.5 - 0.25);
+      const speed = 40 + Math.random() * 40;
+      const validPos = ensureValidDropPosition(x + Math.cos(angle) * speed, y + Math.sin(angle) * speed);
       groundItems.push({
         type: 'potion', name: '治疗药剂', heal: 50, rarity: RARITY.COMMON, stackable: true, count: 1,
-        x: x + (Math.random() - 0.5) * 60, y: y + (Math.random() - 0.5) * 60, z: 0,
+        x: validPos.x, y: validPos.y, z: 0,
         vx: (Math.random() - 0.5) * 80,
         vy: (Math.random() - 0.5) * 80,
         vz: 100 + Math.random() * 50,
@@ -765,9 +801,12 @@ function dropLoot(monster) {
     }
 
     for (let i = 0; i < manaPotionCount; i++) {
+      const angle = (Math.PI * 2 / manaPotionCount) * i + (Math.random() * 0.5 - 0.25);
+      const speed = 40 + Math.random() * 40;
+      const validPos = ensureValidDropPosition(x + Math.cos(angle) * speed, y + Math.sin(angle) * speed);
       groundItems.push({
         type: 'potion', name: '法力药剂', mana: 30, rarity: RARITY.COMMON, stackable: true, count: 1,
-        x: x + (Math.random() - 0.5) * 60, y: y + (Math.random() - 0.5) * 60, z: 0,
+        x: validPos.x, y: validPos.y, z: 0,
         vx: (Math.random() - 0.5) * 80,
         vy: (Math.random() - 0.5) * 80,
         vz: 100 + Math.random() * 50,
@@ -780,9 +819,12 @@ function dropLoot(monster) {
     // 回城卷轴：1-2个
     const scrollCount = 1 + Math.floor(Math.random() * 2); // 1-2个
     for (let i = 0; i < scrollCount; i++) {
+      const angle = (Math.PI * 2 / scrollCount) * i + (Math.random() * 0.5 - 0.25);
+      const speed = 40 + Math.random() * 40;
+      const validPos = ensureValidDropPosition(x + Math.cos(angle) * speed, y + Math.sin(angle) * speed);
       groundItems.push({
         type: 'scroll', name: '回城卷轴', rarity: RARITY.COMMON, stackable: true, count: 1,
-        x: x + (Math.random() - 0.5) * 80, y: y + (Math.random() - 0.5) * 80, z: 0,
+        x: validPos.x, y: validPos.y, z: 0,
         vx: (Math.random() - 0.5) * 100,
         vy: (Math.random() - 0.5) * 100,
         vz: 120 + Math.random() * 80,

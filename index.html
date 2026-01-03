@@ -27,10 +27,10 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=202601021035">
+    <link rel="stylesheet" href="style.css?v=202601031300">
 </head>
 
-<!-- 版本标记: v6.8 技能树系统 -->
+<!-- 版本标记: v6.91 自动战斗拾取优化 -->
 
 <body>
 
@@ -194,9 +194,12 @@
                 <div class="panel-header">技能树</div>
                 <div class="skill-tree-points">技能点: <span id="skill-points">0</span></div>
                 <div class="skill-tree-tabs">
-                    <div class="skill-tree-tab active" data-skill="fireball" onclick="switchSkillTab('fireball')">🔥 火焰</div>
+                    <div class="skill-tree-tab active" data-skill="fireball" onclick="switchSkillTab('fireball')">🔥 火焰
+                    </div>
                     <div class="skill-tree-tab" data-skill="thunder" onclick="switchSkillTab('thunder')">⚡ 雷电</div>
                     <div class="skill-tree-tab" data-skill="multishot" onclick="switchSkillTab('multishot')">🏹 射击</div>
+                    <div class="skill-tree-tab" data-skill="holy_shield" onclick="switchSkillTab('holy_shield')">🛡️ 护盾
+                    </div>
                 </div>
                 <div id="skill-tree-content" class="skill-tree-scroll">
                     <!-- 动态生成技能树内容 -->
@@ -643,7 +646,9 @@
                 <div class="orb-container" id="health-orb">
                     <div class="orb-ghost-fill" id="hp-ghost-fill" style="height: 100%"></div>
                     <div class="orb-fill" id="hp-fill" style="height: 100%"></div>
+                    <div class="orb-shield-fill" id="shield-fill" style="height: 0%"></div>
                     <div class="orb-text" id="hp-text">100</div>
+                    <div class="shield-text" id="shield-text"></div>
                 </div>
                 <div id="center-hud">
                     <div class="belt-bar" id="belt-bar">
@@ -686,6 +691,13 @@
                             <div class="cd-sweep" id="cd-sweep-multishot"></div>
                             <div class="cd-time" id="cd-time-multishot"></div>
                         </div>
+                        <div class="skill-btn" id="skill-holy_shield"
+                            onclick="selectSkill('holy_shield'); triggerSkillClick(this)"><span class="key">R</span>
+                            <div class="skill-sprite skill-holy_shield"></div> <span class="lvl"
+                                id="bar-lvl-holy_shield">0</span>
+                            <div class="cd-sweep" id="cd-sweep-holy_shield"></div>
+                            <div class="cd-time" id="cd-time-holy_shield"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="orb-container" id="mana-orb">
@@ -720,7 +732,7 @@
     <script src="save-system.js?v=202512291600"></script>
     <script src="enemy-system.js?v=202512291600"></script>
     <script src="abyss-system.js?v=202512301147"></script>
-    <script src="game.js?v=202601021050"></script>
+    <script src="game.js?v=202601021955"></script>
     <script src="pocketbase.umd.js"></script>
     <script src="online.js?v=202512301452"></script>
     <script src="market.js?v=202512301030"></script>

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-这是一个使用 HTML5 Canvas 和原生 JavaScript 开发的 ARPG 游戏「菠萝战纪 Brawlore」。整个游戏架构采用单文件设计，所有逻辑集中在 `game.js` 中，无任何外部依赖。
+这是一个使用 HTML5 Canvas 和原生 JavaScript 开发的 ARPG 游戏「菠萝战纪 Brawlore」。
 
 ## 如何运行
 
