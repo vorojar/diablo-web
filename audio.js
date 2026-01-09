@@ -450,6 +450,53 @@ const AudioSys = {
                 osc.start(t + i * 0.02);
                 osc.stop(t + i * 0.02 + 0.05);
             });
+        } else if (type === 'shield') {
+            // 护盾激活：史诗圣光音效 (~1.2秒)
+            // 大技能感：起始冲击 → 上升和弦 → 悠长回响
+
+            // 1. 起始冲击：短促有力的激活声
+            const impact = this.ctx.createOscillator();
+            const impactGain = this.ctx.createGain();
+            impact.type = 'sine';
+            impact.frequency.setValueAtTime(600, t);
+            impact.frequency.exponentialRampToValueAtTime(400, t + 0.1);
+            impactGain.gain.setValueAtTime(0.12, t);
+            impactGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+            impact.connect(impactGain);
+            impactGain.connect(this.sfxGain);
+            impact.start(t);
+            impact.stop(t + 0.15);
+
+            // 2. 圣光和弦：C大调上行 (C5-E5-G5-C6)，悠扬展开
+            [523, 659, 784, 1047].forEach((f, i) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(f, t + 0.08 + i * 0.12);
+                gain.gain.setValueAtTime(0, t + 0.08 + i * 0.12);
+                gain.gain.linearRampToValueAtTime(0.1 - i * 0.015, t + 0.12 + i * 0.12);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5 + i * 0.15);
+                osc.connect(gain);
+                gain.connect(this.sfxGain);
+                osc.start(t + 0.08 + i * 0.12);
+                osc.stop(t + 0.6 + i * 0.15);
+            });
+
+            // 3. 柔和衬底：三角波和声，增加温暖感
+            [262, 330].forEach((f, i) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(f, t + 0.1);
+                gain.gain.setValueAtTime(0.06, t + 0.1);
+                gain.gain.linearRampToValueAtTime(0.04, t + 0.4);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+                osc.connect(gain);
+                gain.connect(this.sfxGain);
+                osc.start(t + 0.1);
+                osc.stop(t + 1.0);
+            });
+
         }
     },
     playFireballExplosion: function (level) {

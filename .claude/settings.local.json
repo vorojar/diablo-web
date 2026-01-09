@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(game-master)",
+      "Bash(node:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

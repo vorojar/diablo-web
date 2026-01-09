@@ -193,7 +193,7 @@ const MarketSystem = {
     }
 
     return `
-            <div class="panel-close" onclick="MarketSystem.closeSetupPanel()">X</div>
+            <div class="panel-close" onclick="MarketSystem.closeSetupPanel()"></div>
             <div class="panel-header">🛒 摆摊</div>
             <div class="stall-name-row">
                 <label>摊位名称:</label>
@@ -233,7 +233,7 @@ const MarketSystem = {
   // 查看摊位面板 HTML
   getViewPanelHTML() {
     return `
-            <div class="panel-close" onclick="MarketSystem.closeViewPanel()">X</div>
+            <div class="panel-close" onclick="MarketSystem.closeViewPanel()"></div>
             <div class="panel-header" id="stall-view-header">🛒 摊位</div>
             <div id="stall-view-content" class="stall-view-content"></div>
         `;
@@ -649,7 +649,7 @@ const MarketSystem = {
     }
 
     panel.innerHTML = `
-      <div class="panel-close" onclick="MarketSystem.closeSalesPanel()">X</div>
+      <div class="panel-close" onclick="MarketSystem.closeSalesPanel()"></div>
       <div class="panel-header">💰 摆摊收益明细</div>
       <div class="sales-list">${listHtml || '<div class="sales-empty">暂无销售记录</div>'}</div>
       <div class="sales-total">

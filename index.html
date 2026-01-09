@@ -27,10 +27,15 @@
     <meta name="twitter:description" content="在浏览器中体验经典ARPG游戏 - 战斗、探索、收集史诗装备！">
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
-    <link rel="stylesheet" href="style.css?v=202512301145">
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="apple-touch-icon" href="icon-192.png">
+
+    <link rel="stylesheet" href="style.css?v=202601061400">
 </head>
 
-<!-- 版本标记: v6.6 周榜系统 -->
+<!-- 版本标记: v6.91 自动战斗拾取优化 -->
 
 <body>
 
@@ -51,6 +56,11 @@
                 </div>
                 <div id="auto-battle-settings-btn" class="auto-battle-settings-btn" onclick="togglePanel('auto-battle')"
                     title="自动战斗设置">⚙️</div>
+                <!-- 自动战斗收益HUD -->
+                <div id="auto-battle-fee-hud" class="auto-battle-fee-hud">
+                    <div>获得: <span id="auto-battle-gold">0</span>💰</div>
+                    <div>雇佣费: <span id="auto-battle-fee">0</span>💰</div>
+                </div>
             </div>
             <div id="quest-tracker"></div>
 
@@ -118,7 +128,8 @@
             <div id="stats-panel" class="panel">
                 <div class="panel-close" onclick="togglePanel('stats')"></div>
                 <div class="panel-header">角色属性</div>
-                <div class="stat-row"><span>等级</span> <span id="stat-lvl" style="color:white">1</span></div>
+                <div class="stat-row"><span>等级</span> <span><span id="stat-lvl" style="color:white">1</span> <span
+                            id="stat-title" style="font-size:11px;margin-left:4px;"></span></span></div>
                 <div class="stat-row"><span>经验</span> <span id="stat-xp">0 / 100</span></div>
                 <hr style="border-color: #333">
                 <div class="stat-row" style="color:var(--text-gold)"><span>属性点</span> <span id="stat-points">0</span>
@@ -189,50 +200,20 @@
                 </div>
             </div>
 
-            <div id="skills-panel" class="panel">
+            <div id="skills-panel" class="panel skill-tree-panel">
                 <div class="panel-close" onclick="togglePanel('skills')"></div>
                 <div class="panel-header">技能树</div>
-                <div style="text-align:center; color:var(--text-gold); margin-bottom:10px;">剩余技能点: <span
-                        id="skill-points">0</span></div>
-                <div class="skill-row">
-                    <div class="skill-icon">
-                        <div class="skill-sprite skill-fireball"></div>
+                <div class="skill-tree-points">技能点: <span id="skill-points">0</span></div>
+                <div class="skill-tree-tabs">
+                    <div class="skill-tree-tab active" data-skill="fireball" onclick="switchSkillTab('fireball')">🔥 火焰
                     </div>
-                    <div class="skill-info">
-                        <div class="skill-name">火球术 [Q]</div>
-                        <div class="skill-desc">发射火球 (射程: 中等)<br>
-                            <span style="color:#88ff88; font-size:10px;">Lv5+: 解锁爆炸效果</span>
-                        </div>
-                        <div class="skill-cost" style="color:#4d94ff; font-size:11px;">法力: 10</div>
+                    <div class="skill-tree-tab" data-skill="thunder" onclick="switchSkillTab('thunder')">⚡ 雷电</div>
+                    <div class="skill-tree-tab" data-skill="multishot" onclick="switchSkillTab('multishot')">🏹 射击</div>
+                    <div class="skill-tree-tab" data-skill="holy_shield" onclick="switchSkillTab('holy_shield')">🛡️ 护盾
                     </div>
-                    <div style="font-size:12px; color:#fff">Lv <span id="lvl-fireball">1</span> <button class="stat-btn"
-                            onclick="upgradeSkill('fireball')">+</button></div>
                 </div>
-                <div class="skill-row">
-                    <div class="skill-icon">
-                        <div class="skill-sprite skill-thunder"></div>
-                    </div>
-                    <div class="skill-info">
-                        <div class="skill-name">雷电术 [W]</div>
-                        <div class="skill-desc">召唤雷电打击敌人 (射程: 中等)<br>
-                            <span style="color:#88ff88; font-size:10px;">Lv2+: 解锁闪电链效果</span>
-                        </div>
-                        <div class="skill-cost" id="cost-thunder" style="color:#4d94ff; font-size:11px;">法力: 8</div>
-                    </div>
-                    <div style="font-size:12px; color:#fff">Lv <span id="lvl-thunder">0</span> <button class="stat-btn"
-                            onclick="upgradeSkill('thunder')">+</button></div>
-                </div>
-                <div class="skill-row">
-                    <div class="skill-icon">
-                        <div class="skill-sprite skill-multishot"></div>
-                    </div>
-                    <div class="skill-info">
-                        <div class="skill-name">多重射击 [E]</div>
-                        <div class="skill-desc">扇形箭矢</div>
-                        <div class="skill-cost" style="color:#4d94ff; font-size:11px;">法力: 10</div>
-                    </div>
-                    <div style="font-size:12px; color:#fff">Lv <span id="lvl-multishot">0</span> <button
-                            class="stat-btn" onclick="upgradeSkill('multishot')">+</button></div>
+                <div id="skill-tree-content" class="skill-tree-scroll">
+                    <!-- 动态生成技能树内容 -->
                 </div>
             </div>
 
@@ -246,6 +227,32 @@
                 <div class="panel-close" onclick="togglePanel('achievements')"></div>
                 <div class="panel-header">🏆 成就</div>
                 <div id="achievement-list"></div>
+            </div>
+
+            <div id="set-collection-panel" class="panel">
+                <div class="panel-close" onclick="togglePanel('set-collection')"></div>
+                <div class="panel-header">📚 图鉴</div>
+                <div class="codex-tabs">
+                    <div class="codex-tab active" data-tab="sets" onclick="switchCodexTab('sets')">套装</div>
+                    <div class="codex-tab" data-tab="monsters" onclick="switchCodexTab('monsters')">怪物</div>
+                </div>
+                <div id="codex-sets" class="codex-content active">
+                    <div class="set-collection-header">
+                        <div class="set-collection-stats">
+                            <span>已发现: <span id="set-discovered-count">0</span>/9 套装</span>
+                            <span>已收集: <span id="set-pieces-count">0</span> 部件</span>
+                        </div>
+                    </div>
+                    <div id="set-collection-list"></div>
+                </div>
+                <div id="codex-monsters" class="codex-content">
+                    <div class="monster-codex-header">
+                        <div class="monster-codex-stats">
+                            <span>已发现: <span id="monster-discovered-count">0</span>/15</span>
+                        </div>
+                    </div>
+                    <div id="monster-codex-list"></div>
+                </div>
             </div>
 
             <div id="shop-panel" class="panel">
@@ -643,13 +650,16 @@
                 <button class="sys-btn" id="btn-quest" onclick="togglePanel('quest')">任务 (J)<span
                         class="notification-badge" id="badge-quest"></span></button>
                 <button class="sys-btn" id="btn-achievements" onclick="togglePanel('achievements')">成就 (A)</button>
+                <button class="sys-btn" id="btn-set-collection" onclick="togglePanel('set-collection')">图鉴 (G)</button>
             </div>
 
             <div id="bottom-hud">
                 <div class="orb-container" id="health-orb">
                     <div class="orb-ghost-fill" id="hp-ghost-fill" style="height: 100%"></div>
                     <div class="orb-fill" id="hp-fill" style="height: 100%"></div>
+                    <div class="orb-shield-fill" id="shield-fill" style="height: 0%"></div>
                     <div class="orb-text" id="hp-text">100</div>
+                    <div class="shield-text" id="shield-text"></div>
                 </div>
                 <div id="center-hud">
                     <div class="belt-bar" id="belt-bar">
@@ -692,6 +702,13 @@
                             <div class="cd-sweep" id="cd-sweep-multishot"></div>
                             <div class="cd-time" id="cd-time-multishot"></div>
                         </div>
+                        <div class="skill-btn" id="skill-holy_shield"
+                            onclick="selectSkill('holy_shield'); triggerSkillClick(this)"><span class="key">R</span>
+                            <div class="skill-sprite skill-holy_shield"></div> <span class="lvl"
+                                id="bar-lvl-holy_shield">0</span>
+                            <div class="cd-sweep" id="cd-sweep-holy_shield"></div>
+                            <div class="cd-time" id="cd-time-holy_shield"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="orb-container" id="mana-orb">
@@ -714,21 +731,21 @@
 
     <script src="gsap.min.js"></script>
     <script src="gsap-animations.js?v=202512301047"></script>
-    <script src="ui-panels.js?v=202512301121"></script>
+    <script src="ui-panels.js?v=202601011500"></script>
     <!-- 业务逻辑脚本 -->
-    <script src="changelog.js?v=202512301030"></script>
-    <script src="constants.js?v=202512230743"></script>
+    <script src="changelog.js?v=202601061700"></script>
+    <script src="constants.js?v=202601061600"></script>
     <script src="items-data.js?v=202512191630"></script>
     <script src="set-items.js?v=202512301030"></script>
-    <script src="item-system.js?v=202512301030"></script>
-    <script src="audio.js?v=202512191630"></script>
+    <script src="item-system.js?v=202601011500"></script>
+    <script src="audio.js?v=202601051035"></script>
     <script src="daily-quest.js?v=202512230805"></script>
     <script src="save-system.js?v=202512291600"></script>
     <script src="enemy-system.js?v=202512291600"></script>
-    <script src="abyss-system.js?v=202512301147"></script>
-    <script src="game.js?v=202512301123"></script>
+    <script src="abyss-system.js?v=202601061400"></script>
+    <script src="game.js?v=202601061700"></script>
     <script src="pocketbase.umd.js"></script>
-    <script src="online.js?v=202512301452"></script>
+    <script src="online.js?v=202601061400"></script>
     <script src="market.js?v=202512301030"></script>
     <script>
         // 显示欢迎回来信息
@@ -786,6 +803,96 @@
                 <button class="offline-claim-btn" onclick="claimOfflineRewards()">领取奖励</button>
             </div>
             <div class="offline-tip">提示：离线收益最多8小时，以最高到达层数为挂机层数</div>
+        </div>
+    </div>
+
+    <!-- 死亡弹窗面板 -->
+    <div id="death-panel-overlay" class="death-panel-overlay" onmousedown="event.stopPropagation()">
+        <div class="death-panel" onmousedown="event.stopPropagation()">
+            <div class="death-panel-header">
+                <span class="death-icon">💀</span>
+                <span class="death-title">你已阵亡</span>
+            </div>
+            <div class="death-panel-body">
+                <div class="death-stat-row">
+                    <span class="death-stat-icon">🏆</span>
+                    <span class="death-stat-label">到达层数</span>
+                    <span class="death-stat-value" id="death-floor-text">第1层</span>
+                </div>
+                <div class="death-stat-row">
+                    <span class="death-stat-icon">💀</span>
+                    <span class="death-stat-label">击杀怪物</span>
+                    <span class="death-stat-value" id="death-kills-text">0 只</span>
+                </div>
+                <div class="death-stat-row">
+                    <span class="death-stat-icon">⭐</span>
+                    <span class="death-stat-label">当前等级</span>
+                    <span class="death-stat-value" id="death-level-text">Lv.1</span>
+                </div>
+                <hr class="death-divider">
+                <div class="death-cause">
+                    <span class="death-cause-icon">☠️</span>
+                    <span class="death-cause-text" id="death-cause-text">死因不明</span>
+                </div>
+            </div>
+            <div class="death-panel-footer">
+                <button class="death-btn revive-btn" id="death-revive-btn" onclick="DeathPanel.revive()">
+                    <span class="btn-icon">✨</span>
+                    <span class="btn-text">原地复活</span>
+                    <span class="btn-cost">💰 <span id="revive-cost-text">1000</span></span>
+                </button>
+                <button class="death-btn return-btn" onclick="DeathPanel.returnToTown()">
+                    <span class="btn-icon">🏠</span>
+                    <span class="btn-text">回城</span>
+                    <span class="btn-cost">(免费)</span>
+                </button>
+            </div>
+            <div class="death-gold-display">
+                💰 当前金币: <span id="death-gold-text">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 称号商店面板 -->
+    <div id="title-shop-overlay" class="title-shop-overlay" onmousedown="closeTitleShop()">
+        <div class="title-shop-panel" onmousedown="event.stopPropagation()">
+            <div class="title-shop-header">
+                <span class="title-shop-icon">👑</span>
+                <span class="title-shop-title">称号商店</span>
+            </div>
+            <div class="title-shop-body">
+                <div class="title-shop-current">
+                    当前称号：<span id="title-shop-current"></span>
+                </div>
+                <div class="title-shop-gold">
+                    💰 金币：<span id="title-shop-gold">0</span>
+                </div>
+                <hr class="title-shop-divider">
+                <div id="title-shop-list" class="title-shop-list">
+                    <!-- 称号列表会动态生成 -->
+                </div>
+            </div>
+            <div class="title-shop-footer">
+                <button class="title-shop-close-btn" onclick="closeTitleShop()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自动战斗雇佣费提醒面板 -->
+    <div id="auto-battle-fee-overlay" class="auto-battle-fee-overlay" onmousedown="event.stopPropagation()">
+        <div class="auto-battle-fee-panel" onmousedown="event.stopPropagation()">
+            <div class="auto-battle-fee-header">
+                <span class="fee-icon">⚔️</span>
+                <span class="fee-title">自动战斗服务</span>
+            </div>
+            <div class="auto-battle-fee-body">
+                <p>启用自动战斗后，系统将收取</p>
+                <p>金币收益的 <span class="fee-highlight">15%</span> 作为雇佣费</p>
+                <p class="fee-note">（每满100金币收取15金币）</p>
+            </div>
+            <div class="auto-battle-fee-footer">
+                <button class="fee-confirm-btn" onclick="confirmAutoBattleFee()">我知道了</button>
+            </div>
         </div>
     </div>
 

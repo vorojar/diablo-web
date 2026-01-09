@@ -1311,7 +1311,9 @@ const OnlineSystem = {
                     needsMigration;
 
                 if (shouldUpdate) {
-                    await pb.collection('leaderboard').update(old.id, scoreData);
+                    // 更新时排除 user_id（唯一索引字段不能重复设置）
+                    const { user_id, ...updateData } = scoreData;
+                    await pb.collection('leaderboard').update(old.id, updateData);
                     this.loadLeaderboard(true);  // 强制刷新
                 }
             } else {
@@ -1851,6 +1853,11 @@ const OnlineSystem = {
                     text: `💀 ${record.nickname} 闯入深渊前10！当前排名第${record.extra_data}名`,
                     type: 'abyss'
                 };
+            case 'title_unlock':
+                return {
+                    text: `👑 ${record.nickname} 获得了称号「${record.target_name}」`,
+                    type: 'title'
+                };
             default:
                 return {
                     text: `${record.nickname}: ${record.target_name}`,
@@ -1878,7 +1885,8 @@ const OnlineSystem = {
             'set': 'set-announcement',
             'level': 'level-announcement',
             'enhance': 'enhance-announcement',
-            'abyss': 'abyss-announcement'
+            'abyss': 'abyss-announcement',
+            'title': 'title-announcement'
         };
         content.className = typeClassMap[announcement.type] || 'set-announcement';
 
@@ -1939,6 +1947,29 @@ const ChatSystem = {
     unreadCount: 0,       // 未读消息数
     isSending: false,     // 发送锁，防止重复发送
     isReady: false,       // 聊天系统是否就绪（敏感词库+Realtime订阅完成）
+
+    // 获取当前应显示的称号（最新优先）
+    getDisplayTitle() {
+        if (typeof player === 'undefined') return '';
+
+        const purchasedTitle = player.currentTitle && player.currentTitle !== 'none'
+            ? (typeof TITLES !== 'undefined' ? TITLES.find(t => t.id === player.currentTitle)?.name : null)
+            : null;
+        const abyssTitle = player.abyssTitle || null;
+
+        // 如果都没有称号
+        if (!purchasedTitle && !abyssTitle) return '';
+
+        // 如果只有一个，直接返回
+        if (!purchasedTitle) return abyssTitle;
+        if (!abyssTitle) return purchasedTitle;
+
+        // 两者都有，比较获取时间（最新优先）
+        const titleTime = player.titleObtainedTime || 0;
+        const abyssTitleTime = player.abyssTitleObtainedTime || 0;
+
+        return titleTime >= abyssTitleTime ? purchasedTitle : abyssTitle;
+    },
 
     // 敏感词列表（从服务器加载，这里是备用默认值）
     BLOCKED_WORDS: ['sb', 'cnm', 'nmsl'],
@@ -2098,12 +2129,16 @@ const ChatSystem = {
         this.isSending = true;
         input.disabled = true;
 
+        // 获取当前应显示的称号（最新优先）
+        const displayTitle = this.getDisplayTitle();
+
         try {
             const record = await pb.collection('chat_messages').create({
                 nickname: OnlineSystem.nickname,
                 level: level,
                 message: filtered,  // 发送过滤后的消息
-                user_id: OnlineSystem.userId
+                user_id: OnlineSystem.userId,
+                title: displayTitle  // 称号
             });
             input.value = '';
             this.lastSendTime = now;
@@ -2154,8 +2189,14 @@ const ChatSystem = {
         const isMe = record.user_id === OnlineSystem.userId;
         const nicknameColor = isMe ? '#ffff88' : '#88ccff';
 
+        // 称号显示
+        let titleHtml = '';
+        if (record.title) {
+            titleHtml = `<span class="chat-msg-title">「${this.escapeHtml(record.title)}」</span>`;
+        }
+
         msgEl.innerHTML = `
-            <span class="chat-msg-nickname" style="color:${nicknameColor}">${this.escapeHtml(record.nickname)}</span>
+            <span class="chat-msg-nickname" style="color:${nicknameColor}">${this.escapeHtml(record.nickname)}</span>${titleHtml}
             <span class="chat-msg-level">Lv.${record.level}</span>:
             <span class="chat-msg-content">${this.escapeHtml(record.message)}</span>
         `;

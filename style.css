@@ -421,6 +421,85 @@
             pointer-events: none;
         }
 
+        /* 护盾填充层（隐藏，改用边框发光效果） */
+        .orb-shield-fill {
+            display: none;
+        }
+
+        /* 护盾激活时血球发光边框 */
+        #health-orb.shielded {
+            border-color: #ffd700 !important;
+            box-shadow:
+                0 0 10px rgba(255, 215, 0, 0.8),
+                0 0 20px rgba(255, 215, 0, 0.6),
+                0 0 35px rgba(255, 215, 0, 0.4),
+                0 0 50px rgba(255, 215, 0, 0.2),
+                inset 0 0 15px rgba(255, 215, 0, 0.3);
+            animation: shieldGlow 1.5s ease-in-out infinite;
+        }
+
+        @keyframes shieldGlow {
+
+            0%,
+            100% {
+                box-shadow:
+                    0 0 10px rgba(255, 215, 0, 0.8),
+                    0 0 20px rgba(255, 215, 0, 0.6),
+                    0 0 35px rgba(255, 215, 0, 0.4),
+                    0 0 50px rgba(255, 215, 0, 0.2),
+                    inset 0 0 15px rgba(255, 215, 0, 0.3);
+            }
+
+            50% {
+                box-shadow:
+                    0 0 15px rgba(255, 215, 0, 1),
+                    0 0 30px rgba(255, 215, 0, 0.8),
+                    0 0 50px rgba(255, 215, 0, 0.5),
+                    0 0 70px rgba(255, 215, 0, 0.3),
+                    inset 0 0 20px rgba(255, 215, 0, 0.4);
+            }
+        }
+
+        /* 护盾值文字 */
+        .shield-text {
+            position: absolute;
+            top: -22px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 12px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 0 0 3px #000, 0 0 6px #000, 0 0 12px rgba(255, 215, 0, 0.8);
+            z-index: 7;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        /* 护盾即将消失时快速闪烁 */
+        #health-orb.shield-low {
+            animation: shieldLowFlicker 0.3s ease-in-out infinite !important;
+        }
+
+        @keyframes shieldLowFlicker {
+
+            0%,
+            100% {
+                box-shadow:
+                    0 0 10px rgba(255, 215, 0, 0.8),
+                    0 0 20px rgba(255, 215, 0, 0.6),
+                    inset 0 0 15px rgba(255, 215, 0, 0.3);
+                border-color: #ffd700;
+            }
+
+            50% {
+                box-shadow:
+                    0 0 5px rgba(255, 100, 0, 0.6),
+                    0 0 10px rgba(255, 100, 0, 0.4),
+                    inset 0 0 8px rgba(255, 100, 0, 0.2);
+                border-color: #ff6400;
+            }
+        }
+
         #center-hud {
             display: flex;
             flex-direction: column;
@@ -589,8 +668,8 @@
         }
 
         .skill-btn {
-            width: 50px;
-            height: 50px;
+            width: 30px;
+            height: 30px;
             background: #1a1a1a;
             border: 2px solid #444;
             display: flex;
@@ -911,38 +990,396 @@
             text-shadow: 1px 1px 0 #000, -1px -1px 0 #000;
         }
 
-        #skills-panel {
-            top: 15%;
-            left: 340px;
-            width: 260px;
+        /* ========== 技能树面板 ========== */
+        #skills-panel.skill-tree-panel {
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 320px;
+            max-height: 80vh;
         }
 
-        .skill-row {
-            display: flex;
-            align-items: center;
-            margin-bottom: 15px;
+        .skill-tree-points {
+            text-align: center;
+            color: var(--text-gold);
+            font-size: 14px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border-bottom: 1px solid #333;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .skill-tree-scroll {
+            max-height: calc(80vh - 140px);
+            overflow-y: auto;
+            padding: 10px;
+            scrollbar-width: thin;
+            scrollbar-color: #444 rgba(0, 0, 0, 0.3);
+        }
+
+        .skill-tree-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .skill-tree-scroll::-webkit-scrollbar-track {
             background: rgba(0, 0, 0, 0.3);
-            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .skill-tree-scroll::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
             border: 1px solid #333;
         }
 
-        .skill-icon {
-            width: 40px;
-            height: 40px;
-            background: #222;
-            border: 1px solid #555;
+        .skill-tree-scroll::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* 技能树Tab切换 */
+        .skill-tree-tabs {
+            display: flex;
+            gap: 4px;
+            padding: 8px 10px;
+            border-bottom: 1px solid #333;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .skill-tree-tab {
+            flex: 1;
+            padding: 8px 6px;
+            text-align: center;
+            font-size: 12px;
+            color: #888;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid #333;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+
+        .skill-tree-tab:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #555;
+            color: #aaa;
+        }
+
+        .skill-tree-tab.active {
+            background: rgba(199, 179, 119, 0.2);
+            border-color: var(--text-gold);
+            color: var(--text-gold);
+        }
+
+        /* 技能系别分隔 */
+        .skill-tree-branch {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .skill-branch-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 6px;
+            background: linear-gradient(90deg, transparent, rgba(100, 80, 50, 0.4), transparent);
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: var(--text-gold);
+        }
+
+        .skill-branch-header::before,
+        .skill-branch-header::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #665533, transparent);
+        }
+
+        /* 技能节点容器 */
+        .skill-tree-stage {
+            position: relative;
+            margin-bottom: 8px;
+        }
+
+        /* 阶段1：居中单节点 */
+        .skill-tree-stage.stage-1 {
             display: flex;
             justify-content: center;
+        }
+
+        /* 阶段2/3：分叉双节点 */
+        .skill-tree-stage.stage-fork {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        /* 连接线容器 */
+        .skill-tree-connector {
+            display: flex;
+            justify-content: center;
+            height: 24px;
+            position: relative;
+        }
+
+        /* 垂直连接线 */
+        .skill-tree-connector .line-v {
+            width: 2px;
+            height: 100%;
+            background: #444;
+        }
+
+        .skill-tree-connector.active .line-v {
+            background: var(--text-gold);
+            box-shadow: 0 0 4px var(--text-gold);
+        }
+
+        /* 分叉连接线 */
+        .skill-tree-connector.fork {
+            height: 30px;
+        }
+
+        .skill-tree-connector.fork::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 2px;
+            height: 12px;
+            background: #444;
+            transform: translateX(-50%);
+        }
+
+        .skill-tree-connector.fork::after {
+            content: '';
+            position: absolute;
+            top: 12px;
+            left: 25%;
+            width: 50%;
+            height: 2px;
+            background: #444;
+        }
+
+        .skill-tree-connector.fork .line-left,
+        .skill-tree-connector.fork .line-right {
+            position: absolute;
+            top: 14px;
+            width: 2px;
+            height: 16px;
+            background: #444;
+        }
+
+        .skill-tree-connector.fork .line-left {
+            left: 25%;
+            transform: translateX(-50%);
+        }
+
+        .skill-tree-connector.fork .line-right {
+            right: 25%;
+            transform: translateX(50%);
+        }
+
+        .skill-tree-connector.fork.active::before,
+        .skill-tree-connector.fork.active::after {
+            background: var(--text-gold);
+            box-shadow: 0 0 4px var(--text-gold);
+        }
+
+        .skill-tree-connector.fork.active .line-left,
+        .skill-tree-connector.fork.active .line-right {
+            background: var(--text-gold);
+            box-shadow: 0 0 4px var(--text-gold);
+        }
+
+        .skill-tree-connector.fork.active-left .line-left {
+            background: var(--text-gold);
+            box-shadow: 0 0 4px var(--text-gold);
+        }
+
+        .skill-tree-connector.fork.active-right .line-right {
+            background: var(--text-gold);
+            box-shadow: 0 0 4px var(--text-gold);
+        }
+
+        /* 技能节点 */
+        .skill-tree-node {
+            width: 120px;
+            background: rgba(20, 20, 20, 0.9);
+            border: 2px solid #444;
+            border-radius: 4px;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .skill-tree-node:hover:not(.locked):not(.other-locked) {
+            border-color: var(--text-gold);
+            background: rgba(40, 35, 25, 0.9);
+        }
+
+        .skill-tree-node.active {
+            border-color: var(--text-gold);
+            box-shadow: 0 0 8px rgba(200, 170, 100, 0.4);
+        }
+
+        .skill-tree-node.maxed {
+            border-color: #4a4;
+            box-shadow: 0 0 8px rgba(80, 200, 80, 0.3);
+        }
+
+        .skill-tree-node.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-style: dashed;
+        }
+
+        .skill-tree-node.other-locked {
+            opacity: 0.35;
+            cursor: not-allowed;
+            filter: grayscale(0.8);
+        }
+
+        .skill-tree-node.selectable {
+            border-color: #668;
+            border-style: dashed;
+            animation: pulse-border 2s infinite;
+        }
+
+        @keyframes pulse-border {
+
+            0%,
+            100% {
+                border-color: #446;
+            }
+
+            50% {
+                border-color: #88a;
+            }
+        }
+
+        /* 节点图标 */
+        .skill-node-icon {
+            width: 36px;
+            height: 36px;
+            margin: 0 auto 6px;
+            background: #222;
+            border: 1px solid #555;
+            border-radius: 4px;
+            display: flex;
             align-items: center;
-            font-size: 20px;
-            margin-right: 10px;
+            justify-content: center;
+        }
+
+        .skill-tree-node.locked .skill-node-icon,
+        .skill-tree-node.other-locked .skill-node-icon {
+            filter: grayscale(1);
+        }
+
+        /* 节点名称 */
+        .skill-node-name {
+            font-size: 11px;
+            color: #ddd;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .skill-tree-node.active .skill-node-name,
+        .skill-tree-node.maxed .skill-node-name {
+            color: var(--text-gold);
+        }
+
+        /* 节点等级显示 */
+        .skill-node-level {
+            font-size: 10px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+
+        .skill-tree-node.active .skill-node-level {
+            color: #aaa;
+        }
+
+        /* 进度条 */
+        .skill-node-progress {
+            height: 4px;
+            background: #222;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+
+        .skill-node-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #665533, var(--text-gold));
+            transition: width 0.3s;
+        }
+
+        .skill-tree-node.maxed .skill-node-progress-fill {
+            background: linear-gradient(90deg, #446644, #4a4);
+        }
+
+        /* 升级按钮 */
+        .skill-node-upgrade {
+            display: inline-block;
+            padding: 2px 10px;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 3px;
+            color: #aaa;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .skill-node-upgrade:hover {
+            background: #444;
+            border-color: var(--text-gold);
+            color: var(--text-gold);
+        }
+
+        .skill-node-upgrade.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* 锁定图标 */
+        .skill-node-lock {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            font-size: 10px;
+            color: #666;
+        }
+
+        /* 已满标记 */
+        .skill-node-check {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            font-size: 12px;
+            color: #4a4;
+        }
+
+        /* 选择提示 */
+        .skill-node-hint {
+            font-size: 9px;
+            color: #668;
+            margin-top: 2px;
         }
 
         /* Skill Sprites */
         .skill-sprite {
             width: 32px;
             height: 32px;
-            background-image: url('skills.png');
+            background-image: url('skills.png?v=6.9');
             background-size: 400% 100%;
             background-repeat: no-repeat;
             display: inline-block;
@@ -964,6 +1401,41 @@
 
         .skill-multishot {
             background-position: 100% 0%;
+        }
+
+        /* 阶段2/3节点使用父技能图标 */
+        .skill-tree-node[data-parent="fireball"] .skill-sprite {
+            background-position: 33.333% 0%;
+        }
+
+        .skill-tree-node[data-parent="thunder"] .skill-sprite {
+            background-position: 66.666% 0%;
+        }
+
+        .skill-tree-node[data-parent="multishot"] .skill-sprite {
+            background-position: 100% 0%;
+        }
+
+        /* 旧版兼容样式保留 */
+        .skill-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 5px;
+            border: 1px solid #333;
+        }
+
+        .skill-icon {
+            width: 40px;
+            height: 40px;
+            background: #222;
+            border: 1px solid #555;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            margin-right: 10px;
         }
 
         .skill-info {
@@ -1239,6 +1711,384 @@
             overflow-y: auto;
         }
 
+        /* ========== 套装图鉴面板 ========== */
+        #set-collection-panel {
+            top: 10%;
+            left: 20px;
+            width: 340px;
+            max-height: 85%;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #444 rgba(0, 0, 0, 0.3);
+        }
+
+        #set-collection-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #set-collection-panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        #set-collection-panel::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+            border: 1px solid #666;
+        }
+
+        .set-collection-header {
+            padding: 10px 12px;
+            border-bottom: 1px solid #333;
+            margin-bottom: 10px;
+        }
+
+        .set-collection-stats {
+            display: flex;
+            justify-content: space-between;
+            color: #888;
+            font-size: 12px;
+        }
+
+        .set-collection-stats span:first-child {
+            color: var(--text-gold);
+        }
+
+        /* 单个套装卡片 */
+        .set-card {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid #333;
+            border-radius: 6px;
+            margin: 0 10px 10px;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .set-card:hover {
+            border-color: #555;
+            background: rgba(30, 30, 30, 0.6);
+        }
+
+        .set-card.discovered {
+            border-left: 3px solid #20ff20;
+        }
+
+        .set-card.locked {
+            opacity: 0.5;
+        }
+
+        .set-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            background: rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+        }
+
+        .set-card-header:hover {
+            background: rgba(40, 40, 40, 0.5);
+        }
+
+        .set-card-title {
+            color: #20ff20;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .set-card.locked .set-card-title {
+            color: #666;
+        }
+
+        .set-card-progress {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .set-card-progress .collected {
+            color: #20ff20;
+        }
+
+        /* 套装部件网格 */
+        .set-pieces-grid {
+            display: none;
+            padding: 10px 12px;
+            border-top: 1px solid #222;
+        }
+
+        .set-card.expanded .set-pieces-grid {
+            display: block;
+        }
+
+        .set-piece-row {
+            display: flex;
+            align-items: center;
+            padding: 6px 8px;
+            margin-bottom: 4px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            border-left: 2px solid #333;
+        }
+
+        .set-piece-row.owned {
+            border-left-color: #20ff20;
+            background: rgba(32, 255, 32, 0.05);
+        }
+
+        .set-piece-icon {
+            width: 24px;
+            text-align: center;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+
+        .set-piece-row.owned .set-piece-icon {
+            filter: none;
+        }
+
+        .set-piece-row:not(.owned) .set-piece-icon {
+            filter: grayscale(100%) opacity(0.4);
+        }
+
+        .set-piece-name {
+            flex: 1;
+            font-size: 12px;
+            color: #ccc;
+        }
+
+        .set-piece-row:not(.owned) .set-piece-name {
+            color: #555;
+        }
+
+        .set-piece-status {
+            font-size: 11px;
+            color: #20ff20;
+        }
+
+        .set-piece-row:not(.owned) .set-piece-status {
+            color: #444;
+        }
+
+        /* 套装效果预览 */
+        .set-bonuses {
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid #222;
+        }
+
+        .set-bonus-row {
+            display: flex;
+            align-items: flex-start;
+            padding: 4px 0;
+            font-size: 11px;
+        }
+
+        .set-bonus-count {
+            min-width: 24px;
+            color: #888;
+            margin-right: 8px;
+        }
+
+        .set-bonus-desc {
+            color: #666;
+            flex: 1;
+        }
+
+        .set-bonus-row.active .set-bonus-count {
+            color: #20ff20;
+        }
+
+        .set-bonus-row.active .set-bonus-desc {
+            color: #20ff20;
+        }
+
+        /* 展开/收起图标 */
+        .set-card-toggle {
+            color: #666;
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+
+        .set-card.expanded .set-card-toggle {
+            transform: rotate(180deg);
+        }
+
+        /* ========== 图鉴Tab系统 ========== */
+        .codex-tabs {
+            display: flex;
+            gap: 5px;
+            padding: 8px 10px;
+            border-bottom: 1px solid #333;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .codex-tab {
+            flex: 1;
+            padding: 8px 12px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #444;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #888;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .codex-tab:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #666;
+        }
+
+        .codex-tab.active {
+            background: rgba(199, 179, 119, 0.2);
+            border-color: var(--text-gold);
+            color: var(--text-gold);
+        }
+
+        .codex-content {
+            display: none;
+        }
+
+        .codex-content.active {
+            display: block;
+        }
+
+        /* ========== 怪物图鉴 ========== */
+        .monster-codex-header {
+            padding: 10px 12px;
+            border-bottom: 1px solid #333;
+            margin-bottom: 10px;
+        }
+
+        .monster-codex-stats {
+            color: var(--text-gold);
+            font-size: 12px;
+        }
+
+        .monster-section-title {
+            padding: 8px 12px;
+            color: #888;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #222;
+            margin: 10px 0 5px;
+        }
+
+        .monster-section-title.boss {
+            color: #ff6600;
+        }
+
+        /* 怪物卡片 */
+        .monster-card {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            margin: 0 10px 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid #333;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .monster-card:hover {
+            border-color: #555;
+            background: rgba(30, 30, 30, 0.6);
+        }
+
+        .monster-card.discovered {
+            border-left: 3px solid #20ff20;
+        }
+
+        .monster-card.boss.discovered {
+            border-left-color: #ff6600;
+        }
+
+        .monster-card.locked {
+            opacity: 0.5;
+        }
+
+        /* 怪物图标容器 */
+        .monster-icon {
+            width: 48px;
+            height: 48px;
+            margin-right: 12px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .monster-icon canvas {
+            image-rendering: pixelated;
+        }
+
+        .monster-card.locked .monster-icon {
+            filter: grayscale(100%) brightness(0.3);
+        }
+
+        .monster-icon .unknown-icon {
+            font-size: 24px;
+            color: #444;
+        }
+
+        /* 怪物信息 */
+        .monster-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .monster-name {
+            font-size: 13px;
+            font-weight: bold;
+            color: #ccc;
+            margin-bottom: 3px;
+        }
+
+        .monster-card.boss .monster-name {
+            color: #ff6600;
+        }
+
+        .monster-card.locked .monster-name {
+            color: #555;
+        }
+
+        .monster-desc {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .monster-card.locked .monster-desc {
+            color: #444;
+        }
+
+        .monster-floor {
+            font-size: 10px;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        /* 怪物击杀统计 */
+        .monster-kills {
+            text-align: right;
+            font-size: 11px;
+            color: #888;
+        }
+
+        .monster-kills .count {
+            font-size: 14px;
+            color: #20ff20;
+            font-weight: bold;
+        }
+
+        .monster-card.boss .monster-kills .count {
+            color: #ff6600;
+        }
+
         #stash-panel {
             top: 15%;
             right: 20px;
@@ -1391,7 +2241,7 @@
             border: 1px solid var(--text-gold);
             padding: 10px;
             pointer-events: none;
-            z-index: 1000;
+            z-index: 99999;
             display: none;
             max-width: 320px;
             font-size: 14px;
@@ -1866,6 +2716,30 @@
 
         #auto-battle-text {
             font-weight: bold;
+        }
+
+        /* 自动战斗雇佣费HUD */
+        .auto-battle-fee-hud {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 5px;
+            padding: 6px 10px;
+            background: rgba(40, 40, 40, 0.9);
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #ccc;
+            white-space: nowrap;
+        }
+
+        .auto-battle-fee-hud.active {
+            display: block;
+        }
+
+        .auto-battle-fee-hud span {
+            color: #ffd700;
         }
 
         /* 自定义复选框样式 */
@@ -4287,6 +5161,12 @@
             text-shadow: 0 0 10px #ff0000, 0 0 20px #ff4400, 1px 1px 2px black;
         }
 
+        /* 称号获得公告 - 金色皇冠效果 */
+        .title-announcement {
+            color: #ffd700;
+            text-shadow: 0 0 10px #ffa500, 0 0 20px #ff8800, 1px 1px 2px black;
+        }
+
         /* 公告滚动动画 */
         @keyframes scrollAnnouncement {
             0% {
@@ -4437,6 +5317,12 @@
             margin-left: 2px;
         }
 
+        .chat-msg-title {
+            color: #ffd700;
+            font-size: 10px;
+            margin-left: 4px;
+        }
+
         .chat-msg-content {
             color: #ddd;
             margin-left: 4px;
@@ -4537,13 +5423,6 @@
                 padding: 6px;
             }
 
-            .skill-btn {
-                width: 52px;
-                height: 52px;
-                /* 增加点击区域 */
-                min-width: 44px;
-                min-height: 44px;
-            }
 
             /* 腰带格子放大 */
             .belt-bar {
@@ -4744,8 +5623,8 @@
             }
 
             .skill-btn {
-                width: 45px;
-                height: 45px;
+                width: 30px;
+                height: 30px;
             }
 
             .belt-slot {
@@ -4792,8 +5671,8 @@
             }
 
             .skill-btn {
-                width: 42px;
-                height: 42px;
+                width: 30px;
+                height: 30px;
             }
 
             .belt-slot {
@@ -4951,12 +5830,49 @@
             }
 
             #skills-panel {
-                width: 90vw !important;
-                max-width: 260px;
+                width: 92vw !important;
+                max-width: 340px;
                 left: 50% !important;
                 right: auto !important;
-                top: 5% !important;
+                top: 3% !important;
                 transform: translateX(-50%);
+                max-height: 90vh !important;
+            }
+
+            .skill-tree-scroll {
+                max-height: calc(90vh - 90px) !important;
+            }
+
+            .skill-tree-node {
+                width: 100px;
+                padding: 6px;
+            }
+
+            .skill-node-icon {
+                width: 32px;
+                height: 32px;
+            }
+
+            .skill-node-icon .skill-sprite {
+                width: 28px;
+                height: 28px;
+            }
+
+            .skill-node-name {
+                font-size: 10px;
+            }
+
+            .skill-node-level {
+                font-size: 9px;
+            }
+
+            .skill-tree-stage.stage-fork {
+                gap: 12px;
+            }
+
+            .skill-branch-header {
+                font-size: 12px;
+                padding: 4px;
             }
 
             /* 仓库格子自适应 */
@@ -5846,6 +6762,333 @@
             padding: 0 20px 15px;
         }
 
+        /* ========== 死亡弹窗面板 ========== */
+        .death-panel-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(20, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10001;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .death-panel-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .death-panel {
+            background: linear-gradient(180deg, #1a0a0a 0%, #0d0505 100%);
+            border: 2px solid #6a2a2a;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(255, 50, 50, 0.3), inset 0 0 20px rgba(0, 0, 0, 0.5);
+            min-width: 320px;
+            max-width: 400px;
+            animation: death-panel-in 0.5s ease-out;
+        }
+
+        @keyframes death-panel-in {
+            from {
+                transform: scale(0.8) translateY(-30px);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .death-panel-header {
+            background: linear-gradient(90deg, #2a1515, #3d1f1f, #2a1515);
+            padding: 16px 20px;
+            border-bottom: 1px solid #6a2a2a;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .death-icon {
+            font-size: 28px;
+            margin-right: 8px;
+            animation: death-icon-pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes death-icon-pulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+        }
+
+        .death-title {
+            font-size: 22px;
+            color: #ff6666;
+            font-weight: bold;
+            letter-spacing: 3px;
+            text-shadow: 0 0 10px rgba(255, 50, 50, 0.5);
+        }
+
+        .death-panel-body {
+            padding: 20px;
+        }
+
+        .death-stat-row {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            font-size: 15px;
+        }
+
+        .death-stat-icon {
+            width: 30px;
+            font-size: 18px;
+        }
+
+        .death-stat-label {
+            flex: 1;
+            color: #999;
+        }
+
+        .death-stat-value {
+            font-weight: bold;
+            color: #fff;
+            font-size: 16px;
+        }
+
+        .death-divider {
+            border: none;
+            border-top: 1px solid #6a2a2a;
+            margin: 15px 0;
+        }
+
+        .death-cause {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            background: rgba(255, 0, 0, 0.1);
+            border-radius: 8px;
+            border: 1px solid #4a1a1a;
+        }
+
+        .death-cause-icon {
+            font-size: 20px;
+            margin-right: 8px;
+        }
+
+        .death-cause-text {
+            color: #ff8888;
+            font-size: 14px;
+        }
+
+        .death-panel-footer {
+            padding: 15px 20px 10px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .death-btn {
+            flex: 1;
+            padding: 14px 10px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .death-btn .btn-icon {
+            font-size: 20px;
+        }
+
+        .death-btn .btn-text {
+            font-size: 14px;
+        }
+
+        .death-btn .btn-cost {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .death-btn.revive-btn {
+            background: linear-gradient(180deg, #6a4b2a 0%, #4a3015 100%);
+            border: 2px solid #8a6b4a;
+        }
+
+        .death-btn.revive-btn:hover:not(:disabled) {
+            background: linear-gradient(180deg, #7a5b3a 0%, #5a4025 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(138, 107, 74, 0.4);
+        }
+
+        .death-btn.revive-btn:disabled {
+            background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
+            border-color: #4a4a4a;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .death-btn.revive-btn:disabled .btn-cost {
+            color: #ff6666;
+        }
+
+        .death-btn.return-btn {
+            background: linear-gradient(180deg, #2a4a6a 0%, #153040 100%);
+            border: 2px solid #4a6a8a;
+        }
+
+        .death-btn.return-btn:hover {
+            background: linear-gradient(180deg, #3a5a7a 0%, #254050 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 106, 138, 0.4);
+        }
+
+        .death-btn:active {
+            transform: translateY(0);
+        }
+
+        .death-gold-display {
+            text-align: center;
+            font-size: 14px;
+            color: #ffd700;
+            padding: 10px 20px 20px;
+        }
+
+        /* ========== 自动战斗雇佣费提醒面板 ========== */
+        .auto-battle-fee-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10001;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .auto-battle-fee-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .auto-battle-fee-panel {
+            background: linear-gradient(180deg, #1a1a0a 0%, #0d0d05 100%);
+            border: 2px solid #6a5a2a;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(255, 200, 50, 0.2), inset 0 0 20px rgba(0, 0, 0, 0.5);
+            min-width: 300px;
+            max-width: 360px;
+            animation: fee-panel-in 0.4s ease-out;
+        }
+
+        @keyframes fee-panel-in {
+            from {
+                transform: scale(0.9) translateY(-20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .auto-battle-fee-header {
+            background: linear-gradient(90deg, #2a2515, #3d3520, #2a2515);
+            padding: 16px 20px;
+            border-bottom: 1px solid #6a5a2a;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .fee-icon {
+            font-size: 24px;
+            margin-right: 8px;
+        }
+
+        .fee-title {
+            font-size: 20px;
+            color: #ffd700;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255, 200, 50, 0.5);
+        }
+
+        .auto-battle-fee-body {
+            padding: 25px 20px;
+            text-align: center;
+            color: #ccc;
+            font-size: 15px;
+            line-height: 1.8;
+        }
+
+        .auto-battle-fee-body p {
+            margin: 0;
+        }
+
+        .fee-highlight {
+            color: #ffd700;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .fee-note {
+            color: #888;
+            font-size: 13px;
+            margin-top: 10px !important;
+        }
+
+        .auto-battle-fee-footer {
+            padding: 15px 20px 20px;
+            text-align: center;
+        }
+
+        .fee-confirm-btn {
+            padding: 12px 40px;
+            font-size: 15px;
+            font-weight: bold;
+            color: #fff;
+            background: linear-gradient(180deg, #6a5a2a 0%, #3d3015 100%);
+            border: 2px solid #8a7a4a;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .fee-confirm-btn:hover {
+            background: linear-gradient(180deg, #8a7a4a 0%, #5d5025 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(138, 122, 74, 0.4);
+        }
+
+        .fee-confirm-btn:active {
+            transform: translateY(0);
+        }
+
         /* 技能按钮禁用状态 */
         .skill-btn.disabled {
             cursor: not-allowed;
@@ -6458,4 +7701,398 @@
         #abyss-result-panel .btn {
             width: 100%;
             margin: 0;
+        }
+
+        /* ========== 称号商店面板 ========== */
+        .title-shop-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .title-shop-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .title-shop-panel {
+            background: linear-gradient(180deg, #1a1510 0%, #0d0a08 100%);
+            border: 2px solid #c7b377;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(199, 179, 119, 0.4), inset 0 0 20px rgba(0, 0, 0, 0.5);
+            min-width: 360px;
+            max-width: 420px;
+            animation: title-shop-in 0.4s ease-out;
+        }
+
+        @keyframes title-shop-in {
+            from {
+                transform: scale(0.8) translateY(-20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .title-shop-header {
+            background: linear-gradient(90deg, #2a2015, #4a3b2a, #2a2015);
+            padding: 16px 20px;
+            border-bottom: 1px solid #c7b377;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .title-shop-icon {
+            font-size: 24px;
+            margin-right: 8px;
+        }
+
+        .title-shop-title {
+            font-size: 20px;
+            color: #ffd700;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .title-shop-body {
+            padding: 20px;
+        }
+
+        .title-shop-current {
+            text-align: center;
+            font-size: 16px;
+            color: #aaa;
+            margin-bottom: 10px;
+        }
+
+        .title-shop-gold {
+            text-align: center;
+            font-size: 14px;
+            color: #ffd700;
+            margin-bottom: 10px;
+        }
+
+        .title-shop-divider {
+            border: none;
+            border-top: 1px solid #4a3b2a;
+            margin: 15px 0;
+        }
+
+        .title-shop-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 320px;
+            overflow-y: auto;
+            padding-right: 5px;
+            scrollbar-width: thin;
+            scrollbar-color: #444 rgba(0, 0, 0, 0.3);
+        }
+
+        .title-shop-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .title-shop-list::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+
+        .title-shop-list::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+            border: 1px solid #333;
+        }
+
+        .title-shop-list::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        .title-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: rgba(30, 25, 20, 0.8);
+            border: 1px solid #3a3025;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .title-item:hover {
+            background: rgba(50, 40, 30, 0.9);
+            border-color: #5a4a35;
+        }
+
+        .title-item.equipped {
+            border-color: #4a4;
+            background: rgba(40, 60, 40, 0.5);
+        }
+
+        .title-item-info {
+            flex: 1;
+        }
+
+        .title-item-name {
+            font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .title-item-price {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .title-item-status {
+            font-size: 12px;
+            color: #4a4;
+            margin-left: 8px;
+        }
+
+        .title-item-btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .title-item-btn.buy {
+            background: linear-gradient(180deg, #5a8a3a, #3a6a2a);
+            color: #fff;
+        }
+
+        .title-item-btn.buy:hover {
+            background: linear-gradient(180deg, #6a9a4a, #4a7a3a);
+        }
+
+        .title-item-btn.buy:disabled {
+            background: #444;
+            color: #666;
+            cursor: not-allowed;
+        }
+
+        .title-item-btn.equip {
+            background: linear-gradient(180deg, #4a6a9a, #3a5a7a);
+            color: #fff;
+        }
+
+        .title-item-btn.equip:hover {
+            background: linear-gradient(180deg, #5a7aaa, #4a6a8a);
+        }
+
+        .title-shop-footer {
+            padding: 15px 20px;
+            border-top: 1px solid #4a3b2a;
+            text-align: center;
+        }
+
+        .title-shop-close-btn {
+            padding: 10px 40px;
+            background: linear-gradient(180deg, #4a3b2a, #2a2015);
+            border: 1px solid #6a5a4a;
+            border-radius: 6px;
+            color: #c7b377;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .title-shop-close-btn:hover {
+            background: linear-gradient(180deg, #5a4b3a, #3a3025);
+            border-color: #8a7a6a;
+        }
+
+        /* 称号特效样式 */
+        .title-glow {
+            text-shadow: 0 0 8px currentColor;
+        }
+
+        .title-rainbow {
+            background: linear-gradient(90deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: bold;
+        }
+
+        /* ========== 金币消费动画 ========== */
+        .gold-spend-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+            z-index: 15000;
+        }
+
+        .gold-spend-text {
+            font-size: 48px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 0 0 20px #ff6600, 0 0 40px #ff4400, 2px 2px 4px rgba(0, 0, 0, 0.8);
+            animation: goldSpendAnim 1.5s ease-out forwards;
+        }
+
+        @keyframes goldSpendAnim {
+            0% {
+                opacity: 1;
+                transform: scale(0.5) translateY(0);
+            }
+
+            20% {
+                opacity: 1;
+                transform: scale(1.2) translateY(0);
+            }
+
+            40% {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(0.8) translateY(-80px);
+            }
+        }
+
+        /* ========== 称号解锁特效 ========== */
+        .title-unlock-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 16000;
+            animation: titleUnlockFadeIn 0.5s ease-out;
+            cursor: pointer;
+        }
+
+        @keyframes titleUnlockFadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .title-unlock-panel {
+            position: relative;
+            text-align: center;
+            animation: titleUnlockPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes titleUnlockPop {
+            0% {
+                opacity: 0;
+                transform: scale(0.3);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .title-unlock-glow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 300px;
+            height: 300px;
+            transform: translate(-50%, -50%);
+            background: radial-gradient(circle, rgba(255, 215, 0, 0.4) 0%, rgba(255, 215, 0, 0) 70%);
+            animation: titleGlowPulse 2s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes titleGlowPulse {
+
+            0%,
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 0.6;
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.3);
+                opacity: 1;
+            }
+        }
+
+        .title-unlock-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+            animation: titleIconBounce 1s ease-in-out infinite;
+        }
+
+        @keyframes titleIconBounce {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .title-unlock-label {
+            font-size: 18px;
+            color: #888;
+            letter-spacing: 4px;
+            margin-bottom: 10px;
+        }
+
+        .title-unlock-name {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            animation: titleNameShine 2s linear infinite;
+        }
+
+        @keyframes titleNameShine {
+            0% {
+                filter: brightness(1);
+            }
+
+            50% {
+                filter: brightness(1.3);
+            }
+
+            100% {
+                filter: brightness(1);
+            }
+        }
+
+        .title-unlock-hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 30px;
         }

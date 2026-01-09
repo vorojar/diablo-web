@@ -8,6 +8,7 @@ const panelManager = {
     'stats': { id: 'stats-panel', group: 'left', top: 10, baseTop: 10, opened: false, zIndex: 0 },
     'achievements': { id: 'achievements-panel', group: 'left', top: 10, baseTop: 10, opened: false, zIndex: 0 },
     'quest': { id: 'quest-panel', group: 'left', top: 15, baseTop: 15, opened: false, zIndex: 0 },
+    'set-collection': { id: 'set-collection-panel', group: 'left', top: 10, baseTop: 10, opened: false, zIndex: 0 },
     'inventory': { id: 'inventory-panel', group: 'right', top: 10, baseTop: 10, opened: false, zIndex: 0 },
     'stash': { id: 'stash-panel', group: 'right', top: 15, baseTop: 15, opened: false, zIndex: 0 },
     'skills': { id: 'skills-panel', group: 'center', top: 15, baseTop: 15, opened: false, zIndex: 0, left: 340 },
@@ -110,7 +111,7 @@ function isAnyPanelOpen() {
 function isHoveringUI() {
   if (typeof mouse === 'undefined') return false;
   if (mouse.y > window.innerHeight - 140) return true;
-  const panels = ['stats-panel', 'inventory-panel', 'skills-panel', 'shop-panel', 'menu-btns', 'quest-panel', 'achievements-panel', 'dialog-box',
+  const panels = ['stats-panel', 'inventory-panel', 'skills-panel', 'shop-panel', 'menu-btns', 'quest-panel', 'achievements-panel', 'set-collection-panel', 'dialog-box',
     'abyss-entrance-panel', 'abyss-leaderboard-panel', 'abyss-result-panel'];
   for (let id of panels) {
     const el = document.getElementById(id);
@@ -153,7 +154,15 @@ function togglePanel(id) {
       'achievements': typeof renderAchievements !== 'undefined' ? renderAchievements : null,
       'shop': typeof renderEmbeddedBag !== 'undefined' ? () => renderEmbeddedBag('shop') : null,
       'stash': typeof renderStash !== 'undefined' ? renderStash : null,
-      'blacksmith': typeof renderBlacksmithPanel !== 'undefined' ? () => { renderBlacksmithPanel(); renderEmbeddedBag('blacksmith'); } : null
+      'blacksmith': typeof renderBlacksmithPanel !== 'undefined' ? () => { renderBlacksmithPanel(); renderEmbeddedBag('blacksmith'); } : null,
+      'set-collection': typeof renderSetCollection !== 'undefined' ? () => {
+        renderSetCollection();
+        // 如果怪物tab是激活状态，也渲染怪物图鉴
+        const monsterTab = document.querySelector('.codex-tab[data-tab="monsters"]');
+        if (monsterTab && monsterTab.classList.contains('active') && typeof renderMonsterCodex !== 'undefined') {
+          renderMonsterCodex();
+        }
+      } : null
     };
 
     if (updateFunctions[id]) {

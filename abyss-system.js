@@ -82,6 +82,7 @@ const AbyssSystem = {
       localStorage.setItem('abyss_last_rank', rank);
 
       // 根据赛区排名更新分赛区称号
+      const oldTitle = player.abyssTitle;
       if (rank === 1) {
         player.abyssTitle = `${myBracket.name}王`;
       } else if (rank <= 3) {
@@ -92,6 +93,11 @@ const AbyssSystem = {
         player.abyssTitle = `${myBracket.name}行者`;
       } else {
         player.abyssTitle = null;
+      }
+
+      // 称号变化时更新获取时间
+      if (player.abyssTitle && player.abyssTitle !== oldTitle) {
+        player.abyssTitleObtainedTime = Date.now();
       }
 
       console.log(`[Abyss] ${myBracket.name}称号更新:`, player.abyssTitle, '排名:', rank);
