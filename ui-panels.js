@@ -177,6 +177,11 @@ function togglePanel(id) {
       hideTooltip();
     }
 
+    // 清除卖出确认状态
+    if (typeof pendingSellConfirmIdx !== 'undefined') {
+      pendingSellConfirmIdx = -1;
+    }
+
     // 更新面板管理器状态
     if (panelManager && panelManager.panels[id]) {
       panelManager.close(id);

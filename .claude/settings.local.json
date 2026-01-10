@@ -3,7 +3,9 @@
     "allow": [
       "Skill(game-master)",
       "Bash(node:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(wc:*)"
     ]
   }
 }

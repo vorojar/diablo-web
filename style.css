@@ -990,6 +990,34 @@
             text-shadow: 1px 1px 0 #000, -1px -1px 0 #000;
         }
 
+        /* 物品栏卖出确认样式 */
+        .bag-slot.sell-pending {
+            border-color: #ff4444 !important;
+            box-shadow: inset 0 0 12px rgba(255, 68, 68, 0.6) !important;
+        }
+
+        .bag-slot .sell-confirm-btn {
+            position: absolute;
+            bottom: 3px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(180deg, #c22 0%, #811 100%);
+            color: #fff;
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 2px;
+            cursor: pointer;
+            z-index: 10;
+            text-shadow: 0 1px 1px #000;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            transition: all 0.1s;
+        }
+
+        .bag-slot .sell-confirm-btn:hover {
+            background: linear-gradient(180deg, #e33 0%, #a22 100%);
+            transform: translateX(-50%) scale(1.1);
+        }
+
         /* ========== 技能树面板 ========== */
         #skills-panel.skill-tree-panel {
             top: 10%;
@@ -2240,7 +2268,7 @@
             background: rgba(5, 5, 8, 0.95);
             border: 1px solid var(--text-gold);
             padding: 10px;
-            pointer-events: none;
+            pointer-events: auto;  /* 允许鼠标交互（分享按钮、hover保持） */
             z-index: 99999;
             display: none;
             max-width: 320px;
@@ -2288,6 +2316,30 @@
         .tooltip-close:hover {
             color: #fff;
             background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Tooltip 分享按钮 */
+        .tooltip-share-btn {
+            margin-top: 10px;
+            padding: 6px 10px;
+            background: linear-gradient(180deg, #2a4a2a 0%, #1a3a1a 100%);
+            border: 1px solid #3a5a3a;
+            border-radius: 4px;
+            color: #8f8;
+            font-size: 11px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .tooltip-share-btn:hover {
+            background: linear-gradient(180deg, #3a6a3a 0%, #2a5a2a 100%);
+            border-color: #4a7a4a;
+            color: #afa;
+        }
+
+        .tooltip-share-btn:active {
+            transform: scale(0.97);
         }
 
         /* 手机端 tooltip 锁定时允许点击 */
@@ -5338,6 +5390,21 @@
             color: #ffd700;
         }
 
+        /* 聊天物品链接 */
+        .chat-item-link {
+            font-weight: bold;
+            cursor: pointer;
+            padding: 1px 3px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            transition: all 0.15s;
+        }
+
+        .chat-item-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+            text-shadow: 0 0 8px currentColor;
+        }
+
         .chat-input-area {
             display: flex;
             gap: 5px;
@@ -5805,6 +5872,34 @@
         .embedded-bag-slot.rarity-rare {
             border-color: #ffff00;
             box-shadow: inset 0 0 5px rgba(255, 255, 0, 0.3);
+        }
+
+        /* 卖出确认按钮样式 */
+        .embedded-bag-slot.sell-pending {
+            border-color: #ff4444 !important;
+            box-shadow: inset 0 0 10px rgba(255, 68, 68, 0.6) !important;
+        }
+
+        .sell-confirm-btn {
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(180deg, #c22 0%, #811 100%);
+            color: #fff;
+            font-size: 9px;
+            padding: 1px 6px;
+            border-radius: 2px;
+            cursor: pointer;
+            z-index: 10;
+            text-shadow: 0 1px 1px #000;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            transition: all 0.1s;
+        }
+
+        .sell-confirm-btn:hover {
+            background: linear-gradient(180deg, #e33 0%, #a22 100%);
+            transform: translateX(-50%) scale(1.1);
         }
 
         /* 移动端内嵌背包适配 */

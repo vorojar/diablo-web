@@ -116,6 +116,7 @@ function initUICache() {
     cachedUI.floatingTexts = document.getElementById('floating-texts-container');
     cachedUI.talentHud = document.getElementById('talent-hud');
     cachedUI.tooltip = document.getElementById('tooltip');
+    initTooltipHoverEvents();  // 初始化tooltip悬停事件
     cachedUI.uiLayer = document.querySelector('.ui-layer');
 
     // Skills
@@ -10092,18 +10093,55 @@ function renderInventory() {
             if (i.enhanceLvl > 0) {
                 s.innerHTML += `<span class="enhance-level">+${i.enhanceLvl}</span>`;
             }
-            s.onclick = (e) => {
-                e.stopPropagation();
-                // 如果仓库面板打开，点击物品存入仓库
-                const stashPanel = document.getElementById('stash-panel');
-                const blacksmithPanel = document.getElementById('blacksmith-panel');
-                if (stashPanel && stashPanel.style.display === 'block') {
-                    moveItemToStash(idx);
-                } else if (blacksmithPanel && blacksmithPanel.style.display === 'block') {
-                    moveItemToForge(idx);
-                } else {
-                    useOrEquipItem(idx);
-                }
+            // 商店面板打开时：显示确认按钮或处理卖出
+            const shopPanel = document.getElementById('shop-panel');
+            const isShopOpen = shopPanel && shopPanel.style.display === 'block';
+
+            if (isShopOpen && pendingSellConfirmIdx === idx) {
+                // 待确认状态：显示确认按钮
+                s.classList.add('sell-pending');
+                const confirmBtn = document.createElement('div');
+                confirmBtn.className = 'sell-confirm-btn';
+                confirmBtn.textContent = '确认';
+                confirmBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    sellItemFromInventory(idx);
+                    pendingSellConfirmIdx = -1;
+                    renderInventory();
+                    renderEmbeddedBag('shop');
+                };
+                s.appendChild(confirmBtn);
+
+                // 点击格子其他区域取消确认
+                s.onclick = (e) => {
+                    e.stopPropagation();
+                    pendingSellConfirmIdx = -1;
+                    renderInventory();
+                };
+            } else {
+                s.onclick = (e) => {
+                    e.stopPropagation();
+                    // 如果商店面板打开，点击物品卖出
+                    const shopPanel = document.getElementById('shop-panel');
+                    const stashPanel = document.getElementById('stash-panel');
+                    const blacksmithPanel = document.getElementById('blacksmith-panel');
+                    if (shopPanel && shopPanel.style.display === 'block') {
+                        // 套装或强化装备需要二次确认
+                        if (needsSellConfirm(i)) {
+                            pendingSellConfirmIdx = idx;
+                            renderInventory();
+                            return;
+                        }
+                        sellItemFromInventory(idx);
+                        renderEmbeddedBag('shop');
+                    } else if (stashPanel && stashPanel.style.display === 'block') {
+                        moveItemToStash(idx);
+                    } else if (blacksmithPanel && blacksmithPanel.style.display === 'block') {
+                        moveItemToForge(idx);
+                    } else {
+                        useOrEquipItem(idx);
+                    }
+                };
             }
             s.oncontextmenu = (e) => { e.preventDefault(); e.stopPropagation(); dropItemFromInventory(idx); }
             bindItemTooltip(s, i);
@@ -11435,7 +11473,74 @@ function syncSkillsFromTree() {
 // 长按检测配置
 const LONG_PRESS_DURATION = 400; // 400ms 触发长按
 let longPressTimer = null;
+let tooltipHideTimer = null;  // 延迟隐藏定时器（让用户有时间移到tooltip上）
 let tooltipLocked = false;  // tooltip 是否被锁定（手机长按后锁定，需要手动关闭）
+let currentTooltipItem = null;  // 当前显示tooltip的物品（用于分享功能）
+let isMouseOverTooltip = false;  // 鼠标是否在tooltip上
+let pendingShareItem = null;  // 待发送的物品数据（用于聊天分享）
+
+// 分享物品到聊天频道
+function shareItemToChat(e) {
+    // 阻止事件冒泡，防止穿透到游戏画面
+    if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+    }
+
+    if (!currentTooltipItem) {
+        showNotification('没有选中物品');
+        return;
+    }
+
+    const item = currentTooltipItem;
+
+    // 检查是否登录（用 userId 判断）
+    if (typeof OnlineSystem === 'undefined' || !OnlineSystem.userId) {
+        showNotification('请先登录才能分享');
+        return;
+    }
+
+    const chatInput = document.getElementById('chat-input');
+    if (!chatInput) {
+        showNotification('聊天系统未加载');
+        return;
+    }
+
+    // 构建物品链接数据（只保留必要字段）
+    // 使用 name 而非 displayName，因为 displayName 可能已包含强化等级
+    const itemData = {
+        n: item.name,  // 名称（原始名，不含强化等级）
+        r: item.rarity,                     // 稀有度
+        t: item.type,                       // 类型
+        s: item.setId || null,              // 套装ID
+        d: item.minDmg ? `${item.minDmg}-${item.maxDmg}` : null,  // 伤害
+        f: item.def || null,                // 防御
+        st: item.stats || null,             // 属性
+        e: item.enhanceLvl || 0             // 强化等级
+    };
+
+    // 存储待发送的物品数据
+    pendingShareItem = itemData;
+
+    // 输入框只显示物品名（用户友好）
+    // 使用 name 而非 displayName，因为 displayName 可能已包含强化等级
+    const baseName = item.name;
+    const enhanceText = item.enhanceLvl > 0 ? ` +${item.enhanceLvl}` : '';
+    chatInput.value += `[${baseName}${enhanceText}]`;
+    chatInput.focus();
+
+    // 展开聊天框
+    const chatBox = document.getElementById('chat-box');
+    if (chatBox && chatBox.classList.contains('collapsed')) {
+        if (typeof ChatSystem !== 'undefined') {
+            ChatSystem.toggle();
+        }
+    }
+
+    hideTooltip();
+    showNotification('物品已添加到聊天框');
+    console.log('[分享] 完成');
+}
 
 // 属性key到标签的映射
 function getStatLabel(k) {
@@ -11474,7 +11579,7 @@ function generateItemStatsHTML(item) {
 }
 
 // 生成 tooltip 内容（统一的内容生成函数，支持装备对比）
-function generateTooltipHTML(item, showCloseBtn = false) {
+function generateTooltipHTML(item, showCloseBtn = false, showShareBtn = true) {
     // 查找身上对应部位的装备
     let slot = null;
     if (item.type === 'weapon') slot = 'mainhand';
@@ -11641,13 +11746,22 @@ function generateTooltipHTML(item, showCloseBtn = false) {
         }
     }
 
+    // 分享按钮（仅装备类物品显示，排除药水和卷轴，聊天链接点开的不显示）
+    const isEquipment = !['potion', 'scroll', 'gold'].includes(item.type);
+    if (showShareBtn && isEquipment && typeof OnlineSystem !== 'undefined') {
+        html += `<div class="tooltip-share-btn">📢 分享到世界频道</div>`;
+    }
+
     return html;
 }
 
 // 显示 tooltip（电脑端 hover 用，跟随鼠标）
 function showTooltip(item, e) {
-    if (tooltipLocked || !cachedUI.tooltip) return;  // 如果被锁定（手机长按中），不响应 hover
+    // 如果被锁定或鼠标正在tooltip上，不切换到新物品
+    if (tooltipLocked || !cachedUI.tooltip) return;
+    if (isMouseOverTooltip) return;  // 鼠标在tooltip上时，保持当前tooltip不变
 
+    currentTooltipItem = item;  // 记录当前物品（用于分享）
     const tt = cachedUI.tooltip;
     tt.style.display = 'block';
     tt.style.transform = 'none';  // 重置 transform
@@ -11666,6 +11780,7 @@ function showTooltip(item, e) {
 // 显示 tooltip（手机端长按用，居中显示）
 function showTooltipAtCenter(item) {
     if (!cachedUI.tooltip) return;
+    currentTooltipItem = item;  // 记录当前物品（用于分享）
     const tt = cachedUI.tooltip;
     tt.style.display = 'block';
     tt.style.left = '50%';
@@ -11676,6 +11791,67 @@ function showTooltipAtCenter(item) {
     tooltipLocked = true;
 }
 
+// 显示 tooltip（聊天物品链接用，定位在点击位置附近，无分享按钮）
+function showTooltipForChatLink(item, event) {
+    if (!cachedUI.tooltip) return;
+    const tt = cachedUI.tooltip;
+    tt.style.display = 'block';
+    tt.style.transform = 'none';
+    tt.classList.remove('locked');
+
+    // 生成内容（无关闭按钮，无分享按钮）
+    tt.innerHTML = generateTooltipHTML(item, false, false);
+
+    // 先渲染获取尺寸
+    const rect = tt.getBoundingClientRect();
+    const ttWidth = rect.width || 200;
+    const ttHeight = rect.height || 150;
+
+    // 计算位置：优先显示在点击位置上方
+    const clickX = event.clientX;
+    const clickY = event.clientY;
+    const padding = 10;
+
+    let left = clickX - ttWidth / 2;  // 水平居中于点击位置
+    let top = clickY - ttHeight - padding;  // 默认在上方
+
+    // 如果上方空间不够，显示在下方
+    if (top < padding) {
+        top = clickY + padding;
+    }
+
+    // 确保不超出屏幕左右边界
+    if (left < padding) left = padding;
+    if (left + ttWidth > window.innerWidth - padding) {
+        left = window.innerWidth - ttWidth - padding;
+    }
+
+    // 确保不超出屏幕下边界
+    if (top + ttHeight > window.innerHeight - padding) {
+        top = window.innerHeight - ttHeight - padding;
+    }
+
+    tt.style.left = left + 'px';
+    tt.style.top = top + 'px';
+
+    // 不锁定，允许点击外部关闭
+    tooltipLocked = false;
+    isMouseOverTooltip = false;
+    currentTooltipItem = null;  // 聊天链接的tooltip不需要记录物品
+
+    // 点击任意位置关闭
+    const closeHandler = (e) => {
+        // 点击tooltip内部不关闭
+        if (tt.contains(e.target)) return;
+        hideTooltip();
+        document.removeEventListener('click', closeHandler);
+    };
+    // 延迟添加，避免当前点击事件触发关闭
+    setTimeout(() => {
+        document.addEventListener('click', closeHandler);
+    }, 10);
+}
+
 // 隐藏 tooltip
 function hideTooltip() {
     if (!cachedUI.tooltip) return;
@@ -11684,14 +11860,39 @@ function hideTooltip() {
     tt.style.transform = 'none';
     tt.classList.remove('locked');
     tooltipLocked = false;
+    currentTooltipItem = null;  // 清除当前物品
+    isMouseOverTooltip = false;
     clearTimeout(longPressTimer);
+    clearTimeout(tooltipHideTimer);
+}
+
+// 延迟隐藏 tooltip（给用户时间移到tooltip上点击分享按钮）
+function scheduleHideTooltip() {
+    clearTimeout(tooltipHideTimer);
+    tooltipHideTimer = setTimeout(() => {
+        if (!isMouseOverTooltip && !tooltipLocked) {
+            hideTooltip();
+        }
+    }, 150);  // 150ms延迟
+}
+
+// 取消延迟隐藏
+function cancelHideTooltip() {
+    clearTimeout(tooltipHideTimer);
 }
 
 // 绑定物品 tooltip 事件（统一绑定函数，同时支持电脑 hover 和手机长按）
 function bindItemTooltip(element, item) {
     // 电脑端：hover
-    element.onmouseenter = (e) => showTooltip(item, e);
-    element.onmouseleave = () => { if (!tooltipLocked) hideTooltip(); };
+    element.onmouseenter = (e) => {
+        cancelHideTooltip();  // 取消之前的延迟隐藏
+        showTooltip(item, e);
+    };
+    element.onmouseleave = () => {
+        if (!tooltipLocked) {
+            scheduleHideTooltip();  // 延迟隐藏，给用户时间移到tooltip上
+        }
+    };
 
     // 手机端：长按
     element.ontouchstart = (e) => {
@@ -11707,6 +11908,37 @@ function bindItemTooltip(element, item) {
     element.ontouchmove = () => {
         clearTimeout(longPressTimer);  // 移动时取消长按
     };
+}
+
+// 初始化tooltip的鼠标事件（让用户可以移到tooltip上点击分享按钮）
+function initTooltipHoverEvents() {
+    const tooltip = document.getElementById('tooltip');
+    if (!tooltip) return;
+
+    tooltip.onmouseenter = () => {
+        isMouseOverTooltip = true;
+        cancelHideTooltip();
+    };
+    tooltip.onmouseleave = () => {
+        isMouseOverTooltip = false;
+        if (!tooltipLocked) {
+            scheduleHideTooltip();
+        }
+    };
+
+    // 使用事件委托处理分享按钮点击（比inline onclick更可靠）
+    tooltip.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tooltip-share-btn')) {
+            e.stopPropagation();
+            e.preventDefault();
+            shareItemToChat(e);
+        }
+    });
+    tooltip.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('tooltip-share-btn')) {
+            e.stopPropagation();
+        }
+    });
 }
 
 // 点击其他区域关闭 tooltip（手机端用）
@@ -13014,6 +13246,15 @@ function checkTutorial() {
 }
 
 // ========== 内嵌背包系统 ==========
+// 卖出确认状态：记录待确认的格子索引，-1表示无待确认
+let pendingSellConfirmIdx = -1;
+
+// 判断物品是否需要卖出确认（套装或强化过的装备）
+function needsSellConfirm(item) {
+    if (!item) return false;
+    return item.rarity === 5 || (item.enhanceLvl && item.enhanceLvl > 0);
+}
+
 // 渲染内嵌背包（用于商店/仓库/锻造面板）
 function renderEmbeddedBag(panelType) {
     const gridId = {
@@ -13048,11 +13289,34 @@ function renderEmbeddedBag(panelType) {
                 slot.innerHTML += `<span class="enhance-level">+${item.enhanceLvl}</span>`;
             }
 
-            // 点击事件
-            slot.onclick = (e) => {
-                e.stopPropagation();
-                handleEmbeddedBagClick(panelType, idx);
-            };
+            // 商店面板：显示卖出确认按钮
+            if (panelType === 'shop' && pendingSellConfirmIdx === idx) {
+                slot.classList.add('sell-pending');
+                const confirmBtn = document.createElement('div');
+                confirmBtn.className = 'sell-confirm-btn';
+                confirmBtn.textContent = '确认';
+                confirmBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    // 确认卖出
+                    sellItemFromInventory(idx);
+                    pendingSellConfirmIdx = -1;
+                    renderEmbeddedBag(panelType);
+                };
+                slot.appendChild(confirmBtn);
+
+                // 点击格子其他区域取消确认
+                slot.onclick = (e) => {
+                    e.stopPropagation();
+                    pendingSellConfirmIdx = -1;
+                    renderEmbeddedBag(panelType);
+                };
+            } else {
+                // 普通点击事件
+                slot.onclick = (e) => {
+                    e.stopPropagation();
+                    handleEmbeddedBagClick(panelType, idx);
+                };
+            }
 
             // 绑定tooltip
             bindItemTooltip(slot, item);
@@ -13082,7 +13346,13 @@ function handleEmbeddedBagClick(panelType, idx) {
 
     switch (panelType) {
         case 'shop':
-            // 售卖物品
+            // 套装或强化装备需要二次确认
+            if (needsSellConfirm(item)) {
+                pendingSellConfirmIdx = idx;
+                renderEmbeddedBag(panelType);
+                return; // 不隐藏tooltip，等待确认
+            }
+            // 普通物品直接售卖
             sellItemFromInventory(idx);
             break;
         case 'stash':
@@ -13112,6 +13382,10 @@ function handleEmbeddedBagClick(panelType, idx) {
 function sellItemFromInventory(idx) {
     const item = player.inventory[idx];
     if (!item) return;
+
+    // 清除确认状态和tooltip
+    pendingSellConfirmIdx = -1;
+    hideTooltip();
 
     // 计算售价
     let val = 50;

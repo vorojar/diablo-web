@@ -2119,8 +2119,35 @@ const ChatSystem = {
             return;
         }
 
-        // 敏感词过滤 - 用*替代敏感词
-        const filtered = this.filterMessage(message);
+        // 处理物品分享链接（如果有待发送的物品）
+        let processedMessage = message;
+        if (typeof pendingShareItem !== 'undefined' && pendingShareItem) {
+            const itemData = pendingShareItem;
+            const baseName = itemData.n;
+            const enhanceText = itemData.e > 0 ? ` +${itemData.e}` : '';  // 注意空格
+            const placeholder = `[${baseName}${enhanceText}]`;
+
+            // 生成编码后的物品链接
+            const encoded = btoa(encodeURIComponent(JSON.stringify(itemData)));
+            const itemLink = `[item:${encoded}]`;
+
+            // 替换显示名为编码格式
+            processedMessage = message.replace(placeholder, itemLink);
+            pendingShareItem = null;  // 清除待发送物品
+        }
+
+        // 敏感词过滤 - 但跳过物品链接部分
+        let filtered = processedMessage;
+        const itemLinkMatch = processedMessage.match(/\[item:[A-Za-z0-9+/=]+\]/);
+        if (itemLinkMatch) {
+            // 保护物品链接，过滤其他部分
+            const linkPlaceholder = '___ITEM_LINK___';
+            const tempMsg = processedMessage.replace(itemLinkMatch[0], linkPlaceholder);
+            const filteredTemp = this.filterMessage(tempMsg);
+            filtered = filteredTemp.replace(linkPlaceholder, itemLinkMatch[0]);
+        } else {
+            filtered = this.filterMessage(processedMessage);
+        }
 
         // 获取玩家等级
         const level = typeof player !== 'undefined' ? player.lvl : 1;
@@ -2168,6 +2195,67 @@ const ChatSystem = {
 
     shownMessageIds: new Set(),  // 防重复显示
 
+    // 解析并渲染物品链接
+    parseItemLinks(text) {
+        // 匹配 [item:base64data] 格式
+        const itemLinkRegex = /\[item:([A-Za-z0-9+/=]+)\]/g;
+
+        const result = text.replace(itemLinkRegex, (match, base64Data) => {
+            try {
+                const jsonStr = decodeURIComponent(atob(base64Data));
+                const item = JSON.parse(jsonStr);
+
+                // 获取稀有度颜色
+                const rarityColors = {
+                    0: '#aaa', 1: '#fff', 2: '#4d94ff',
+                    3: '#ffff00', 4: '#c7b377', 5: '#00ff00'
+                };
+                const color = rarityColors[item.r] || '#fff';
+                const enhanceText = item.e > 0 ? ` +${item.e}` : '';  // 注意空格
+
+                // 返回可点击的物品链接
+                return `<span class="chat-item-link" style="color:${color}" data-item='${this.escapeHtml(base64Data)}'>[${this.escapeHtml(item.n)}${enhanceText}]</span>`;
+            } catch (e) {
+                return match; // 解析失败则原样返回
+            }
+        });
+        return result;
+    },
+
+    // 显示物品链接的tooltip（定位在点击位置附近，无分享按钮）
+    showItemLinkTooltip(base64Data, event) {
+        try {
+            const jsonStr = decodeURIComponent(atob(base64Data));
+            const data = JSON.parse(jsonStr);
+
+            // 重建物品对象用于tooltip显示
+            const item = {
+                name: data.n,
+                displayName: data.n,
+                rarity: data.r,
+                type: data.t,
+                setId: data.s,
+                stats: data.st,
+                def: data.f,
+                enhanceLvl: data.e
+            };
+
+            // 解析伤害
+            if (data.d) {
+                const [min, max] = data.d.split('-').map(Number);
+                item.minDmg = min;
+                item.maxDmg = max;
+            }
+
+            // 使用专用的聊天链接tooltip显示函数（定位在点击位置，无分享按钮）
+            if (typeof showTooltipForChatLink === 'function') {
+                showTooltipForChatLink(item, event);
+            }
+        } catch (e) {
+            console.warn('解析物品链接失败', e);
+        }
+    },
+
     // 添加消息到聊天框
     addMessage(record, scroll = true) {
         const container = document.getElementById('chat-messages');
@@ -2195,11 +2283,26 @@ const ChatSystem = {
             titleHtml = `<span class="chat-msg-title">「${this.escapeHtml(record.title)}」</span>`;
         }
 
+        // 处理消息内容：先转义HTML，再解析物品链接
+        const escapedMsg = this.escapeHtml(record.message);
+        const parsedMsg = this.parseItemLinks(escapedMsg);
+
         msgEl.innerHTML = `
             <span class="chat-msg-nickname" style="color:${nicknameColor}">${this.escapeHtml(record.nickname)}</span>${titleHtml}
             <span class="chat-msg-level">Lv.${record.level}</span>:
-            <span class="chat-msg-content">${this.escapeHtml(record.message)}</span>
+            <span class="chat-msg-content">${parsedMsg}</span>
         `;
+
+        // 绑定物品链接点击事件
+        msgEl.querySelectorAll('.chat-item-link').forEach(link => {
+            link.onclick = (e) => {
+                e.stopPropagation();
+                const itemData = link.dataset.item;
+                if (itemData) {
+                    this.showItemLinkTooltip(itemData, e);
+                }
+            };
+        });
 
         container.appendChild(msgEl);
 
