@@ -6,6 +6,9 @@ const DB_NAME = 'DiabloCloneDB';
 const DB_VERSION = 8;
 let db;
 
+// 存档数据版本（用于数据迁移）
+const SAVE_DATA_VERSION = 2;  // v2: 新增统一伤害系统、护甲公式改进
+
 // ========== 属性系统迁移函数 ==========
 // 将旧版本的基础属性(str/dex/vit/ene)转换为直接效果属性
 function migrateItemStats() {
@@ -211,6 +214,7 @@ const SaveSystem = {
     const data = {
       id: `slot_${this.currentSlot}`,
       slotId: this.currentSlot,
+      saveVersion: SAVE_DATA_VERSION,  // 存档版本号，用于数据迁移
       ...player,
       inventory: player.inventory.map(clean),
       equipment: eq,

@@ -39,7 +39,94 @@ const AutoBattle = {
         lastUpdateTime: 0        // 上次更新时间
     },
 
-    // A*寻路算法实现
+    // 最小二叉堆实现（用于A*寻路优化）
+    MinHeap: class {
+        constructor() {
+            this.heap = [];
+            this.nodeMap = new Map(); // key -> index 快速查找
+        }
+
+        size() { return this.heap.length; }
+
+        push(node) {
+            this.heap.push(node);
+            const idx = this.heap.length - 1;
+            this.nodeMap.set(node.key(), idx);
+            this._bubbleUp(idx);
+        }
+
+        pop() {
+            if (this.heap.length === 0) return null;
+            const min = this.heap[0];
+            const last = this.heap.pop();
+            this.nodeMap.delete(min.key());
+            if (this.heap.length > 0) {
+                this.heap[0] = last;
+                this.nodeMap.set(last.key(), 0);
+                this._bubbleDown(0);
+            }
+            return min;
+        }
+
+        // 更新节点（用于发现更优路径时）
+        updateNode(key, newNode) {
+            const idx = this.nodeMap.get(key);
+            if (idx === undefined) {
+                this.push(newNode);
+                return;
+            }
+            const oldF = this.heap[idx].f;
+            this.heap[idx] = newNode;
+            this.nodeMap.set(key, idx);
+            if (newNode.f < oldF) {
+                this._bubbleUp(idx);
+            } else {
+                this._bubbleDown(idx);
+            }
+        }
+
+        has(key) {
+            return this.nodeMap.has(key);
+        }
+
+        _bubbleUp(idx) {
+            while (idx > 0) {
+                const parentIdx = Math.floor((idx - 1) / 2);
+                if (this.heap[idx].f >= this.heap[parentIdx].f) break;
+                this._swap(idx, parentIdx);
+                idx = parentIdx;
+            }
+        }
+
+        _bubbleDown(idx) {
+            const len = this.heap.length;
+            while (true) {
+                const left = 2 * idx + 1;
+                const right = 2 * idx + 2;
+                let smallest = idx;
+
+                if (left < len && this.heap[left].f < this.heap[smallest].f) {
+                    smallest = left;
+                }
+                if (right < len && this.heap[right].f < this.heap[smallest].f) {
+                    smallest = right;
+                }
+                if (smallest === idx) break;
+                this._swap(idx, smallest);
+                idx = smallest;
+            }
+        }
+
+        _swap(i, j) {
+            const temp = this.heap[i];
+            this.heap[i] = this.heap[j];
+            this.heap[j] = temp;
+            this.nodeMap.set(this.heap[i].key(), i);
+            this.nodeMap.set(this.heap[j].key(), j);
+        }
+    },
+
+    // A*寻路算法实现（使用二叉堆优化）
     astarFindPath(startX, startY, goalX, goalY) {
         // 转换为瓦片坐标
         const startCol = Math.floor(startX / TILE_SIZE);
@@ -140,26 +227,25 @@ const AutoBattle = {
             return neighbors;
         };
 
-        // 开放列表和关闭列表
-        const openList = [];
+        // 开放列表（二叉堆）和关闭列表
+        const openHeap = new this.MinHeap();
         const closedSet = new Set();
         const gScores = {}; // 记录每个节点的最优g值
 
         // 起始节点
         const startNode = new AStarNode(startCol, startRow, 0, heuristic(startCol, startRow), null);
-        openList.push(startNode);
+        openHeap.push(startNode);
         gScores[startNode.key()] = 0;
 
         // 主循环
         let iterations = 0;
         const maxIterations = 2000; // 防止死循环
 
-        while (openList.length > 0 && iterations < maxIterations) {
+        while (openHeap.size() > 0 && iterations < maxIterations) {
             iterations++;
 
-            // 找到f值最小的节点
-            openList.sort((a, b) => a.f - b.f);
-            const current = openList.shift();
+            // 取出f值最小的节点 - O(log n)
+            const current = openHeap.pop();
 
             // 到达目标
             if (current.col === goalCol && current.row === goalRow) {
@@ -230,17 +316,8 @@ const AutoBattle = {
                     const h = heuristic(neighbor.col, neighbor.row);
                     const newNode = new AStarNode(neighbor.col, neighbor.row, tentativeG, h, current);
 
-                    // 检查是否已在开放列表中
-                    const existingIndex = openList.findIndex(n => n.col === neighbor.col && n.row === neighbor.row);
-                    if (existingIndex >= 0) {
-                        // 更新现有节点
-                        if (newNode.f < openList[existingIndex].f) {
-                            openList[existingIndex] = newNode;
-                        }
-                    } else {
-                        // 添加新节点
-                        openList.push(newNode);
-                    }
+                    // 使用二叉堆的 updateNode 方法（自动处理插入或更新）- O(log n)
+                    openHeap.updateNode(neighborKey, newNode);
                 }
             }
         }
@@ -250,39 +327,44 @@ const AutoBattle = {
     },
 
     // 寻找目标 - 优先近的能看到的，其次远的任意怪
+    // 优化：使用 EnemyCache.aliveList 避免遍历死亡敌人
     findTarget() {
         if (!this.enabled || isInTown()) return null;
 
         let nearestVisible = null;   // 能看到的最近的怪
-        let minVisibleDist = Infinity;
+        let minVisibleDistSq = Infinity;
         let nearestClose = null;     // 近距离的怪（即使在墙角）
-        let minCloseDist = Infinity;
+        let minCloseDistSq = Infinity;
         let nearestAny = null;       // 任意最近的怪（用于绕路）
-        let minAnyDist = Infinity;
+        let minAnyDistSq = Infinity;
 
-        for (let i = 0; i < enemies.length; i++) {
-            const e = enemies[i];
-            if (e.dead) continue;
+        // 使用缓存的活敌人列表（已过滤死亡敌人）
+        const aliveList = typeof EnemyCache !== 'undefined' ? EnemyCache.aliveList : enemies;
+        const px = player.x, py = player.y;
 
-            const dx = e.x - player.x, dy = e.y - player.y;
+        for (let i = 0, len = aliveList.length; i < len; i++) {
+            const e = aliveList[i];
+            if (e.dead) continue; // 兼容未使用缓存的情况
+
+            const dx = e.x - px, dy = e.y - py;
             const distSq = dx * dx + dy * dy;
 
             // 近距离的怪（<100）：即使在墙角也要打，最高优先
-            if (distSq < 10000 && distSq < minCloseDist * minCloseDist) {
+            if (distSq < 10000 && distSq < minCloseDistSq) {
                 nearestClose = e;
-                minCloseDist = Math.sqrt(distSq); // 这里需要实际距离，但由于判定频率低且已排除非近距离怪，影响较小
+                minCloseDistSq = distSq;
             }
 
             // 能看到的怪：优先选，范围600
-            if (distSq < 360000 && distSq < minVisibleDist * minVisibleDist && hasLineOfSight(player.x, player.y, e.x, e.y)) {
+            if (distSq < 360000 && distSq < minVisibleDistSq && hasLineOfSight(px, py, e.x, e.y)) {
                 nearestVisible = e;
-                minVisibleDist = Math.sqrt(distSq);
+                minVisibleDistSq = distSq;
             }
 
             // 任意怪：范围扩大到1500（整个屏幕），用于绕路追击
-            if (distSq < 2250000 && distSq < minAnyDist * minAnyDist) { // 1500^2 = 2250000
+            if (distSq < 2250000 && distSq < minAnyDistSq) { // 1500^2 = 2250000
                 nearestAny = e;
-                minAnyDist = Math.sqrt(distSq);
+                minAnyDistSq = distSq;
             }
         }
 

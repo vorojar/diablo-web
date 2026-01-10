@@ -480,7 +480,12 @@ const GAME_CONFIG = {
     AUTO_KEEP_DISTANCE: 150,            // 保持距离150
 
     // 怪物AI距离
-    MONSTER_MELEE_RANGE: 30,            // 近战攻击距离
+    MONSTER_MELEE_RANGE: 40,            // 近战攻击距离 (40²=1600)
+    MONSTER_MELEE_RANGE_SQ: 1600,       // 近战攻击距离平方（性能优化）
+    MONSTER_CHASE_RANGE: 400,           // 追击范围 (400²=160000)
+    MONSTER_CHASE_RANGE_SQ: 160000,     // 追击范围平方
+    MONSTER_DISENGAGE_RANGE: 35,        // 脱战距离 (35²=1225)
+    MONSTER_DISENGAGE_RANGE_SQ: 1225,   // 脱战距离平方
     MONSTER_RANGED_RETREAT: 150,        // 远程后退距离
     MONSTER_RANGED_MAX: 400,            // 远程最大攻击距离
 

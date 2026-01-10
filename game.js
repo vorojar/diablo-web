@@ -382,8 +382,9 @@ const EnemyPool = {
 
     // 获取池状态（调试用，控制台输入 EnemyPool.getStats() 查看）
     getStats() {
-        const alive = enemies.filter(e => !e.dead).length;
-        const dead = enemies.filter(e => e.dead).length;
+        // 使用 EnemyCache（如果已初始化）避免重复遍历
+        const alive = typeof EnemyCache !== 'undefined' ? EnemyCache.aliveCount : enemies.filter(e => !e.dead).length;
+        const dead = typeof EnemyCache !== 'undefined' ? EnemyCache.deadCount : enemies.filter(e => e.dead).length;
         return {
             poolSize: this.pool.length,      // 对象池中可复用的对象数
             totalInArray: enemies.length,    // 数组中总敌人数
@@ -396,6 +397,50 @@ const EnemyPool = {
 let autoSaveTimer = 0;
 let cleanupTimer = 0;
 let isAltPressed = false;
+
+// ====== 敌人状态缓存（每帧更新一次，避免重复遍历）======
+const EnemyCache = {
+    aliveCount: 0,
+    deadCount: 0,
+    aliveList: [],          // 活着的敌人引用（按距离排序）
+    frameId: -1,            // 当前帧ID，防止同帧多次更新
+
+    // 每帧开始时调用一次
+    update(currentFrameId) {
+        if (this.frameId === currentFrameId) return; // 同帧不重复计算
+        this.frameId = currentFrameId;
+
+        this.aliveCount = 0;
+        this.deadCount = 0;
+        this.aliveList.length = 0; // 清空数组但保留引用
+
+        for (let i = 0, len = enemies.length; i < len; i++) {
+            const e = enemies[i];
+            if (e.dead) {
+                this.deadCount++;
+            } else {
+                this.aliveCount++;
+                this.aliveList.push(e);
+            }
+        }
+    },
+
+    // 获取玩家附近的敌人（用于 AutoBattle.findTarget 等）
+    getNearbyAlive(maxDistSq) {
+        const result = [];
+        const px = player.x, py = player.y;
+        for (let i = 0, len = this.aliveList.length; i < len; i++) {
+            const e = this.aliveList[i];
+            const dx = e.x - px, dy = e.y - py;
+            const distSq = dx * dx + dy * dy;
+            if (distSq < maxDistSq) {
+                result.push({ enemy: e, distSq });
+            }
+        }
+        return result;
+    }
+};
+let gameFrameId = 0; // 全局帧计数器
 
 let mapData = [];
 let visitedMap = [];
@@ -3693,6 +3738,10 @@ function gameLoop(ts) {
 }
 // Main Update Loop
 function update(dt) {
+    // 更新敌人缓存（每帧只遍历一次enemies数组）
+    gameFrameId++;
+    EnemyCache.update(gameFrameId);
+
     // 地面物品物理系统 (Physics Loot) - 性能优化：使用 for 循环
     for (let idx = 0, len = groundItems.length; idx < len; idx++) {
         const i = groundItems[idx];
@@ -3862,7 +3911,7 @@ function update(dt) {
 
             // 触发生命链接的次级护盾
             if (player.shield.stage3 === 'link' && player.shield.value > 0) {
-                const secondaryValue = player.shield.maxValue * SKILL_TREE.holy_shield.stage3.guard.link.effect.secondaryShieldRatio;
+                const secondaryValue = Math.floor(player.shield.maxValue * SKILL_TREE.holy_shield.stage3.guard.link.effect.secondaryShieldRatio);
                 player.shield.value = secondaryValue;
                 player.shield.maxValue = secondaryValue;
                 player.shield.timer = SKILL_TREE.holy_shield.stage3.guard.link.effect.secondaryDuration;
@@ -4015,8 +4064,9 @@ function update(dt) {
         if (player.lastPoisonTick >= 0.5) {
             player.lastPoisonTick = 0;
             const poisonDmg = Math.max(1, Math.floor(player.poisonDamage * (1 - player.resistances.poison / 100)));
-            player.hp -= poisonDmg;
-            createDamageNumber(player.x, player.y - 20, poisonDmg, COLORS.poison); // 绿色数字
+            // DOT伤害绕过护盾，直接扣血但有边界检查
+            player.hp = Math.max(0, player.hp - poisonDmg);
+            createDamageNumber(player.x, player.y - 20, poisonDmg, COLORS.poison);
             checkPlayerDeath();
         }
         if (player.poisonTimer <= 0) {
@@ -4377,21 +4427,11 @@ function update(dt) {
 
         if (p.owner && p.owner !== player) {
             const dx = p.x - player.x, dy = p.y - player.y;
-            if (dx * dx + dy * dy < (player.radius + 10) ** 2 && player.invincibleTimer <= 0) {
-                const dmg = Math.max(0, p.damage - player.armor * 0.1);
-                player.hp -= dmg;
-                player.lastDamageSource = p.owner.name + '的远程攻击';
-                player.invincibleTimer = 0.3;  // 0.3秒无敌帧
+            if (dx * dx + dy * dy < (player.radius + 10) ** 2) {
+                // 使用统一伤害函数（弹幕伤害类型根据弹幕类型判断）
+                const dmgType = p.type === 'lightning_ball' ? 'lightning' : 'physical';
+                playerTakeDamage(p.damage, p.owner, { damageType: dmgType });
                 p.life = 0;
-                createDamageNumber(player.x, player.y - 20, Math.floor(dmg), COLORS.damage);
-                combo.active = false; combo.count = 0; // 被击中连击中断
-                AudioSys.play('hit');
-                // 已移除玩家被击中震屏，优化性能
-
-                // 自动战斗：记录远程攻击者
-                AutoBattle.onPlayerDamaged(p.owner);
-
-                updateUI(); checkPlayerDeath();
                 for (let j = 0; j < 5; j++)createParticle(p.x, p.y, p.color || '#ff4400');
             }
         } else {
@@ -4754,13 +4794,9 @@ function updateEnemies(dt) {
                 e.x += (dx / dist) * currentSpeed * dt;
                 e.y += (dy / dist) * currentSpeed * dt;
             }
-            if (distSq <= 1600 && e.cooldown <= 0 && player.invincibleTimer <= 0) { // 40^2 = 1600
-                let physicalDmg = e.ignoreArmor ? e.dmg : Math.max(1, e.dmg - player.armor * 0.1);
-                player.hp -= physicalDmg;
-                createDamageNumber(player.x, player.y - 30, Math.floor(physicalDmg), '#ff4444');
-                combo.active = false; combo.count = 0; // 被击中连击中断
+            if (distSq <= 1600 && e.cooldown <= 0) { // 40^2 = 1600
+                playerTakeDamage(e.dmg, e, { ignoreArmor: e.ignoreArmor });
                 e.cooldown = 1.5;
-                AudioSys.play('hit');
             }
         } else if (e.ai === 'vampire') {
             // 吸血鬼AI：突进攻击 + 吸血
@@ -4796,34 +4832,29 @@ function updateEnemies(dt) {
                     }
                 }
                 // 突进到达后攻击
-                if (dashDist <= 40 && e.cooldown <= 0 && player.invincibleTimer <= 0) {
-                    let physicalDmg = e.ignoreArmor ? e.dmg : Math.max(1, e.dmg - player.armor * 0.1);
-                    player.hp -= physicalDmg;
-                    createDamageNumber(player.x, player.y - 30, Math.floor(physicalDmg), '#ff4444');
-                    // 吸血效果
-                    const healAmount = Math.floor(physicalDmg * (e.lifeSteal || 0.2));
-                    if (healAmount > 0) {
-                        e.hp = Math.min(e.maxHp, e.hp + healAmount);
-                        createDamageNumber(e.x, e.y - 30, '+' + healAmount, '#00ff00');
-                        // 吸血粒子效果
-                        for (let i = 0; i < 5; i++) {
-                            particles.push({
-                                x: player.x + (Math.random() - 0.5) * 30,
-                                y: player.y + (Math.random() - 0.5) * 30,
-                                vx: (e.x - player.x) * 2 + (Math.random() - 0.5) * 50,
-                                vy: (e.y - player.y) * 2 + (Math.random() - 0.5) * 50,
-                                life: 0.4,
-                                maxLife: 0.4,
-                                color: '#ff0000',
-                                size: 6,
-                                type: 'lifesteal'
-                            });
+                if (dashDist <= 40 && e.cooldown <= 0) {
+                    const dealt = playerTakeDamage(e.dmg, e, { ignoreArmor: e.ignoreArmor });
+                    // 吸血效果（基于实际造成的伤害）
+                    if (dealt > 0) {
+                        const healAmount = Math.floor(dealt * (e.lifeSteal || 0.2));
+                        if (healAmount > 0) {
+                            e.hp = Math.min(e.maxHp, e.hp + healAmount);
+                            createDamageNumber(e.x, e.y - 30, '+' + healAmount, '#00ff00');
+                            // 吸血粒子效果
+                            for (let i = 0; i < 5; i++) {
+                                particles.push({
+                                    x: player.x + (Math.random() - 0.5) * 30,
+                                    y: player.y + (Math.random() - 0.5) * 30,
+                                    vx: (e.x - player.x) * 2 + (Math.random() - 0.5) * 50,
+                                    vy: (e.y - player.y) * 2 + (Math.random() - 0.5) * 50,
+                                    life: 0.4, maxLife: 0.4,
+                                    color: '#ff0000', size: 6, type: 'lifesteal'
+                                });
+                            }
                         }
                     }
-                    combo.active = false; combo.count = 0;
                     e.cooldown = 1.5;
                     e.isDashing = false;
-                    AudioSys.play('hit');
                 }
             } else {
                 // 非突进状态
@@ -4842,19 +4873,18 @@ function updateEnemies(dt) {
                     const ny = e.y + (dy / dist) * currentSpeed * dt;
                     if (!isWall(nx, e.y)) e.x = nx;
                     if (!isWall(e.x, ny)) e.y = ny;
-                } else if (distSq <= 1600 && e.cooldown <= 0 && player.invincibleTimer <= 0) { // 40^2 = 1600
+                } else if (distSq <= 1600 && e.cooldown <= 0) { // 40^2 = 1600
                     // 近身普通攻击
-                    let physicalDmg = e.ignoreArmor ? e.dmg : Math.max(1, e.dmg - player.armor * 0.1);
-                    player.hp -= physicalDmg;
-                    createDamageNumber(player.x, player.y - 30, Math.floor(physicalDmg), '#ff4444');
-                    const healAmount = Math.floor(physicalDmg * (e.lifeSteal || 0.2));
-                    if (healAmount > 0) {
-                        e.hp = Math.min(e.maxHp, e.hp + healAmount);
-                        createDamageNumber(e.x, e.y - 30, '+' + healAmount, '#00ff00');
+                    const dealt = playerTakeDamage(e.dmg, e, { ignoreArmor: e.ignoreArmor });
+                    // 吸血效果
+                    if (dealt > 0) {
+                        const healAmount = Math.floor(dealt * (e.lifeSteal || 0.2));
+                        if (healAmount > 0) {
+                            e.hp = Math.min(e.maxHp, e.hp + healAmount);
+                            createDamageNumber(e.x, e.y - 30, '+' + healAmount, '#00ff00');
+                        }
                     }
-                    combo.active = false; combo.count = 0;
                     e.cooldown = 1.5;
-                    AudioSys.play('hit');
                 }
             }
         } else if (e.ai === 'specter') {
@@ -4892,77 +4922,40 @@ function updateEnemies(dt) {
             }
         } else {
             // 普通chase AI
-            if (distSq < 160000 && distSq > 1225) { // 400^2=160000, 35^2=1225
+            if (distSq < GAME_CONFIG.MONSTER_CHASE_RANGE_SQ && distSq > GAME_CONFIG.MONSTER_DISENGAGE_RANGE_SQ) {
                 const dist = Math.sqrt(distSq);
                 const nx = e.x + (dx / dist) * currentSpeed * dt, ny = e.y + (dy / dist) * currentSpeed * dt;
                 if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
             }
-            if (distSq <= 1600 && e.cooldown <= 0 && player.invincibleTimer <= 0) { // 40^2 = 1600
-                // 计算物理伤害（受护甲影响）
-                let physicalDmg = e.ignoreArmor ? e.dmg : Math.max(1, e.dmg - player.armor * 0.1);
-
-                // 如果敌人有元素伤害，计算元素伤害（受抗性影响）
-                let totalDmg = physicalDmg;
+            if (distSq <= GAME_CONFIG.MONSTER_MELEE_RANGE_SQ && e.cooldown <= 0) {
+                // 预计算基础伤害（物理+元素）
+                let baseDmg = e.dmg;
                 if (e.elementalDmg) {
-                    if (e.elementalDmg.fire) {
-                        const fireDmg = e.elementalDmg.fire * (1 - player.resistances.fire / 100);
-                        totalDmg += Math.max(0, fireDmg);
-                    }
-                    if (e.elementalDmg.cold) {
-                        const coldDmg = e.elementalDmg.cold * (1 - player.resistances.cold / 100);
-                        totalDmg += Math.max(0, coldDmg);
-                    }
-                    if (e.elementalDmg.lightning) {
-                        const lightningDmg = e.elementalDmg.lightning * (1 - player.resistances.lightning / 100);
-                        if (lightningDmg > 0) {
-                            totalDmg += lightningDmg;
-                            player.lightningOverloadTimer = 0.5; // 0.5秒视觉过载
+                    // 元素伤害按抗性计算后累加
+                    for (const type of ['fire', 'cold', 'lightning', 'poison']) {
+                        if (e.elementalDmg[type]) {
+                            baseDmg += e.elementalDmg[type] * (1 - (player.resistances[type] || 0) / 100);
                         }
                     }
-                    if (e.elementalDmg.poison) {
-                        const poisonDmg = e.elementalDmg.poison * (1 - player.resistances.poison / 100);
-                        totalDmg += Math.max(0, poisonDmg);
+                    // 闪电过载视觉效果
+                    if (e.elementalDmg.lightning > 0) {
+                        player.lightningOverloadTimer = 0.5;
                     }
                 }
 
-                // 狂战士天赋：受到伤害+20%
-                const damageTakenPct = getTalentEffect('damageTakenPct', 0);
-                if (damageTakenPct > 0) {
-                    totalDmg *= (1 + damageTakenPct / 100);
-                }
-
-                player.hp -= totalDmg;
-                // 触发受击反馈：血球震动
-                if (cachedUI.hpOrb) GSAPAnims.shake(cachedUI.hpOrb, 8);
-
-                player.lastDamageSource = e.name;
-                player.invincibleTimer = 0.3;  // 0.3秒无敌帧
+                // 统一伤害处理（护盾、护甲、天赋、边界检查）
+                const dealt = playerTakeDamage(baseDmg, e, { ignoreArmor: e.ignoreArmor });
                 e.cooldown = 1.5;
-                createDamageNumber(player.x, player.y - 20, Math.floor(totalDmg), COLORS.damage);
-                combo.active = false; combo.count = 0; // 被击中连击中断
-                AudioSys.play('hit');
 
-                // 荆棘天赋+天神赐福：反弹伤害
-                const thornsPct = getTalentEffect('thornsPct', 0) + (player.thornsPct || 0);
-                if (thornsPct > 0 && !e.dead) {
-                    const thornsDmg = Math.floor(totalDmg * thornsPct / 100);
-                    e.hp -= thornsDmg;
-                    createDamageNumber(e.x, e.y - 10, thornsDmg, COLORS.thornsDamage);
-                    if (e.hp <= 0) e.dead = true;
-                }
-
-                // 自动战斗：记录攻击者，立即反击
-                AutoBattle.onPlayerDamaged(e);
-
-                // 吸血效果（吸血鬼或精英词缀）
-                if (e.lifeSteal) {
-                    const heal = Math.floor(totalDmg * e.lifeSteal);
+                // 敌人吸血效果
+                if (dealt > 0 && e.lifeSteal) {
+                    const heal = Math.floor(dealt * e.lifeSteal);
                     e.hp = Math.min(e.maxHp, e.hp + heal);
                     createDamageNumber(e.x, e.y - 30, "+" + heal, COLORS.green);
                 }
 
                 // 中毒效果（木乃伊或精英词缀）
-                if (e.poisonOnHit && e.poisonDamage) {
+                if (dealt > 0 && e.poisonOnHit && e.poisonDamage) {
                     if (!player.poisoned) {
                         createDamageNumber(player.x, player.y - 45, "中毒!", COLORS.poison);
                     }
@@ -4972,22 +4965,20 @@ function updateEnemies(dt) {
                 }
 
                 // 冰冻：硬控玩家（免疫期内无效）
-                if (e.freezeOnHit && !(player.freezeImmuneTimer > 0) && !(player.slowedTimer > 0)) {
+                if (dealt > 0 && e.freezeOnHit && !(player.freezeImmuneTimer > 0) && !(player.slowedTimer > 0)) {
                     player.frozen = true;
-                    player.frozenTimer = 0.5;  // 硬控0.5秒（之后进入1.5秒减速期）
+                    player.frozenTimer = 0.5;
                     createDamageNumber(player.x, player.y - 40, "冰冻!", COLORS.ice);
                 }
 
-                // 法力燃烧：消耗玩家法力
-                if (e.manaBurn) {
-                    const manaBurned = Math.floor(Math.min(player.mp, totalDmg * 0.5));
+                // 法力燃烧
+                if (dealt > 0 && e.manaBurn) {
+                    const manaBurned = Math.floor(Math.min(player.mp, dealt * 0.5));
                     player.mp -= manaBurned;
                     if (manaBurned > 0) {
                         createDamageNumber(player.x, player.y - 50, "-" + manaBurned + " MP", COLORS.manaCost);
                     }
                 }
-
-                updateUI(); checkPlayerDeath();
             }
         }
     }
@@ -6998,8 +6989,8 @@ function migrateSetCollection() {
 
 function spawnEnemyTimer() {
     setInterval(() => {
-        // 计算存活的怪物数量，而不是总的怪物数组长度
-        const aliveEnemies = enemies.filter(e => !e.dead).length;
+        // 使用缓存的存活敌人数量（性能优化）
+        const aliveEnemies = EnemyCache.aliveCount;
         // 只有在罗格营地才停止刷新怪物（地狱中继续刷新）
         if (!gameActive || aliveEnemies > GAME_CONFIG.MAX_ENEMIES || isInTown()) return;
 
@@ -7206,6 +7197,10 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         }
     }
 
+    // 取整避免浮点数精度问题
+    totalDamage = Math.floor(totalDamage);
+    if (totalDamage < 1) totalDamage = 1; // 最小伤害1点
+
     e.hp -= totalDamage;
     e.hitFlashTimer = 0.1; // 触发受击闪白
 
@@ -7350,9 +7345,8 @@ function takeDamage(e, dmg, isSkillDamage = false) {
                 if (!other.dead && other !== e) {
                     const dist = Math.hypot(other.x - e.x, other.y - e.y);
                     if (dist < chainRange) {
-                        other.hp -= chainDamage;
-                        const chainAngle = Math.atan2(other.y - e.y, other.x - e.x);
-                        createDamageNumber(other.x, other.y, Math.floor(chainDamage), '#88ffff', chainAngle);
+                        // 使用正常的伤害流程，确保掉落/经验/成就正常触发
+                        takeDamage(other, { lightning: chainDamage }, true);
                         // 创建闪电视觉效果
                         particles.push({
                             x: e.x, y: e.y,
@@ -7360,7 +7354,6 @@ function takeDamage(e, dmg, isSkillDamage = false) {
                             type: 'chain_lightning',
                             life: 0.3
                         });
-                        if (other.hp <= 0) other.dead = true;
                     }
                 }
             });
@@ -8530,6 +8523,10 @@ function createNovaEffect(x, y, color) {
 
 // 创建伤害数字（高性能版本：支持对象池与中央物理驱动）
 function createDamageNumber(x, y, val, color, angle = null) {
+    // 数字类型自动取整，避免浮点数显示问题
+    if (typeof val === 'number') {
+        val = Math.floor(val);
+    }
     const isCrit = color === COLORS.critical || val === "暴击!" || (typeof val === 'string' && (val.includes('!') || val.includes('Crit')));
     const isGold = color === 'gold' || (typeof val === 'string' && val.includes(' G'));
 
@@ -9201,6 +9198,112 @@ function createBloodSplat(x, y, size) {
     }
 }
 
+// ========== 统一玩家受伤入口 ==========
+// 所有敌人对玩家造成伤害都应通过此函数，确保护盾、护甲、天赋效果统一处理
+function playerTakeDamage(rawDamage, source, options = {}) {
+    const {
+        ignoreShield = false,   // 是否忽略护盾
+        ignoreArmor = false,    // 是否忽略护甲
+        damageType = 'physical' // 伤害类型: physical/fire/cold/lightning/poison
+    } = options;
+
+    // 1. 无敌状态检查
+    if (player.invincibleTimer > 0) return 0;
+
+    // 2. 护盾无敌检查（守护天使技能）
+    if (player.shield?.invincibleTimer > 0) return 0;
+
+    let damage = rawDamage;
+
+    // 3. 狂战士天赋：受到伤害+20%
+    const damageTakenPct = getTalentEffect('damageTakenPct', 0);
+    if (damageTakenPct > 0) {
+        damage *= (1 + damageTakenPct / 100);
+    }
+
+    // 4. 元素抗性减伤（非物理伤害）
+    if (damageType !== 'physical' && player.resistances[damageType]) {
+        damage *= (1 - player.resistances[damageType] / 100);
+    }
+
+    // 5. 护甲减伤（物理伤害，新公式：护甲/(护甲+100)）
+    if (!ignoreArmor && damageType === 'physical' && player.armor > 0) {
+        const reduction = player.armor / (player.armor + 100);
+        damage *= (1 - reduction);
+    }
+
+    damage = Math.floor(damage);
+    if (damage <= 0) return 0;
+
+    // 6. 护盾吸收
+    let shieldAbsorbed = 0;
+    if (!ignoreShield && player.shield?.active && player.shield?.value > 0) {
+        shieldAbsorbed = Math.min(player.shield.value, damage);
+        player.shield.value -= shieldAbsorbed;
+        damage -= shieldAbsorbed;
+
+        // 反射护盾：反弹伤害给攻击者
+        if (player.shield.type === 'reflect' && source && !source.dead) {
+            const tree = player.skillTree?.holy_shield;
+            const reflectRatio = tree?.stage2?.level > 0 ?
+                (SKILL_TREE.holy_shield.stage2.reflect.effect.reflectRatio +
+                 SKILL_TREE.holy_shield.stage2.reflect.effect.reflectPerLevel * tree.stage2.level) : 0;
+            if (reflectRatio > 0) {
+                const reflectDmg = Math.floor(shieldAbsorbed * reflectRatio);
+                if (reflectDmg > 0) {
+                    source.hp -= reflectDmg;
+                    createDamageNumber(source.x, source.y - 10, reflectDmg, '#ffff00');
+                    if (source.hp <= 0) source.dead = true;
+                }
+            }
+        }
+
+        if (shieldAbsorbed > 0) {
+            createDamageNumber(player.x, player.y - 50, `护盾-${shieldAbsorbed}`, '#66ccff');
+        }
+    }
+
+    // 7. 扣除生命值（边界检查）
+    if (damage > 0) {
+        player.hp = Math.max(0, player.hp - damage);
+        player.lastDamageSource = source?.name || '未知';
+
+        // 受击反馈
+        createDamageNumber(player.x, player.y - 20, Math.floor(damage), COLORS.damage);
+        if (cachedUI.hpOrb) GSAPAnims.shake(cachedUI.hpOrb, 8);
+        AudioSys.play('hit');
+
+        // 连击中断
+        combo.active = false;
+        combo.count = 0;
+
+        // 设置无敌帧
+        player.invincibleTimer = 0.3;
+    }
+
+    // 8. 荆棘反弹（天赋+天神赐福）
+    if (source && !source.dead) {
+        const thornsPct = getTalentEffect('thornsPct', 0) + (player.thornsPct || 0);
+        if (thornsPct > 0) {
+            const thornsDmg = Math.floor(rawDamage * thornsPct / 100);
+            if (thornsDmg > 0) {
+                source.hp -= thornsDmg;
+                createDamageNumber(source.x, source.y - 10, thornsDmg, COLORS.thornsDamage);
+                if (source.hp <= 0) source.dead = true;
+            }
+        }
+    }
+
+    // 9. 自动战斗记录攻击者
+    if (source) AutoBattle.onPlayerDamaged(source);
+
+    // 10. 检查死亡
+    updateUI();
+    checkPlayerDeath();
+
+    return damage + shieldAbsorbed;
+}
+
 function checkPlayerDeath() {
     if (player.hp <= 0) {
         // 凤凰天赋：死亡时复活一次
@@ -9860,7 +9963,7 @@ function castSkill(skillName) {
 
         // 施放护盾
         const config = SKILL_TREE.holy_shield.stage1;
-        const shieldValue = player.maxHp * (config.shieldRatio + (skillLevel - 1) * config.shieldPerLevel);
+        const shieldValue = Math.floor(player.maxHp * (config.shieldRatio + (skillLevel - 1) * config.shieldPerLevel));
         const duration = config.duration + (skillLevel - 1) * config.durationPerLevel;
 
         player.shield = {
