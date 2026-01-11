@@ -32,7 +32,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <link rel="stylesheet" href="style.css?v=202601101530">
+    <link rel="stylesheet" href="style.css?v=202601111930">
 </head>
 
 <!-- 版本标记: v6.99 物品分享功能 -->
@@ -75,8 +75,28 @@
                     <div class="chat-messages" id="chat-messages">
                         <!-- 消息会动态添加 -->
                     </div>
+                    <!-- 快捷表情面板 -->
+                    <div id="emote-panel" class="emote-panel" style="display:none;">
+                        <div class="emote-row emote-emoji">
+                            <span class="emote-item" data-emote="👍">👍</span>
+                            <span class="emote-item" data-emote="😂">😂</span>
+                            <span class="emote-item" data-emote="💪">💪</span>
+                            <span class="emote-item" data-emote="🎉">🎉</span>
+                            <span class="emote-item" data-emote="😭">😭</span>
+                            <span class="emote-item" data-emote="❤️">❤️</span>
+                            <span class="emote-item" data-emote="👏">👏</span>
+                        </div>
+                        <div class="emote-row emote-text">
+                            <span class="emote-item" data-emote="666">666</span>
+                            <span class="emote-item" data-emote="大佬带带">大佬带带</span>
+                            <span class="emote-item" data-emote="厉害">厉害</span>
+                            <span class="emote-item" data-emote="求组队">求组队</span>
+                            <span class="emote-item" data-emote="谢谢">谢谢</span>
+                        </div>
+                    </div>
                     <div class="chat-input-area">
                         <input type="text" id="chat-input" placeholder="输入消息..." maxlength="50" autocomplete="off">
+                        <button id="emote-btn" class="emote-btn" onclick="toggleEmotePanel(event)">😀</button>
                         <button id="chat-send-btn" onclick="sendChatMessage()">发送</button>
                     </div>
                 </div>
@@ -746,7 +766,7 @@
     <script src="auto-battle.js?v=202601101200"></script>
     <script src="game.js?v=202601101625"></script>
     <script src="pocketbase.umd.js"></script>
-    <script src="online.js?v=202601101615"></script>
+    <script src="online.js?v=202601111930"></script>
     <script src="market.js?v=202512301030"></script>
     <script>
         // 显示欢迎回来信息

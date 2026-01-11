@@ -1924,6 +1924,9 @@ const OnlineSystem = {
             await pb.collection('announcements').create(recordData);
             // 顺便清理旧公告，只保留最近20条
             this.gcKeepRecent('announcements', 20);
+
+            // 双发：同时发送到世界频道（作为系统消息）
+            this.sendAnnouncementToChat(type, targetName, floor, isHell, extraData);
         } catch (e) {
             if (e.status === 403) {
                 console.warn('[公告系统] 无法发布公告: 请在 PocketBase 后台将 announcements 表的 Create 权限设置为开放 (空字符串)。');
@@ -1933,6 +1936,61 @@ const OnlineSystem = {
                     console.error('[公告系统] 错误详情:', JSON.stringify(e.response.data));
                 }
             }
+        }
+    },
+
+    // 发送公告到世界频道
+    async sendAnnouncementToChat(type, targetName, floor, isHell, extraData) {
+        // 生成公告文本（带类型标记，用于显示时着色）
+        const floorName = typeof getFloorName === 'function' ? getFloorName(floor, isHell) : `第${floor}层`;
+        const floorText = `第${floor}层「${floorName}」`;
+
+        let message = '';
+        let msgType = '';
+        switch (type) {
+            case 'boss_kill':
+                msgType = 'boss';
+                message = `${this.nickname} 在${floorText}击杀了 ${targetName}`;
+                break;
+            case 'set_drop':
+                msgType = 'set';
+                message = `${this.nickname} 在${floorText}获得了 ${targetName}`;
+                break;
+            case 'level_milestone':
+                msgType = 'level';
+                message = `${this.nickname} 达到了 ${targetName} 级`;
+                break;
+            case 'enhance_success':
+                msgType = 'enhance';
+                message = `${this.nickname} 将 ${targetName} 强化成功`;
+                break;
+            case 'title_unlock':
+                msgType = 'title';
+                message = `${this.nickname} 获得了称号「${targetName}」`;
+                break;
+            case 'abyss_champion':
+                msgType = 'abyss';
+                message = `${this.nickname} 击败了 ${targetName}，登顶深渊王者！`;
+                break;
+            case 'abyss_top10':
+                msgType = 'abyss';
+                message = `${this.nickname} 闯入深渊前10！当前排名第${extraData}名`;
+                break;
+            default:
+                return; // 其他类型（摆摊、卖出）不发到聊天
+        }
+
+        try {
+            // 消息格式：[type:xxx]实际内容，显示时解析类型并着色
+            await pb.collection('chat_messages').create({
+                nickname: '系统',
+                level: 0,
+                message: `[type:${msgType}]${message}`,
+                user_id: 'system',
+                title: ''
+            });
+        } catch (e) {
+            // 静默失败，不影响主流程
         }
     }
 };
@@ -2095,6 +2153,9 @@ const ChatSystem = {
     },
 
     // 发送消息
+    // 私聊目标缓存 { nickname: userId }
+    whisperTargetCache: {},
+
     async sendMessage() {
         const input = document.getElementById('chat-input');
         if (!input) return;
@@ -2119,8 +2180,49 @@ const ChatSystem = {
             return;
         }
 
+        // 解析私聊目标 @玩家名
+        let targetUserId = null;
+        let targetNickname = null;
+        let actualMessage = message;
+
+        const whisperMatch = message.match(/^@([^\s]+)\s+(.+)/);
+        if (whisperMatch) {
+            targetNickname = whisperMatch[1];
+            actualMessage = whisperMatch[2];
+
+            // 不能私聊自己
+            if (targetNickname === OnlineSystem.nickname) {
+                this.addSystemMessage('不能私聊自己');
+                return;
+            }
+
+            // 查找目标用户ID（先查缓存）
+            if (this.whisperTargetCache[targetNickname]) {
+                targetUserId = this.whisperTargetCache[targetNickname];
+            } else {
+                // 从最近消息中查找
+                try {
+                    const result = await pb.collection('chat_messages').getList(1, 1, {
+                        filter: `nickname = "${targetNickname}"`,
+                        sort: '-created'
+                    });
+                    if (result.items.length > 0) {
+                        targetUserId = result.items[0].user_id;
+                        this.whisperTargetCache[targetNickname] = targetUserId;
+                    }
+                } catch (e) {
+                    console.warn('[私聊] 查找用户失败', e);
+                }
+            }
+
+            if (!targetUserId) {
+                this.addSystemMessage(`找不到玩家 "${targetNickname}"`);
+                return;
+            }
+        }
+
         // 处理物品分享链接（如果有待发送的物品）
-        let processedMessage = message;
+        let processedMessage = actualMessage;
         if (typeof pendingShareItem !== 'undefined' && pendingShareItem) {
             const itemData = pendingShareItem;
             const baseName = itemData.n;
@@ -2132,7 +2234,7 @@ const ChatSystem = {
             const itemLink = `[item:${encoded}]`;
 
             // 替换显示名为编码格式
-            processedMessage = message.replace(placeholder, itemLink);
+            processedMessage = actualMessage.replace(placeholder, itemLink);
             pendingShareItem = null;  // 清除待发送物品
         }
 
@@ -2160,13 +2262,21 @@ const ChatSystem = {
         const displayTitle = this.getDisplayTitle();
 
         try {
-            const record = await pb.collection('chat_messages').create({
+            const msgData = {
                 nickname: OnlineSystem.nickname,
                 level: level,
                 message: filtered,  // 发送过滤后的消息
                 user_id: OnlineSystem.userId,
                 title: displayTitle  // 称号
-            });
+            };
+
+            // 私聊消息添加目标用户
+            if (targetUserId) {
+                msgData.targetUserId = targetUserId;
+                msgData.targetNickname = targetNickname;
+            }
+
+            const record = await pb.collection('chat_messages').create(msgData);
             input.value = '';
             this.lastSendTime = now;
             // 立即本地显示自己发送的消息
@@ -2270,28 +2380,82 @@ const ChatSystem = {
             this.shownMessageIds = new Set(arr.slice(-100));
         }
 
+        // 私聊消息过滤：只有发送者和接收者能看到
+        const isWhisper = record.targetUserId && record.targetUserId.length > 0;
+        if (isWhisper) {
+            const isSender = record.user_id === OnlineSystem.userId;
+            const isReceiver = record.targetUserId === OnlineSystem.userId;
+            if (!isSender && !isReceiver) {
+                return;  // 不是自己相关的私聊，不显示
+            }
+        }
+
         const msgEl = document.createElement('div');
-        msgEl.className = 'chat-msg';
+        const isSystem = record.user_id === 'system';
+        msgEl.className = isSystem ? 'chat-msg system' : (isWhisper ? 'chat-msg whisper' : 'chat-msg');
 
         // 判断是否是自己的消息
         const isMe = record.user_id === OnlineSystem.userId;
-        const nicknameColor = isMe ? '#ffff88' : '#88ccff';
+        const nicknameColor = isSystem ? '#ffd700' : (isWhisper ? '#cc88ff' : (isMe ? '#ffff88' : '#88ccff'));
 
-        // 称号显示
-        let titleHtml = '';
-        if (record.title) {
-            titleHtml = `<span class="chat-msg-title">「${this.escapeHtml(record.title)}」</span>`;
+        // 系统消息：解析类型标记并着色
+        if (isSystem) {
+            let msg = record.message;
+            let color = '#ffd700';  // 默认金色
+
+            // 解析类型标记 [type:xxx]
+            const typeMatch = msg.match(/^\[type:(\w+)\]/);
+            if (typeMatch) {
+                const msgType = typeMatch[1];
+                msg = msg.replace(/^\[type:\w+\]/, '');  // 移除标记
+
+                // 根据类型设置颜色（与顶部公告一致）
+                const typeColors = {
+                    boss: '#ffd700',    // 金色
+                    set: '#20ff20',     // 绿色
+                    level: '#ff66ff',   // 粉色
+                    enhance: '#ff8800', // 橙色
+                    abyss: '#ff4444',   // 红色
+                    title: '#ffd700'    // 金色
+                };
+                color = typeColors[msgType] || '#ffd700';
+            }
+
+            msgEl.innerHTML = `<span class="chat-msg-content" style="color:${color}">${this.escapeHtml(msg)}</span>`;
+        } else {
+            // 称号显示
+            let titleHtml = '';
+            if (record.title) {
+                titleHtml = `<span class="chat-msg-title">「${this.escapeHtml(record.title)}」</span>`;
+            }
+
+            // 处理消息内容：先转义HTML，再解析物品链接
+            const escapedMsg = this.escapeHtml(record.message);
+            const parsedMsg = this.parseItemLinks(escapedMsg);
+
+            // 私聊标签
+            let whisperTag = '';
+            if (isWhisper) {
+                if (isMe) {
+                    // 我发送的私聊
+                    whisperTag = `<span class="chat-whisper-tag">[私聊→${this.escapeHtml(record.targetNickname || '?')}]</span>`;
+                } else {
+                    // 收到的私聊
+                    whisperTag = `<span class="chat-whisper-tag">[私聊]</span>`;
+                }
+            }
+
+            // 玩家昵称可点击触发私聊
+            const nicknameHtml = isMe
+                ? `<span class="chat-msg-nickname" style="color:${nicknameColor}">${this.escapeHtml(record.nickname)}</span>`
+                : `<span class="chat-msg-nickname chat-nickname-clickable" style="color:${nicknameColor}" data-nickname="${this.escapeHtml(record.nickname)}">${this.escapeHtml(record.nickname)}</span>`;
+
+            msgEl.innerHTML = `
+                ${whisperTag}${nicknameHtml}${titleHtml}
+                <span class="chat-msg-level">Lv.${record.level}</span>:
+                <span class="chat-msg-content">${parsedMsg}</span>
+            `;
         }
-
-        // 处理消息内容：先转义HTML，再解析物品链接
-        const escapedMsg = this.escapeHtml(record.message);
-        const parsedMsg = this.parseItemLinks(escapedMsg);
-
-        msgEl.innerHTML = `
-            <span class="chat-msg-nickname" style="color:${nicknameColor}">${this.escapeHtml(record.nickname)}</span>${titleHtml}
-            <span class="chat-msg-level">Lv.${record.level}</span>:
-            <span class="chat-msg-content">${parsedMsg}</span>
-        `;
 
         // 绑定物品链接点击事件
         msgEl.querySelectorAll('.chat-item-link').forEach(link => {
@@ -2300,6 +2464,17 @@ const ChatSystem = {
                 const itemData = link.dataset.item;
                 if (itemData) {
                     this.showItemLinkTooltip(itemData, e);
+                }
+            };
+        });
+
+        // 绑定昵称点击事件（触发私聊）
+        msgEl.querySelectorAll('.chat-nickname-clickable').forEach(nickname => {
+            nickname.onclick = (e) => {
+                e.stopPropagation();
+                const targetNickname = nickname.dataset.nickname;
+                if (targetNickname) {
+                    this.startWhisper(targetNickname);
                 }
             };
         });
@@ -2331,6 +2506,34 @@ const ChatSystem = {
             el.textContent = this.unreadCount > 99 ? '(99+)' : `(${this.unreadCount})`;
         } else {
             el.textContent = '';
+        }
+    },
+
+    // 开始私聊（在输入框填入 @玩家名）
+    startWhisper(nickname) {
+        const input = document.getElementById('chat-input');
+        if (!input) return;
+
+        // 展开聊天框
+        if (this.isCollapsed) {
+            this.toggleExpand();
+        }
+
+        // 设置输入框内容
+        input.value = `@${nickname} `;
+        input.focus();
+
+        // 缓存昵称对应的userId（如果有的话，从最近消息中查找）
+        // 这里不阻塞，后台查找
+        if (!this.whisperTargetCache[nickname]) {
+            pb.collection('chat_messages').getList(1, 1, {
+                filter: `nickname = "${nickname}"`,
+                sort: '-created'
+            }).then(result => {
+                if (result.items.length > 0) {
+                    this.whisperTargetCache[nickname] = result.items[0].user_id;
+                }
+            }).catch(() => {});
         }
     },
 
@@ -2398,10 +2601,64 @@ function sendChatMessage() {
     ChatSystem.sendMessage();
 }
 
+// 全局函数：切换表情面板
+function toggleEmotePanel(event) {
+    event.stopPropagation();
+    const panel = document.getElementById('emote-panel');
+    if (!panel) return;
+
+    const isVisible = panel.style.display !== 'none';
+    panel.style.display = isVisible ? 'none' : 'block';
+
+    // 绑定点击外部关闭
+    if (!isVisible) {
+        setTimeout(() => {
+            document.addEventListener('click', closeEmotePanelOnClickOutside);
+        }, 10);
+    }
+}
+
+// 点击外部关闭表情面板
+function closeEmotePanelOnClickOutside(e) {
+    const panel = document.getElementById('emote-panel');
+    const btn = document.getElementById('emote-btn');
+    if (panel && !panel.contains(e.target) && e.target !== btn) {
+        panel.style.display = 'none';
+        document.removeEventListener('click', closeEmotePanelOnClickOutside);
+    }
+}
+
+// 初始化表情面板点击事件
+function initEmotePanel() {
+    const panel = document.getElementById('emote-panel');
+    if (!panel) return;
+
+    panel.addEventListener('click', (e) => {
+        const item = e.target.closest('.emote-item');
+        if (!item) return;
+
+        e.stopPropagation();
+        const emote = item.dataset.emote;
+        if (!emote) return;
+
+        // 直接发送表情
+        const input = document.getElementById('chat-input');
+        if (input) {
+            input.value = emote;
+            ChatSystem.sendMessage();
+        }
+
+        // 关闭面板
+        panel.style.display = 'none';
+        document.removeEventListener('click', closeEmotePanelOnClickOutside);
+    });
+}
+
 // 页面加载后初始化
 window.addEventListener('load', () => {
     setTimeout(() => {
         ChatSystem.init(); // 先初始化聊天系统（包含敏感词库）
+        initEmotePanel();  // 初始化表情面板
 
         // 检查是否有未读的更新公告
         const lastReadVersion = localStorage.getItem('changelog_read_version');
