@@ -245,6 +245,18 @@ function createSetItem(setId, pieceSlot, level) {
     if (item.def) {
       item.def += Math.floor(level * 2);
     }
+
+    // 对 stats 中的部分属性按层数增强（每层+2%）
+    // 不缩放的属性：有上限或恢复类
+    const noScaleStats = ['critChance', 'allRes', 'lifeSteal', 'hpRegen', 'mpRegen', 'blockChance',
+                          'fireRes', 'coldRes', 'lightningRes', 'poisonRes'];
+    if (item.stats) {
+      for (let key in item.stats) {
+        if (noScaleStats.includes(key)) continue;
+        // 其他属性：maxHp, maxMp, def, dmgPct, attackSpeed, critDamage, fireDmg 等
+        item.stats[key] = Math.floor(item.stats[key] * (1 + level * 0.02));
+      }
+    }
   }
 
   // 添加装备需求
@@ -671,6 +683,11 @@ function dropLoot(monster) {
 
   let droppedGoodItem = false;  // 是否掉落了好东西（蓝装以上）
 
+  // 挂机模式掉率惩罚
+  const isAutoBattle = typeof AutoBattle !== 'undefined' && AutoBattle.enabled;
+  const autoBattleSetPenalty = isAutoBattle ? 0.2 : 1.0;      // 套装掉率 ×0.2（降80%）
+  const autoBattleUniquePenalty = isAutoBattle ? 0.4 : 1.0;   // 暗金掉率 ×0.4（降60%）
+
   for (let i = 0; i < dropCount; i++) {
     if (Math.random() < dropChance) {
       let item = null;
@@ -680,7 +697,7 @@ function dropLoot(monster) {
       const setBaseChance = isBoss ? 0.08 : (isElite ? 0.005 : 0.001);
       const setFloorBonus = f >= 10 ? 0.01 : 0;  // 10层以上+1%
       const setLuckBonus = luckBonus * 0.05;     // 幸运值影响降到5%
-      const setChance = setBaseChance + setFloorBonus + setLuckBonus;
+      const setChance = (setBaseChance + setFloorBonus + setLuckBonus) * autoBattleSetPenalty;  // 挂机惩罚
       if (Math.random() < setChance) {
         item = generateRandomSetItem(f);
         if (item) {
@@ -702,20 +719,21 @@ function dropLoot(monster) {
 
         if (isBoss) {
           // BOSS保底蓝装，提高暗金概率（匹配加强后的难度）
-          if (adjustedRoll < 0.05) { item.rarity = RARITY.UNIQUE; droppedGoodItem = true; }       // 5%+加成 暗金
-          else if (adjustedRoll < 0.35) { item.rarity = RARITY.RARE; droppedGoodItem = true; }  // 30%+加成 稀有
-          else { item.rarity = RARITY.MAGIC; droppedGoodItem = true; }                           // 保底魔法
+          // 挂机模式：暗金阈值 ×0.7
+          if (adjustedRoll < 0.05 * autoBattleUniquePenalty) { item.rarity = RARITY.UNIQUE; droppedGoodItem = true; }
+          else if (adjustedRoll < 0.35) { item.rarity = RARITY.RARE; droppedGoodItem = true; }
+          else { item.rarity = RARITY.MAGIC; droppedGoodItem = true; }
         } else if (isElite) {
           // 精英怪
-          if (adjustedRoll < 0.015) { item.rarity = RARITY.UNIQUE; droppedGoodItem = true; }      // 1.5% 暗金
-          else if (adjustedRoll < 0.12) { item.rarity = RARITY.RARE; droppedGoodItem = true; }  // 10.5% 稀有
-          else if (adjustedRoll < 0.45) { item.rarity = RARITY.MAGIC; droppedGoodItem = true; }  // 33% 魔法
+          if (adjustedRoll < 0.015 * autoBattleUniquePenalty) { item.rarity = RARITY.UNIQUE; droppedGoodItem = true; }
+          else if (adjustedRoll < 0.12) { item.rarity = RARITY.RARE; droppedGoodItem = true; }
+          else if (adjustedRoll < 0.45) { item.rarity = RARITY.MAGIC; droppedGoodItem = true; }
           else item.rarity = RARITY.NORMAL;
         } else {
           // 普通怪
-          if (adjustedRoll < 0.005) { item.rarity = RARITY.UNIQUE; droppedGoodItem = true; }      // 0.5% 暗金
-          else if (adjustedRoll < 0.04) { item.rarity = RARITY.RARE; droppedGoodItem = true; }  // 3.5% 稀有
-          else if (adjustedRoll < 0.20) { item.rarity = RARITY.MAGIC; droppedGoodItem = true; }  // 16% 魔法
+          if (adjustedRoll < 0.005 * autoBattleUniquePenalty) { item.rarity = RARITY.UNIQUE; droppedGoodItem = true; }
+          else if (adjustedRoll < 0.04) { item.rarity = RARITY.RARE; droppedGoodItem = true; }
+          else if (adjustedRoll < 0.20) { item.rarity = RARITY.MAGIC; droppedGoodItem = true; }
           else item.rarity = RARITY.NORMAL;
         }
 

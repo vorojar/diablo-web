@@ -944,7 +944,7 @@ const DIVINE_BLESSING_POOL = [
     { id: 'db_res', name: '元素护盾', icon: '🌈', effect: { allRes: 8 }, rareEffect: { allRes: 12 } },
     { id: 'db_thorns', name: '荆棘', icon: '🌵', effect: { thornsPct: 6 }, rareEffect: { thornsPct: 10 } },
     // 功能类
-    { id: 'db_mana', name: '法力涌动', icon: '🔮', effect: { maxMp: 15, mpRegenPct: 3 }, rareEffect: { maxMp: 25, mpRegenPct: 5 } },  // 从15/25%降到3/5%
+    { id: 'db_mana', name: '法力涌动', icon: '🔮', effect: { maxMp: 15, mpRegenPct: 1 }, rareEffect: { maxMp: 25, mpRegenPct: 2 } },  // 从3/5%降到1/2%
     { id: 'db_gold', name: '贪婪', icon: '💰', effect: { goldPct: 15 }, rareEffect: { goldPct: 25 } },
     { id: 'db_drop', name: '寻宝者', icon: '🗝️', effect: { dropRatePct: 10 }, rareEffect: { dropRatePct: 15 } },
     { id: 'db_blood', name: '嗜血', icon: '🩸', effect: { onKillHealPct: 2 }, rareEffect: { onKillHealPct: 3 } }
