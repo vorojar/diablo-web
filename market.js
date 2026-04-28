@@ -33,6 +33,9 @@ const MarketSystem = {
   isPanelOpen: false,      // 摆摊设置面板是否打开
   stallStartTime: null,    // 摆摊开始时间
   realtimeSubscribed: false,
+  initialized: false,
+  expirationCheckTimer: null,
+  buyLocks: new Set(),
 
   // 当前操作的摊位索引 (用于 UI)
   currentStallIndex: -1,
@@ -42,10 +45,34 @@ const MarketSystem = {
   init() {
     this.createUI();
     this.loadStalls();
-    this.subscribeStalls();
+    if (!this.initialized) {
+      this.subscribeStalls();
+      this.startExpirationCheck(); // 定时检查摊位过期
+      this.initialized = true;
+    }
     this.checkPendingSales(); // 检查未领取的销售收益
-    this.startExpirationCheck(); // 定时检查摊位过期
     console.log('[摆摊系统] 初始化完成');
+  },
+
+  escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  },
+
+  parseItems(items) {
+    if (!items) return [];
+    if (Array.isArray(items)) return items;
+    try {
+      const parsed = JSON.parse(items);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.warn('[摆摊系统] 物品数据解析失败:', e);
+      return [];
+    }
   },
 
   // ========== UI 创建 ==========
@@ -404,6 +431,7 @@ const MarketSystem = {
   // ========== 实时订阅 ==========
   async subscribeStalls() {
     if (typeof pb === 'undefined') return;
+    if (this.realtimeSubscribed) return;
 
     try {
       await pb.collection('market_stalls').subscribe('*', (e) => {
@@ -474,8 +502,9 @@ const MarketSystem = {
 
   // ========== 摊位过期检查 ==========
   startExpirationCheck() {
+    if (this.expirationCheckTimer) return;
     // 每分钟检查一次
-    setInterval(() => {
+    this.expirationCheckTimer = setInterval(() => {
       this.checkExpiration();
       this.performMarketGC();
     }, 60000);
@@ -527,7 +556,7 @@ const MarketSystem = {
     showNotification('⏰ 摊位已过期，自动收摊中...', 'warning');
 
     // 返还商品
-    const items = typeof stall.items === 'string' ? JSON.parse(stall.items) : stall.items;
+    const items = this.parseItems(stall.items);
     for (const slotData of items) {
       if (slotData && slotData.item) {
         if (!addItemToInventory(slotData.item)) {
@@ -640,8 +669,8 @@ const MarketSystem = {
       });
       listHtml += `
         <div class="sales-row">
-          <span class="sales-item">${sale.item_name}</span>
-          <span class="sales-buyer">${sale.buyer_name}</span>
+          <span class="sales-item">${this.escapeHtml(sale.item_name)}</span>
+          <span class="sales-buyer">${this.escapeHtml(sale.buyer_name)}</span>
           <span class="sales-price">+${sale.price}G</span>
           <span class="sales-time">${time}</span>
         </div>
@@ -950,7 +979,7 @@ const MarketSystem = {
     suggestedPrice = Math.floor(suggestedPrice * 1.5); // 比商人收购价高50%
 
     const color = getRarityColor(item.rarity);
-    itemName.innerHTML = `<span style="color:${color}">${item.name}</span>`;
+    itemName.innerHTML = `<span style="color:${color}">${this.escapeHtml(item.name)}</span>`;
     priceInput.value = suggestedPrice;
     dialog.style.display = 'flex';
 
@@ -1174,9 +1203,7 @@ const MarketSystem = {
 
       if (stallData) {
         // 返还未售出的物品
-        const items = typeof stallData.items === 'string'
-          ? JSON.parse(stallData.items)
-          : stallData.items;
+        const items = this.parseItems(stallData.items);
 
         for (const slotData of items) {
           if (slotData && slotData.item) {
@@ -1242,10 +1269,10 @@ const MarketSystem = {
 
     if (!panel || !content) return;
 
-    header.innerHTML = `🛒 ${stall.stall_name} <span style="color:#888">(${stall.nickname})</span>`;
+    header.innerHTML = `🛒 ${this.escapeHtml(stall.stall_name)} <span style="color:#888">(${this.escapeHtml(stall.nickname)})</span>`;
 
     // 解析商品数据
-    const items = typeof stall.items === 'string' ? JSON.parse(stall.items) : stall.items;
+    const items = this.parseItems(stall.items);
 
     // 清空并使用 DOM 方式渲染
     content.innerHTML = '';
@@ -1286,7 +1313,7 @@ const MarketSystem = {
       const info = document.createElement('div');
       info.className = 'stall-view-info';
       info.innerHTML = `
-        <div class="stall-view-name" style="color:${color}">${item.name}</div>
+        <div class="stall-view-name" style="color:${color}">${this.escapeHtml(item.name)}</div>
         <div class="stall-view-price">${slotData.price}G <span class="stall-tax">+${taxAmount}G税</span></div>
       `;
       row.appendChild(info);
@@ -1339,7 +1366,7 @@ const MarketSystem = {
         return;
       }
 
-      const items = typeof stall.items === 'string' ? JSON.parse(stall.items) : stall.items;
+      const items = this.parseItems(stall.items);
       const slotData = items[itemIndex];
 
       if (!slotData || !slotData.item) {
@@ -1391,7 +1418,7 @@ const MarketSystem = {
     dialog.innerHTML = `
       <div class="stall-price-box buy-confirm-box">
         <div class="stall-price-title">确认购买</div>
-        <div class="buy-confirm-item" style="color:${color}">${item.name}</div>
+        <div class="buy-confirm-item" style="color:${color}">${this.escapeHtml(item.name)}</div>
         <div class="buy-confirm-price">
           <div>售价: ${slotData.price}G</div>
           <div class="buy-confirm-tax">+ 税费: ${taxAmount}G</div>
@@ -1418,52 +1445,98 @@ const MarketSystem = {
 
   // 执行购买
   async executeBuy(stall, slotData, itemIndex, totalPrice, emptySlot) {
+    const lockKey = `${stall.id}:${slotData.item?.id || itemIndex}`;
+    if (this.buyLocks.has(lockKey)) {
+      showNotification('购买处理中，请稍候', 'warning');
+      return;
+    }
+    this.buyLocks.add(lockKey);
+    let lockAcquired = false;
+    let purchaseCompleted = false;
+    let lockToken = null;
+
     try {
       // 重新获取最新数据防止商品已售
       const latestStall = await pb.collection('market_stalls').getOne(stall.id);
-      const items = typeof latestStall.items === 'string' ? JSON.parse(latestStall.items) : latestStall.items;
+      const items = this.parseItems(latestStall.items);
+      const latestSlot = items[itemIndex];
 
-      if (!items[itemIndex] || items[itemIndex].item?.id !== slotData.item.id) {
+      if (!latestSlot || latestSlot.item?.id !== slotData.item.id) {
         showNotification('商品已售出', 'warning');
         this.closeViewPanel();
         return;
       }
 
+      const taxAmount = Math.ceil(latestSlot.price * MARKET_CONFIG.TAX_RATE);
+      const latestTotalPrice = latestSlot.price + taxAmount;
+      if (latestTotalPrice !== totalPrice) {
+        showNotification('商品价格已变化，请重新确认', 'warning');
+        this.closeViewPanel();
+        return;
+      }
+      if (player.gold < latestTotalPrice) {
+        showNotification(`金币不足，需要${latestTotalPrice}G`, 'warning');
+        return;
+      }
+
+      const buyerId = OnlineSystem?.userId || 'anonymous';
+      lockToken = `${buyerId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const lockedItems = items.map((entry, idx) => {
+        if (idx !== itemIndex || !entry) return entry;
+        return { ...entry, lockedBy: buyerId, lockToken, lockedAt: Date.now() };
+      });
+
+      await pb.collection('market_stalls').update(stall.id, { items: lockedItems });
+
+      const lockedStall = await pb.collection('market_stalls').getOne(stall.id);
+      const lockedLatestItems = this.parseItems(lockedStall.items);
+      const lockedSlot = lockedLatestItems[itemIndex];
+      if (!lockedSlot || lockedSlot.item?.id !== slotData.item.id || lockedSlot.lockToken !== lockToken) {
+        showNotification('商品正在被其他玩家购买，请稍后重试', 'warning');
+        this.closeViewPanel();
+        return;
+      }
+      lockAcquired = true;
+
+      const targetEmptySlot = player.inventory[emptySlot] === null
+        ? emptySlot
+        : player.inventory.findIndex(i => i === null);
+      if (targetEmptySlot === -1) {
+        showNotification('背包已满', 'warning');
+        return;
+      }
+
+      const finalItems = lockedLatestItems.filter((_, idx) => idx !== itemIndex);
+
+      if (finalItems.length === 0) {
+        await pb.collection('market_stalls').delete(stall.id);
+        this.closeViewPanel();
+      } else {
+        await pb.collection('market_stalls').update(stall.id, { items: finalItems });
+      }
+      purchaseCompleted = true;
+
       // 扣除金币
       player.gold -= totalPrice;
 
       // 添加到背包
-      player.inventory[emptySlot] = slotData.item;
-
-      // 更新摊位数据 (移除已售商品)
-      items.splice(itemIndex, 1);
-
-      if (items.length === 0) {
-        // 商品卖完了，删除摊位
-        await pb.collection('market_stalls').delete(stall.id);
-        this.closeViewPanel();
-      } else {
-        // 更新摊位
-        await pb.collection('market_stalls').update(stall.id, {
-          items: items
-        });
-      }
+      player.inventory[targetEmptySlot] = lockedSlot.item;
 
       // 创建销售记录（给卖家的收益）
       try {
         await pb.collection('market_sales').create({
           seller_id: stall.user_id,
-          buyer_id: OnlineSystem?.userId || 'anonymous',
+          buyer_id: buyerId,
           buyer_name: OnlineSystem?.nickname || '匿名玩家',
-          item_name: slotData.item.name,
-          price: slotData.price,
+          item_name: lockedSlot.item.name,
+          price: latestSlot.price,
           claimed: false
         });
       } catch (saleErr) {
         console.warn('[摆摊系统] 创建销售记录失败:', saleErr);
       }
 
-      showNotification(`购买成功: ${slotData.item.name} (-${totalPrice}G)`, 'success');
+      showNotification(`购买成功: ${lockedSlot.item.name} (-${totalPrice}G)`, 'success');
       if (typeof AudioSys !== 'undefined') AudioSys.play('gold');
 
       updateStats();
@@ -1474,6 +1547,25 @@ const MarketSystem = {
     } catch (e) {
       console.error('[摆摊系统] 购买失败:', e);
       showNotification('购买失败: ' + e.message, 'error');
+    } finally {
+      if (lockAcquired && !purchaseCompleted && lockToken) {
+        try {
+          const lockedStall = await pb.collection('market_stalls').getOne(stall.id);
+          const lockedItems = this.parseItems(lockedStall.items);
+          const lockedSlot = lockedItems[itemIndex];
+          if (lockedSlot?.lockToken === lockToken) {
+            const restoredItems = lockedItems.map((entry, idx) => {
+              if (idx !== itemIndex || !entry) return entry;
+              const { lockedBy, lockToken: _lockToken, lockedAt, ...restored } = entry;
+              return restored;
+            });
+            await pb.collection('market_stalls').update(stall.id, { items: restoredItems });
+          }
+        } catch (unlockErr) {
+          console.warn('[摆摊系统] 释放购买锁失败:', unlockErr);
+        }
+      }
+      this.buyLocks.delete(lockKey);
     }
   },
 

@@ -201,7 +201,7 @@ const SaveSystem = {
 
   // 保存到当前槽位
   save: function (silent = false) {
-    if (!db) return;
+    if (!db) return Promise.resolve(false);
     const clean = i => { if (!i) return null; const { el, ...r } = i; return r; };
     const eq = {}; for (let k in player.equipment) eq[k] = clean(player.equipment[k]);
 
@@ -225,12 +225,36 @@ const SaveSystem = {
       autoBattleSettings: AutoBattle.settings,
       lastPlayed: Date.now()
     };
-    db.transaction(['saveData'], 'readwrite').objectStore('saveData').put(data);
-
-    // 自动同步到云端（静默、防抖）
-    if (typeof CloudSync !== 'undefined' && CloudSync.isBound) {
-      CloudSync.uploadSlotDebounced(this.currentSlot);
-    }
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(['saveData'], 'readwrite');
+        tx.objectStore('saveData').put(data);
+        tx.oncomplete = () => {
+          // 自动同步到云端（静默、防抖），确保本地事务完成后再触发
+          if (typeof CloudSync !== 'undefined' && CloudSync.isBound) {
+            CloudSync.uploadSlotDebounced(this.currentSlot);
+          }
+          resolve(true);
+        };
+        tx.onerror = () => {
+          console.error('[存档系统] 保存失败:', tx.error);
+          if (!silent && typeof showNotification === 'function') {
+            showNotification('存档失败，请检查浏览器存储权限');
+          }
+          resolve(false);
+        };
+        tx.onabort = () => {
+          console.error('[存档系统] 保存中止:', tx.error);
+          resolve(false);
+        };
+      } catch (e) {
+        console.error('[存档系统] 保存异常:', e);
+        if (!silent && typeof showNotification === 'function') {
+          showNotification('存档失败，请检查浏览器存储权限');
+        }
+        resolve(false);
+      }
+    });
 
     // 静默存档，不显示提示（原：if (!silent) showNotification("游戏已保存");）
   },

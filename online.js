@@ -788,6 +788,15 @@ const OnlineSystem = {
         });
     },
 
+    escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
     userId: null,
     nickname: null,
     recordId: null,
@@ -1463,7 +1472,7 @@ const OnlineSystem = {
                 const isMe = (mySyncCode && item.sync_code === mySyncCode) || item.user_id === this.userId;
                 const valueText = this.getValueText(item);
                 html += `<div class="stat-row" style="${isMe ? 'color: #ffff00; background: rgba(255,255,0,0.1);' : ''}">
-                    <span>${medal} ${item.nickname}</span>
+                    <span>${medal} ${this.escapeHtml(item.nickname)}</span>
                     <span style="color: #888;">${valueText}</span>
                 </div>`;
             });
@@ -1483,7 +1492,7 @@ const OnlineSystem = {
         const stats = player.stats || {};
 
         let html = '<div class="personal-best">';
-        html += `<div class="pb-title">欢迎你 ${OnlineSystem.nickname || '勇士'}</div>`;
+        html += `<div class="pb-title">欢迎你 ${this.escapeHtml(OnlineSystem.nickname || '勇士')}</div>`;
         html += '<div class="pb-grid">';
         html += `<div class="pb-item"><span class="pb-label">最高等级</span><span class="pb-value">Lv${pb.maxLevel || 1}</span></div>`;
 
@@ -1571,7 +1580,7 @@ const OnlineSystem = {
                 data.list.slice(0, 10).forEach((item, i) => {
                     const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
                     listHtml += `<div class="stat-row" style="${item.isSelf ? 'color: #ffff00; background: rgba(255,255,0,0.1);' : ''}">
-                        <span>${medal} ${item.name}</span>
+                        <span>${medal} ${this.escapeHtml(item.name)}</span>
                         <span style="color: #ff8800;">${item.floor}层 ${item.score}分</span>
                     </div>`;
                 });

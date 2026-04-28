@@ -4192,13 +4192,19 @@ function update(dt) {
 
             if (shouldAutoPickup) {
                 // 背包满时尝试腾空间
-                const inventoryFull = player.inventory.filter(it => it !== null).length >= player.inventory.length;
-                if (inventoryFull && canMakeRoom(item.rarity)) {
+                let emptySlotCount = 0;
+                for (let invIdx = 0; invIdx < player.inventory.length; invIdx++) {
+                    if (player.inventory[invIdx] === null) emptySlotCount++;
+                }
+                let inventoryFull = emptySlotCount === 0;
+                const canDropForRoom = inventoryFull && canMakeRoom(item.rarity);
+                if (canDropForRoom) {
                     AutoBattle.dropLowestValueItem(item.rarity);
+                    inventoryFull = false;
                 }
 
                 // 拾取装备
-                if (!inventoryFull || canMakeRoom(item.rarity)) {
+                if (!inventoryFull) {
                     if (addItemToInventory(item)) {
                         // 拾取成功
                         if (item.el) item.el.remove();
@@ -12262,6 +12268,9 @@ document.querySelectorAll('.sys-btn, .skill-btn, .stat-btn, .gamble-slot, .equip
 
 // --- Dragging Logic ---
 function initDragging() {
+    if (initDragging._bound) return;
+    initDragging._bound = true;
+
     let dragObj = null;
     let dragOffsetX = 0;
     let dragOffsetY = 0;
