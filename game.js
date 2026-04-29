@@ -1098,12 +1098,20 @@ function drawBiomeWallDetails(ctx, x, y, size, type, seed) {
 
 // 加载环境装饰贴图 (Environment Sprites)
 const envSpriteSheet = new Image();
-envSpriteSheet.src = 'environment_sprites.png?v=5.2';
+envSpriteSheet.src = 'environment_sprites.png?v=202604291730';
 
 let envSpritesLoaded = false;
 let processedEnvSprites = null;
 let envCellWidth = 0;
 let envCellHeight = 0;
+
+function shouldClearGeneratedAssetBackground(r, g, b) {
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const isNearWhite = max > 248 && max - min < 12;
+    const isMagentaKey = r > 220 && g < 80 && b > 220;
+    return isNearWhite || isMagentaKey;
+}
 
 envSpriteSheet.onload = () => {
     const tempCanvas = document.createElement('canvas');
@@ -1123,7 +1131,7 @@ envSpriteSheet.onload = () => {
 
         // 去除白色背景 (适应新生成的 Sprite Sheet)
         // 同时也去除了白色的网格线
-        if (r > 200 && g > 200 && b > 200) {
+        if (shouldClearGeneratedAssetBackground(r, g, b)) {
             data[i + 3] = 0;
         }
     }
@@ -1145,7 +1153,7 @@ envSpriteSheet.onload = () => {
 
 // --- Destructible Sprites ---
 const destructibleSpriteSheet = new Image();
-destructibleSpriteSheet.src = 'destructibles_sprites.png?v=202512211022';
+destructibleSpriteSheet.src = 'destructibles_sprites.png?v=202604291730';
 let destructiblesLoaded = false;
 let processedDestructibleSprites = null;
 
@@ -1160,7 +1168,7 @@ destructibleSpriteSheet.onload = () => {
     const data = imageData.data;
     // 去除白色背景 (阈值220)
     for (let i = 0; i < data.length; i += 4) {
-        if (data[i] > 220 && data[i + 1] > 220 && data[i + 2] > 220) data[i + 3] = 0;
+        if (shouldClearGeneratedAssetBackground(data[i], data[i + 1], data[i + 2])) data[i + 3] = 0;
     }
     tempCtx.putImageData(imageData, 0, 0);
     processedDestructibleSprites = tempCanvas;
@@ -1296,7 +1304,7 @@ function createSimpleParticle(x, y, color, speed, angle) {
 }
 
 const wallTiles = new Image();
-wallTiles.src = 'wall_tiles.png?v=5.2';
+wallTiles.src = 'wall_tiles.png?v=202604291730';
 let wallTilesLoaded = false;
 wallTiles.onload = () => {
     wallTilesLoaded = true;
@@ -1325,7 +1333,7 @@ function getWallTextureIndex(floor) {
 }
 
 const floorTiles = new Image();
-floorTiles.src = 'floor_tiles.png?v=5.2';
+floorTiles.src = 'floor_tiles.png?v=202604291730';
 let floorTilesLoaded = false;
 floorTiles.onload = () => {
     floorTilesLoaded = true;
