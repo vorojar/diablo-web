@@ -1048,7 +1048,7 @@ heroSpriteSheet.onload = () => {
 
 // --- Monster Animation Sprites ---
 const monsterSpriteSheet = new Image();
-monsterSpriteSheet.src = 'monster_sprites.png?v=202604301400';
+monsterSpriteSheet.src = 'monster_sprites.png?v=202604301500';
 let monsterSpritesLoaded = false;
 let processedMonsterSprites = null;
 const MonsterTintCache = {
@@ -1060,7 +1060,7 @@ const MonsterTintCache = {
 
 const MONSTER_SPRITE_CONFIG = {
     cols: 4,
-    rows: 68,
+    rows: 116,
     frameWidth: 128,
     frameHeight: 128,
     renderSize: 76,
@@ -1119,9 +1119,47 @@ const MONSTER_SPRITE_CONFIG = {
             walk: { front: { row: 62 }, side: { row: 63 } },
             attack: { front: { row: 64 }, side: { row: 65 } },
             hurt: { front: { row: 66 }, side: { row: 67 } }
+        },
+        bloodRaven: {
+            idle: { front: { row: 68 }, side: { row: 69 } },
+            walk: { front: { row: 70 }, side: { row: 71 } },
+            attack: { front: { row: 72 }, side: { row: 73 } },
+            hurt: { front: { row: 74 }, side: { row: 75 } }
+        },
+        countess: {
+            idle: { front: { row: 76 }, side: { row: 77 } },
+            walk: { front: { row: 78 }, side: { row: 79 } },
+            attack: { front: { row: 80 }, side: { row: 81 } },
+            hurt: { front: { row: 82 }, side: { row: 83 } }
+        },
+        butcher: {
+            idle: { front: { row: 84 }, side: { row: 85 } },
+            walk: { front: { row: 86 }, side: { row: 87 } },
+            attack: { front: { row: 88 }, side: { row: 89 } },
+            hurt: { front: { row: 90 }, side: { row: 91 } }
+        },
+        duriel: {
+            idle: { front: { row: 92 }, side: { row: 93 } },
+            walk: { front: { row: 94 }, side: { row: 95 } },
+            attack: { front: { row: 96 }, side: { row: 97 } },
+            hurt: { front: { row: 98 }, side: { row: 99 } }
+        },
+        diablo: {
+            idle: { front: { row: 100 }, side: { row: 101 } },
+            walk: { front: { row: 102 }, side: { row: 103 } },
+            attack: { front: { row: 104 }, side: { row: 105 } },
+            hurt: { front: { row: 106 }, side: { row: 107 } }
+        },
+        baal: {
+            idle: { front: { row: 108 }, side: { row: 109 } },
+            walk: { front: { row: 110 }, side: { row: 111 } },
+            attack: { front: { row: 112 }, side: { row: 113 } },
+            hurt: { front: { row: 114 }, side: { row: 115 } }
         }
     }
 };
+
+const BOSS_SPRITE_TYPES_BY_FRAME = ['bloodRaven', 'countess', 'butcher', 'duriel', 'diablo', 'baal'];
 
 monsterSpriteSheet.onload = () => {
     const tempCanvas = document.createElement('canvas');
@@ -1980,12 +2018,14 @@ function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH) {
 }
 
 function getEnemyMonsterType(enemy) {
-    return enemy?.monsterType || enemy?.type;
+    if (enemy?.monsterType || enemy?.type) return enemy.monsterType || enemy.type;
+    if (enemy?.isBoss && Number.isInteger(enemy.frameIndex)) return BOSS_SPRITE_TYPES_BY_FRAME[enemy.frameIndex];
+    return undefined;
 }
 
 function triggerMonsterAction(enemy, action, duration) {
     const monsterType = getEnemyMonsterType(enemy);
-    if (!enemy || enemy.isBoss || !MONSTER_SPRITE_CONFIG.types[monsterType]) return;
+    if (!enemy || !MONSTER_SPRITE_CONFIG.types[monsterType]) return;
     enemy.monsterAction = action;
     enemy.monsterActionTimer = Math.max(enemy.monsterActionTimer || 0, duration);
     enemy.monsterAnimTime = 0;
@@ -1999,7 +2039,7 @@ function getMonsterSpriteDirection(enemy) {
 }
 
 function getMonsterSpriteFrame(enemy) {
-    if (!monsterSpritesLoaded || !processedMonsterSprites || enemy.isBoss) return null;
+    if (!monsterSpritesLoaded || !processedMonsterSprites) return null;
 
     const typeConfig = MONSTER_SPRITE_CONFIG.types[getEnemyMonsterType(enemy)];
     if (!typeConfig) return null;
