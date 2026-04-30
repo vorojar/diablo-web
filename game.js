@@ -365,6 +365,8 @@ const EnemyPool = {
             x: 0, y: 0, hp: 0, maxHp: 0, dmg: 0, speed: 0, radius: 12,
             dead: false, cooldown: 0, name: '', rarity: 0, xpValue: 0,
             frameIndex: 0, ai: 'chase', isBoss: false, isQuestTarget: false,
+            facingDirection: 'front', lastSideDirection: 'right',
+            facingLockTimer: 0, actionDirection: null, actionDirectionTimer: 0,
             eliteAffixes: null, frozenTimer: 0, damageReduction: 0,
             hitFlashTimer: 0,  // 受击闪白计时器
             ...props
@@ -2123,11 +2125,25 @@ function triggerMonsterAction(enemy, action, duration) {
     enemy.monsterAnimTime = 0;
 }
 
-function getMonsterSpriteDirection(enemy) {
-    const dx = player.x - enemy.x;
-    const dy = player.y - enemy.y;
+function directionFromDelta(dx, dy) {
     if (Math.abs(dx) > Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
     return dy >= 0 ? 'front' : 'back';
+}
+
+function setMonsterFacingToward(enemy, targetX, targetY, lockDuration = 0) {
+    if (!enemy) return;
+    const direction = directionFromDelta(targetX - enemy.x, targetY - enemy.y);
+    enemy.facingDirection = direction;
+    if (direction === 'left' || direction === 'right') enemy.lastSideDirection = direction;
+    if (lockDuration > 0) {
+        enemy.actionDirection = direction;
+        enemy.actionDirectionTimer = Math.max(enemy.actionDirectionTimer || 0, lockDuration);
+    }
+}
+
+function getMonsterSpriteDirection(enemy) {
+    if (enemy.actionDirectionTimer > 0 && enemy.actionDirection) return enemy.actionDirection;
+    return enemy.facingDirection || 'front';
 }
 
 function getMonsterSpriteFrame(enemy) {
@@ -2137,7 +2153,8 @@ function getMonsterSpriteFrame(enemy) {
     if (!typeConfig) return null;
 
     let action = 'idle';
-    if (enemy.hitFlashTimer > 0) action = 'hurt';
+    if (enemy.monsterActionTimer > 0 && enemy.monsterAction === 'attack') action = 'attack';
+    else if (enemy.hitFlashTimer > 0) action = 'hurt';
     else if (enemy.monsterActionTimer > 0 && enemy.monsterAction) action = enemy.monsterAction;
     else if (enemy.wasMoving) action = 'walk';
 
@@ -2146,6 +2163,11 @@ function getMonsterSpriteFrame(enemy) {
     let frameInfo;
     if (direction === 'left') frameInfo = actionRows.side;
     else if (direction === 'right') frameInfo = { ...actionRows.side, flipX: true };
+    else if (direction === 'back' && actionRows.back) frameInfo = actionRows.back;
+    else if (direction === 'back' && actionRows.side) frameInfo = {
+        ...actionRows.side,
+        flipX: enemy.lastSideDirection === 'right'
+    };
     else frameInfo = actionRows.front || actionRows.side;
 
     const fps = MONSTER_SPRITE_CONFIG.fps[action] || MONSTER_SPRITE_CONFIG.fps.idle;
@@ -5070,8 +5092,10 @@ function update(dt) {
             if (dist < 60) {
                 player.targetX = null;
                 if (player.attackCooldown <= 0) {
+                    player.direction = directionFromDelta(d.x - player.x, d.y - player.y);
                     DestructibleSystem.break(d);
                     player.attackAnim = 1;
+                    triggerHeroAction('attack', 0.35);
                     player.attackCooldown = 0.4; // 短暂冷却
                     AudioSys.play('hit');
                 }
@@ -5478,6 +5502,14 @@ function updateEnemies(dt) {
                 e.monsterAction = null;
             }
         }
+        if (e.actionDirectionTimer > 0) {
+            e.actionDirectionTimer -= dt;
+            if (e.actionDirectionTimer <= 0) {
+                e.actionDirectionTimer = 0;
+                e.actionDirection = null;
+            }
+        }
+        if (e.facingLockTimer > 0) e.facingLockTimer -= dt;
         const prevEnemyX = e.x;
         const prevEnemyY = e.y;
         if (e.hitFlashTimer > 0) e.hitFlashTimer -= dt; // 更新受击闪白
@@ -5540,17 +5572,23 @@ function updateEnemies(dt) {
                 // 有视线才能射击
                 if (e.cooldown <= 0) {
                     const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                    setMonsterFacingToward(e, player.x, player.y, 0.35);
                     triggerMonsterAction(e, 'attack', 0.35);
-                    projectiles.push(ProjectilePool.acquire({
-                        x: e.x,
-                        y: e.y,
-                        angle: angle,
-                        speed: 250,
-                        life: 2,
-                        damage: e.dmg,
-                        color: '#ffaa00',
-                        owner: e
-                    }));
+                    const arrowCount = e.multiShot || 1;
+                    const spread = arrowCount > 1 ? 0.18 : 0;
+                    for (let shotIndex = 0; shotIndex < arrowCount; shotIndex++) {
+                        const shotAngle = angle + (shotIndex - (arrowCount - 1) / 2) * spread;
+                        projectiles.push(ProjectilePool.acquire({
+                            x: e.x + Math.cos(angle) * 18,
+                            y: e.y - 36 + Math.sin(angle) * 10,
+                            angle: shotAngle,
+                            speed: 250,
+                            life: 2,
+                            damage: e.dmg,
+                            color: '#ffaa00',
+                            owner: e
+                        }));
+                    }
                     AudioSys.play('arrow');
                     e.cooldown = 2.0;
                 }
@@ -5567,6 +5605,8 @@ function updateEnemies(dt) {
                 // 复活附近的尸体，但不能复活 Boss
                 const body = enemies.find(other => other.dead && !other.isBoss && Math.hypot(other.x - e.x, other.y - e.y) < 200);
                 if (body) {
+                    setMonsterFacingToward(e, body.x, body.y, 0.45);
+                    triggerMonsterAction(e, 'attack', 0.45);
                     body.dead = false; body.hp = body.maxHp;
 
                     // 调整复活位置，确保离主角有一定距离
@@ -5618,6 +5658,7 @@ function updateEnemies(dt) {
                 e.y += (dy / dist) * currentSpeed * dt;
             }
             if (distSq <= 1600 && e.cooldown <= 0) { // 40^2 = 1600
+                setMonsterFacingToward(e, player.x, player.y, 0.35);
                 triggerMonsterAction(e, 'attack', 0.35);
                 playerTakeDamage(e.dmg, e, { ignoreArmor: e.ignoreArmor });
                 e.cooldown = 1.5;
@@ -5657,6 +5698,7 @@ function updateEnemies(dt) {
                 }
                 // 突进到达后攻击
                 if (dashDist <= 40 && e.cooldown <= 0) {
+                    setMonsterFacingToward(e, player.x, player.y, 0.35);
                     triggerMonsterAction(e, 'attack', 0.35);
                     const dealt = playerTakeDamage(e.dmg, e, { ignoreArmor: e.ignoreArmor });
                     // 吸血效果（基于实际造成的伤害）
@@ -5685,6 +5727,7 @@ function updateEnemies(dt) {
                 // 非突进状态
                 if (distSq < 40000 && distSq > 1600 && e.dashCooldown <= 0) { // 200^2=40000, 40^2=1600
                     // 发动突进！
+                    setMonsterFacingToward(e, player.x, player.y, 0.3);
                     e.isDashing = true;
                     e.dashTimer = 0.3; // 突进持续0.3秒
                     e.dashTargetX = player.x;
@@ -5700,6 +5743,7 @@ function updateEnemies(dt) {
                     if (!isWall(e.x, ny)) e.y = ny;
                 } else if (distSq <= 1600 && e.cooldown <= 0) { // 40^2 = 1600
                     // 近身普通攻击
+                    setMonsterFacingToward(e, player.x, player.y, 0.35);
                     triggerMonsterAction(e, 'attack', 0.35);
                     const dealt = playerTakeDamage(e.dmg, e, { ignoreArmor: e.ignoreArmor });
                     // 吸血效果
@@ -5725,10 +5769,11 @@ function updateEnemies(dt) {
                 // 有视线才能发射闪电球
                 if (e.cooldown <= 0) {
                     const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                    setMonsterFacingToward(e, player.x, player.y, 0.35);
                     triggerMonsterAction(e, 'attack', 0.35);
                     projectiles.push(ProjectilePool.acquire({
-                        x: e.x,
-                        y: e.y,
+                        x: e.x + Math.cos(angle) * 16,
+                        y: e.y - 32 + Math.sin(angle) * 8,
                         angle: angle,
                         speed: 280,
                         life: 2,
@@ -5755,6 +5800,7 @@ function updateEnemies(dt) {
                 if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
             }
             if (distSq <= GAME_CONFIG.MONSTER_MELEE_RANGE_SQ && e.cooldown <= 0) {
+                setMonsterFacingToward(e, player.x, player.y, 0.35);
                 triggerMonsterAction(e, 'attack', 0.35);
                 // 预计算基础伤害（物理+元素）
                 let baseDmg = e.dmg;
@@ -5809,7 +5855,15 @@ function updateEnemies(dt) {
                 }
             }
         }
-        e.wasMoving = Math.hypot(e.x - prevEnemyX, e.y - prevEnemyY) > 0.35;
+        const movedX = e.x - prevEnemyX;
+        const movedY = e.y - prevEnemyY;
+        e.wasMoving = Math.hypot(movedX, movedY) > 0.35;
+        if (e.wasMoving && !(e.actionDirectionTimer > 0) && !(e.facingLockTimer > 0)) {
+            e.facingDirection = directionFromDelta(movedX, movedY);
+            if (e.facingDirection === 'left' || e.facingDirection === 'right') {
+                e.lastSideDirection = e.facingDirection;
+            }
+        }
     }
 }
 
@@ -10474,6 +10528,7 @@ function performAttack(t) {
     if (player.floor > 0 && dist >= 50 && !hasLineOfSight(player.x, player.y, t.x, t.y)) {
         return;
     }
+    player.direction = directionFromDelta(t.x - player.x, t.y - player.y);
 
     // 增加连击
     addCombo(1);
@@ -10581,8 +10636,9 @@ function castSkill(skillName) {
         }
         if (player.skillCooldowns.fireball > 0) return;
         player.mp -= 5; player.skillCooldowns.fireball = 0.5;
-        triggerHeroAction('cast', 0.45);
         const angle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
+        player.direction = directionFromDelta(Math.cos(angle), Math.sin(angle));
+        triggerHeroAction('cast', 0.45);
         projectiles.push(ProjectilePool.acquire({
             x: player.x,
             y: player.y,
@@ -10622,6 +10678,7 @@ function castSkill(skillName) {
         }
 
         player.mp -= cost;
+        player.direction = directionFromDelta(target.x - player.x, target.y - player.y);
         triggerHeroAction('cast', 0.45);
         player.skillCooldowns.thunder = 2; // 2秒冷却
 
@@ -10756,13 +10813,14 @@ function castSkill(skillName) {
         }
         if (player.skillCooldowns.multishot > 0) return;
         player.mp -= 8; player.skillCooldowns.multishot = 1;
+        const base = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
+        player.direction = directionFromDelta(Math.cos(base), Math.sin(base));
         triggerHeroAction('cast', 0.45);
         // 每日任务和成就：使用技能
         if (typeof DailyQuestSystem !== 'undefined') {
             DailyQuestSystem.updateProgress('use_skill', 1);
         }
         trackAchievement('skill_use');
-        const base = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
         const cnt = 2 + player.skills.multishot;
 
         // 发射特效：光芒扩散

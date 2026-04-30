@@ -30,6 +30,15 @@ const BOSS_FRAMES = {
 
 // ========== Boss 工具函数 ==========
 
+function syncBossSkillVisual(boss, action, duration) {
+  if (typeof setMonsterFacingToward === 'function') {
+    setMonsterFacingToward(boss, player.x, player.y, duration);
+  }
+  if (typeof triggerMonsterAction === 'function') {
+    triggerMonsterAction(boss, action, duration);
+  }
+}
+
 // 根据Boss名称获取frameIndex（用于BOSS_FRAMES）
 function getBossFrameIndex(bossName) {
   // 移除"地狱"前缀
@@ -273,6 +282,8 @@ function updateBossSkills(boss, dt) {
 
 // Boss 技能：火焰新星
 function bossFireNova(boss, radius, damage) {
+  syncBossSkillVisual(boss, 'attack', 0.45);
+
   const dist = Math.hypot(player.x - boss.x, player.y - boss.y);
   if (dist < radius && player.invincibleTimer <= 0) {
     const fireDmg = damage * (1 - player.resistances.fire / 100);
@@ -292,6 +303,8 @@ function bossFireNova(boss, radius, damage) {
 
 // Boss 技能：地震波
 function bossGroundSlam(boss) {
+  syncBossSkillVisual(boss, 'attack', 0.55);
+
   const radius = boss.slamRadius || 150;
   const dist = Math.hypot(player.x - boss.x, player.y - boss.y);
   if (dist < radius && player.invincibleTimer <= 0) {
@@ -315,6 +328,8 @@ function bossGroundSlam(boss) {
 
 // Boss 技能：召唤小怪
 function bossSummonMinions(boss) {
+  syncBossSkillVisual(boss, 'attack', 0.65);
+
   const count = boss.summonCount || 2;
   for (let i = 0; i < count; i++) {
     const angle = (i / count) * Math.PI * 2;
@@ -349,6 +364,8 @@ function bossSummonMinions(boss) {
 
 // Boss 技能：吐息攻击（扇形）
 function bossBreathAttack(boss) {
+  syncBossSkillVisual(boss, 'attack', 0.6);
+
   const range = boss.breathRange || 200;
   const halfAngle = (boss.breathAngle || 60) * Math.PI / 360; // 转为弧度的一半
   const angleToPlayer = Math.atan2(player.y - boss.y, player.x - boss.x);
@@ -382,6 +399,8 @@ function bossBreathAttack(boss) {
 
 // Boss 技能：触手攻击
 function bossTentacleAttack(boss) {
+  syncBossSkillVisual(boss, 'attack', 0.5);
+
   const count = boss.tentacleCount || 4;
   const baseAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
 
