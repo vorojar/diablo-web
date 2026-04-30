@@ -1048,7 +1048,7 @@ heroSpriteSheet.onload = () => {
 
 // --- Monster Animation Sprites ---
 const monsterSpriteSheet = new Image();
-monsterSpriteSheet.src = 'monster_sprites.png?v=202604301245';
+monsterSpriteSheet.src = 'monster_sprites.png?v=202604301300';
 let monsterSpritesLoaded = false;
 let processedMonsterSprites = null;
 const MonsterTintCache = {
@@ -1063,7 +1063,7 @@ const MONSTER_SPRITE_CONFIG = {
     rows: 20,
     frameWidth: 128,
     frameHeight: 128,
-    renderSize: 96,
+    renderSize: 76,
     fps: { idle: 3, walk: 6, attack: 8, hurt: 8 },
     types: {
         melee: {
