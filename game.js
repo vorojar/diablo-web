@@ -1048,7 +1048,7 @@ heroSpriteSheet.onload = () => {
 
 // --- Monster Animation Sprites ---
 const monsterSpriteSheet = new Image();
-monsterSpriteSheet.src = 'monster_sprites.png?v=202604301300';
+monsterSpriteSheet.src = 'monster_sprites.png?v=202604301330';
 let monsterSpritesLoaded = false;
 let processedMonsterSprites = null;
 const MonsterTintCache = {
@@ -1060,7 +1060,7 @@ const MonsterTintCache = {
 
 const MONSTER_SPRITE_CONFIG = {
     cols: 4,
-    rows: 20,
+    rows: 44,
     frameWidth: 128,
     frameHeight: 128,
     renderSize: 76,
@@ -1083,6 +1083,24 @@ const MONSTER_SPRITE_CONFIG = {
             walk: { front: { row: 14 }, side: { row: 15 } },
             attack: { front: { row: 16 }, side: { row: 17 } },
             hurt: { front: { row: 18 }, side: { row: 19 } }
+        },
+        skeleton: {
+            idle: { front: { row: 20 }, side: { row: 21 } },
+            walk: { front: { row: 22 }, side: { row: 23 } },
+            attack: { front: { row: 24 }, side: { row: 25 } },
+            hurt: { front: { row: 26 }, side: { row: 27 } }
+        },
+        shaman: {
+            idle: { front: { row: 28 }, side: { row: 29 } },
+            walk: { front: { row: 30 }, side: { row: 31 } },
+            attack: { front: { row: 32 }, side: { row: 33 } },
+            hurt: { front: { row: 34 }, side: { row: 35 } }
+        },
+        mummy: {
+            idle: { front: { row: 36 }, side: { row: 37 } },
+            walk: { front: { row: 38 }, side: { row: 39 } },
+            attack: { front: { row: 40 }, side: { row: 41 } },
+            hurt: { front: { row: 42 }, side: { row: 43 } }
         }
     }
 };
