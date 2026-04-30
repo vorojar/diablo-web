@@ -1303,7 +1303,7 @@ function drawBiomeFloorDecoration(ctx, x, y, size, type, seed, density = 1) {
 
 // 加载环境装饰贴图 (Environment Sprites)
 const envSpriteSheet = new Image();
-envSpriteSheet.src = 'environment_sprites.png?v=202604291730';
+envSpriteSheet.src = 'environment_sprites.png?v=202604302220';
 
 let envSpritesLoaded = false;
 let processedEnvSprites = null;
