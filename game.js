@@ -1048,7 +1048,7 @@ heroSpriteSheet.onload = () => {
 
 // --- Monster Animation Sprites ---
 const monsterSpriteSheet = new Image();
-monsterSpriteSheet.src = 'monster_sprites.png?v=202604301330';
+monsterSpriteSheet.src = 'monster_sprites.png?v=202604301400';
 let monsterSpritesLoaded = false;
 let processedMonsterSprites = null;
 const MonsterTintCache = {
@@ -1060,7 +1060,7 @@ const MonsterTintCache = {
 
 const MONSTER_SPRITE_CONFIG = {
     cols: 4,
-    rows: 44,
+    rows: 68,
     frameWidth: 128,
     frameHeight: 128,
     renderSize: 76,
@@ -1101,6 +1101,24 @@ const MONSTER_SPRITE_CONFIG = {
             walk: { front: { row: 38 }, side: { row: 39 } },
             attack: { front: { row: 40 }, side: { row: 41 } },
             hurt: { front: { row: 42 }, side: { row: 43 } }
+        },
+        ghost: {
+            idle: { front: { row: 44 }, side: { row: 45 } },
+            walk: { front: { row: 46 }, side: { row: 47 } },
+            attack: { front: { row: 48 }, side: { row: 49 } },
+            hurt: { front: { row: 50 }, side: { row: 51 } }
+        },
+        specter: {
+            idle: { front: { row: 52 }, side: { row: 53 } },
+            walk: { front: { row: 54 }, side: { row: 55 } },
+            attack: { front: { row: 56 }, side: { row: 57 } },
+            hurt: { front: { row: 58 }, side: { row: 59 } }
+        },
+        vampire: {
+            idle: { front: { row: 60 }, side: { row: 61 } },
+            walk: { front: { row: 62 }, side: { row: 63 } },
+            attack: { front: { row: 64 }, side: { row: 65 } },
+            hurt: { front: { row: 66 }, side: { row: 67 } }
         }
     }
 };
