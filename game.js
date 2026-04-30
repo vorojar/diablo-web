@@ -1046,6 +1046,78 @@ heroSpriteSheet.onload = () => {
     heroSpritesLoaded = true;
 };
 
+// --- Monster Animation Sprites ---
+const monsterSpriteSheet = new Image();
+monsterSpriteSheet.src = 'monster_sprites.png?v=202604301230';
+let monsterSpritesLoaded = false;
+let processedMonsterSprites = null;
+const MonsterTintCache = {
+    white: null,
+    ice: null,
+    poison: null,
+    lightning: null
+};
+
+const MONSTER_SPRITE_CONFIG = {
+    cols: 4,
+    rows: 20,
+    frameWidth: 128,
+    frameHeight: 128,
+    renderSize: 76,
+    fps: { idle: 3, walk: 6, attack: 8, hurt: 8 },
+    types: {
+        melee: {
+            idle: { front: { row: 0 }, side: { row: 1 } },
+            walk: { front: { row: 2 }, side: { row: 3 } },
+            attack: { front: { row: 4 }, side: { row: 5 } },
+            hurt: { front: { row: 6 }, side: { row: 6 } }
+        },
+        zombie: {
+            idle: { front: { row: 7 }, side: { row: 8 } },
+            walk: { front: { row: 9 }, side: { row: 10 } },
+            attack: { front: { row: 11 }, side: { row: 11 } },
+            hurt: { front: { row: 11 }, side: { row: 11 } }
+        },
+        ranged: {
+            idle: { front: { row: 12 }, side: { row: 13 } },
+            walk: { front: { row: 14 }, side: { row: 15 } },
+            attack: { front: { row: 16 }, side: { row: 17 } },
+            hurt: { front: { row: 18 }, side: { row: 19 } }
+        }
+    }
+};
+
+monsterSpriteSheet.onload = () => {
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = monsterSpriteSheet.width;
+    tempCanvas.height = monsterSpriteSheet.height;
+    tempCtx.drawImage(monsterSpriteSheet, 0, 0);
+
+    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        if (r > 200 && g < 90 && b > 170) data[i + 3] = 0;
+    }
+    tempCtx.putImageData(imageData, 0, 0);
+
+    processedMonsterSprites = document.createElement('canvas');
+    processedMonsterSprites.width = tempCanvas.width;
+    processedMonsterSprites.height = tempCanvas.height;
+    processedMonsterSprites.getContext('2d').drawImage(tempCanvas, 0, 0);
+
+    MONSTER_SPRITE_CONFIG.frameWidth = Math.floor(processedMonsterSprites.width / MONSTER_SPRITE_CONFIG.cols);
+    MONSTER_SPRITE_CONFIG.frameHeight = Math.floor(processedMonsterSprites.height / MONSTER_SPRITE_CONFIG.rows);
+
+    MonsterTintCache.white = createTintedSpriteSheet(processedMonsterSprites, 'brightness(500%) sepia(100%) saturate(0%)');
+    MonsterTintCache.ice = createTintedSpriteSheet(processedMonsterSprites, 'sepia(100%) saturate(150%) hue-rotate(180deg) brightness(120%)');
+    MonsterTintCache.poison = createTintedSpriteSheet(processedMonsterSprites, 'sepia(100%) saturate(300%) hue-rotate(80deg) brightness(80%)');
+    MonsterTintCache.lightning = createTintedSpriteSheet(processedMonsterSprites, 'brightness(300%) saturate(50%)');
+
+    monsterSpritesLoaded = true;
+};
+
 spriteSheet.onload = () => {
     const tempCanvas = document.createElement('canvas');
     const tempCtx = tempCanvas.getContext('2d');
@@ -1869,6 +1941,65 @@ function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH) {
 
     ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
         centerX - drawW / 2, topY, drawW, drawH);
+}
+
+function triggerMonsterAction(enemy, action, duration) {
+    if (!enemy || enemy.isBoss || !MONSTER_SPRITE_CONFIG.types[enemy.type]) return;
+    enemy.monsterAction = action;
+    enemy.monsterActionTimer = Math.max(enemy.monsterActionTimer || 0, duration);
+    enemy.monsterAnimTime = 0;
+}
+
+function getMonsterSpriteDirection(enemy) {
+    const dx = player.x - enemy.x;
+    const dy = player.y - enemy.y;
+    if (Math.abs(dx) > Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
+    return dy >= 0 ? 'front' : 'back';
+}
+
+function getMonsterSpriteFrame(enemy) {
+    if (!monsterSpritesLoaded || !processedMonsterSprites || enemy.isBoss) return null;
+
+    const typeConfig = MONSTER_SPRITE_CONFIG.types[enemy.type];
+    if (!typeConfig) return null;
+
+    let action = 'idle';
+    if (enemy.hitFlashTimer > 0) action = 'hurt';
+    else if (enemy.monsterActionTimer > 0 && enemy.monsterAction) action = enemy.monsterAction;
+    else if (enemy.wasMoving) action = 'walk';
+
+    const direction = getMonsterSpriteDirection(enemy);
+    const actionRows = typeConfig[action] || typeConfig.idle;
+    let frameInfo;
+    if (direction === 'left') frameInfo = actionRows.side;
+    else if (direction === 'right') frameInfo = { ...actionRows.side, flipX: true };
+    else frameInfo = actionRows.front || actionRows.side;
+
+    const fps = MONSTER_SPRITE_CONFIG.fps[action] || MONSTER_SPRITE_CONFIG.fps.idle;
+    const frameIndex = Math.floor((enemy.monsterAnimTime || 0) * fps) % MONSTER_SPRITE_CONFIG.cols;
+    return {
+        x: frameIndex * MONSTER_SPRITE_CONFIG.frameWidth,
+        y: frameInfo.row * MONSTER_SPRITE_CONFIG.frameHeight,
+        width: MONSTER_SPRITE_CONFIG.frameWidth,
+        height: MONSTER_SPRITE_CONFIG.frameHeight,
+        flipX: !!frameInfo.flipX,
+        animated: true
+    };
+}
+
+function drawMonsterSprite(ctx, source, frame, centerX, bottomY, drawW, drawH) {
+    if (frame.flipX) {
+        ctx.save();
+        ctx.translate(centerX, bottomY - drawH);
+        ctx.scale(-1, 1);
+        ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
+            -drawW / 2, 0, drawW, drawH);
+        ctx.restore();
+        return;
+    }
+
+    ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
+        centerX - drawW / 2, bottomY - drawH, drawW, drawH);
 }
 
 function getNPCFrame(frameIndex) {
@@ -4806,6 +4937,16 @@ function updateEnemies(dt) {
     for (let idx = 0, len = enemies.length; idx < len; idx++) {
         const e = enemies[idx];
         if (e.dead) continue;
+        e.monsterAnimTime = (e.monsterAnimTime || 0) + dt;
+        if (e.monsterActionTimer > 0) {
+            e.monsterActionTimer -= dt;
+            if (e.monsterActionTimer <= 0) {
+                e.monsterActionTimer = 0;
+                e.monsterAction = null;
+            }
+        }
+        const prevEnemyX = e.x;
+        const prevEnemyY = e.y;
         if (e.hitFlashTimer > 0) e.hitFlashTimer -= dt; // 更新受击闪白
 
         // Juice 视觉恢复逻辑
@@ -4831,7 +4972,7 @@ function updateEnemies(dt) {
             if (e.poisonTimer <= 0) e.poisoned = false;
         }
 
-        if (e.frozenTimer > 0) { e.frozenTimer -= dt; continue; }
+        if (e.frozenTimer > 0) { e.frozenTimer -= dt; e.wasMoving = false; continue; }
         if (e.slowedTimer > 0) e.slowedTimer -= dt;
         if (e.lightningOverloadTimer > 0) e.lightningOverloadTimer -= dt;
         if (e.cooldown > 0) e.cooldown -= dt;
@@ -4866,6 +5007,7 @@ function updateEnemies(dt) {
                 // 有视线才能射击
                 if (e.cooldown <= 0) {
                     const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                    triggerMonsterAction(e, 'attack', 0.35);
                     projectiles.push(ProjectilePool.acquire({
                         x: e.x,
                         y: e.y,
@@ -4943,6 +5085,7 @@ function updateEnemies(dt) {
                 e.y += (dy / dist) * currentSpeed * dt;
             }
             if (distSq <= 1600 && e.cooldown <= 0) { // 40^2 = 1600
+                triggerMonsterAction(e, 'attack', 0.35);
                 playerTakeDamage(e.dmg, e, { ignoreArmor: e.ignoreArmor });
                 e.cooldown = 1.5;
             }
@@ -4981,6 +5124,7 @@ function updateEnemies(dt) {
                 }
                 // 突进到达后攻击
                 if (dashDist <= 40 && e.cooldown <= 0) {
+                    triggerMonsterAction(e, 'attack', 0.35);
                     const dealt = playerTakeDamage(e.dmg, e, { ignoreArmor: e.ignoreArmor });
                     // 吸血效果（基于实际造成的伤害）
                     if (dealt > 0) {
@@ -5023,6 +5167,7 @@ function updateEnemies(dt) {
                     if (!isWall(e.x, ny)) e.y = ny;
                 } else if (distSq <= 1600 && e.cooldown <= 0) { // 40^2 = 1600
                     // 近身普通攻击
+                    triggerMonsterAction(e, 'attack', 0.35);
                     const dealt = playerTakeDamage(e.dmg, e, { ignoreArmor: e.ignoreArmor });
                     // 吸血效果
                     if (dealt > 0) {
@@ -5047,6 +5192,7 @@ function updateEnemies(dt) {
                 // 有视线才能发射闪电球
                 if (e.cooldown <= 0) {
                     const angle = Math.atan2(player.y - e.y, player.x - e.x);
+                    triggerMonsterAction(e, 'attack', 0.35);
                     projectiles.push(ProjectilePool.acquire({
                         x: e.x,
                         y: e.y,
@@ -5076,6 +5222,7 @@ function updateEnemies(dt) {
                 if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
             }
             if (distSq <= GAME_CONFIG.MONSTER_MELEE_RANGE_SQ && e.cooldown <= 0) {
+                triggerMonsterAction(e, 'attack', 0.35);
                 // 预计算基础伤害（物理+元素）
                 let baseDmg = e.dmg;
                 if (e.elementalDmg) {
@@ -5129,6 +5276,7 @@ function updateEnemies(dt) {
                 }
             }
         }
+        e.wasMoving = Math.hypot(e.x - prevEnemyX, e.y - prevEnemyY) > 0.35;
     }
 }
 
@@ -5302,7 +5450,24 @@ function draw() {
             ctx.strokeStyle = 'rgba(255, 50, 50, 0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
         }
 
-        if (spritesLoaded && processedSpriteSheet && e.frameIndex !== undefined) {
+        const animatedMonsterFrame = getMonsterSpriteFrame(e);
+        if (animatedMonsterFrame) {
+            const renderHeight = MONSTER_SPRITE_CONFIG.renderSize;
+            const renderWidth = renderHeight * animatedMonsterFrame.width / animatedMonsterFrame.height;
+
+            let source = processedMonsterSprites;
+            if (e.hitFlashTimer > 0) source = MonsterTintCache.white;
+            else if (e.frozenTimer > 0 || e.slowedTimer > 0) source = MonsterTintCache.ice;
+            else if (e.poisonTimer > 0) source = MonsterTintCache.poison;
+            else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = MonsterTintCache.lightning;
+
+            ctx.save();
+            ctx.translate(rx, ry);
+            const juiceScale = e.juiceScale || 1.0;
+            ctx.scale(juiceScale, 1.0 / juiceScale);
+            drawMonsterSprite(ctx, source, animatedMonsterFrame, 0, 0, renderWidth, renderHeight);
+            ctx.restore();
+        } else if (spritesLoaded && processedSpriteSheet && e.frameIndex !== undefined) {
             const frame = e.isBoss ? getBossFrame(e.frameIndex) : getMonsterFrame(e.frameIndex);
             const renderHeight = e.isBoss ? 66 : 44;
             const renderWidth = renderHeight * frame.width / frame.height;
