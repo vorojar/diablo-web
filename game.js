@@ -609,6 +609,7 @@ const player = {
     // 技能树系统（初始化为null，存档加载时会处理）
     skillTree: null,
     targetX: null, targetY: null, targetItem: null, attacking: false, attackCooldown: 0, attackAnim: 0,
+    animTime: 0, moving: false, heroAction: null, heroActionTimer: 0,
     skillCooldowns: { fireball: 0, thunder: 0, multishot: 0 },
     // 护盾系统
     shield: {
@@ -972,6 +973,78 @@ function createTintedSpriteSheet(source, filterStr) {
     ctx.drawImage(source, 0, 0);
     return canvas;
 }
+
+// --- Hero Animation Sprites ---
+const heroSpriteSheet = new Image();
+heroSpriteSheet.src = 'hero_sprites.png?v=202604301145';
+let heroSpritesLoaded = false;
+let processedHeroSprites = null;
+const HeroTintCache = {
+    white: null,
+    ice: null,
+    poison: null,
+    lightning: null
+};
+
+const HERO_SPRITE_CONFIG = {
+    cols: 4,
+    rows: 18,
+    frameWidth: 128,
+    frameHeight: 128,
+    renderSize: 88,
+    fps: { idle: 3, walk: 7, attack: 10, cast: 8, sit: 2, hurt: 8 },
+    rowsByAction: {
+        idle: {
+            front: { row: 0 }, back: { row: 1 }, left: { row: 2 }, right: { row: 3 }
+        },
+        walk: {
+            front: { row: 4 }, back: { row: 5 }, left: { row: 6 }, right: { row: 6, flipX: true }
+        },
+        attack: {
+            front: { row: 7 }, back: { row: 8 }, left: { row: 9 }, right: { row: 9, flipX: true }
+        },
+        cast: {
+            front: { row: 10 }, back: { row: 11 }, left: { row: 12 }, right: { row: 13 }
+        },
+        sit: {
+            front: { row: 14 }, back: { row: 15 }, left: { row: 16 }, right: { row: 17 }
+        },
+        hurt: {
+            front: { row: 0 }, back: { row: 1 }, left: { row: 2 }, right: { row: 3 }
+        }
+    }
+};
+
+heroSpriteSheet.onload = () => {
+    const tempCanvas = document.createElement('canvas');
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCanvas.width = heroSpriteSheet.width;
+    tempCanvas.height = heroSpriteSheet.height;
+    tempCtx.drawImage(heroSpriteSheet, 0, 0);
+
+    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+    const data = imageData.data;
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        if (r > 200 && g < 90 && b > 170) data[i + 3] = 0;
+    }
+    tempCtx.putImageData(imageData, 0, 0);
+
+    processedHeroSprites = document.createElement('canvas');
+    processedHeroSprites.width = tempCanvas.width;
+    processedHeroSprites.height = tempCanvas.height;
+    processedHeroSprites.getContext('2d').drawImage(tempCanvas, 0, 0);
+
+    HERO_SPRITE_CONFIG.frameWidth = Math.floor(processedHeroSprites.width / HERO_SPRITE_CONFIG.cols);
+    HERO_SPRITE_CONFIG.frameHeight = Math.floor(processedHeroSprites.height / HERO_SPRITE_CONFIG.rows);
+
+    HeroTintCache.white = createTintedSpriteSheet(processedHeroSprites, 'brightness(500%) sepia(100%) saturate(0%)');
+    HeroTintCache.ice = createTintedSpriteSheet(processedHeroSprites, 'sepia(100%) saturate(150%) hue-rotate(180deg) brightness(120%)');
+    HeroTintCache.poison = createTintedSpriteSheet(processedHeroSprites, 'sepia(100%) saturate(300%) hue-rotate(80deg) brightness(80%)');
+    HeroTintCache.lightning = createTintedSpriteSheet(processedHeroSprites, 'brightness(300%) saturate(50%)');
+
+    heroSpritesLoaded = true;
+};
 
 spriteSheet.onload = () => {
     const tempCanvas = document.createElement('canvas');
@@ -1720,7 +1793,41 @@ function getAchievementStats() {
     return { completed, total, points, maxPoints };
 }
 
+function normalizeHeroDirection(direction) {
+    return ['front', 'back', 'left', 'right'].includes(direction) ? direction : 'front';
+}
+
+function triggerHeroAction(action, duration) {
+    player.heroAction = action;
+    player.heroActionTimer = Math.max(player.heroActionTimer || 0, duration);
+    player.animTime = 0;
+}
+
+function getCurrentHeroAction() {
+    if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) return 'sit';
+    if (player.heroActionTimer > 0 && player.heroAction) return player.heroAction;
+    if (player.moving) return 'walk';
+    return 'idle';
+}
+
 function getHeroFrame(direction) {
+    if (heroSpritesLoaded && processedHeroSprites) {
+        const action = getCurrentHeroAction();
+        const safeDirection = normalizeHeroDirection(direction);
+        const actionRows = HERO_SPRITE_CONFIG.rowsByAction[action] || HERO_SPRITE_CONFIG.rowsByAction.idle;
+        const frameInfo = actionRows[safeDirection] || actionRows.front;
+        const fps = HERO_SPRITE_CONFIG.fps[action] || HERO_SPRITE_CONFIG.fps.idle;
+        const frameIndex = Math.floor((player.animTime || 0) * fps) % HERO_SPRITE_CONFIG.cols;
+        return {
+            x: frameIndex * HERO_SPRITE_CONFIG.frameWidth,
+            y: frameInfo.row * HERO_SPRITE_CONFIG.frameHeight,
+            width: HERO_SPRITE_CONFIG.frameWidth,
+            height: HERO_SPRITE_CONFIG.frameHeight,
+            flipX: !!frameInfo.flipX,
+            animated: true
+        };
+    }
+
     // 如果正在摆摊，使用坐姿帧（索引 4）
     if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) {
         const frameX = 4 * SPRITE_CONFIG.frameWidth; // sit = 4
@@ -1747,6 +1854,21 @@ function getHeroFrame(direction) {
         width: SPRITE_CONFIG.frameWidth,
         height: SPRITE_CONFIG.frameHeight
     };
+}
+
+function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH) {
+    if (frame.flipX) {
+        ctx.save();
+        ctx.translate(centerX, topY);
+        ctx.scale(-1, 1);
+        ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
+            -drawW / 2, 0, drawW, drawH);
+        ctx.restore();
+        return;
+    }
+
+    ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
+        centerX - drawW / 2, topY, drawW, drawH);
 }
 
 function getNPCFrame(frameIndex) {
@@ -3892,6 +4014,16 @@ function update(dt) {
     if (player.mp < player.maxMp) player.mp += mpRegen * dt;
     if (player.attackCooldown > 0) player.attackCooldown -= dt;
     if (player.attackAnim > 0) player.attackAnim -= dt * 5;
+    player.animTime = (player.animTime || 0) + dt;
+    player.moving = false;
+    if (player.heroActionTimer > 0) {
+        player.heroActionTimer -= dt;
+        if (player.heroActionTimer <= 0) {
+            player.heroAction = null;
+            player.heroActionTimer = 0;
+            player.animTime = 0;
+        }
+    }
     if (player.invincibleTimer > 0) player.invincibleTimer -= dt;  // 无敌帧倒计时
     for (let k in player.skillCooldowns) if (player.skillCooldowns[k] > 0) player.skillCooldowns[k] -= dt;
 
@@ -4307,6 +4439,7 @@ function update(dt) {
             const nx = player.x + (dx / dist) * move, ny = player.y + (dy / dist) * move;
             if (!isWall(nx, player.y)) player.x = nx;
             if (!isWall(player.x, ny)) player.y = ny;
+            player.moving = speedMultiplier > 0;
             if (isWall(nx, ny) && isWall(nx, player.y) && isWall(player.x, ny)) player.targetX = null;
         } else {
             // 到达目标位置
@@ -5349,29 +5482,29 @@ function draw() {
         ctx.restore();
     }
 
-    if (spritesLoaded && processedSpriteSheet) {
+    if ((heroSpritesLoaded && processedHeroSprites) || (spritesLoaded && processedSpriteSheet)) {
         const frame = getHeroFrame(player.direction);
-        const renderHeight = 48;
+        const useHeroSheet = heroSpritesLoaded && processedHeroSprites && frame.animated;
+        const renderHeight = useHeroSheet ? HERO_SPRITE_CONFIG.renderSize : 48;
         const renderWidth = renderHeight * frame.width / frame.height;
-        const scale = 1 + player.attackAnim * 0.2;
+        const scale = useHeroSheet ? 1 : 1 + player.attackAnim * 0.2;
 
-        let source = processedSpriteSheet;
-        if (player.frozen || player.slowedTimer > 0) source = TintCache.ice;
-        else if (player.poisoned) source = TintCache.poison;
-        else if (player.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = TintCache.lightning;
+        let source = useHeroSheet ? processedHeroSprites : processedSpriteSheet;
+        const tintCache = useHeroSheet ? HeroTintCache : TintCache;
+        if (player.heroAction === 'hurt' && player.heroActionTimer > 0) source = tintCache.white;
+        else if (player.frozen || player.slowedTimer > 0) source = tintCache.ice;
+        else if (player.poisoned) source = tintCache.poison;
+        else if (player.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = tintCache.lightning;
 
         if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) {
-            ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
-                px - renderWidth / 2, py - renderHeight / 2, renderWidth, renderHeight);
+            drawHeroSprite(ctx, source, frame, px, py - renderHeight / 2, renderWidth, renderHeight);
         } else if (scale === 1) {
-            ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
-                px - renderWidth / 2, py - renderHeight, renderWidth, renderHeight);
+            drawHeroSprite(ctx, source, frame, px, py - renderHeight, renderWidth, renderHeight);
         } else {
             ctx.save();
             ctx.translate(px, py - renderHeight / 2);
             ctx.scale(scale, scale);
-            ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
-                -renderWidth / 2, -renderHeight / 2, renderWidth, renderHeight);
+            drawHeroSprite(ctx, source, frame, 0, -renderHeight / 2, renderWidth, renderHeight);
             ctx.restore();
         }
     } else {
@@ -9287,6 +9420,7 @@ function playerTakeDamage(rawDamage, source, options = {}) {
         createDamageNumber(player.x, player.y - 20, Math.floor(damage), COLORS.damage);
         if (cachedUI.hpOrb) GSAPAnims.shake(cachedUI.hpOrb, 8);
         AudioSys.play('hit');
+        triggerHeroAction('hurt', 0.25);
 
         // 连击中断
         combo.active = false;
@@ -9706,6 +9840,7 @@ function performAttack(t) {
     AudioSys.play('attack');
     createSlashEffect(player.x, player.y, t.x, t.y, dmg, isCrit);  // 传递isCrit给斩击效果
     player.attackAnim = 1;
+    triggerHeroAction('attack', 0.35);
 
     if (player.lifeSteal > 0) {
         let h = Math.ceil(dmg * player.lifeSteal / 100);
@@ -9748,6 +9883,7 @@ function castSkill(skillName) {
         }
         if (player.skillCooldowns.fireball > 0) return;
         player.mp -= 5; player.skillCooldowns.fireball = 0.5;
+        triggerHeroAction('cast', 0.45);
         const angle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
         projectiles.push(ProjectilePool.acquire({
             x: player.x,
@@ -9788,6 +9924,7 @@ function castSkill(skillName) {
         }
 
         player.mp -= cost;
+        triggerHeroAction('cast', 0.45);
         player.skillCooldowns.thunder = 2; // 2秒冷却
 
         // 如果击中可破坏物体
@@ -9921,6 +10058,7 @@ function castSkill(skillName) {
         }
         if (player.skillCooldowns.multishot > 0) return;
         player.mp -= 8; player.skillCooldowns.multishot = 1;
+        triggerHeroAction('cast', 0.45);
         // 每日任务和成就：使用技能
         if (typeof DailyQuestSystem !== 'undefined') {
             DailyQuestSystem.updateProgress('use_skill', 1);
@@ -9993,6 +10131,7 @@ function castSkill(skillName) {
         };
 
         player.mp -= manaCost;
+        triggerHeroAction('cast', 0.45);
 
         // 音效和视觉效果
         AudioSys.play('shield');
