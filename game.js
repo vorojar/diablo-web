@@ -1358,7 +1358,7 @@ envSpriteSheet.onload = () => {
 
 // --- Destructible Sprites ---
 const destructibleSpriteSheet = new Image();
-destructibleSpriteSheet.src = 'destructibles_sprites.png?v=202604291730';
+destructibleSpriteSheet.src = 'destructibles_sprites.png?v=202604302305';
 let destructiblesLoaded = false;
 let processedDestructibleSprites = null;
 let destructibleSpriteBounds = [];
@@ -1472,14 +1472,14 @@ const DestructibleSystem = {
                 sw: DESTRUCTIBLE_CONFIG.cellWidth,
                 sh: DESTRUCTIBLE_CONFIG.cellHeight
             };
-            const drawWidthByType = { barrel: 52, crate: 58, urn: 50 };
-            const drawW = Math.round((drawWidthByType[d.type.name] || 52) * (d.broken ? 1.08 : 1));
+            const drawWidthByType = { barrel: 47, crate: 52, urn: 45 };
+            const drawW = Math.round((drawWidthByType[d.type.name] || 47) * (d.broken ? 1.04 : 1));
             const drawH = Math.round(drawW * (spriteBounds.sh / spriteBounds.sw));
             const rx = Math.round(d.x - drawW / 2);
             const ry = Math.round(d.y - drawH + 12); // 微调底部锚点
 
             ctx.save();
-            ctx.filter = 'brightness(1.16) saturate(1.08) contrast(1.06)';
+            ctx.filter = 'brightness(1.08) saturate(1.04) contrast(1.03)';
             ctx.drawImage(
                 processedDestructibleSprites,
                 spriteBounds.sx, spriteBounds.sy, spriteBounds.sw, spriteBounds.sh,
