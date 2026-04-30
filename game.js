@@ -1532,15 +1532,60 @@ wallTiles.onload = () => {
 };
 
 function getBiomeStyle(floor) {
-    if (floor === 0) return null; // Camp uses default
-    if (player.isInHell) return { tint: 'rgba(200, 50, 0, 0.4)', type: 'fire', ice: false };
+    if (floor === 0 && !player.isInHell) return null; // Camp uses default
+    const depth = player.isInHell ? player.hellFloor : floor;
+    if (player.isInHell || depth > 20) {
+        const deepThemes = [
+            {
+                name: '熔岩裂隙',
+                tint: 'rgba(145, 38, 12, 0.20)',
+                floorWash: 'rgba(20, 4, 2, 0.18)',
+                wallWash: 'rgba(48, 8, 2, 0.24)',
+                edge: 'rgba(255, 105, 38, 0.20)',
+                crack: 'rgba(255, 72, 18, 0.32)',
+                type: 'fire',
+                ice: false
+            },
+            {
+                name: '焦黑石殿',
+                tint: 'rgba(86, 64, 58, 0.22)',
+                floorWash: 'rgba(8, 8, 8, 0.22)',
+                wallWash: 'rgba(0, 0, 0, 0.28)',
+                edge: 'rgba(180, 120, 84, 0.14)',
+                crack: 'rgba(255, 120, 40, 0.18)',
+                type: 'fire',
+                ice: false
+            },
+            {
+                name: '血肉祭坛',
+                tint: 'rgba(105, 12, 38, 0.22)',
+                floorWash: 'rgba(24, 0, 10, 0.20)',
+                wallWash: 'rgba(48, 0, 16, 0.24)',
+                edge: 'rgba(230, 54, 82, 0.16)',
+                crack: 'rgba(150, 0, 35, 0.28)',
+                type: 'fire',
+                ice: false
+            },
+            {
+                name: '黑曜深渊',
+                tint: 'rgba(58, 35, 95, 0.22)',
+                floorWash: 'rgba(5, 4, 14, 0.24)',
+                wallWash: 'rgba(8, 4, 22, 0.28)',
+                edge: 'rgba(130, 90, 220, 0.16)',
+                crack: 'rgba(195, 80, 255, 0.18)',
+                type: 'fire',
+                ice: false
+            }
+        ];
+        return deepThemes[Math.floor((depth - 21) / 7) % deepThemes.length];
+    }
 
     // 1-10: 迷雾森林 (绿色, 潮湿)
     if (floor <= 10) return { tint: 'rgba(50, 200, 80, 0.25)', type: 'forest', ice: false };
     // 11-20: 冰封废墟 (蓝色, 滑)
     if (floor <= 20) return { tint: 'rgba(100, 220, 255, 0.35)', type: 'ice', ice: true };
     // 21+: 熔岩炼狱 (红色)
-    return { tint: 'rgba(255, 80, 20, 0.3)', type: 'fire', ice: false };
+    return { tint: 'rgba(145, 38, 12, 0.20)', floorWash: 'rgba(20, 4, 2, 0.18)', wallWash: 'rgba(48, 8, 2, 0.24)', edge: 'rgba(255, 105, 38, 0.20)', crack: 'rgba(255, 72, 18, 0.32)', type: 'fire', ice: false };
 }
 
 function getWallTextureIndex(floor) {
@@ -3859,46 +3904,294 @@ function generateDungeon() {
     mapData = []; visitedMap = [];
     _minimapDirty = true; _minimapCache = null;  // 重置小地图缓存
     for (let y = 0; y < MAP_HEIGHT; y++) { mapData.push(new Array(MAP_WIDTH).fill(0)); visitedMap.push(new Array(MAP_WIDTH).fill(false)); }
-    let cx = Math.floor(MAP_WIDTH / 2), cy = Math.floor(MAP_HEIGHT / 2);
-    dungeonEntrance = { x: cx * TILE_SIZE + TILE_SIZE / 2, y: cy * TILE_SIZE + TILE_SIZE / 2 };
+    const centerX = Math.floor(MAP_WIDTH / 2);
+    const centerY = Math.floor(MAP_HEIGHT / 2);
+    const currentFloor = player.isInHell ? player.hellFloor : player.floor;
+    const floorScale = Math.min(1, 0.45 + currentFloor * 0.055);
+    dungeonEntrance = { x: centerX * TILE_SIZE + TILE_SIZE / 2, y: centerY * TILE_SIZE + TILE_SIZE / 2 };
 
-    // 辅助函数：挖掘2x2区域（走廊加宽，防止自动战斗卡住）
-    const carve = (x, y) => {
-        for (let dy = 0; dy <= 1; dy++) {
-            for (let dx = 0; dx <= 1; dx++) {
-                const nx = x + dx, ny = y + dy;
-                if (nx >= 1 && nx < MAP_WIDTH - 1 && ny >= 1 && ny < MAP_HEIGHT - 1) {
-                    mapData[ny][nx] = 1;
-                }
+    const rooms = [];
+    const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+    const isInside = (x, y) => x >= 1 && x < MAP_WIDTH - 1 && y >= 1 && y < MAP_HEIGHT - 1;
+
+    const carveTile = (x, y) => {
+        if (isInside(x, y)) mapData[y][x] = 1;
+    };
+
+    const carveBrush = (x, y, radius = 1) => {
+        for (let dy = -radius; dy <= radius; dy++) {
+            for (let dx = -radius; dx <= radius; dx++) {
+                if (dx * dx + dy * dy <= radius * radius + 0.75) carveTile(x + dx, y + dy);
             }
         }
     };
 
-    // 地图大小随层数增长：1层最小，10层后固定最大
-    const currentFloor = player.isInHell ? player.hellFloor : player.floor;
-    const floorScale = Math.min(1, 0.4 + currentFloor * 0.06);  // 1层40%，10层100%
-    const iterations = Math.floor(MAP_WIDTH * MAP_HEIGHT * 0.2 * floorScale);
-    for (let i = 0; i < iterations; i++) {
-        carve(cx, cy);
-        const d = Math.floor(Math.random() * 4);
-        if (d === 0) cy -= 2; else if (d === 1) cy += 2; else if (d === 2) cx -= 2; else cx += 2;
-        if (cx < 2) cx = 2; if (cx > MAP_WIDTH - 3) cx = MAP_WIDTH - 3;
-        if (cy < 2) cy = 2; if (cy > MAP_HEIGHT - 3) cy = MAP_HEIGHT - 3;
-    }
-    let maxD = 0;
-    let sx = Math.floor(dungeonEntrance.x / TILE_SIZE), sy = Math.floor(dungeonEntrance.y / TILE_SIZE);
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-        for (let x = 0; x < MAP_WIDTH; x++) {
-            if (mapData[y][x] === 1) {
-                const d = Math.hypot(x - sx, y - sy);
-                if (d > maxD) {
-                    maxD = d;
-                    dungeonExit.x = x * TILE_SIZE + TILE_SIZE / 2;
-                    dungeonExit.y = y * TILE_SIZE + TILE_SIZE / 2;
-                }
+    const carveRoom = (room) => {
+        for (let y = room.y; y < room.y + room.h; y++) {
+            for (let x = room.x; x < room.x + room.w; x++) {
+                carveTile(x, y);
             }
         }
+    };
+
+    const addRoom = (cx, cy, w, h, allowOverlap = false) => {
+        w += w % 2 === 0 ? 1 : 0;
+        h += h % 2 === 0 ? 1 : 0;
+        const room = {
+            x: clamp(Math.floor(cx - w / 2), 2, MAP_WIDTH - w - 2),
+            y: clamp(Math.floor(cy - h / 2), 2, MAP_HEIGHT - h - 2),
+            w,
+            h
+        };
+        room.cx = Math.floor(room.x + room.w / 2);
+        room.cy = Math.floor(room.y + room.h / 2);
+
+        if (!allowOverlap) {
+            for (const other of rooms) {
+                const separated =
+                    room.x + room.w + 2 < other.x ||
+                    other.x + other.w + 2 < room.x ||
+                    room.y + room.h + 2 < other.y ||
+                    other.y + other.h + 2 < room.y;
+                if (!separated) return null;
+            }
+        }
+
+        rooms.push(room);
+        carveRoom(room);
+        return room;
+    };
+
+    addRoom(centerX, centerY, 9, 9, true);
+
+    const targetRooms = Math.floor(8 + floorScale * 11);
+    const mapRadiusX = Math.floor((MAP_WIDTH / 2 - 3) * floorScale);
+    const mapRadiusY = Math.floor((MAP_HEIGHT / 2 - 3) * floorScale);
+    let attempts = 0;
+    while (rooms.length < targetRooms && attempts < targetRooms * 30) {
+        attempts++;
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.sqrt(Math.random()) * 0.95;
+        const rx = centerX + Math.cos(angle) * mapRadiusX * distance;
+        const ry = centerY + Math.sin(angle) * mapRadiusY * distance;
+        const roomScale = currentFloor >= 10 ? 1 : 0.75 + floorScale * 0.25;
+        const w = Math.round(randInt(5, 11) * roomScale);
+        const h = Math.round(randInt(5, 11) * roomScale);
+        addRoom(rx, ry, w, h);
     }
+
+    rooms.sort((a, b) => Math.hypot(a.cx - centerX, a.cy - centerY) - Math.hypot(b.cx - centerX, b.cy - centerY));
+
+    const carveCorridor = (from, to, width = 1) => {
+        const horizontalFirst = Math.random() < 0.5;
+        let x = from.cx, y = from.cy;
+        const carveStep = () => carveBrush(x, y, width);
+        const walkX = () => {
+            const sx = Math.sign(to.cx - x);
+            while (x !== to.cx) {
+                x += sx;
+                carveStep();
+            }
+        };
+        const walkY = () => {
+            const sy = Math.sign(to.cy - y);
+            while (y !== to.cy) {
+                y += sy;
+                carveStep();
+            }
+        };
+
+        carveStep();
+        if (horizontalFirst) {
+            walkX();
+            walkY();
+        } else {
+            walkY();
+            walkX();
+        }
+    };
+
+    const spineCount = Math.max(6, Math.floor(rooms.length * 0.65));
+    for (let i = 1; i < rooms.length; i++) {
+        if (i < spineCount) {
+            carveCorridor(rooms[i], rooms[i - 1], currentFloor >= 8 ? 1 : 0);
+            continue;
+        }
+
+        let best = 0;
+        let bestDist = Infinity;
+        for (let j = 0; j < i; j++) {
+            const d = Math.hypot(rooms[i].cx - rooms[j].cx, rooms[i].cy - rooms[j].cy);
+            if (d < bestDist) {
+                best = j;
+                bestDist = d;
+            }
+        }
+        carveCorridor(rooms[i], rooms[best], currentFloor >= 8 ? 1 : 0);
+    }
+
+    const loopCount = Math.floor(1 + floorScale * 3);
+    for (let i = 0; i < loopCount && rooms.length > 3; i++) {
+        const a = rooms[randInt(0, rooms.length - 1)];
+        let b = rooms[randInt(0, rooms.length - 1)];
+        if (a === b) b = rooms[(rooms.indexOf(a) + randInt(1, rooms.length - 1)) % rooms.length];
+        if (Math.hypot(a.cx - b.cx, a.cy - b.cy) > 16) carveCorridor(a, b, 1);
+    }
+
+    const cavePasses = Math.floor(20 + floorScale * 25);
+    for (let i = 0; i < cavePasses; i++) {
+        const base = rooms[randInt(0, rooms.length - 1)];
+        let x = base.cx + randInt(-Math.floor(base.w / 2), Math.floor(base.w / 2));
+        let y = base.cy + randInt(-Math.floor(base.h / 2), Math.floor(base.h / 2));
+        const steps = randInt(4, 10);
+        for (let step = 0; step < steps; step++) {
+            carveBrush(x, y, Math.random() < 0.25 ? 2 : 1);
+            const d = randInt(0, 3);
+            if (d === 0) y--; else if (d === 1) y++; else if (d === 2) x--; else x++;
+            x = clamp(x, 2, MAP_WIDTH - 3);
+            y = clamp(y, 2, MAP_HEIGHT - 3);
+        }
+    }
+
+    const sx = Math.floor(dungeonEntrance.x / TILE_SIZE);
+    const sy = Math.floor(dungeonEntrance.y / TILE_SIZE);
+    const scanReachable = () => {
+        const queue = [{ x: sx, y: sy, d: 0 }];
+        const seen = Array.from({ length: MAP_HEIGHT }, () => new Array(MAP_WIDTH).fill(false));
+        seen[sy][sx] = true;
+        let farthest = queue[0];
+
+        for (let i = 0; i < queue.length; i++) {
+            const node = queue[i];
+            if (node.d > farthest.d) farthest = node;
+            const neighbors = [
+                { x: node.x + 1, y: node.y },
+                { x: node.x - 1, y: node.y },
+                { x: node.x, y: node.y + 1 },
+                { x: node.x, y: node.y - 1 }
+            ];
+            for (const next of neighbors) {
+                if (!isInside(next.x, next.y) || seen[next.y][next.x] || mapData[next.y][next.x] !== 1) continue;
+                seen[next.y][next.x] = true;
+                queue.push({ x: next.x, y: next.y, d: node.d + 1 });
+            }
+        }
+
+        return { seen, farthest, queue };
+    };
+
+    let reachable = scanReachable();
+    let seen = reachable.seen;
+    let farthest = reachable.farthest;
+
+    let branchSource = farthest;
+    let branchSourceScore = -Infinity;
+    const branchDirs = [
+        { dx: 1, dy: 0 },
+        { dx: -1, dy: 0 },
+        { dx: 0, dy: 1 },
+        { dx: 0, dy: -1 }
+    ];
+    for (const node of reachable.queue) {
+        let wallNeighbor = false;
+        for (const dir of branchDirs) {
+            const nx = node.x + dir.dx;
+            const ny = node.y + dir.dy;
+            if (isInside(nx, ny) && mapData[ny][nx] === 0) wallNeighbor = true;
+        }
+        if (!wallNeighbor) continue;
+
+        const score = node.d * 3 + Math.hypot(node.x - centerX, node.y - centerY);
+        if (score > branchSourceScore) {
+            branchSourceScore = score;
+            branchSource = node;
+        }
+    }
+
+    let branchX = branchSource.x;
+    let branchY = branchSource.y;
+    let lastDir = null;
+    const targetDepth = currentFloor >= 10 ? 100 : Math.floor(35 + currentFloor * 6);
+    const branchSteps = currentFloor >= 10 ? Math.floor(40 + floorScale * 50) : Math.floor(8 + currentFloor * 4);
+    for (let i = 0; i < branchSteps; i++) {
+        const candidates = branchDirs;
+        let best = null;
+        let bestScore = -Infinity;
+        for (const dir of candidates) {
+            const nx = branchX + dir.dx;
+            const ny = branchY + dir.dy;
+            if (!isInside(nx, ny) || mapData[ny][nx] === 1) continue;
+
+            let adjacentFloors = 0;
+            for (const check of candidates) {
+                const ax = nx + check.dx;
+                const ay = ny + check.dy;
+                if (isInside(ax, ay) && mapData[ay][ax] === 1) adjacentFloors++;
+            }
+            const outward = Math.hypot(nx - centerX, ny - centerY);
+            const continuity = lastDir && lastDir.dx === dir.dx && lastDir.dy === dir.dy ? 6 : 0;
+            const score = outward * 2 + continuity - adjacentFloors * 12 + Math.random() * 4;
+            if (score > bestScore) {
+                bestScore = score;
+                best = { x: nx, y: ny, dx: dir.dx, dy: dir.dy };
+            }
+        }
+
+        if (!best) break;
+        branchX = best.x;
+        branchY = best.y;
+        lastDir = { dx: best.dx, dy: best.dy };
+        carveTile(branchX, branchY);
+    }
+
+    reachable = scanReachable();
+    seen = reachable.seen;
+    farthest = reachable.farthest;
+
+    if (currentFloor >= 10 && farthest.d < targetDepth) {
+        const edgeX = farthest.x < centerX ? 2 : MAP_WIDTH - 3;
+        const edgeY = farthest.y < centerY ? 2 : MAP_HEIGHT - 3;
+        const tailPath = [];
+        let tailX = farthest.x;
+        let tailY = farthest.y;
+        const pushTail = () => tailPath.push({ x: tailX, y: tailY });
+        pushTail();
+        while (tailX !== edgeX) {
+            tailX += Math.sign(edgeX - tailX);
+            pushTail();
+        }
+        while (tailY !== edgeY) {
+            tailY += Math.sign(edgeY - tailY);
+            pushTail();
+        }
+
+        const walkDir = edgeX === 2 ? 1 : -1;
+        const tailEndX = edgeX === 2 ? MAP_WIDTH - 3 : 2;
+        while (tailX !== tailEndX) {
+            tailX += walkDir;
+            pushTail();
+        }
+
+        for (const tile of tailPath) {
+            carveTile(tile.x, tile.y);
+        }
+
+        reachable = scanReachable();
+        seen = reachable.seen;
+        farthest = reachable.farthest;
+    }
+
+    for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+        for (let x = 1; x < MAP_WIDTH - 1; x++) {
+            if (mapData[y][x] === 1 && !seen[y][x]) mapData[y][x] = 0;
+        }
+    }
+
+    dungeonExit = {
+        x: farthest.x * TILE_SIZE + TILE_SIZE / 2,
+        y: farthest.y * TILE_SIZE + TILE_SIZE / 2
+    };
 
     // 放置可破坏物体 (确保在地图生成完成后调用)
     seedDestructibles();
@@ -3934,6 +4227,107 @@ function seedDestructibles() {
             }
             attempts++;
         }
+    }
+}
+
+function mapTileNoise(seed) {
+    const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    return value - Math.floor(value);
+}
+
+function hasFloorAtTile(x, y) {
+    return y >= 0 && y < MAP_HEIGHT && x >= 0 && x < MAP_WIDTH && mapData[y][x] === 1;
+}
+
+function drawDungeonFloorDetails(ctx, x, y, c, r, biome) {
+    if (!biome) return;
+
+    const seed = r * 4099 + c * 131;
+    const n = mapTileNoise(seed);
+
+    if (biome.floorWash) {
+        ctx.fillStyle = biome.floorWash;
+        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+    }
+
+    if (n > 0.58) {
+        ctx.fillStyle = n > 0.86 ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.075)';
+        ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+    }
+
+    if (!hasFloorAtTile(c, r - 1)) {
+        const grad = ctx.createLinearGradient(0, y, 0, y + TILE_SIZE * 0.55);
+        grad.addColorStop(0, 'rgba(0,0,0,0.32)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE * 0.55);
+    }
+    if (!hasFloorAtTile(c - 1, r)) {
+        const grad = ctx.createLinearGradient(x, 0, x + TILE_SIZE * 0.35, 0);
+        grad.addColorStop(0, 'rgba(0,0,0,0.22)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, TILE_SIZE * 0.35, TILE_SIZE);
+    }
+
+    if (biome.crack && n > 0.70) {
+        ctx.save();
+        ctx.strokeStyle = biome.crack;
+        ctx.lineWidth = n > 0.92 ? 2 : 1;
+        ctx.globalAlpha = n > 0.92 ? 0.85 : 0.55;
+        ctx.beginPath();
+        const startX = x + 5 + mapTileNoise(seed + 1) * 12;
+        const startY = y + 6 + mapTileNoise(seed + 2) * 16;
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(x + 14 + mapTileNoise(seed + 3) * 12, y + 12 + mapTileNoise(seed + 4) * 12);
+        ctx.lineTo(x + 20 + mapTileNoise(seed + 5) * 9, y + 20 + mapTileNoise(seed + 6) * 8);
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    if (biome.edge && n > 0.94) {
+        ctx.fillStyle = biome.edge;
+        ctx.fillRect(x + 8, y + TILE_SIZE - 5, TILE_SIZE - 16, 2);
+    }
+}
+
+function drawDungeonWallDetails(ctx, x, y, c, r, biome) {
+    if (!biome) return;
+
+    if (biome.wallWash) {
+        ctx.fillStyle = biome.wallWash;
+        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+    }
+
+    const touchesFloor =
+        hasFloorAtTile(c, r + 1) ||
+        hasFloorAtTile(c, r - 1) ||
+        hasFloorAtTile(c + 1, r) ||
+        hasFloorAtTile(c - 1, r);
+    if (!touchesFloor) return;
+
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(x, y + TILE_SIZE - 8, TILE_SIZE, 8);
+
+    ctx.strokeStyle = biome.edge || 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    if (hasFloorAtTile(c, r + 1)) {
+        ctx.beginPath();
+        ctx.moveTo(x + 2, y + TILE_SIZE - 9);
+        ctx.lineTo(x + TILE_SIZE - 2, y + TILE_SIZE - 9);
+        ctx.stroke();
+    }
+    if (hasFloorAtTile(c - 1, r)) {
+        ctx.beginPath();
+        ctx.moveTo(x + 1, y + 4);
+        ctx.lineTo(x + 1, y + TILE_SIZE - 4);
+        ctx.stroke();
+    }
+    if (hasFloorAtTile(c + 1, r)) {
+        ctx.beginPath();
+        ctx.moveTo(x + TILE_SIZE - 2, y + 4);
+        ctx.lineTo(x + TILE_SIZE - 2, y + TILE_SIZE - 4);
+        ctx.stroke();
     }
 }
 
@@ -4006,6 +4400,7 @@ function generateMapCache() {
                         cctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10);
                     }
                 }
+                drawDungeonWallDetails(cctx, x, y, c, r, biome);
             } else {
                 // 地板
                 if (floorTilesLoaded) {
@@ -4042,6 +4437,7 @@ function generateMapCache() {
                         cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
                     }
                 }
+                drawDungeonFloorDetails(cctx, x, y, c, r, biome);
             }
         }
     }
