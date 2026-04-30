@@ -1260,59 +1260,45 @@ itemSpriteSheet.onload = () => {
     itemSpritesLoaded = true;
 };
 
-// 程序化墙壁细节绘制 (使用 Sprite Sheet)
-// 程序化墙壁细节绘制 (使用 Sprite Sheet)
-// 返回是否成功绘制了 Sprite
-function drawBiomeWallDetails(ctx, x, y, size, type, seed) {
-    if (envSpritesLoaded && processedEnvSprites) {
-        // 使用伪随机数决定画什么
-        const hash = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
-        const rand = hash - Math.floor(hash);
+function drawBiomeFloorDecoration(ctx, x, y, size, type, seed, density = 1) {
+    if (!envSpritesLoaded || !processedEnvSprites) return false;
 
-        // 10% 概率替换为装饰物，90% 保持原有墙壁
-        if (rand < 0.1) {
-            // 每个群系现在有 2 行变体 (共16种)
-            let startRow = 6; // Default Misc (Rows 6-7)
-            if (type === 'forest') startRow = 0;
-            else if (type === 'ice') startRow = 2;
-            else if (type === 'fire') startRow = 4;
+    const hash = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    const rand = hash - Math.floor(hash);
+    const chance = Math.min(0.16, 0.035 * density);
+    if (rand > chance) return false;
 
-            // 随机选择该群系的 2 行中的一行
-            const row = startRow + (Math.floor(rand * 1000) % 2);
+    let startRow = 6;
+    if (type === 'forest') startRow = 0;
+    else if (type === 'ice') startRow = 2;
+    else if (type === 'fire') startRow = 4;
 
-            // 随机选择该行的某一列 (0-7)
-            const col = Math.floor(rand * 100) % 8;
+    const row = startRow + (Math.floor(rand * 1000) % 2);
+    const col = Math.floor(rand * 100) % 8;
+    const paddingX = envCellWidth * 0.05;
+    const paddingY = envCellHeight * 0.05;
+    const sx = col * envCellWidth + paddingX;
+    const sy = row * envCellHeight + paddingY;
+    const sw = envCellWidth - 2 * paddingX;
+    const sh = envCellHeight - 2 * paddingY;
+    const ratio = sw / sh;
+    const scale = 0.70 + rand * 0.28;
+    let drawH = size * scale;
+    let drawW = drawH * ratio;
 
-            // 绘制贴图 - 修正裁切问题
-            // 为了防止切到边缘或隔壁的图，我们向内收缩 5%
-            const paddingX = envCellWidth * 0.05;
-            const paddingY = envCellHeight * 0.05;
-
-            // 源矩形 (在 Sprite Sheet 上的位置)
-            const sx = col * envCellWidth + paddingX;
-            const sy = row * envCellHeight + paddingY;
-            const sw = envCellWidth - 2 * paddingX;
-            const sh = envCellHeight - 2 * paddingY;
-
-            // 目标尺寸
-            // 保持宽高比
-            const ratio = sw / sh;
-            let drawH = size * 1.1; // 高度设为格子的 1.1 倍 (原 1.5)
-            let drawW = drawH * ratio; // 宽度自适应
-
-            // 居中偏移
-            const offsetX = (size - drawW) / 2;
-            const offsetY = (size - drawH) + 2; // 微调底部对齐
-
-            ctx.drawImage(processedEnvSprites,
-                sx, sy, sw, sh,
-                x + offsetX, y + offsetY, drawW, drawH
-            );
-            return true;
-        }
-        return false;
+    if (drawW > size * 1.18) {
+        drawW = size * 1.18;
+        drawH = drawW / ratio;
     }
-    return false;
+
+    const offsetX = (size - drawW) / 2 + (mapTileNoise(seed + 9) - 0.5) * size * 0.22;
+    const offsetY = size - drawH - 3 + (mapTileNoise(seed + 17) - 0.5) * 3;
+
+    ctx.save();
+    ctx.globalAlpha = 0.88;
+    ctx.drawImage(processedEnvSprites, sx, sy, sw, sh, x + offsetX, y + offsetY, drawW, drawH);
+    ctx.restore();
+    return true;
 }
 
 // 加载环境装饰贴图 (Environment Sprites)
@@ -4291,6 +4277,31 @@ function drawDungeonFloorDetails(ctx, x, y, c, r, biome) {
     }
 }
 
+function getFloorDecorationDensity(c, r) {
+    if (!hasFloorAtTile(c, r)) return 0;
+    let wallNeighbors = 0;
+    let floorNeighbors = 0;
+    const checks = [
+        { x: c + 1, y: r },
+        { x: c - 1, y: r },
+        { x: c, y: r + 1 },
+        { x: c, y: r - 1 },
+        { x: c + 1, y: r + 1 },
+        { x: c - 1, y: r + 1 },
+        { x: c + 1, y: r - 1 },
+        { x: c - 1, y: r - 1 }
+    ];
+
+    for (const tile of checks) {
+        if (hasFloorAtTile(tile.x, tile.y)) floorNeighbors++;
+        else wallNeighbors++;
+    }
+
+    if (floorNeighbors < 5) return 0;
+    if (wallNeighbors === 0) return 0.35;
+    return 1 + Math.min(2, wallNeighbors * 0.35);
+}
+
 function drawDungeonWallDetails(ctx, x, y, c, r, biome) {
     if (!biome) return;
 
@@ -4360,45 +4371,23 @@ function generateMapCache() {
 
             if (mapData[r][c] === 0) {
                 // 墙壁
-                let drawnSprite = false;
-
-                if (biome && envSpritesLoaded && processedEnvSprites) {
-                    // 先画地板底色
-                    if (floorTilesLoaded) {
-                        const floorIndex = getFloorTextureIndex(player.floor);
-                        const tileHeight = floorTiles.height / 3;
-                        cctx.drawImage(floorTiles, 0, floorIndex * tileHeight, floorTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
-                    } else {
-                        cctx.fillStyle = '#151515';
+                if (wallTilesLoaded) {
+                    const wallIndex = getWallTextureIndex(player.floor);
+                    const tileHeight = wallTiles.height / 3;
+                    cctx.drawImage(wallTiles, 0, wallIndex * tileHeight, wallTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
+                    if (biome) {
+                        cctx.fillStyle = biome.tint;
                         cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
                     }
-                    // 地板色调叠加
-                    cctx.fillStyle = biome.tint;
+                } else {
+                    cctx.fillStyle = COLORS.wall;
                     cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-
-                    // 绘制 Sprite
-                    drawnSprite = drawBiomeWallDetails(cctx, x, y, TILE_SIZE, biome.type, r * 1000 + c);
-                }
-
-                if (!drawnSprite) {
-                    if (wallTilesLoaded) {
-                        const wallIndex = getWallTextureIndex(player.floor);
-                        const tileHeight = wallTiles.height / 3;
-                        cctx.drawImage(wallTiles, 0, wallIndex * tileHeight, wallTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
-                        if (biome) {
-                            cctx.fillStyle = biome.tint;
-                            cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        }
-                    } else {
-                        cctx.fillStyle = COLORS.wall;
+                    if (biome) {
+                        cctx.fillStyle = biome.tint;
                         cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        if (biome) {
-                            cctx.fillStyle = biome.tint;
-                            cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        }
-                        cctx.fillStyle = '#111';
-                        cctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10);
                     }
+                    cctx.fillStyle = '#111';
+                    cctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10);
                 }
                 drawDungeonWallDetails(cctx, x, y, c, r, biome);
             } else {
@@ -4438,6 +4427,12 @@ function generateMapCache() {
                     }
                 }
                 drawDungeonFloorDetails(cctx, x, y, c, r, biome);
+                if (biome) {
+                    const decorationDensity = getFloorDecorationDensity(c, r);
+                    if (decorationDensity > 0) {
+                        drawBiomeFloorDecoration(cctx, x, y, TILE_SIZE, biome.type, r * 1000 + c, decorationDensity);
+                    }
+                }
             }
         }
     }
