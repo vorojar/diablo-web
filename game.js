@@ -1361,6 +1361,57 @@ const destructibleSpriteSheet = new Image();
 destructibleSpriteSheet.src = 'destructibles_sprites.png?v=202604291730';
 let destructiblesLoaded = false;
 let processedDestructibleSprites = null;
+let destructibleSpriteBounds = [];
+
+function calculateSpriteCellBounds(imageData, cols, rows, alphaThreshold = 16) {
+    const bounds = [];
+    const cellWidth = imageData.width / cols;
+    const cellHeight = imageData.height / rows;
+    const data = imageData.data;
+
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            const startX = Math.floor(col * cellWidth);
+            const endX = Math.floor((col + 1) * cellWidth);
+            const startY = Math.floor(row * cellHeight);
+            const endY = Math.floor((row + 1) * cellHeight);
+            let minX = endX;
+            let minY = endY;
+            let maxX = startX;
+            let maxY = startY;
+
+            for (let y = startY; y < endY; y++) {
+                for (let x = startX; x < endX; x++) {
+                    const alpha = data[(y * imageData.width + x) * 4 + 3];
+                    if (alpha <= alphaThreshold) continue;
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+
+            if (minX > maxX || minY > maxY) {
+                bounds[row * cols + col] = { sx: startX, sy: startY, sw: cellWidth, sh: cellHeight };
+                continue;
+            }
+
+            const padding = 4;
+            minX = Math.max(startX, minX - padding);
+            minY = Math.max(startY, minY - padding);
+            maxX = Math.min(endX - 1, maxX + padding);
+            maxY = Math.min(endY - 1, maxY + padding);
+            bounds[row * cols + col] = {
+                sx: minX,
+                sy: minY,
+                sw: maxX - minX + 1,
+                sh: maxY - minY + 1
+            };
+        }
+    }
+
+    return bounds;
+}
 
 destructibleSpriteSheet.onload = () => {
     const tempCanvas = document.createElement('canvas');
@@ -1380,6 +1431,7 @@ destructibleSpriteSheet.onload = () => {
     // 计算格尺寸 (3行 x 2列)
     DESTRUCTIBLE_CONFIG.cellWidth = processedDestructibleSprites.width / 2;
     DESTRUCTIBLE_CONFIG.cellHeight = processedDestructibleSprites.height / 3;
+    destructibleSpriteBounds = calculateSpriteCellBounds(imageData, 2, 3);
     destructiblesLoaded = true;
 };
 
@@ -1413,18 +1465,27 @@ const DestructibleSystem = {
             if (d.x < camera.x - 100 || d.x > camera.x + canvas.width + 100 ||
                 d.y < camera.y - 120 || d.y > camera.y + canvas.height + 100) return;
 
-            const sw = DESTRUCTIBLE_CONFIG.cellWidth;
-            const sh = DESTRUCTIBLE_CONFIG.cellHeight;
-            const sx = d.broken ? sw : 0;
-            const sy = d.type.row * sh;
-
-            // 再次增大尺寸，使其更加饱满
-            const drawW = 42;
-            const drawH = Math.round(drawW * (sh / sw));
+            const spriteIndex = d.type.row * 2 + (d.broken ? 1 : 0);
+            const spriteBounds = destructibleSpriteBounds[spriteIndex] || {
+                sx: d.broken ? DESTRUCTIBLE_CONFIG.cellWidth : 0,
+                sy: d.type.row * DESTRUCTIBLE_CONFIG.cellHeight,
+                sw: DESTRUCTIBLE_CONFIG.cellWidth,
+                sh: DESTRUCTIBLE_CONFIG.cellHeight
+            };
+            const drawWidthByType = { barrel: 52, crate: 58, urn: 50 };
+            const drawW = Math.round((drawWidthByType[d.type.name] || 52) * (d.broken ? 1.08 : 1));
+            const drawH = Math.round(drawW * (spriteBounds.sh / spriteBounds.sw));
             const rx = Math.round(d.x - drawW / 2);
             const ry = Math.round(d.y - drawH + 12); // 微调底部锚点
 
-            ctx.drawImage(processedDestructibleSprites, sx, sy, sw, sh, rx, ry, drawW, drawH);
+            ctx.save();
+            ctx.filter = 'brightness(1.16) saturate(1.08) contrast(1.06)';
+            ctx.drawImage(
+                processedDestructibleSprites,
+                spriteBounds.sx, spriteBounds.sy, spriteBounds.sw, spriteBounds.sh,
+                rx, ry, drawW, drawH
+            );
+            ctx.restore();
         });
     },
 
