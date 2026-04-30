@@ -1048,7 +1048,7 @@ heroSpriteSheet.onload = () => {
 
 // --- Monster Animation Sprites ---
 const monsterSpriteSheet = new Image();
-monsterSpriteSheet.src = 'monster_sprites.png?v=202604301230';
+monsterSpriteSheet.src = 'monster_sprites.png?v=202604301245';
 let monsterSpritesLoaded = false;
 let processedMonsterSprites = null;
 const MonsterTintCache = {
@@ -1063,7 +1063,7 @@ const MONSTER_SPRITE_CONFIG = {
     rows: 20,
     frameWidth: 128,
     frameHeight: 128,
-    renderSize: 76,
+    renderSize: 96,
     fps: { idle: 3, walk: 6, attack: 8, hurt: 8 },
     types: {
         melee: {
@@ -1943,8 +1943,13 @@ function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH) {
         centerX - drawW / 2, topY, drawW, drawH);
 }
 
+function getEnemyMonsterType(enemy) {
+    return enemy?.monsterType || enemy?.type;
+}
+
 function triggerMonsterAction(enemy, action, duration) {
-    if (!enemy || enemy.isBoss || !MONSTER_SPRITE_CONFIG.types[enemy.type]) return;
+    const monsterType = getEnemyMonsterType(enemy);
+    if (!enemy || enemy.isBoss || !MONSTER_SPRITE_CONFIG.types[monsterType]) return;
     enemy.monsterAction = action;
     enemy.monsterActionTimer = Math.max(enemy.monsterActionTimer || 0, duration);
     enemy.monsterAnimTime = 0;
@@ -1960,7 +1965,7 @@ function getMonsterSpriteDirection(enemy) {
 function getMonsterSpriteFrame(enemy) {
     if (!monsterSpritesLoaded || !processedMonsterSprites || enemy.isBoss) return null;
 
-    const typeConfig = MONSTER_SPRITE_CONFIG.types[enemy.type];
+    const typeConfig = MONSTER_SPRITE_CONFIG.types[getEnemyMonsterType(enemy)];
     if (!typeConfig) return null;
 
     let action = 'idle';
