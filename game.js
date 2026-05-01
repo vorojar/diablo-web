@@ -293,6 +293,8 @@ const ParticlePool = {
             // 清理物理属性，防止复用污染
             p.z = undefined; p.vz = undefined; p.vx = undefined; p.vy = undefined;
             p.gravity = undefined; p.type = undefined; p.canBake = undefined; p.size = 3;
+            p.maxLife = undefined; p.radius = undefined; p.grow = undefined; p.width = undefined;
+            p.angle = undefined; p.length = undefined; p.color2 = undefined; p.rotation = undefined;
             this._pool.push(p);
         }
     }
@@ -394,7 +396,8 @@ const EnemyPool = {
             phaseThrough: false, dodgeChance: 0, poisonOnHit: false, poisonDamage: 0,
             lifeSteal: 0, slamHit: false, blockChance: 0, moraleTimer: 0, fleeYellTimer: 0,
             isDashing: false, dashTimer: 0, dashCooldown: 0,
-            hitFlashTimer: 0,  // 受击闪白计时器
+            hitFlashTimer: 0, hitReactTimer: 0, hitReactDuration: 0,
+            hitReactX: 0, hitReactY: 0, hitTilt: 0,  // 受击闪白计时器
             ...props
         });
         return enemy;
@@ -1039,6 +1042,30 @@ const HERO_SPRITE_CONFIG = {
         hurt: {
             front: { row: 0 }, back: { row: 1 }, left: { row: 2 }, right: { row: 3 }
         }
+    }
+};
+
+const SKILL_IMPACT_PALETTES = {
+    fireball: {
+        core: '#fff3b0',
+        main: '#ff6a18',
+        glow: 'rgba(255, 82, 20, 0.34)',
+        ember: '#ffbb55',
+        ring: '#ff8a2a'
+    },
+    thunder: {
+        core: '#ffffff',
+        main: '#92e8ff',
+        glow: 'rgba(95, 210, 255, 0.32)',
+        ember: '#dff8ff',
+        ring: '#66cfff'
+    },
+    multishot: {
+        core: '#ffffcc',
+        main: '#baff42',
+        glow: 'rgba(178, 255, 68, 0.24)',
+        ember: '#f7ff88',
+        ring: '#d8ff5a'
     }
 };
 
@@ -2644,6 +2671,9 @@ function drawEnemyActor(ctx, e) {
 
     const rx = Math.round(e.x);
     const ry = Math.round(e.y);
+    const reactAlpha = e.hitReactTimer > 0 ? Math.max(0, e.hitReactTimer / (e.hitReactDuration || 0.12)) : 0;
+    const bodyX = rx + (e.hitReactX || 0) * reactAlpha;
+    const bodyY = ry + (e.hitReactY || 0) * reactAlpha;
     const animatedMonsterFrame = getMonsterSpriteFrame(e);
 
     const shadowWidth = e.isBoss ? Math.max(64, e.radius * 4.4) : (animatedMonsterFrame ? 46 : 34);
@@ -2671,7 +2701,8 @@ function drawEnemyActor(ctx, e) {
         else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = MonsterTintCache.lightning;
 
         ctx.save();
-        ctx.translate(rx, ry);
+        ctx.translate(bodyX, bodyY);
+        if (reactAlpha > 0) ctx.rotate((e.hitTilt || 0) * reactAlpha);
         const juiceScale = e.juiceScale || 1.0;
         ctx.scale(juiceScale, 1.0 / juiceScale);
         drawMonsterSprite(ctx, source, animatedMonsterFrame, 0, 0, renderWidth, renderHeight);
@@ -2688,7 +2719,8 @@ function drawEnemyActor(ctx, e) {
         else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = TintCache.lightning;
 
         ctx.save();
-        ctx.translate(rx, ry);
+        ctx.translate(bodyX, bodyY);
+        if (reactAlpha > 0) ctx.rotate((e.hitTilt || 0) * reactAlpha);
         const juiceScale = e.juiceScale || 1.0;
         ctx.scale(juiceScale, 1.0 / juiceScale);
         ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
@@ -2699,7 +2731,7 @@ function drawEnemyActor(ctx, e) {
         else ctx.fillStyle = e.frozenTimer > 0 ? COLORS.ice : (e.rarity > 0 ? '#ffaa00' : (e.isBoss ? '#9000cc' : '#880000'));
         if (e.isQuestTarget) ctx.fillStyle = '#ff00aa';
         ctx.beginPath();
-        ctx.arc(rx, ry, e.radius, 0, Math.PI * 2);
+        ctx.arc(bodyX, bodyY, e.radius, 0, Math.PI * 2);
         ctx.fill();
     }
 
@@ -2790,6 +2822,78 @@ function drawOrbProjectile(ctx, p) {
     ctx.fill();
     clearGlow(ctx);
     ctx.restore();
+}
+
+function emitSkillImpactBurst(type, x, y, angle = 0, power = 1) {
+    const palette = SKILL_IMPACT_PALETTES[type];
+    if (!palette) return;
+
+    const maxP = getParticleConfig().maxParticles;
+    if (particles.length >= maxP) return;
+
+    const qualityScale = player.graphicsQuality === 'low' ? 0.68 : 1;
+    const baseRadius = (type === 'fireball' ? 30 : type === 'thunder' ? 24 : 18) * power;
+    const sparkCount = Math.max(4, Math.floor((type === 'fireball' ? 12 : type === 'thunder' ? 9 : 6) * power * qualityScale));
+
+    particles.push(ParticlePool.acquire({
+        x, y,
+        type: 'skill_ground_glow',
+        color: palette.glow,
+        color2: palette.main,
+        life: 0.22 + 0.06 * power,
+        maxLife: 0.22 + 0.06 * power,
+        radius: baseRadius,
+        size: 1
+    }));
+
+    if (particles.length < maxP) {
+        particles.push(ParticlePool.acquire({
+            x, y,
+            type: 'skill_impact_ring',
+            color: palette.ring,
+            life: 0.20 + 0.05 * power,
+            maxLife: 0.20 + 0.05 * power,
+            radius: baseRadius * 0.45,
+            grow: baseRadius * 0.78,
+            width: type === 'fireball' ? 3 : 2,
+            rotation: angle
+        }));
+    }
+
+    if (type === 'thunder') {
+        for (let i = 0; i < 3; i++) {
+            if (particles.length >= maxP) break;
+            particles.push(ParticlePool.acquire({
+                x, y,
+                type: 'skill_impact_ray',
+                color: i === 0 ? palette.core : palette.main,
+                life: 0.16,
+                maxLife: 0.16,
+                angle: angle + (i - 1) * 2.05 + (Math.random() - 0.5) * 0.3,
+                length: 22 + Math.random() * 18,
+                width: i === 0 ? 3 : 2
+            }));
+        }
+    }
+
+    for (let i = 0; i < sparkCount; i++) {
+        if (particles.length >= maxP) break;
+        const spread = type === 'multishot' ? 0.95 : Math.PI * 2;
+        const a = type === 'multishot'
+            ? angle + Math.PI + (Math.random() - 0.5) * spread
+            : Math.random() * Math.PI * 2;
+        const speed = (type === 'fireball' ? 85 : type === 'thunder' ? 105 : 75) * (0.55 + Math.random() * 0.65) * power;
+        particles.push(ParticlePool.acquire({
+            x: x + (Math.random() - 0.5) * 6,
+            y: y + (Math.random() - 0.5) * 6,
+            vx: Math.cos(a) * speed,
+            vy: Math.sin(a) * speed - (type === 'fireball' ? 22 : 8),
+            color: Math.random() < 0.28 ? palette.core : (Math.random() < 0.55 ? palette.ember : palette.main),
+            life: 0.22 + Math.random() * 0.22,
+            size: (type === 'multishot' ? 1.4 : 2.2) + Math.random() * 2.2,
+            gravity: type === 'fireball' ? 60 : 0
+        }));
+    }
 }
 
 function drawGroundItem(ctx, i) {
@@ -5538,6 +5642,56 @@ function drawDungeonFloorDetails(ctx, x, y, c, r, biome) {
         }
         ctx.restore();
     }
+    const motifRoll = mapTileNoise(seed + 91);
+    if (openTile && motifRoll > 0.76) {
+        ctx.save();
+        ctx.globalAlpha = 0.10 + mapTileNoise(seed + 92) * 0.10;
+        ctx.strokeStyle = biome.edge || 'rgba(210,185,140,0.20)';
+        ctx.fillStyle = biome.edge || 'rgba(210,185,140,0.16)';
+        ctx.lineWidth = 1;
+
+        if (horizontalCorridor || verticalCorridor) {
+            const inset = 7 + mapTileNoise(seed + 93) * 5;
+            ctx.beginPath();
+            if (horizontalCorridor) {
+                ctx.moveTo(x + inset, y + 9);
+                ctx.lineTo(x + TILE_SIZE - inset, y + 9 + mapTileNoise(seed + 94) * 3);
+                ctx.moveTo(x + inset, y + TILE_SIZE - 10);
+                ctx.lineTo(x + TILE_SIZE - inset, y + TILE_SIZE - 12 + mapTileNoise(seed + 95) * 3);
+            } else {
+                ctx.moveTo(x + 9, y + inset);
+                ctx.lineTo(x + 10 + mapTileNoise(seed + 94) * 3, y + TILE_SIZE - inset);
+                ctx.moveTo(x + TILE_SIZE - 10, y + inset);
+                ctx.lineTo(x + TILE_SIZE - 12 + mapTileNoise(seed + 95) * 3, y + TILE_SIZE - inset);
+            }
+            ctx.stroke();
+        } else if (biome.type === 'ice') {
+            ctx.strokeStyle = 'rgba(205, 248, 255, 0.35)';
+            ctx.beginPath();
+            ctx.moveTo(x + 11, y + 10);
+            ctx.lineTo(x + 23, y + 22);
+            ctx.moveTo(x + 23, y + 10);
+            ctx.lineTo(x + 11, y + 22);
+            ctx.stroke();
+        } else if (biome.type === 'forest') {
+            for (let i = 0; i < 2; i++) {
+                const px = x + 9 + mapTileNoise(seed + 96 + i) * 18;
+                const py = y + 10 + mapTileNoise(seed + 98 + i) * 16;
+                ctx.beginPath();
+                ctx.ellipse(px, py, 4, 1.4, mapTileNoise(seed + 100 + i) * Math.PI, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        } else {
+            const cx = x + 10 + mapTileNoise(seed + 96) * 20;
+            const cy = y + 10 + mapTileNoise(seed + 97) * 17;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 1.6 + mapTileNoise(seed + 98) * 2.2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha *= 0.7;
+            ctx.fillRect(cx + 5, cy - 2, 6 + mapTileNoise(seed + 99) * 6, 1);
+        }
+        ctx.restore();
+    }
 }
 
 function getFloorDecorationDensity(c, r) {
@@ -5642,6 +5796,35 @@ function drawDungeonWallDetails(ctx, x, y, c, r, biome) {
             ctx.lineTo(x + TILE_SIZE, y + TILE_SIZE - 14);
         }
         ctx.fill();
+    }
+
+    const seed = r * 733 + c * 1597;
+    const chipRoll = mapTileNoise(seed + 13);
+    if (chipRoll > 0.68) {
+        ctx.save();
+        ctx.globalAlpha = 0.12 + mapTileNoise(seed + 14) * 0.11;
+        ctx.strokeStyle = biome.crack || biome.edge || 'rgba(220,200,170,0.18)';
+        ctx.fillStyle = biome.type === 'forest' ? 'rgba(62, 118, 54, 0.22)' : (biome.type === 'ice' ? 'rgba(190,245,255,0.18)' : 'rgba(0,0,0,0.20)');
+        ctx.lineWidth = 1;
+        if (floorS) {
+            const sx = x + 6 + mapTileNoise(seed + 15) * 20;
+            const sy = y + TILE_SIZE - 16 + mapTileNoise(seed + 16) * 4;
+            ctx.fillRect(sx, sy, 5 + mapTileNoise(seed + 17) * 10, 2);
+            ctx.beginPath();
+            ctx.moveTo(sx + 2, sy - 3);
+            ctx.lineTo(sx + 9 + mapTileNoise(seed + 18) * 8, sy - 1);
+            ctx.stroke();
+        }
+        if ((floorW || floorE) && chipRoll > 0.82) {
+            const sideX = floorW ? x + 4 : x + TILE_SIZE - 6;
+            const sideY = y + 7 + mapTileNoise(seed + 19) * 16;
+            ctx.beginPath();
+            ctx.moveTo(sideX, sideY);
+            ctx.lineTo(sideX + (floorW ? 6 : -6), sideY + 5);
+            ctx.lineTo(sideX, sideY + 10);
+            ctx.stroke();
+        }
+        ctx.restore();
     }
 }
 
@@ -6505,7 +6688,13 @@ function update(dt) {
             });
         }
 
-        if (isWall(p.x, p.y)) { p.life = 0; for (let j = 0; j < 3; j++)createParticle(p.x, p.y, '#aaa', 2); }
+        if (isWall(p.x, p.y)) {
+            if (p.type === 'fireball' || p.type === 'multishot') {
+                emitSkillImpactBurst(p.type, p.x, p.y, p.angle, p.type === 'fireball' ? 0.75 : 0.55);
+            }
+            p.life = 0;
+            for (let j = 0; j < 3; j++)createParticle(p.x, p.y, '#aaa', 2);
+        }
 
         if (p.owner && p.owner !== player) {
             const dx = p.x - player.x, dy = p.y - player.y;
@@ -6529,6 +6718,10 @@ function update(dt) {
                         p.life = 0;
                         hitTarget = e;
                         addCombo(1);
+                        if (p.type === 'fireball' || p.type === 'multishot') {
+                            const power = p.type === 'fireball' && player.skills.fireball >= 5 ? 1.45 : 1;
+                            emitSkillImpactBurst(p.type, p.x, p.y, p.angle, power);
+                        }
                         if (p.freeze) { e.frozenTimer = p.freeze; createDamageNumber(e.x, e.y - 40, "冻结!", COLORS.ice); }
                         for (let j = 0; j < 5; j++) createParticle(p.x, p.y, p.color || '#ff4400');
                         break;
@@ -6543,6 +6736,10 @@ function update(dt) {
                         const dx = p.x - d.x, dy = p.y - d.y;
                         if (dx * dx + dy * dy < (d.radius + 10) ** 2) {
                             DestructibleSystem.break(d);
+                            if (p.type === 'fireball' || p.type === 'multishot') {
+                                const power = p.type === 'fireball' && player.skills.fireball >= 5 ? 1.35 : 0.85;
+                                emitSkillImpactBurst(p.type, p.x, p.y, p.angle, power);
+                            }
                             p.life = 0;
                             hitTarget = d; // 标记为已击中物体
                             break;
@@ -6761,6 +6958,7 @@ function updateEnemies(dt) {
         const prevEnemyX = e.x;
         const prevEnemyY = e.y;
         if (e.hitFlashTimer > 0) e.hitFlashTimer -= dt; // 更新受击闪白
+        if (e.hitReactTimer > 0) e.hitReactTimer -= dt;
 
         // Juice 视觉恢复逻辑
         if (e.juiceScaleTimer > 0) {
@@ -6815,9 +7013,12 @@ function updateEnemies(dt) {
             if (distSq < 22500 && hasLOS) {
                 // 太近了，后退 (150^2 = 22500)
                 const dist = Math.sqrt(distSq);
-                const moveX = e.x - (dx / dist) * currentSpeed * dt;
-                const moveY = e.y - (dy / dist) * currentSpeed * dt;
-                if (!isWall(moveX, e.y)) e.x = moveX; if (!isWall(e.x, moveY)) e.y = moveY;
+                if (dist > 0) {
+                    setMonsterFacingToward(e, player.x, player.y, 0.12);
+                    const moveX = e.x - (dx / dist) * currentSpeed * dt;
+                    const moveY = e.y - (dy / dist) * currentSpeed * dt;
+                    if (!isWall(moveX, e.y)) e.x = moveX; if (!isWall(e.x, moveY)) e.y = moveY;
+                }
             } else if (distSq < 160000 && hasLOS) {
                 // 有视线才能射击 (400^2 = 160000)
                 // 有视线才能射击
@@ -7026,8 +7227,11 @@ function updateEnemies(dt) {
             if (distSq < 14400 && hasLOS) { // 120^2 = 14400
                 // 太近了，后退（可穿墙）
                 const dist = Math.sqrt(distSq);
-                e.x -= (dx / dist) * currentSpeed * dt;
-                e.y -= (dy / dist) * currentSpeed * dt;
+                if (dist > 0) {
+                    setMonsterFacingToward(e, player.x, player.y, 0.12);
+                    e.x -= (dx / dist) * currentSpeed * dt;
+                    e.y -= (dy / dist) * currentSpeed * dt;
+                }
             } else if (distSq < 122500 && hasLOS) { // 350^2 = 122500
                 // 有视线才能发射闪电球
                 if (e.cooldown <= 0) {
@@ -7600,6 +7804,57 @@ function draw() {
             }
 
             clearGlow(ctx);
+            ctx.globalAlpha = 1.0;
+        } else if (p.type === 'skill_ground_glow') {
+            const alpha = Math.max(0, p.life / (p.maxLife || 0.25));
+            const radius = (p.radius || 24) * (1.08 - alpha * 0.08);
+            ctx.save();
+            ctx.translate(p.x, p.y + 2);
+            ctx.scale(1, 0.42);
+            const glowGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+            glowGradient.addColorStop(0, p.color2 || p.color);
+            glowGradient.addColorStop(0.45, p.color);
+            glowGradient.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = glowGradient;
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+            ctx.globalAlpha = 1.0;
+        } else if (p.type === 'skill_impact_ring') {
+            const alpha = Math.max(0, p.life / (p.maxLife || 0.24));
+            const t = 1 - alpha;
+            const radius = (p.radius || 12) + (p.grow || 24) * t;
+            ctx.save();
+            ctx.translate(p.x, p.y + 1);
+            ctx.rotate(p.rotation || 0);
+            ctx.scale(1, 0.48);
+            ctx.globalAlpha = alpha * 0.85;
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = Math.max(1, (p.width || 2) * alpha);
+            setGlow(ctx, 14, p.color);
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            clearGlow(ctx);
+            ctx.restore();
+            ctx.globalAlpha = 1.0;
+        } else if (p.type === 'skill_impact_ray') {
+            const alpha = Math.max(0, p.life / (p.maxLife || 0.16));
+            const len = (p.length || 30) * (1.15 - alpha * 0.15);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = Math.max(1, (p.width || 2) * alpha);
+            ctx.lineCap = 'round';
+            setGlow(ctx, 12, p.color);
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x + Math.cos(p.angle || 0) * len, p.y + Math.sin(p.angle || 0) * len);
+            ctx.stroke();
+            clearGlow(ctx);
+            ctx.restore();
             ctx.globalAlpha = 1.0;
         } else if (p.type === 'drop_beam') {
             // 渲染掉落光柱
@@ -9247,6 +9502,13 @@ function takeDamage(e, dmg, isSkillDamage = false) {
 
     e.hp -= totalDamage;
     e.hitFlashTimer = 0.1; // 触发受击闪白
+    e.hitReactDuration = isCrit ? 0.16 : 0.12;
+    e.hitReactTimer = e.hitReactDuration;
+    e.hitReactX = Math.cos(angle) * (isCrit ? 7 : 4);
+    e.hitReactY = Math.sin(angle) * (isCrit ? 5 : 3);
+    e.hitTilt = -Math.sin(angle) * (isCrit ? 0.14 : 0.08);
+    setMonsterFacingToward(e, player.x, player.y, isSkillDamage ? 0.12 : 0.18);
+    triggerMonsterAction(e, 'hurt', isSkillDamage ? 0.12 : 0.16);
 
     // 成就追踪：累计伤害和暴击
     trackAchievement('total_damage', { damage: Math.floor(totalDamage) });
@@ -11891,6 +12153,7 @@ function castSkill(skillName) {
         if (target.broken !== undefined) {
             DestructibleSystem.break(target);
             createLightningEffect(target.x, target.y);
+            emitSkillImpactBurst('thunder', target.x, target.y, Math.atan2(target.y - player.y, target.x - player.x), 0.9);
             AudioSys.play('thunder');
             if (typeof DailyQuestSystem !== 'undefined') DailyQuestSystem.updateProgress('use_skill', 1);
             return;
@@ -11904,6 +12167,7 @@ function castSkill(skillName) {
 
         // 造成闪电伤害（主目标）
         takeDamage(target, { lightning: dmg }, true);
+        emitSkillImpactBurst('thunder', target.x, target.y, Math.atan2(target.y - player.y, target.x - player.x), 1.08);
 
         // 视觉效果：闪电（根据技能阶段增加数量，优先攻击不同敌人）
         // 阶段1：1根雷电；阶段2：2根雷电；阶段3：4根雷电
@@ -11939,6 +12203,7 @@ function castSkill(skillName) {
                 // 额外目标造成伤害
                 if (i > 0 && t !== target) {
                     takeDamage(t, { lightning: Math.floor(dmg * extraDmgRatio) }, true);
+                    emitSkillImpactBurst('thunder', t.x, t.y, Math.atan2(t.y - target.y, t.x - target.x), 0.76);
                 }
             }, delay);
         }
@@ -11998,6 +12263,7 @@ function castSkill(skillName) {
 
                 // 造成伤害
                 takeDamage(nextTarget, { lightning: chainDmg }, true);
+                emitSkillImpactBurst('thunder', nextTarget.x, nextTarget.y, Math.atan2(nextTarget.y - currentTarget.y, nextTarget.x - currentTarget.x), 0.64);
 
                 // 创建闪电链视觉效果（从当前目标到下一个目标）
                 createLightningChain(currentTarget.x, currentTarget.y, nextTarget.x, nextTarget.y);
@@ -15076,7 +15342,7 @@ initDragging();
 init();
 
 // ========== 更新公告系统 ==========
-const CHANGELOG_MAX_DISPLAY = 30; // 最多显示的版本数
+const CHANGELOG_MAX_DISPLAY = 2; // 更新公告只显示最新两版，避免信息过载
 
 // 检查是否需要显示更新公告
 function checkChangelog() {
@@ -15098,7 +15364,7 @@ function showChangelogPanel() {
 
     if (!panel || !content) return;
 
-    // 清空并加载最多10条
+    // 清空并加载最新版本
     content.innerHTML = '';
     const displayCount = Math.min(CHANGELOG_MAX_DISPLAY, CHANGELOG.length);
 

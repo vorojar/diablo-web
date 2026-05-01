@@ -185,6 +185,39 @@ const AudioSys = {
         this.playToneLayer('triangle', t + 0.02, 0.12, 260, 80, 0.09, bus);
         this.playToneLayer('sine', t + 0.085, 0.12, 720, 240, 0.035, bus);
     },
+    playSkillImpact: function (kind) {
+        const t = this.ctx.currentTime;
+        const bus = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(kind === 'kill' ? 1350 : kind === 'crit' ? 2400 : 1800, t);
+        filter.Q.setValueAtTime(kind === 'crit' ? 1.8 : 1.2, t);
+        bus.gain.setValueAtTime(0.9, t);
+        bus.connect(filter);
+        filter.connect(this.sfxGain);
+
+        if (kind === 'hit') {
+            this.playNoiseLayer(t, 0.035, 0.065, 'bandpass', 1500 + Math.random() * 600, 1.2, bus);
+            this.playNoiseLayer(t + 0.012, 0.07, 0.045, 'highpass', 5200 + Math.random() * 1600, 0.6, bus);
+            this.playToneLayer('triangle', t, 0.075, 620, 210, 0.055, bus);
+            this.playToneLayer('sine', t + 0.028, 0.08, 980, 520, 0.035, bus);
+            return;
+        }
+
+        if (kind === 'crit') {
+            this.playNoiseLayer(t, 0.028, 0.1, 'highpass', 6500 + Math.random() * 2200, 0.7, bus);
+            this.playNoiseLayer(t + 0.018, 0.09, 0.07, 'bandpass', 2100 + Math.random() * 900, 1.7, bus);
+            this.playToneLayer('sawtooth', t, 0.055, 1850, 640, 0.045, bus);
+            this.playToneLayer('sine', t + 0.018, 0.11, 1320, 740, 0.06, bus);
+            this.playToneLayer('triangle', t + 0.052, 0.11, 360, 130, 0.045, bus);
+            return;
+        }
+
+        this.playNoiseLayer(t, 0.04, 0.12, 'bandpass', 1250 + Math.random() * 500, 1.1, bus);
+        this.playNoiseLayer(t + 0.035, 0.14, 0.065, 'highpass', 4200 + Math.random() * 1300, 0.55, bus);
+        this.playToneLayer('triangle', t, 0.14, 420, 85, 0.085, bus);
+        this.playToneLayer('sine', t + 0.05, 0.2, 880, 220, 0.045, bus);
+    },
     play: function (type) {
         if (!this.ctx) { console.log('AudioSys: No context'); return; }
         if (this.ctx.state === 'suspended') { console.log('AudioSys: Context suspended'); this.ctx.resume(); }
@@ -231,15 +264,21 @@ const AudioSys = {
             this.playNoiseLayer(t, 0.045, 0.045, 'highpass', 950, 0.5);
             this.playToneLayer('sawtooth', t, 0.075, 660, 210, 0.045);
             this.playToneLayer('triangle', t + 0.018, 0.055, 260, 150, 0.025);
-        } else if (type === 'hit' || type === 'melee_hit') {
-            // 普通击中：短促接触声 + 低频身体感
+        } else if (type === 'melee_hit') {
+            // 普通攻击保留短促的金属边缘和身体冲击。
             this.playCombatImpact('hit');
-        } else if (type === 'hit_crit' || type === 'melee_crit') {
+        } else if (type === 'hit') {
+            this.playSkillImpact('hit');
+        } else if (type === 'melee_crit') {
             // 暴击击中：更亮的撕裂感 + 金属高频点缀
             this.playCombatImpact('crit');
-        } else if (type === 'hit_kill' || type === 'melee_kill') {
+        } else if (type === 'hit_crit') {
+            this.playSkillImpact('crit');
+        } else if (type === 'melee_kill') {
             // 击杀：重击下沉 + 碎裂尾音
             this.playCombatImpact('kill');
+        } else if (type === 'hit_kill') {
+            this.playSkillImpact('kill');
         } else if (type === 'pickup') {
             osc.type = 'sine';
             osc.frequency.setValueAtTime(900, t);
@@ -306,118 +345,79 @@ const AudioSys = {
             osc.start(t);
             osc.stop(t + 0.1);
         } else if (type === 'fireball') {
-            // 逼真的火球音效 - 三层叠加：爆发冲击 + 火焰燃烧 + 空气振动
+            const bus = this.ctx.createGain();
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(6200, t);
+            filter.frequency.exponentialRampToValueAtTime(2100, t + 0.38);
+            filter.Q.setValueAtTime(0.8, t);
+            bus.gain.setValueAtTime(1, t);
+            bus.connect(filter);
+            filter.connect(this.sfxGain);
 
-            // 1. 爆发冲击层 - 方波模拟爆炸冲击
-            const osc1 = this.ctx.createOscillator();
-            const gain1 = this.ctx.createGain();
-            osc1.type = 'square';
-            osc1.connect(gain1);
-            gain1.connect(this.sfxGain);
-            osc1.frequency.setValueAtTime(80, t);
-            osc1.frequency.exponentialRampToValueAtTime(40, t + 0.2);
-            gain1.gain.setValueAtTime(0.3, t);
-            gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
-            osc1.start(t);
-            osc1.stop(t + 0.3);
-
-            // 2. 火焰燃烧层 - 锯齿波模拟火焰噼啪声
-            [120, 150, 180].forEach((f, i) => {
-                const osc2 = this.ctx.createOscillator();
-                const gain2 = this.ctx.createGain();
-                osc2.type = 'sawtooth';
-                osc2.connect(gain2);
-                gain2.connect(this.sfxGain);
-                osc2.frequency.setValueAtTime(f, t + i * 0.03);
-                osc2.frequency.exponentialRampToValueAtTime(f * 0.3, t + 0.4);
-                gain2.gain.setValueAtTime(0.1 - i * 0.02, t + i * 0.03);
-                gain2.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
-                osc2.start(t + i * 0.03);
-                osc2.stop(t + 0.5);
-            });
-            // 3. 高频嘶嘶声层 - 正弦波模拟空气振动
-            const osc3 = this.ctx.createOscillator();
-            const gain3 = this.ctx.createGain();
-            osc3.type = 'sine';
-            osc3.connect(gain3);
-            gain3.connect(this.sfxGain);
-            osc3.frequency.setValueAtTime(1000, t);
-            osc3.frequency.exponentialRampToValueAtTime(500, t + 0.15);
-            gain3.gain.setValueAtTime(0.05, t);
-            gain3.gain.linearRampToValueAtTime(0, t + 0.2);
-            osc3.start(t);
-            osc3.stop(t + 0.2);
+            this.playNoiseLayer(t, 0.028, 0.12, 'highpass', 2400, 0.6, bus);
+            this.playNoiseLayer(t + 0.018, 0.18, 0.095, 'bandpass', 1150 + Math.random() * 250, 1.1, bus);
+            this.playNoiseLayer(t + 0.09, 0.26, 0.055, 'highpass', 3800 + Math.random() * 900, 0.5, bus);
+            this.playToneLayer('square', t, 0.12, 180, 72, 0.11, bus);
+            this.playToneLayer('sawtooth', t + 0.018, 0.34, 260, 95, 0.085, bus);
+            this.playToneLayer('sine', t + 0.006, 0.11, 1450, 640, 0.045, bus);
+            this.playToneLayer('triangle', t + 0.07, 0.22, 520, 210, 0.035, bus);
         } else if (type === 'arrow') {
-            // 箭矢音效 - 风声和撞击声
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = 'triangle';
-            osc.connect(gain);
-            gain.connect(this.sfxGain);
-            osc.frequency.setValueAtTime(800, t);
-            osc.frequency.exponentialRampToValueAtTime(400, t + 0.1);
-            gain.gain.setValueAtTime(0.1, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
-            osc.start(t);
-            osc.stop(t + 0.2);
+            const bus = this.ctx.createGain();
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'highpass';
+            filter.frequency.setValueAtTime(700, t);
+            filter.Q.setValueAtTime(0.45, t);
+            bus.connect(filter);
+            filter.connect(this.sfxGain);
+
+            this.playNoiseLayer(t, 0.022, 0.055, 'bandpass', 3200 + Math.random() * 900, 1.8, bus);
+            this.playNoiseLayer(t + 0.012, 0.12, 0.04, 'highpass', 1900 + Math.random() * 700, 0.7, bus);
+            this.playToneLayer('triangle', t, 0.055, 880, 420, 0.045, bus);
+            this.playToneLayer('sine', t + 0.018, 0.08, 180, 120, 0.025, bus);
         } else if (type === 'thunder') {
-            // 雷电音效：白噪声 + 低频震荡
-            // 1. 初始的尖锐爆裂声 (高频锯齿波)
-            const osc1 = this.ctx.createOscillator();
-            const gain1 = this.ctx.createGain();
-            osc1.type = 'sawtooth';
-            osc1.frequency.setValueAtTime(800, t);
-            osc1.frequency.exponentialRampToValueAtTime(100, t + 0.1);
-            gain1.gain.setValueAtTime(0.3, t);
-            gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
-            osc1.connect(gain1);
-            gain1.connect(this.sfxGain);
-            osc1.start(t);
-            osc1.stop(t + 0.15);
+            const bus = this.ctx.createGain();
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'highpass';
+            filter.frequency.setValueAtTime(180, t);
+            filter.Q.setValueAtTime(0.7, t);
+            bus.connect(filter);
+            filter.connect(this.sfxGain);
 
-            // 2. 隆隆的雷声 (低频噪声模拟)
-            // 由于 Web Audio API 原生没有白噪声节点，我们用多个低频振荡器模拟
-            [60, 80, 100, 120, 150].forEach((f) => {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'square'; // 方波听起来更粗糙，适合模拟雷声
-                osc.frequency.setValueAtTime(f + Math.random() * 20, t);
-                osc.frequency.linearRampToValueAtTime(f * 0.5, t + 0.5 + Math.random() * 0.5);
+            this.playNoiseLayer(t, 0.024, 0.18, 'highpass', 7200 + Math.random() * 1200, 0.65, bus);
+            this.playNoiseLayer(t + 0.035, 0.09, 0.09, 'bandpass', 3100 + Math.random() * 800, 2.3, bus);
+            this.playToneLayer('sawtooth', t, 0.085, 2400, 180, 0.12, bus);
+            this.playToneLayer('square', t + 0.018, 0.12, 1180, 140, 0.07, bus);
 
-                gain.gain.setValueAtTime(0.05, t);
-                gain.gain.linearRampToValueAtTime(0.08, t + 0.1); // 渐强
-                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8 + Math.random() * 0.4); // 漫长的衰减
-
-                osc.connect(gain);
-                gain.connect(this.sfxGain);
-                osc.start(t);
-                osc.stop(t + 1.5);
+            [54, 73, 91, 123].forEach((f, i) => {
+                const rumble = this.ctx.createOscillator();
+                const rumbleGain = this.ctx.createGain();
+                rumble.type = i % 2 ? 'triangle' : 'square';
+                rumble.frequency.setValueAtTime(f + Math.random() * 12, t + 0.04);
+                rumble.frequency.exponentialRampToValueAtTime(Math.max(20, f * 0.45), t + 0.75 + Math.random() * 0.2);
+                rumbleGain.gain.setValueAtTime(0.045, t + 0.04);
+                rumbleGain.gain.linearRampToValueAtTime(0.07, t + 0.12);
+                rumbleGain.gain.exponentialRampToValueAtTime(0.001, t + 0.9 + Math.random() * 0.25);
+                rumble.connect(rumbleGain);
+                rumbleGain.connect(bus);
+                rumble.start(t + 0.04);
+                rumble.stop(t + 1.05);
             });
         } else if (type === 'specter_bolt') {
-            // 闪电幽魂发射音效 - 轻柔的电流嗞嗞声
-            const osc1 = this.ctx.createOscillator();
-            const gain1 = this.ctx.createGain();
-            osc1.type = 'sawtooth';
-            osc1.frequency.setValueAtTime(400, t);
-            osc1.frequency.exponentialRampToValueAtTime(200, t + 0.1);
-            gain1.gain.setValueAtTime(0.06, t);  // 音量很低
-            gain1.gain.exponentialRampToValueAtTime(0.01, t + 0.12);
-            osc1.connect(gain1);
-            gain1.connect(this.sfxGain);
-            osc1.start(t);
-            osc1.stop(t + 0.12);
+            const bus = this.ctx.createGain();
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(1450 + Math.random() * 350, t);
+            filter.frequency.exponentialRampToValueAtTime(620, t + 0.22);
+            filter.Q.setValueAtTime(2.2, t);
+            bus.connect(filter);
+            filter.connect(this.sfxGain);
 
-            // 轻微的电流杂音
-            const osc2 = this.ctx.createOscillator();
-            const gain2 = this.ctx.createGain();
-            osc2.type = 'square';
-            osc2.frequency.setValueAtTime(1200 + Math.random() * 400, t);
-            gain2.gain.setValueAtTime(0.02, t);
-            gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
-            osc2.connect(gain2);
-            gain2.connect(this.sfxGain);
-            osc2.start(t);
-            osc2.stop(t + 0.08);
+            this.playNoiseLayer(t, 0.06, 0.035, 'bandpass', 1700 + Math.random() * 500, 2.4, bus);
+            this.playNoiseLayer(t + 0.035, 0.14, 0.026, 'highpass', 4300 + Math.random() * 1400, 0.7, bus);
+            this.playToneLayer('sawtooth', t, 0.12, 520, 180, 0.055, bus);
+            this.playToneLayer('sine', t + 0.028, 0.19, 1180, 360, 0.032, bus);
+            this.playToneLayer('triangle', t + 0.085, 0.16, 260, 90, 0.022, bus);
         } else if (type === 'drop_unique') {
             // 暗金掉落音效 - 史诗感的金属共鸣 + 天堂之音
             // 1. 金属撞击声
@@ -487,31 +487,32 @@ const AudioSys = {
                 osc.stop(t + 0.9);
             });
         } else if (type === 'land_soft') {
-            // 卷轴/药水落地：轻柔 (低频三角波)
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(150, t);
-            osc.frequency.exponentialRampToValueAtTime(80, t + 0.05);
-            gain.gain.setValueAtTime(0.05, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-            osc.start(); osc.stop(t + 0.1);
+            osc.frequency.setValueAtTime(170, t);
+            osc.frequency.exponentialRampToValueAtTime(72, t + 0.08);
+            gain.gain.setValueAtTime(0.045, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+            osc.start(); osc.stop(t + 0.13);
+            this.playNoiseLayer(t + 0.012, 0.07, 0.018, 'lowpass', 900 + Math.random() * 250, 0.45);
         } else if (type === 'land_hard') {
-            // 武器/防具落地：金属/重物感 (高频锯齿波叠加低频方波)
             osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(400, t);
-            osc.frequency.exponentialRampToValueAtTime(100, t + 0.1);
-            gain.gain.setValueAtTime(0.08, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-            osc.start(); osc.stop(t + 0.15);
+            osc.frequency.setValueAtTime(760, t);
+            osc.frequency.exponentialRampToValueAtTime(115, t + 0.11);
+            gain.gain.setValueAtTime(0.075, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+            osc.start(); osc.stop(t + 0.16);
+            this.playNoiseLayer(t, 0.026, 0.05, 'highpass', 3600 + Math.random() * 900, 0.7);
+            this.playNoiseLayer(t + 0.02, 0.08, 0.035, 'bandpass', 1200 + Math.random() * 400, 1.2);
 
             const osc2 = this.ctx.createOscillator();
             const gain2 = this.ctx.createGain();
             osc2.type = 'square';
-            osc2.frequency.setValueAtTime(60, t);
+            osc2.frequency.setValueAtTime(68, t);
             gain2.gain.setValueAtTime(0.05, t);
-            gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+            gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
             osc2.connect(gain2);
             gain2.connect(this.sfxGain);
-            osc2.start(t); osc2.stop(t + 0.1);
+            osc2.start(t); osc2.stop(t + 0.13);
         } else if (type === 'land_gold') {
             // 金币落地：清脆叮当声 (高频正弦波脉冲)
             [1200, 1500, 1800].forEach((f, i) => {
@@ -527,52 +528,46 @@ const AudioSys = {
                 osc.stop(t + i * 0.02 + 0.05);
             });
         } else if (type === 'shield') {
-            // 护盾激活：史诗圣光音效 (~1.2秒)
-            // 大技能感：起始冲击 → 上升和弦 → 悠长回响
+            const bus = this.ctx.createGain();
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(9200, t);
+            filter.frequency.exponentialRampToValueAtTime(3600, t + 0.9);
+            filter.Q.setValueAtTime(0.65, t);
+            bus.connect(filter);
+            filter.connect(this.sfxGain);
 
-            // 1. 起始冲击：短促有力的激活声
-            const impact = this.ctx.createOscillator();
-            const impactGain = this.ctx.createGain();
-            impact.type = 'sine';
-            impact.frequency.setValueAtTime(600, t);
-            impact.frequency.exponentialRampToValueAtTime(400, t + 0.1);
-            impactGain.gain.setValueAtTime(0.12, t);
-            impactGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
-            impact.connect(impactGain);
-            impactGain.connect(this.sfxGain);
-            impact.start(t);
-            impact.stop(t + 0.15);
+            this.playNoiseLayer(t, 0.045, 0.08, 'highpass', 5200, 0.7, bus);
+            this.playToneLayer('sine', t, 0.13, 720, 430, 0.095, bus);
+            this.playToneLayer('triangle', t + 0.012, 0.16, 220, 330, 0.05, bus);
 
-            // 2. 圣光和弦：C大调上行 (C5-E5-G5-C6)，悠扬展开
             [523, 659, 784, 1047].forEach((f, i) => {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(f, t + 0.08 + i * 0.12);
-                gain.gain.setValueAtTime(0, t + 0.08 + i * 0.12);
-                gain.gain.linearRampToValueAtTime(0.1 - i * 0.015, t + 0.12 + i * 0.12);
-                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5 + i * 0.15);
-                osc.connect(gain);
-                gain.connect(this.sfxGain);
-                osc.start(t + 0.08 + i * 0.12);
-                osc.stop(t + 0.6 + i * 0.15);
+                const o = this.ctx.createOscillator();
+                const g = this.ctx.createGain();
+                o.type = i === 3 ? 'triangle' : 'sine';
+                o.frequency.setValueAtTime(f, t + 0.07 + i * 0.105);
+                g.gain.setValueAtTime(0.001, t + 0.07 + i * 0.105);
+                g.gain.linearRampToValueAtTime(0.095 - i * 0.012, t + 0.12 + i * 0.105);
+                g.gain.exponentialRampToValueAtTime(0.001, t + 0.62 + i * 0.13);
+                o.connect(g);
+                g.connect(bus);
+                o.start(t + 0.07 + i * 0.105);
+                o.stop(t + 0.78 + i * 0.13);
             });
 
-            // 3. 柔和衬底：三角波和声，增加温暖感
-            [262, 330].forEach((f, i) => {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.type = 'triangle';
-                osc.frequency.setValueAtTime(f, t + 0.1);
-                gain.gain.setValueAtTime(0.06, t + 0.1);
-                gain.gain.linearRampToValueAtTime(0.04, t + 0.4);
-                gain.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
-                osc.connect(gain);
-                gain.connect(this.sfxGain);
-                osc.start(t + 0.1);
-                osc.stop(t + 1.0);
+            [262, 330, 392].forEach((f, i) => {
+                const o = this.ctx.createOscillator();
+                const g = this.ctx.createGain();
+                o.type = 'triangle';
+                o.frequency.setValueAtTime(f, t + 0.1 + i * 0.02);
+                g.gain.setValueAtTime(0.045 - i * 0.008, t + 0.1 + i * 0.02);
+                g.gain.linearRampToValueAtTime(0.035 - i * 0.006, t + 0.38);
+                g.gain.exponentialRampToValueAtTime(0.001, t + 1.05);
+                o.connect(g);
+                g.connect(bus);
+                o.start(t + 0.1 + i * 0.02);
+                o.stop(t + 1.05);
             });
-
         }
     },
     playFireballExplosion: function (level) {

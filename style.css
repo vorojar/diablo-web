@@ -36,6 +36,11 @@
             --ui-border: #5d4a37;
             --ui-header-bg: #2a2218;
             --ui-panel-bg: rgba(15, 15, 18, 0.98);
+            --ui-metal-dark: #090909;
+            --ui-metal-mid: #1d1a16;
+            --ui-metal-edge: #6f5a37;
+            --ui-metal-hi: #b99a55;
+            --ui-ember: #8b2f18;
             --text-gold: #c7b377;
             --text-red: #c23b22;
             --text-blue: #4d69cd;
@@ -264,13 +269,17 @@
             left: 0;
             width: 100%;
             height: 140px;
-            background: linear-gradient(to top, #111 0%, transparent 100%);
+            background:
+                radial-gradient(ellipse at center bottom, rgba(124, 82, 32, 0.22) 0%, rgba(8, 8, 8, 0.86) 44%, transparent 76%),
+                linear-gradient(to top, rgba(5, 5, 6, 0.98) 0%, rgba(13, 12, 11, 0.78) 48%, transparent 100%);
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
             padding: 0 20px 10px;
             box-sizing: border-box;
             pointer-events: auto;
+            border-top: 1px solid rgba(185, 154, 85, 0.35);
+            box-shadow: inset 0 1px 0 rgba(255, 224, 150, 0.08);
         }
 
         .orb-container {
@@ -505,13 +514,23 @@
             flex-direction: column;
             align-items: center;
             /* 稍微下移以贴合屏幕底部 */
-            padding-bottom: 5px;
+            padding: 8px 14px 7px;
             gap: 2px;
             flex: 1;
             max-width: 600px;
             margin: 0 10px;
             position: relative;
             z-index: 5;
+            border: 1px solid rgba(111, 90, 55, 0.55);
+            border-bottom: 0;
+            border-radius: 8px 8px 0 0;
+            background:
+                linear-gradient(180deg, rgba(45, 37, 26, 0.88) 0%, rgba(10, 10, 10, 0.9) 74%),
+                radial-gradient(ellipse at center top, rgba(199, 179, 119, 0.18), transparent 58%);
+            box-shadow:
+                0 12px 28px rgba(0, 0, 0, 0.65),
+                inset 0 1px 0 rgba(255, 232, 177, 0.14),
+                inset 0 -14px 24px rgba(0, 0, 0, 0.55);
         }
 
         /* 装饰性纹理 */
@@ -658,41 +677,74 @@
 
         .skill-bar {
             display: flex;
-            gap: 5px;
-            margin-top: 2px;
-            margin-bottom: 5px;
-            background: #000;
-            padding: 5px;
-            border: 1px solid #333;
-            border-radius: 4px;
+            gap: 7px;
+            margin-top: 3px;
+            margin-bottom: 4px;
+            background:
+                linear-gradient(180deg, rgba(50, 43, 32, 0.94), rgba(5, 5, 5, 0.96)),
+                radial-gradient(ellipse at center, rgba(199, 179, 119, 0.12), transparent 70%);
+            padding: 7px;
+            border: 1px solid rgba(111, 90, 55, 0.78);
+            border-radius: 6px;
+            box-shadow:
+                0 4px 14px rgba(0, 0, 0, 0.75),
+                inset 0 1px 0 rgba(255, 232, 177, 0.12),
+                inset 0 -8px 14px rgba(0, 0, 0, 0.55);
         }
 
         .skill-btn {
-            width: 30px;
-            height: 30px;
-            background: #1a1a1a;
-            border: 2px solid #444;
+            width: 38px;
+            height: 38px;
+            background:
+                linear-gradient(145deg, #2f2a21 0%, #141312 42%, #050505 100%);
+            border: 1px solid rgba(141, 112, 62, 0.85);
+            border-radius: 5px;
             display: flex;
             justify-content: center;
             align-items: center;
             font-size: 12px;
-            color: #888;
+            color: #9e8d69;
             cursor: pointer;
             position: relative;
-            box-shadow: inset 0 0 10px #000;
-            transition: all 0.1s;
+            overflow: hidden;
+            box-shadow:
+                0 2px 0 #050505,
+                0 0 0 1px rgba(0, 0, 0, 0.72),
+                inset 0 1px 0 rgba(255, 230, 170, 0.16),
+                inset 0 -10px 16px rgba(0, 0, 0, 0.62);
+            transition: transform 0.12s ease, filter 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+        }
+
+        .skill-btn::before {
+            content: '';
+            position: absolute;
+            inset: 2px;
+            border: 1px solid rgba(255, 222, 150, 0.08);
+            border-radius: 3px;
+            pointer-events: none;
+            z-index: 1;
         }
 
         /* 技能按钮按下效果 */
         .skill-btn:active {
             transform: scale(0.95);
-            box-shadow: inset 0 0 15px #000;
-            border-color: #222;
+            box-shadow:
+                0 1px 0 #030303,
+                inset 0 0 18px #000,
+                inset 0 5px 12px rgba(0, 0, 0, 0.86);
+            border-color: #3a2d20;
         }
 
         .skill-btn.active {
-            border-color: var(--text-gold);
-            color: var(--text-gold);
+            border-color: var(--ui-metal-hi);
+            color: #f1ddb0;
+            background:
+                linear-gradient(145deg, #4b3722 0%, #1c1712 46%, #070707 100%);
+            box-shadow:
+                0 2px 0 #060606,
+                0 0 12px rgba(199, 179, 119, 0.28),
+                inset 0 1px 0 rgba(255, 238, 190, 0.2),
+                inset 0 -10px 16px rgba(0, 0, 0, 0.6);
         }
 
         .skill-btn .key {
@@ -700,7 +752,9 @@
             top: 2px;
             left: 2px;
             font-size: 10px;
-            color: #fff;
+            color: #efe0bf;
+            z-index: 3;
+            text-shadow: 0 1px 2px #000;
         }
 
         .skill-btn .lvl {
@@ -708,7 +762,9 @@
             bottom: 2px;
             right: 2px;
             font-size: 10px;
-            color: #aaa;
+            color: #d1bd82;
+            z-index: 3;
+            text-shadow: 0 1px 2px #000;
         }
 
         /* 扇形CD遮罩 */
@@ -722,12 +778,16 @@
             pointer-events: none;
             opacity: 0;
             transition: opacity 0.1s;
+            z-index: 2;
         }
 
         .skill-btn .cd-sweep.active {
             opacity: 1;
-            background: conic-gradient(rgba(0, 0, 0, 0.85) var(--cd-progress, 0%),
-                    transparent var(--cd-progress, 0%));
+            background:
+                conic-gradient(rgba(0, 0, 0, 0.9) var(--cd-progress, 0%),
+                    rgba(0, 0, 0, 0.18) var(--cd-progress, 0%)),
+                radial-gradient(circle at center, rgba(199, 179, 119, 0.16), rgba(0, 0, 0, 0.58));
+            box-shadow: inset 0 0 14px rgba(0, 0, 0, 0.86);
         }
 
         .skill-btn .cd-time {
@@ -739,7 +799,7 @@
             font-weight: bold;
             color: #fff;
             text-shadow: 0 0 4px #000, 0 0 8px #000;
-            z-index: 2;
+            z-index: 4;
             opacity: 0;
             pointer-events: none;
         }
@@ -772,8 +832,11 @@
         /* 增强按下效果 */
         .skill-btn:active {
             transform: scale(0.9) translateY(2px);
-            box-shadow: inset 0 0 20px #000, inset 0 5px 10px rgba(0, 0, 0, 0.8);
-            border-color: #222;
+            box-shadow:
+                0 1px 0 #030303,
+                inset 0 0 20px #000,
+                inset 0 5px 10px rgba(0, 0, 0, 0.8);
+            border-color: #3a2d20;
             filter: brightness(0.8);
         }
 
@@ -789,30 +852,37 @@
 
         .panel {
             position: absolute;
-            background: var(--ui-panel-bg);
-            border: 2px solid var(--ui-border);
+            background:
+                linear-gradient(180deg, rgba(30, 27, 22, 0.98) 0%, rgba(12, 12, 14, 0.98) 42%, rgba(6, 6, 7, 0.98) 100%);
+            border: 1px solid rgba(111, 90, 55, 0.9);
             /* 立体光影：增强对比度 */
             box-shadow:
-                0 0 30px rgba(0, 0, 0, 0.9),
-                inset 0 0 20px rgba(0, 0, 0, 0.5),
-                inset 0 1px 1px rgba(255, 255, 255, 0.05);
+                0 18px 42px rgba(0, 0, 0, 0.78),
+                0 0 0 1px rgba(0, 0, 0, 0.85),
+                0 0 24px rgba(111, 71, 29, 0.18),
+                inset 0 1px 0 rgba(255, 235, 190, 0.12),
+                inset 0 0 24px rgba(0, 0, 0, 0.58);
             padding: 15px;
             color: var(--text-gold);
             pointer-events: auto;
             display: none;
             width: 320px;
             z-index: 60;
-            border-radius: 4px;
+            border-radius: 6px;
         }
 
         .panel-header {
             text-align: center;
             font-size: 1.2em;
             margin-bottom: 15px;
-            border-bottom: 1px solid var(--ui-border);
-            padding-bottom: 5px;
+            border-bottom: 1px solid rgba(185, 154, 85, 0.45);
+            padding: 4px 34px 9px;
             cursor: move;
             user-select: none;
+            color: #e0c884;
+            text-shadow: 0 1px 0 #000, 0 0 12px rgba(199, 179, 119, 0.28);
+            background:
+                linear-gradient(90deg, transparent, rgba(111, 90, 55, 0.2), transparent);
         }
 
         .panel-close {
@@ -1069,10 +1139,11 @@
         /* 技能树Tab切换 */
         .skill-tree-tabs {
             display: flex;
-            gap: 4px;
+            gap: 6px;
             padding: 8px 10px;
-            border-bottom: 1px solid #333;
-            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid rgba(111, 90, 55, 0.55);
+            background:
+                linear-gradient(180deg, rgba(30, 25, 18, 0.72), rgba(0, 0, 0, 0.35));
         }
 
         .skill-tree-tab {
@@ -1080,25 +1151,30 @@
             padding: 8px 6px;
             text-align: center;
             font-size: 12px;
-            color: #888;
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid #333;
+            color: #a89569;
+            background:
+                linear-gradient(180deg, rgba(35, 31, 25, 0.92), rgba(8, 8, 9, 0.92));
+            border: 1px solid rgba(111, 90, 55, 0.62);
             border-radius: 4px;
             cursor: pointer;
             transition: all 0.15s;
             white-space: nowrap;
+            text-shadow: 0 1px 2px #000;
         }
 
         .skill-tree-tab:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: #555;
-            color: #aaa;
+            background:
+                linear-gradient(180deg, rgba(58, 47, 31, 0.95), rgba(13, 13, 13, 0.95));
+            border-color: rgba(185, 154, 85, 0.78);
+            color: #d8c28b;
         }
 
         .skill-tree-tab.active {
-            background: rgba(199, 179, 119, 0.2);
-            border-color: var(--text-gold);
-            color: var(--text-gold);
+            background:
+                linear-gradient(180deg, rgba(85, 60, 30, 0.9), rgba(24, 18, 13, 0.95));
+            border-color: var(--ui-metal-hi);
+            color: #f0dca8;
+            box-shadow: inset 0 1px 0 rgba(255, 235, 190, 0.16), 0 0 10px rgba(199, 179, 119, 0.16);
         }
 
         /* 技能系别分隔 */
@@ -1236,8 +1312,9 @@
         /* 技能节点 */
         .skill-tree-node {
             width: 120px;
-            background: rgba(20, 20, 20, 0.9);
-            border: 2px solid #444;
+            background:
+                linear-gradient(180deg, rgba(34, 31, 26, 0.94), rgba(9, 9, 10, 0.94));
+            border: 1px solid rgba(111, 90, 55, 0.7);
             border-radius: 4px;
             padding: 8px;
             text-align: center;
@@ -1247,13 +1324,16 @@
         }
 
         .skill-tree-node:hover:not(.locked):not(.other-locked) {
-            border-color: var(--text-gold);
-            background: rgba(40, 35, 25, 0.9);
+            border-color: var(--ui-metal-hi);
+            background:
+                linear-gradient(180deg, rgba(53, 43, 29, 0.96), rgba(12, 12, 12, 0.96));
         }
 
         .skill-tree-node.active {
-            border-color: var(--text-gold);
-            box-shadow: 0 0 8px rgba(200, 170, 100, 0.4);
+            border-color: var(--ui-metal-hi);
+            box-shadow:
+                0 0 12px rgba(199, 179, 119, 0.28),
+                inset 0 1px 0 rgba(255, 235, 190, 0.12);
         }
 
         .skill-tree-node.maxed {
@@ -1296,12 +1376,17 @@
             width: 36px;
             height: 36px;
             margin: 0 auto 6px;
-            background: #222;
-            border: 1px solid #555;
+            background:
+                radial-gradient(circle at 40% 28%, rgba(199, 179, 119, 0.18), transparent 52%),
+                linear-gradient(145deg, #2b261d, #070707);
+            border: 1px solid rgba(141, 112, 62, 0.82);
             border-radius: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 235, 190, 0.14),
+                inset 0 -8px 12px rgba(0, 0, 0, 0.55);
         }
 
         .skill-tree-node.locked .skill-node-icon,
@@ -2496,23 +2581,44 @@
             right: 20px;
             display: flex;
             flex-direction: column;
-            gap: 5px;
+            gap: 7px;
             pointer-events: auto;
         }
 
         .sys-btn {
-            background: #222;
-            border: 1px solid #555;
-            color: #aaa;
-            padding: 5px 10px;
+            background:
+                linear-gradient(180deg, rgba(49, 42, 32, 0.96), rgba(13, 13, 14, 0.98));
+            border: 1px solid rgba(111, 90, 55, 0.78);
+            border-radius: 5px;
+            color: #c9b88b;
+            padding: 7px 12px;
             cursor: pointer;
             font-family: 'Cinzel', serif;
             position: relative;
+            min-width: 92px;
+            text-align: left;
+            text-shadow: 0 1px 2px #000;
+            box-shadow:
+                0 3px 10px rgba(0, 0, 0, 0.55),
+                inset 0 1px 0 rgba(255, 235, 190, 0.12),
+                inset 0 -8px 13px rgba(0, 0, 0, 0.48);
+            transition: transform 0.12s ease, color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
         }
 
         .sys-btn:hover {
-            border-color: var(--text-gold);
-            color: var(--text-gold);
+            border-color: var(--ui-metal-hi);
+            color: #f0dca8;
+            transform: translateX(-2px);
+            box-shadow:
+                0 4px 14px rgba(0, 0, 0, 0.65),
+                0 0 12px rgba(199, 179, 119, 0.18),
+                inset 0 1px 0 rgba(255, 235, 190, 0.18),
+                inset 0 -8px 13px rgba(0, 0, 0, 0.48);
+        }
+
+        .sys-btn:active {
+            transform: translateX(-1px) translateY(1px);
+            filter: brightness(0.86);
         }
 
         .notification-badge {
