@@ -152,6 +152,7 @@ let projectiles = [];
 let npcs = [];
 // bloodSplats 已废弃，血迹现在直接绘制到离屏Canvas (bloodCanvas)
 let destructibles = []; // 场景可破坏物体
+let dungeonRoomFeatures = []; // 只影响视觉的房间结构标记
 const renderEnemies = [];
 const foregroundActors = [];
 
@@ -1444,10 +1445,13 @@ itemSpriteSheet.onload = () => {
 
 function drawBiomeFloorDecoration(ctx, x, y, size, type, seed, density = 1) {
     if (!envSpritesLoaded || !processedEnvSprites) return false;
+    const tileC = Math.floor(x / TILE_SIZE);
+    const tileR = Math.floor(y / TILE_SIZE);
+    if (!isClearFloorFootprint(tileC, tileR, 1)) return false;
 
     const hash = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
     const rand = hash - Math.floor(hash);
-    const chance = Math.min(0.16, 0.035 * density);
+    const chance = Math.min(0.10, 0.024 * Math.max(1, density));
     if (rand > chance) return false;
 
     let startRow = 6;
@@ -1464,17 +1468,20 @@ function drawBiomeFloorDecoration(ctx, x, y, size, type, seed, density = 1) {
     const sw = envCellWidth - 2 * paddingX;
     const sh = envCellHeight - 2 * paddingY;
     const ratio = sw / sh;
-    const scale = 0.70 + rand * 0.28;
+    const scale = 0.46 + rand * 0.20;
     let drawH = size * scale;
     let drawW = drawH * ratio;
 
-    if (drawW > size * 1.18) {
-        drawW = size * 1.18;
+    if (drawW > size * 0.82) {
+        drawW = size * 0.82;
         drawH = drawW / ratio;
     }
 
-    const offsetX = (size - drawW) / 2 + (mapTileNoise(seed + 9) - 0.5) * size * 0.22;
-    const offsetY = size - drawH - 3 + (mapTileNoise(seed + 17) - 0.5) * 3;
+    const margin = 3;
+    const rawOffsetX = (size - drawW) / 2 + (mapTileNoise(seed + 9) - 0.5) * size * 0.10;
+    const rawOffsetY = size - drawH - 5 + (mapTileNoise(seed + 17) - 0.5) * 2;
+    const offsetX = Math.max(margin, Math.min(size - drawW - margin, rawOffsetX));
+    const offsetY = Math.max(margin, Math.min(size - drawH - margin, rawOffsetY));
 
     ctx.save();
     ctx.globalAlpha = 0.88;
@@ -1816,9 +1823,29 @@ function getBiomeStyle(floor) {
     }
 
     // 1-10: 迷雾森林 (绿色, 潮湿)
-    if (floor <= 10) return { tint: 'rgba(50, 200, 80, 0.25)', type: 'forest', ice: false };
+    if (floor <= 10) {
+        return {
+            tint: 'rgba(50, 200, 80, 0.22)',
+            floorWash: 'rgba(12, 36, 18, 0.14)',
+            wallWash: 'rgba(8, 42, 18, 0.18)',
+            edge: 'rgba(126, 210, 112, 0.14)',
+            crack: 'rgba(40, 110, 60, 0.18)',
+            type: 'forest',
+            ice: false
+        };
+    }
     // 11-20: 冰封废墟 (蓝色, 滑)
-    if (floor <= 20) return { tint: 'rgba(100, 220, 255, 0.35)', type: 'ice', ice: true };
+    if (floor <= 20) {
+        return {
+            tint: 'rgba(100, 220, 255, 0.30)',
+            floorWash: 'rgba(18, 42, 58, 0.16)',
+            wallWash: 'rgba(16, 46, 70, 0.20)',
+            edge: 'rgba(170, 235, 255, 0.18)',
+            crack: 'rgba(130, 210, 255, 0.20)',
+            type: 'ice',
+            ice: true
+        };
+    }
     // 21+: 熔岩炼狱 (红色)
     return { tint: 'rgba(145, 38, 12, 0.20)', floorWash: 'rgba(20, 4, 2, 0.18)', wallWash: 'rgba(48, 8, 2, 0.24)', edge: 'rgba(255, 105, 38, 0.20)', crack: 'rgba(255, 72, 18, 0.32)', type: 'fire', ice: false };
 }
@@ -4019,6 +4046,7 @@ function enterFloor(f, spawnAt = 'start') {
     flyingPickups.forEach(f => FlyingPickupPool.release(f));
     enemies = []; groundItems = []; projectiles = []; npcs = []; flyingPickups = [];
     destructibles = []; // 清空可破坏物体
+    dungeonRoomFeatures = [];
 
     // 清空A*寻路缓存（新楼层需要重新计算路径）
     if (AutoBattle.astarCache) {
@@ -4278,6 +4306,7 @@ function enterFloor(f, spawnAt = 'start') {
 
 function generateTown() {
     mapData = []; visitedMap = [];
+    dungeonRoomFeatures = [];
     _minimapDirty = true; _minimapCache = null;  // 重置小地图缓存
     for (let y = 0; y < MAP_HEIGHT; y++) { mapData.push(new Array(MAP_WIDTH).fill(0)); visitedMap.push(new Array(MAP_WIDTH).fill(true)); }
     const cx = Math.floor(MAP_WIDTH / 2), cy = Math.floor(MAP_HEIGHT / 2);
@@ -4386,8 +4415,90 @@ function validateAndFixDungeonPortalPosition(x, y) {
     return { x: dungeonEntrance.x, y: dungeonEntrance.y };
 }
 
+function seedDungeonRoomFeatures(rooms, currentFloor) {
+    dungeonRoomFeatures = [];
+    if (!rooms || rooms.length === 0) return;
+
+    for (let i = 1; i < rooms.length; i++) {
+        const room = rooms[i];
+        if (room.w < 7 || room.h < 7) continue;
+        if (isNearDungeonAnchor(room.cx, room.cy, 220)) continue;
+
+        const n = mapTileNoise(currentFloor * 1009 + room.cx * 97 + room.cy * 193);
+        if (n < 0.36 && dungeonRoomFeatures.length >= 3) continue;
+
+        const padX = Math.max(1, Math.floor(room.w * 0.22));
+        const padY = Math.max(1, Math.floor(room.h * 0.22));
+        const feature = {
+            x: room.cx,
+            y: room.cy,
+            w: Math.max(3, room.w - padX * 2),
+            h: Math.max(3, room.h - padY * 2),
+            type: n > 0.78 ? 'ritual' : n > 0.56 ? 'broken_path' : 'floor_frame',
+            seed: currentFloor * 4099 + i * 131
+        };
+
+        if (isClearFloorFootprint(feature.x, feature.y, 1)) {
+            dungeonRoomFeatures.push(feature);
+        }
+        if (dungeonRoomFeatures.length >= 7) break;
+    }
+}
+
+function drawDungeonRoomFeatures(ctx, biome) {
+    if (!dungeonRoomFeatures || dungeonRoomFeatures.length === 0) return;
+
+    for (const feature of dungeonRoomFeatures) {
+        if (!hasFloorAtTile(feature.x, feature.y)) continue;
+        const cx = feature.x * TILE_SIZE + TILE_SIZE / 2;
+        const cy = feature.y * TILE_SIZE + TILE_SIZE / 2;
+        const w = feature.w * TILE_SIZE;
+        const h = feature.h * TILE_SIZE;
+        const accent = biome?.edge || 'rgba(180, 140, 95, 0.18)';
+        const shadow = biome?.floorWash || 'rgba(0,0,0,0.22)';
+
+        ctx.save();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = accent;
+        ctx.fillStyle = shadow;
+
+        if (feature.type === 'ritual') {
+            ctx.globalAlpha = 0.30;
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, Math.min(w, h) * 0.22, Math.min(w, h) * 0.14, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 0.16;
+            ctx.beginPath();
+            ctx.arc(cx, cy, Math.min(w, h) * 0.09, 0, Math.PI * 2);
+            ctx.fill();
+            for (let i = 0; i < 4; i++) {
+                const a = i * Math.PI / 2 + mapTileNoise(feature.seed) * 0.25;
+                ctx.globalAlpha = 0.18;
+                ctx.beginPath();
+                ctx.moveTo(cx + Math.cos(a) * 10, cy + Math.sin(a) * 8);
+                ctx.lineTo(cx + Math.cos(a) * Math.min(w, h) * 0.22, cy + Math.sin(a) * Math.min(w, h) * 0.14);
+                ctx.stroke();
+            }
+        } else if (feature.type === 'broken_path') {
+            ctx.globalAlpha = 0.18;
+            ctx.fillRect(cx - w * 0.34, cy - 3, w * 0.68, 6);
+            ctx.fillRect(cx - 3, cy - h * 0.26, 6, h * 0.52);
+            ctx.globalAlpha = 0.25;
+            ctx.strokeRect(cx - w * 0.34, cy - h * 0.26, w * 0.68, h * 0.52);
+        } else {
+            ctx.globalAlpha = 0.22;
+            ctx.strokeRect(cx - w * 0.32, cy - h * 0.24, w * 0.64, h * 0.48);
+            ctx.globalAlpha = 0.14;
+            ctx.fillRect(cx - w * 0.28, cy - h * 0.20, w * 0.56, h * 0.40);
+        }
+
+        ctx.restore();
+    }
+}
+
 function generateDungeon() {
     mapData = []; visitedMap = [];
+    dungeonRoomFeatures = [];
     _minimapDirty = true; _minimapCache = null;  // 重置小地图缓存
     for (let y = 0; y < MAP_HEIGHT; y++) { mapData.push(new Array(MAP_WIDTH).fill(0)); visitedMap.push(new Array(MAP_WIDTH).fill(false)); }
     const centerX = Math.floor(MAP_WIDTH / 2);
@@ -4679,6 +4790,8 @@ function generateDungeon() {
         y: farthest.y * TILE_SIZE + TILE_SIZE / 2
     };
 
+    seedDungeonRoomFeatures(rooms, currentFloor);
+
     // 放置可破坏物体 (确保在地图生成完成后调用)
     seedDestructibles();
 }
@@ -4687,32 +4800,49 @@ function seedDestructibles() {
     destructibles = [];
     // 罗格营地不生成可破坏物体
     if (player.floor === 0) return;
-    const count = 15 + Math.floor(Math.random() * 20); // 每层15-35个
-    for (let i = 0; i < count; i++) {
-        let x, y, v = false;
-        let attempts = 0;
-        while (!v && attempts < 50) {
-            const tx = Math.floor(Math.random() * MAP_WIDTH);
-            const ty = Math.floor(Math.random() * MAP_HEIGHT);
-            if (mapData[ty][tx] === 1) {
-                // 检查是否离入口/出口太近
-                const dx = tx * TILE_SIZE + 16 - dungeonEntrance.x;
-                const dy = ty * TILE_SIZE + 16 - dungeonEntrance.y;
-                if (dx * dx + dy * dy > 10000) { // 100px away
-                    const typeIdx = Math.floor(Math.random() * DESTRUCTIBLE_CONFIG.types.length);
-                    destructibles.push({
-                        x: tx * TILE_SIZE + 16,
-                        y: ty * TILE_SIZE + 16,
-                        type: DESTRUCTIBLE_CONFIG.types[typeIdx],
-                        broken: false,
-                        radius: 12,
-                        hp: 1
-                    });
-                    v = true;
-                }
-            }
-            attempts++;
+
+    const candidates = [];
+    for (let ty = 2; ty < MAP_HEIGHT - 2; ty++) {
+        for (let tx = 2; tx < MAP_WIDTH - 2; tx++) {
+            if (!isValidMapPropTile(tx, ty, 1)) continue;
+            const floorNeighbors = countFloorNeighbors(tx, ty, true);
+            if (floorNeighbors < 7) continue;
+            const edgeBias = countFloorNeighbors(tx, ty, false) < 4 ? 4 : 0;
+            candidates.push({
+                x: tx,
+                y: ty,
+                score: edgeBias + mapTileNoise(ty * 8191 + tx * 1973)
+            });
         }
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+    const occupied = new Set();
+    const key = (x, y) => `${x},${y}`;
+    const canOccupy = (x, y) => {
+        for (let yy = y - 1; yy <= y + 1; yy++) {
+            for (let xx = x - 1; xx <= x + 1; xx++) {
+                if (occupied.has(key(xx, yy))) return false;
+            }
+        }
+        return true;
+    };
+
+    const targetCount = Math.min(candidates.length, 16 + Math.floor(Math.random() * 14));
+    for (const candidate of candidates) {
+        if (destructibles.length >= targetCount) break;
+        if (!canOccupy(candidate.x, candidate.y)) continue;
+
+        const typeIdx = Math.floor(mapTileNoise(candidate.y * 1009 + candidate.x * 917) * DESTRUCTIBLE_CONFIG.types.length);
+        destructibles.push({
+            x: candidate.x * TILE_SIZE + TILE_SIZE / 2,
+            y: candidate.y * TILE_SIZE + TILE_SIZE / 2,
+            type: DESTRUCTIBLE_CONFIG.types[typeIdx],
+            broken: false,
+            radius: 12,
+            hp: 1
+        });
+        occupied.add(key(candidate.x, candidate.y));
     }
 }
 
@@ -4725,11 +4855,66 @@ function hasFloorAtTile(x, y) {
     return y >= 0 && y < MAP_HEIGHT && x >= 0 && x < MAP_WIDTH && mapData[y][x] === 1;
 }
 
+function isInsideMapTile(x, y) {
+    return y >= 0 && y < MAP_HEIGHT && x >= 0 && x < MAP_WIDTH;
+}
+
+function hasWallAtTile(x, y) {
+    return !isInsideMapTile(x, y) || mapData[y][x] === 0;
+}
+
+function isWallBoundaryTile(c, r) {
+    return hasWallAtTile(c, r) && countFloorNeighbors(c, r, true) > 0;
+}
+
+function countFloorNeighbors(c, r, diagonal = true) {
+    const checks = diagonal
+        ? [
+            { x: c + 1, y: r }, { x: c - 1, y: r }, { x: c, y: r + 1 }, { x: c, y: r - 1 },
+            { x: c + 1, y: r + 1 }, { x: c - 1, y: r + 1 }, { x: c + 1, y: r - 1 }, { x: c - 1, y: r - 1 }
+        ]
+        : [
+            { x: c + 1, y: r }, { x: c - 1, y: r }, { x: c, y: r + 1 }, { x: c, y: r - 1 }
+        ];
+    let count = 0;
+    for (const tile of checks) if (hasFloorAtTile(tile.x, tile.y)) count++;
+    return count;
+}
+
+function isClearFloorFootprint(c, r, radius = 1) {
+    for (let y = r - radius; y <= r + radius; y++) {
+        for (let x = c - radius; x <= c + radius; x++) {
+            if (!hasFloorAtTile(x, y)) return false;
+        }
+    }
+    return true;
+}
+
+function isNearDungeonAnchor(c, r, minDistPx = 170) {
+    const x = c * TILE_SIZE + TILE_SIZE / 2;
+    const y = r * TILE_SIZE + TILE_SIZE / 2;
+    return Math.hypot(x - dungeonEntrance.x, y - dungeonEntrance.y) < minDistPx ||
+        Math.hypot(x - dungeonExit.x, y - dungeonExit.y) < minDistPx;
+}
+
+function isValidMapPropTile(c, r, footprintRadius = 1) {
+    if (!isClearFloorFootprint(c, r, footprintRadius)) return false;
+    if (isNearDungeonAnchor(c, r)) return false;
+    return true;
+}
+
 function drawDungeonFloorDetails(ctx, x, y, c, r, biome) {
     if (!biome) return;
 
     const seed = r * 4099 + c * 131;
     const n = mapTileNoise(seed);
+    const northWall = hasWallAtTile(c, r - 1);
+    const southWall = hasWallAtTile(c, r + 1);
+    const westWall = hasWallAtTile(c - 1, r);
+    const eastWall = hasWallAtTile(c + 1, r);
+    const horizontalCorridor = !northWall && !southWall && westWall && eastWall;
+    const verticalCorridor = northWall && southWall && !westWall && !eastWall;
+    const openTile = isClearFloorFootprint(c, r, 1);
 
     if (biome.floorWash) {
         ctx.fillStyle = biome.floorWash;
@@ -4741,20 +4926,48 @@ function drawDungeonFloorDetails(ctx, x, y, c, r, biome) {
         ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
     }
 
-    if (!hasFloorAtTile(c, r - 1)) {
+    if (northWall) {
         const grad = ctx.createLinearGradient(0, y, 0, y + TILE_SIZE * 0.55);
-        grad.addColorStop(0, 'rgba(0,0,0,0.32)');
+        grad.addColorStop(0, 'rgba(0,0,0,0.40)');
         grad.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = grad;
         ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE * 0.55);
     }
-    if (!hasFloorAtTile(c - 1, r)) {
+    if (westWall) {
         const grad = ctx.createLinearGradient(x, 0, x + TILE_SIZE * 0.35, 0);
         grad.addColorStop(0, 'rgba(0,0,0,0.22)');
         grad.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = grad;
         ctx.fillRect(x, y, TILE_SIZE * 0.35, TILE_SIZE);
     }
+    if (eastWall) {
+        const grad = ctx.createLinearGradient(x + TILE_SIZE, 0, x + TILE_SIZE * 0.65, 0);
+        grad.addColorStop(0, 'rgba(0,0,0,0.16)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x + TILE_SIZE * 0.65, y, TILE_SIZE * 0.35, TILE_SIZE);
+    }
+
+    ctx.save();
+    ctx.globalAlpha = openTile ? 0.22 : 0.16;
+    ctx.strokeStyle = biome.edge || 'rgba(200,180,150,0.12)';
+    ctx.lineWidth = 1;
+    if ((c + r) % 2 === 0 || n > 0.6) {
+        ctx.beginPath();
+        ctx.moveTo(x + 4, y + TILE_SIZE - 4);
+        ctx.lineTo(x + TILE_SIZE - 4, y + TILE_SIZE - 4);
+        ctx.stroke();
+    }
+    if (horizontalCorridor) {
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = biome.edge || 'rgba(220,180,120,0.12)';
+        ctx.fillRect(x + 4, y + TILE_SIZE * 0.5 - 1, TILE_SIZE - 8, 2);
+    } else if (verticalCorridor) {
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = biome.edge || 'rgba(220,180,120,0.12)';
+        ctx.fillRect(x + TILE_SIZE * 0.5 - 1, y + 4, 2, TILE_SIZE - 8);
+    }
+    ctx.restore();
 
     if (biome.crack && n > 0.70) {
         ctx.save();
@@ -4775,27 +4988,47 @@ function drawDungeonFloorDetails(ctx, x, y, c, r, biome) {
         ctx.fillStyle = biome.edge;
         ctx.fillRect(x + 8, y + TILE_SIZE - 5, TILE_SIZE - 16, 2);
     }
+
+    const detailRoll = mapTileNoise(seed + 41);
+    if (openTile && detailRoll > 0.84) {
+        ctx.save();
+        ctx.globalAlpha = 0.20 + mapTileNoise(seed + 42) * 0.12;
+        if (biome.type === 'forest') {
+            ctx.fillStyle = 'rgba(82, 150, 72, 0.55)';
+            for (let i = 0; i < 3; i++) {
+                const px = x + 8 + mapTileNoise(seed + 50 + i) * 24;
+                const py = y + 9 + mapTileNoise(seed + 60 + i) * 20;
+                ctx.fillRect(px, py, 2 + mapTileNoise(seed + 70 + i) * 3, 1.5);
+            }
+        } else if (biome.type === 'ice') {
+            ctx.strokeStyle = 'rgba(190, 245, 255, 0.50)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x + 7 + mapTileNoise(seed + 51) * 8, y + 12 + mapTileNoise(seed + 52) * 16);
+            ctx.lineTo(x + 20 + mapTileNoise(seed + 53) * 10, y + 11 + mapTileNoise(seed + 54) * 18);
+            ctx.stroke();
+        } else {
+            ctx.fillStyle = detailRoll > 0.94 ? 'rgba(255, 72, 18, 0.32)' : 'rgba(0,0,0,0.22)';
+            ctx.beginPath();
+            ctx.ellipse(
+                x + 10 + mapTileNoise(seed + 55) * 20,
+                y + 12 + mapTileNoise(seed + 56) * 18,
+                3 + mapTileNoise(seed + 57) * 7,
+                1.5 + mapTileNoise(seed + 58) * 3,
+                mapTileNoise(seed + 59) * Math.PI,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+        }
+        ctx.restore();
+    }
 }
 
 function getFloorDecorationDensity(c, r) {
     if (!hasFloorAtTile(c, r)) return 0;
-    let wallNeighbors = 0;
-    let floorNeighbors = 0;
-    const checks = [
-        { x: c + 1, y: r },
-        { x: c - 1, y: r },
-        { x: c, y: r + 1 },
-        { x: c, y: r - 1 },
-        { x: c + 1, y: r + 1 },
-        { x: c - 1, y: r + 1 },
-        { x: c + 1, y: r - 1 },
-        { x: c - 1, y: r - 1 }
-    ];
-
-    for (const tile of checks) {
-        if (hasFloorAtTile(tile.x, tile.y)) floorNeighbors++;
-        else wallNeighbors++;
-    }
+    const floorNeighbors = countFloorNeighbors(c, r, true);
+    const wallNeighbors = 8 - floorNeighbors;
 
     if (floorNeighbors < 5) return 0;
     if (wallNeighbors === 0) return 0.35;
@@ -4805,40 +5038,95 @@ function getFloorDecorationDensity(c, r) {
 function drawDungeonWallDetails(ctx, x, y, c, r, biome) {
     if (!biome) return;
 
+    const floorN = hasFloorAtTile(c, r - 1);
+    const floorS = hasFloorAtTile(c, r + 1);
+    const floorW = hasFloorAtTile(c - 1, r);
+    const floorE = hasFloorAtTile(c + 1, r);
+    const floorNW = hasFloorAtTile(c - 1, r - 1);
+    const floorNE = hasFloorAtTile(c + 1, r - 1);
+    const floorSW = hasFloorAtTile(c - 1, r + 1);
+    const floorSE = hasFloorAtTile(c + 1, r + 1);
+    const touchesFloor = floorN || floorS || floorW || floorE || floorNW || floorNE || floorSW || floorSE;
+
     if (biome.wallWash) {
         ctx.fillStyle = biome.wallWash;
         ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
     }
 
-    const touchesFloor =
-        hasFloorAtTile(c, r + 1) ||
-        hasFloorAtTile(c, r - 1) ||
-        hasFloorAtTile(c + 1, r) ||
-        hasFloorAtTile(c - 1, r);
     if (!touchesFloor) return;
 
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.fillRect(x, y + TILE_SIZE - 8, TILE_SIZE, 8);
+    const shade = ctx.createLinearGradient(0, y, 0, y + TILE_SIZE);
+    shade.addColorStop(0, 'rgba(255,255,255,0.035)');
+    shade.addColorStop(0.34, 'rgba(0,0,0,0.02)');
+    shade.addColorStop(1, 'rgba(0,0,0,0.36)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+    if (floorS) {
+        const face = ctx.createLinearGradient(0, y + 6, 0, y + TILE_SIZE);
+        face.addColorStop(0, 'rgba(255,255,255,0.04)');
+        face.addColorStop(0.55, 'rgba(0,0,0,0.04)');
+        face.addColorStop(1, 'rgba(0,0,0,0.48)');
+        ctx.fillStyle = face;
+        ctx.fillRect(x, y + 4, TILE_SIZE, TILE_SIZE - 4);
+        ctx.fillStyle = 'rgba(0,0,0,0.42)';
+        ctx.fillRect(x, y + TILE_SIZE - 9, TILE_SIZE, 9);
+    }
+
+    if (floorN) {
+        ctx.fillStyle = 'rgba(255,255,255,0.045)';
+        ctx.fillRect(x + 3, y + 2, TILE_SIZE - 6, 4);
+    }
+
+    if (floorW) {
+        const side = ctx.createLinearGradient(x, 0, x + TILE_SIZE * 0.38, 0);
+        side.addColorStop(0, 'rgba(0,0,0,0.45)');
+        side.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = side;
+        ctx.fillRect(x, y, TILE_SIZE * 0.42, TILE_SIZE);
+    }
+    if (floorE) {
+        const side = ctx.createLinearGradient(x + TILE_SIZE, 0, x + TILE_SIZE * 0.62, 0);
+        side.addColorStop(0, 'rgba(255,255,255,0.035)');
+        side.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = side;
+        ctx.fillRect(x + TILE_SIZE * 0.58, y, TILE_SIZE * 0.42, TILE_SIZE);
+    }
 
     ctx.strokeStyle = biome.edge || 'rgba(255,255,255,0.12)';
     ctx.lineWidth = 1;
-    if (hasFloorAtTile(c, r + 1)) {
+    if (floorS) {
         ctx.beginPath();
         ctx.moveTo(x + 2, y + TILE_SIZE - 9);
         ctx.lineTo(x + TILE_SIZE - 2, y + TILE_SIZE - 9);
         ctx.stroke();
     }
-    if (hasFloorAtTile(c - 1, r)) {
+    if (floorW) {
         ctx.beginPath();
         ctx.moveTo(x + 1, y + 4);
         ctx.lineTo(x + 1, y + TILE_SIZE - 4);
         ctx.stroke();
     }
-    if (hasFloorAtTile(c + 1, r)) {
+    if (floorE) {
         ctx.beginPath();
         ctx.moveTo(x + TILE_SIZE - 2, y + 4);
         ctx.lineTo(x + TILE_SIZE - 2, y + TILE_SIZE - 4);
         ctx.stroke();
+    }
+
+    if ((floorSW && !floorS && !floorW) || (floorSE && !floorS && !floorE)) {
+        ctx.fillStyle = 'rgba(0,0,0,0.28)';
+        ctx.beginPath();
+        if (floorSW) {
+            ctx.moveTo(x, y + TILE_SIZE);
+            ctx.lineTo(x + 14, y + TILE_SIZE);
+            ctx.lineTo(x, y + TILE_SIZE - 14);
+        } else {
+            ctx.moveTo(x + TILE_SIZE, y + TILE_SIZE);
+            ctx.lineTo(x + TILE_SIZE - 14, y + TILE_SIZE);
+            ctx.lineTo(x + TILE_SIZE, y + TILE_SIZE - 14);
+        }
+        ctx.fill();
     }
 }
 
@@ -4871,12 +5159,17 @@ function generateMapCache() {
 
             if (mapData[r][c] === 0) {
                 // 墙壁
+                const boundaryWall = isWallBoundaryTile(c, r);
                 if (wallTilesLoaded) {
                     const wallIndex = getWallTextureIndex(player.floor);
                     const tileHeight = wallTiles.height / 3;
                     cctx.drawImage(wallTiles, 0, wallIndex * tileHeight, wallTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
                     if (biome) {
                         cctx.fillStyle = biome.tint;
+                        cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    }
+                    if (!boundaryWall) {
+                        cctx.fillStyle = 'rgba(0,0,0,0.42)';
                         cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
                     }
                 } else {
@@ -4888,6 +5181,10 @@ function generateMapCache() {
                     }
                     cctx.fillStyle = '#111';
                     cctx.fillRect(x, y + TILE_SIZE - 10, TILE_SIZE, 10);
+                    if (!boundaryWall) {
+                        cctx.fillStyle = 'rgba(0,0,0,0.35)';
+                        cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    }
                 }
                 drawDungeonWallDetails(cctx, x, y, c, r, biome);
             } else {
@@ -4936,6 +5233,8 @@ function generateMapCache() {
             }
         }
     }
+
+    drawDungeonRoomFeatures(cctx, biome);
 
     // 只有当必要的贴图都加载完成时才标记缓存有效
     // 否则会显示黑屏（缓存内容为空）
@@ -6366,6 +6665,7 @@ function draw() {
     if (!mapDrawn) {
         const sc = Math.floor(camera.x / TILE_SIZE), ec = sc + (canvas.width / TILE_SIZE) + 1;
         const sr = Math.floor(camera.y / TILE_SIZE), er = sr + (canvas.height / TILE_SIZE) + 1;
+        const fallbackBiome = getBiomeStyle(player.floor);
 
         for (let r = sr - 1; r < er + 1; r++) {
             for (let c = sc - 1; c < ec + 1; c++) {
@@ -6374,9 +6674,15 @@ function draw() {
                     if (mapData[r][c] === 0) {
                         ctx.fillStyle = COLORS.wall;
                         ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        if (!isWallBoundaryTile(c, r)) {
+                            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+                            ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        }
+                        drawDungeonWallDetails(ctx, x, y, c, r, fallbackBiome);
                     } else {
                         ctx.fillStyle = ((c + r) % 2 === 0) ? '#151515' : '#1a1a1a';
                         ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        drawDungeonFloorDetails(ctx, x, y, c, r, fallbackBiome);
                     }
                 }
             }
