@@ -1722,38 +1722,93 @@ const MarketSystem = {
   // 绘制摊位底座（空摊位和有人摊位共用）
   // isEmpty: true 显示"空"字，false 不显示
   drawStallBase(ctx, x, y, index, isEmpty = true) {
-    // 木质摊位底座
-    ctx.fillStyle = '#3d2817';
+    ctx.save();
+
+    // 地面投影
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.36)';
     ctx.beginPath();
-    ctx.roundRect(x - 28, y - 8, 56, 32, 4);
+    ctx.ellipse(x, y + 24, 42, 13, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // 摊位顶部木板
-    ctx.fillStyle = '#5a3d2b';
+    // 摊位地毯
+    const rug = ctx.createLinearGradient(x, y - 4, x, y + 30);
+    rug.addColorStop(0, '#5a261f');
+    rug.addColorStop(1, '#2b1511');
+    ctx.fillStyle = rug;
     ctx.beginPath();
-    ctx.roundRect(x - 25, y - 5, 50, 6, 2);
+    ctx.roundRect(x - 35, y + 2, 70, 30, 5);
     ctx.fill();
-
-    // 木纹装饰线
-    ctx.strokeStyle = '#2a1a0f';
+    ctx.strokeStyle = 'rgba(230, 180, 96, 0.26)';
     ctx.lineWidth = 1;
+    ctx.strokeRect(x - 29, y + 8, 58, 16);
+
+    // 木质货台
+    const wood = ctx.createLinearGradient(x, y - 12, x, y + 24);
+    wood.addColorStop(0, '#765034');
+    wood.addColorStop(0.55, '#4a2f1d');
+    wood.addColorStop(1, '#24140b');
+    ctx.fillStyle = wood;
     ctx.beginPath();
-    ctx.moveTo(x - 20, y);
-    ctx.lineTo(x + 20, y);
+    ctx.roundRect(x - 31, y - 11, 62, 34, 5);
+    ctx.fill();
+
+    // 顶棚布帘
+    const canopy = ctx.createLinearGradient(x, y - 36, x, y - 16);
+    canopy.addColorStop(0, isEmpty ? '#4b3a30' : '#8f2f2b');
+    canopy.addColorStop(1, isEmpty ? '#2a211d' : '#4a1714');
+    ctx.fillStyle = canopy;
+    ctx.beginPath();
+    ctx.roundRect(x - 36, y - 38, 72, 18, 5);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 205, 126, 0.25)';
     ctx.stroke();
+
+    // 支柱
+    ctx.strokeStyle = '#2a170d';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x - 28, y - 22);
+    ctx.lineTo(x - 26, y + 22);
+    ctx.moveTo(x + 28, y - 22);
+    ctx.lineTo(x + 26, y + 22);
+    ctx.stroke();
+
+    // 木纹和商品色块
+    ctx.strokeStyle = 'rgba(255, 210, 140, 0.20)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x - 23, y - 4 + i * 8);
+      ctx.lineTo(x + 23, y - 6 + i * 8);
+      ctx.stroke();
+    }
+    if (!isEmpty) {
+      ctx.fillStyle = '#d8b064';
+      ctx.fillRect(x - 18, y - 4, 8, 6);
+      ctx.fillStyle = '#7aa6ff';
+      ctx.fillRect(x + 3, y - 5, 7, 7);
+      ctx.fillStyle = '#8ed16f';
+      ctx.fillRect(x + 15, y + 2, 6, 5);
+    }
 
     // 空摊位显示"空"字和编号
     if (isEmpty) {
-      ctx.fillStyle = '#888';
-      ctx.font = 'bold 14px Arial';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.58)';
+      ctx.beginPath();
+      ctx.roundRect(x - 20, y - 1, 40, 18, 4);
+      ctx.fill();
+      ctx.fillStyle = '#b9a27a';
+      ctx.font = 'bold 13px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('空', x, y + 12);
+      ctx.fillText('空', x, y + 8);
 
-      ctx.fillStyle = '#666';
+      ctx.fillStyle = '#75634a';
       ctx.font = '10px Arial';
-      ctx.fillText(`#${index + 1}`, x, y + 28);
+      ctx.fillText(`#${index + 1}`, x, y + 32);
     }
+
+    ctx.restore();
   },
 
   // 绘制摊主

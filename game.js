@@ -4641,9 +4641,17 @@ function seedTownScenicProps(cx, cy, r, marketCx, marketRx, marketRy) {
         { x: Math.floor(dungeonExit.x / TILE_SIZE), y: Math.floor(dungeonExit.y / TILE_SIZE) },
         { x: Math.floor(townPortalSpot.x / TILE_SIZE), y: Math.floor(townPortalSpot.y / TILE_SIZE) }
     ];
+    if (typeof MARKET_CONFIG !== 'undefined' && MARKET_CONFIG.STALL_POSITIONS) {
+        for (const stall of MARKET_CONFIG.STALL_POSITIONS) {
+            safeTiles.push({
+                x: Math.floor((dungeonEntrance.x + stall.x) / TILE_SIZE),
+                y: Math.floor((dungeonEntrance.y + stall.y) / TILE_SIZE)
+            });
+        }
+    }
     const isTownPropTile = (x, y) => {
         if (!isClearFloorFootprint(x, y, 1)) return false;
-        for (const p of safeTiles) if (Math.hypot(x - p.x, y - p.y) < 2.2) return false;
+        for (const p of safeTiles) if (Math.hypot(x - p.x, y - p.y) < 2.8) return false;
         for (let yy = y - 1; yy <= y + 1; yy++) {
             for (let xx = x - 1; xx <= x + 1; xx++) {
                 if (occupied.has(`${xx},${yy}`)) return false;
