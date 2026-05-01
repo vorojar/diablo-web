@@ -153,6 +153,8 @@ let npcs = [];
 // bloodSplats 已废弃，血迹现在直接绘制到离屏Canvas (bloodCanvas)
 let destructibles = []; // 场景可破坏物体
 let dungeonRoomFeatures = []; // 只影响视觉的房间结构标记
+let scenicProps = []; // 静态环境前景物，按 y 排序参与遮挡
+let dungeonLightSources = []; // 地牢静态光源，按帧绘制轻量氛围
 const renderEnemies = [];
 const foregroundActors = [];
 
@@ -1498,6 +1500,7 @@ let envSpritesLoaded = false;
 let processedEnvSprites = null;
 let envCellWidth = 0;
 let envCellHeight = 0;
+let envSpriteBounds = [];
 
 function shouldClearGeneratedAssetBackground(r, g, b) {
     const max = Math.max(r, g, b);
@@ -1539,6 +1542,7 @@ envSpriteSheet.onload = () => {
         // 之前是 4 行，现在 V3 是 8 行，必须除以 8，否则会一次切到两行图
         envCellWidth = processedEnvSprites.width / 8;
         envCellHeight = processedEnvSprites.height / 8;
+        envSpriteBounds = calculateSpriteCellBounds(imageData, 8, 8, 12);
         // 资源加载完成后重新生成地图缓存
         if (gameActive && mapData.length > 0) generateMapCache();
     };
@@ -1750,6 +1754,167 @@ const DestructibleSystem = {
     }
 };
 
+const SCENIC_PROP_LIBRARY = {
+    forest: [
+        { name: 'moss_rock', row: 0, col: 0, scale: 0.54, tall: true },
+        { name: 'stump', row: 0, col: 1, scale: 0.52, tall: true },
+        { name: 'shrub', row: 0, col: 2, scale: 0.48, tall: true },
+        { name: 'lantern', row: 1, col: 4, scale: 0.58, tall: true, light: { color: 'rgba(255, 170, 82, 0.42)', radius: 120, strength: 0.65, flicker: true } },
+        { name: 'bones', row: 1, col: 5, scale: 0.50, tall: false },
+        { name: 'gravestone', row: 1, col: 6, scale: 0.56, tall: true, light: { color: 'rgba(100, 200, 120, 0.18)', radius: 100, strength: 0.35 } }
+    ],
+    ice: [
+        { name: 'ice_cluster', row: 2, col: 0, scale: 0.58, tall: true, light: { color: 'rgba(130, 220, 255, 0.30)', radius: 130, strength: 0.50 } },
+        { name: 'ice_spire', row: 2, col: 2, scale: 0.60, tall: true, light: { color: 'rgba(150, 230, 255, 0.24)', radius: 120, strength: 0.45 } },
+        { name: 'frost_bones', row: 2, col: 3, scale: 0.52, tall: false },
+        { name: 'blue_flame', row: 3, col: 3, scale: 0.52, tall: true, light: { color: 'rgba(90, 210, 255, 0.50)', radius: 150, strength: 0.70, flicker: true } },
+        { name: 'rune_stone', row: 3, col: 5, scale: 0.58, tall: true, light: { color: 'rgba(80, 190, 255, 0.26)', radius: 115, strength: 0.48 } },
+        { name: 'frost_pillar', row: 3, col: 6, scale: 0.62, tall: true }
+    ],
+    fire: [
+        { name: 'lava_vent', row: 4, col: 0, scale: 0.56, tall: true, light: { color: 'rgba(255, 76, 22, 0.50)', radius: 150, strength: 0.78, flicker: true } },
+        { name: 'lava_rock', row: 4, col: 1, scale: 0.58, tall: true, light: { color: 'rgba(255, 90, 28, 0.24)', radius: 110, strength: 0.40 } },
+        { name: 'bone_pile', row: 4, col: 2, scale: 0.50, tall: false },
+        { name: 'spike_cluster', row: 4, col: 3, scale: 0.58, tall: true },
+        { name: 'hell_brazier', row: 4, col: 5, scale: 0.58, tall: true, light: { color: 'rgba(255, 118, 30, 0.58)', radius: 170, strength: 0.86, flicker: true } },
+        { name: 'red_crystal', row: 5, col: 5, scale: 0.60, tall: true, light: { color: 'rgba(255, 64, 50, 0.30)', radius: 120, strength: 0.50 } }
+    ]
+};
+
+function getScenicPropPool(biomeType) {
+    return SCENIC_PROP_LIBRARY[biomeType] || SCENIC_PROP_LIBRARY.fire;
+}
+
+function pickScenicPropDef(biomeType, seed, wantsLight = false) {
+    const pool = getScenicPropPool(biomeType);
+    const filtered = wantsLight ? pool.filter(p => p.light) : pool;
+    const source = filtered.length > 0 ? filtered : pool;
+    return source[Math.floor(mapTileNoise(seed) * source.length) % source.length];
+}
+
+function getEnvSpriteBounds(row, col) {
+    const index = row * 8 + col;
+    return envSpriteBounds[index] || {
+        sx: col * envCellWidth,
+        sy: row * envCellHeight,
+        sw: envCellWidth,
+        sh: envCellHeight
+    };
+}
+
+function drawScenicPropOne(ctx, prop) {
+    if (!envSpritesLoaded || !processedEnvSprites) return;
+    if (prop.x < camera.x - 140 || prop.x > camera.x + canvas.width + 140 ||
+        prop.y < camera.y - 180 || prop.y > camera.y + canvas.height + 140) return;
+
+    const bounds = getEnvSpriteBounds(prop.row, prop.col);
+    const ratio = bounds.sw / bounds.sh;
+    const drawH = Math.round((prop.drawH || 70) * (prop.scale || 1));
+    const drawW = Math.round(drawH * ratio);
+    const drawX = Math.round(prop.x - drawW / 2);
+    const drawY = Math.round(prop.y - drawH + (prop.baseOffset || 8));
+    const playerInside =
+        player.x > drawX + drawW * 0.18 && player.x < drawX + drawW * 0.82 &&
+        player.y > prop.y - drawH * 0.72 && player.y < prop.y + 8;
+
+    ctx.save();
+    ctx.globalAlpha = playerInside ? 0.62 : (prop.alpha || 0.94);
+    ctx.filter = prop.filter || 'brightness(0.96) saturate(1.04) contrast(1.04)';
+    ctx.drawImage(
+        processedEnvSprites,
+        bounds.sx, bounds.sy, bounds.sw, bounds.sh,
+        drawX, drawY, drawW, drawH
+    );
+    ctx.restore();
+}
+
+function drawScenicProps(ctx, mode = 'behindPlayer') {
+    if (!scenicProps || scenicProps.length === 0) return;
+    for (let i = 0, len = scenicProps.length; i < len; i++) {
+        const prop = scenicProps[i];
+        const sortY = prop.sortY ?? prop.y;
+        if (mode === 'behindPlayer' && sortY > player.y + 4) continue;
+        if (mode === 'foreground' && sortY <= player.y + 4) continue;
+        drawScenicPropOne(ctx, prop);
+    }
+}
+
+function addDungeonLightSource(x, y, light, seed) {
+    if (!light) return;
+    dungeonLightSources.push({
+        x,
+        y,
+        color: light.color,
+        radius: light.radius || 120,
+        strength: light.strength || 0.5,
+        flicker: !!light.flicker,
+        phase: mapTileNoise(seed + 77) * Math.PI * 2
+    });
+}
+
+function drawDungeonLightSources(ctx, biome) {
+    if (isInTown()) return;
+    const time = Date.now() / 1000;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    const maxLights = 10;
+    let drawn = 0;
+    for (let i = 0, len = dungeonLightSources.length; i < len; i++) {
+        const light = dungeonLightSources[i];
+        if (light.x < camera.x - light.radius || light.x > camera.x + canvas.width + light.radius ||
+            light.y < camera.y - light.radius || light.y > camera.y + canvas.height + light.radius) continue;
+        if (drawn++ >= maxLights) break;
+
+        const flicker = light.flicker ? 0.86 + Math.sin(time * 5.5 + light.phase) * 0.10 + Math.sin(time * 13 + light.phase) * 0.04 : 1;
+        const radius = light.radius * flicker;
+        const gradient = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, radius);
+        gradient.addColorStop(0, light.color);
+        gradient.addColorStop(0.48, light.color.replace(/0\.\d+\)/, `${(light.strength * 0.18).toFixed(2)})`));
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(light.x, light.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    if (biome?.ambientGlow) {
+        const px = Math.round(player.x);
+        const py = Math.round(player.y);
+        const gradient = ctx.createRadialGradient(px, py, 20, px, py, biome.ambientGlow.radius);
+        gradient.addColorStop(0, biome.ambientGlow.color);
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(px, py, biome.ambientGlow.radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.restore();
+}
+
+function drawScenicPropBases(ctx, biome) {
+    if (!scenicProps || scenicProps.length === 0) return;
+    for (let i = 0, len = scenicProps.length; i < len; i++) {
+        const prop = scenicProps[i];
+        ctx.save();
+        ctx.globalAlpha = 0.30;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.beginPath();
+        ctx.ellipse(prop.x, prop.y + 2, 18 + (prop.scale || 1) * 16, 7 + (prop.scale || 1) * 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        if (biome?.edge && mapTileNoise(prop.x + prop.y) > 0.55) {
+            ctx.globalAlpha = 0.16;
+            ctx.strokeStyle = biome.edge;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.ellipse(prop.x, prop.y + 1, 20, 8, 0, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+}
+
 function createSimpleParticle(x, y, color, speed, angle) {
     const p = ParticlePool.acquire();
     p.x = x; p.y = y; p.z = 5 + Math.random() * 10;
@@ -1772,6 +1937,16 @@ wallTiles.onload = () => {
     // 资源加载完成后重新生成地图缓存
     if (gameActive && mapData.length > 0) generateMapCache();
 };
+
+function addBiomeAtmosphere(style) {
+    if (style.type === 'forest') {
+        return { ...style, ambientGlow: { color: 'rgba(72, 180, 90, 0.045)', radius: 260 }, fogColor: 'rgba(20, 36, 18, 0.10)' };
+    }
+    if (style.type === 'ice') {
+        return { ...style, ambientGlow: { color: 'rgba(112, 220, 255, 0.055)', radius: 280 }, fogColor: 'rgba(50, 95, 120, 0.09)' };
+    }
+    return { ...style, ambientGlow: { color: 'rgba(255, 78, 22, 0.055)', radius: 250 }, fogColor: 'rgba(42, 6, 2, 0.10)' };
+}
 
 function getBiomeStyle(floor) {
     if (floor === 0 && !player.isInHell) return null; // Camp uses default
@@ -1819,12 +1994,15 @@ function getBiomeStyle(floor) {
                 ice: false
             }
         ];
-        return deepThemes[Math.floor((depth - 21) / 7) % deepThemes.length];
+        const themeIndex = player.isInHell
+            ? Math.max(0, depth - 1) % deepThemes.length
+            : Math.floor((depth - 21) / 7) % deepThemes.length;
+        return addBiomeAtmosphere(deepThemes[themeIndex]);
     }
 
     // 1-10: 迷雾森林 (绿色, 潮湿)
     if (floor <= 10) {
-        return {
+        return addBiomeAtmosphere({
             tint: 'rgba(50, 200, 80, 0.22)',
             floorWash: 'rgba(12, 36, 18, 0.14)',
             wallWash: 'rgba(8, 42, 18, 0.18)',
@@ -1832,11 +2010,11 @@ function getBiomeStyle(floor) {
             crack: 'rgba(40, 110, 60, 0.18)',
             type: 'forest',
             ice: false
-        };
+        });
     }
     // 11-20: 冰封废墟 (蓝色, 滑)
     if (floor <= 20) {
-        return {
+        return addBiomeAtmosphere({
             tint: 'rgba(100, 220, 255, 0.30)',
             floorWash: 'rgba(18, 42, 58, 0.16)',
             wallWash: 'rgba(16, 46, 70, 0.20)',
@@ -1844,10 +2022,10 @@ function getBiomeStyle(floor) {
             crack: 'rgba(130, 210, 255, 0.20)',
             type: 'ice',
             ice: true
-        };
+        });
     }
     // 21+: 熔岩炼狱 (红色)
-    return { tint: 'rgba(145, 38, 12, 0.20)', floorWash: 'rgba(20, 4, 2, 0.18)', wallWash: 'rgba(48, 8, 2, 0.24)', edge: 'rgba(255, 105, 38, 0.20)', crack: 'rgba(255, 72, 18, 0.32)', type: 'fire', ice: false };
+    return addBiomeAtmosphere({ tint: 'rgba(145, 38, 12, 0.20)', floorWash: 'rgba(20, 4, 2, 0.18)', wallWash: 'rgba(48, 8, 2, 0.24)', edge: 'rgba(255, 105, 38, 0.20)', crack: 'rgba(255, 72, 18, 0.32)', type: 'fire', ice: false });
 }
 
 function getWallTextureIndex(floor) {
@@ -4047,6 +4225,8 @@ function enterFloor(f, spawnAt = 'start') {
     enemies = []; groundItems = []; projectiles = []; npcs = []; flyingPickups = [];
     destructibles = []; // 清空可破坏物体
     dungeonRoomFeatures = [];
+    scenicProps = [];
+    dungeonLightSources = [];
 
     // 清空A*寻路缓存（新楼层需要重新计算路径）
     if (AutoBattle.astarCache) {
@@ -4307,6 +4487,8 @@ function enterFloor(f, spawnAt = 'start') {
 function generateTown() {
     mapData = []; visitedMap = [];
     dungeonRoomFeatures = [];
+    scenicProps = [];
+    dungeonLightSources = [];
     _minimapDirty = true; _minimapCache = null;  // 重置小地图缓存
     for (let y = 0; y < MAP_HEIGHT; y++) { mapData.push(new Array(MAP_WIDTH).fill(0)); visitedMap.push(new Array(MAP_WIDTH).fill(true)); }
     const cx = Math.floor(MAP_WIDTH / 2), cy = Math.floor(MAP_HEIGHT / 2);
@@ -4418,6 +4600,12 @@ function validateAndFixDungeonPortalPosition(x, y) {
 function seedDungeonRoomFeatures(rooms, currentFloor) {
     dungeonRoomFeatures = [];
     if (!rooms || rooms.length === 0) return;
+    const biomeType = getBiomeStyle(currentFloor).type;
+    const featureTypes = biomeType === 'ice'
+        ? ['frost_sigils', 'broken_path', 'floor_frame']
+        : biomeType === 'forest'
+            ? ['root_shrine', 'broken_path', 'floor_frame']
+            : ['ritual', 'ember_channel', 'bone_nest'];
 
     for (let i = 1; i < rooms.length; i++) {
         const room = rooms[i];
@@ -4434,7 +4622,8 @@ function seedDungeonRoomFeatures(rooms, currentFloor) {
             y: room.cy,
             w: Math.max(3, room.w - padX * 2),
             h: Math.max(3, room.h - padY * 2),
-            type: n > 0.78 ? 'ritual' : n > 0.56 ? 'broken_path' : 'floor_frame',
+            type: featureTypes[Math.floor(n * featureTypes.length) % featureTypes.length],
+            theme: biomeType,
             seed: currentFloor * 4099 + i * 131
         };
 
@@ -4442,6 +4631,101 @@ function seedDungeonRoomFeatures(rooms, currentFloor) {
             dungeonRoomFeatures.push(feature);
         }
         if (dungeonRoomFeatures.length >= 7) break;
+    }
+}
+
+function seedDungeonScenicProps(rooms, currentFloor) {
+    scenicProps = [];
+    dungeonLightSources = [];
+    if (!rooms || rooms.length === 0) return;
+
+    const biome = getBiomeStyle(currentFloor);
+    const occupied = new Set();
+    const key = (x, y) => `${x},${y}`;
+    const canUse = (x, y) => {
+        if (!isValidMapPropTile(x, y, 1)) return false;
+        for (let yy = y - 1; yy <= y + 1; yy++) {
+            for (let xx = x - 1; xx <= x + 1; xx++) {
+                if (occupied.has(key(xx, yy))) return false;
+            }
+        }
+        return true;
+    };
+    const addProp = (x, y, def, seed, forceLight = false) => {
+        if (!def || !canUse(x, y)) return false;
+        const px = x * TILE_SIZE + TILE_SIZE / 2 + (mapTileNoise(seed + 3) - 0.5) * 8;
+        const py = y * TILE_SIZE + TILE_SIZE / 2 + 6;
+        const drawH = def.tall ? 76 : 50;
+        const prop = {
+            scenicProp: true,
+            x: px,
+            y: py,
+            sortY: py,
+            row: def.row,
+            col: def.col,
+            scale: (def.scale || 0.55) * (0.92 + mapTileNoise(seed + 5) * 0.16),
+            drawH,
+            baseOffset: def.tall ? 10 : 7,
+            alpha: def.tall ? 0.94 : 0.88,
+            name: def.name
+        };
+        scenicProps.push(prop);
+        occupied.add(key(x, y));
+        if (forceLight || def.light) addDungeonLightSource(px, py - drawH * 0.32, def.light, seed);
+        return true;
+    };
+
+    for (let i = 1; i < rooms.length && scenicProps.length < 18; i++) {
+        const room = rooms[i];
+        if (room.w < 7 || room.h < 7) continue;
+        if (isNearDungeonAnchor(room.cx, room.cy, 210)) continue;
+
+        const seed = currentFloor * 7919 + i * 313;
+        const primary = pickScenicPropDef(biome.type, seed, mapTileNoise(seed + 1) > 0.68);
+        const cornerDefs = [
+            { x: room.x + 2, y: room.y + 2 },
+            { x: room.x + room.w - 3, y: room.y + 2 },
+            { x: room.x + 2, y: room.y + room.h - 3 },
+            { x: room.x + room.w - 3, y: room.y + room.h - 3 }
+        ];
+        const start = Math.floor(mapTileNoise(seed + 2) * cornerDefs.length);
+        for (let j = 0; j < cornerDefs.length && scenicProps.length < 18; j++) {
+            const pos = cornerDefs[(start + j) % cornerDefs.length];
+            const wantsLight = j === 0 && mapTileNoise(seed + 11) > 0.42;
+            const def = wantsLight ? pickScenicPropDef(biome.type, seed + j * 17, true) : primary;
+            if (addProp(pos.x, pos.y, def, seed + j * 17, wantsLight)) break;
+        }
+
+        if (mapTileNoise(seed + 33) > 0.62 && scenicProps.length < 18) {
+            const edgeX = room.x + 2 + Math.floor(mapTileNoise(seed + 44) * Math.max(1, room.w - 4));
+            const edgeY = mapTileNoise(seed + 45) > 0.5 ? room.y + 2 : room.y + room.h - 3;
+            addProp(edgeX, edgeY, pickScenicPropDef(biome.type, seed + 55, false), seed + 55);
+        }
+    }
+
+    if (dungeonLightSources.length < 4) {
+        for (const feature of dungeonRoomFeatures) {
+            if (dungeonLightSources.length >= 6) break;
+            const def = pickScenicPropDef(biome.type, feature.seed + 99, true);
+            if (def.light) addDungeonLightSource(feature.x * TILE_SIZE + TILE_SIZE / 2, feature.y * TILE_SIZE + TILE_SIZE / 2, def.light, feature.seed + 99);
+        }
+    }
+
+    for (let y = 3; y < MAP_HEIGHT - 3 && scenicProps.length < 8; y++) {
+        for (let x = 3; x < MAP_WIDTH - 3 && scenicProps.length < 8; x++) {
+            const seed = currentFloor * 104729 + y * 4099 + x * 131;
+            if (mapTileNoise(seed) < 0.985) continue;
+            const wantsLight = dungeonLightSources.length < 4;
+            addProp(x, y, pickScenicPropDef(biome.type, seed, wantsLight), seed, wantsLight);
+        }
+    }
+    for (let y = 3; y < MAP_HEIGHT - 3 && scenicProps.length < 8; y++) {
+        for (let x = 3; x < MAP_WIDTH - 3 && scenicProps.length < 8; x++) {
+            const seed = currentFloor * 65537 + y * 1237 + x * 577;
+            if (mapTileNoise(seed) < 0.72) continue;
+            const wantsLight = dungeonLightSources.length < 4;
+            addProp(x, y, pickScenicPropDef(biome.type, seed, wantsLight), seed, wantsLight);
+        }
     }
 }
 
@@ -4462,7 +4746,10 @@ function drawDungeonRoomFeatures(ctx, biome) {
         ctx.strokeStyle = accent;
         ctx.fillStyle = shadow;
 
-        if (feature.type === 'ritual') {
+        if (feature.type === 'ritual' || feature.type === 'frost_sigils' || feature.type === 'root_shrine' || feature.type === 'bone_nest') {
+            if (feature.type === 'frost_sigils') ctx.strokeStyle = 'rgba(170, 235, 255, 0.34)';
+            if (feature.type === 'root_shrine') ctx.strokeStyle = 'rgba(112, 190, 90, 0.28)';
+            if (feature.type === 'bone_nest') ctx.strokeStyle = 'rgba(210, 170, 110, 0.24)';
             ctx.globalAlpha = 0.30;
             ctx.beginPath();
             ctx.ellipse(cx, cy, Math.min(w, h) * 0.22, Math.min(w, h) * 0.14, 0, 0, Math.PI * 2);
@@ -4479,6 +4766,17 @@ function drawDungeonRoomFeatures(ctx, biome) {
                 ctx.lineTo(cx + Math.cos(a) * Math.min(w, h) * 0.22, cy + Math.sin(a) * Math.min(w, h) * 0.14);
                 ctx.stroke();
             }
+        } else if (feature.type === 'ember_channel') {
+            ctx.globalAlpha = 0.18;
+            ctx.fillStyle = 'rgba(255, 72, 18, 0.22)';
+            ctx.fillRect(cx - w * 0.30, cy - 2, w * 0.60, 4);
+            ctx.fillRect(cx - 2, cy - h * 0.18, 4, h * 0.36);
+            ctx.globalAlpha = 0.28;
+            ctx.strokeStyle = 'rgba(255, 118, 36, 0.32)';
+            ctx.beginPath();
+            ctx.moveTo(cx - w * 0.30, cy);
+            ctx.lineTo(cx + w * 0.30, cy);
+            ctx.stroke();
         } else if (feature.type === 'broken_path') {
             ctx.globalAlpha = 0.18;
             ctx.fillRect(cx - w * 0.34, cy - 3, w * 0.68, 6);
@@ -4499,6 +4797,8 @@ function drawDungeonRoomFeatures(ctx, biome) {
 function generateDungeon() {
     mapData = []; visitedMap = [];
     dungeonRoomFeatures = [];
+    scenicProps = [];
+    dungeonLightSources = [];
     _minimapDirty = true; _minimapCache = null;  // 重置小地图缓存
     for (let y = 0; y < MAP_HEIGHT; y++) { mapData.push(new Array(MAP_WIDTH).fill(0)); visitedMap.push(new Array(MAP_WIDTH).fill(false)); }
     const centerX = Math.floor(MAP_WIDTH / 2);
@@ -4791,6 +5091,7 @@ function generateDungeon() {
     };
 
     seedDungeonRoomFeatures(rooms, currentFloor);
+    seedDungeonScenicProps(rooms, currentFloor);
 
     // 放置可破坏物体 (确保在地图生成完成后调用)
     seedDestructibles();
@@ -4900,6 +5201,12 @@ function isNearDungeonAnchor(c, r, minDistPx = 170) {
 function isValidMapPropTile(c, r, footprintRadius = 1) {
     if (!isClearFloorFootprint(c, r, footprintRadius)) return false;
     if (isNearDungeonAnchor(c, r)) return false;
+    for (let i = 0, len = scenicProps.length; i < len; i++) {
+        const prop = scenicProps[i];
+        const pc = Math.floor(prop.x / TILE_SIZE);
+        const pr = Math.floor(prop.y / TILE_SIZE);
+        if (Math.abs(pc - c) <= 1 && Math.abs(pr - r) <= 1) return false;
+    }
     return true;
 }
 
@@ -5235,6 +5542,7 @@ function generateMapCache() {
     }
 
     drawDungeonRoomFeatures(cctx, biome);
+    drawScenicPropBases(cctx, biome);
 
     // 只有当必要的贴图都加载完成时才标记缓存有效
     // 否则会显示黑屏（缓存内容为空）
@@ -6635,6 +6943,7 @@ function draw() {
 
     // 摄像机已经是整数（基于Math.round(player)），直接使用避免额外取整误差
     ctx.save(); ctx.translate(-camera.x + shakeX, -camera.y + shakeY);
+    const activeBiome = getBiomeStyle(player.isInHell ? player.hellFloor : player.floor);
 
     // 使用离屏Canvas缓存绘制地图（性能优化：从每帧5000+次ctx调用降为1次）
     let mapDrawn = false;
@@ -6722,6 +7031,8 @@ function draw() {
         }
     }
 
+    drawDungeonLightSources(ctx, activeBiome);
+
     // 性能优化：使用 for 循环渲染 NPC
     for (let ni = 0, nLen = npcs.length; ni < nLen; ni++) {
         const n = npcs[ni];
@@ -6781,6 +7092,7 @@ function draw() {
     // 渲染可破坏物体
     drawGroundItems(ctx);
     DestructibleSystem.draw(ctx, 'behindPlayer');
+    drawScenicProps(ctx, 'behindPlayer');
 
     renderEnemies.length = 0;
     for (let ei = 0, eLen = enemies.length; ei < eLen; ei++) {
@@ -6984,10 +7296,15 @@ function draw() {
         const e = renderEnemies[ei];
         if (e.y > player.y + 4) foregroundActors.push(e);
     }
-    foregroundActors.sort((a, b) => a.y - b.y);
+    for (let si = 0, sLen = scenicProps.length; si < sLen; si++) {
+        const prop = scenicProps[si];
+        if ((prop.sortY ?? prop.y) > player.y + 4) foregroundActors.push(prop);
+    }
+    foregroundActors.sort((a, b) => (a.sortY ?? a.y) - (b.sortY ?? b.y));
     for (let ai = 0, aLen = foregroundActors.length; ai < aLen; ai++) {
         const actor = foregroundActors[ai];
-        if (actor.maxHp !== undefined) drawEnemyActor(ctx, actor);
+        if (actor.scenicProp) drawScenicPropOne(ctx, actor);
+        else if (actor.maxHp !== undefined) drawEnemyActor(ctx, actor);
         else DestructibleSystem.drawOne(ctx, actor);
     }
     if (AutoBattle.enabled && AutoBattle.currentTarget && !AutoBattle.currentTarget.dead) {
