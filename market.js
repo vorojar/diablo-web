@@ -16,11 +16,11 @@ const MARKET_CONFIG = {
 
   // 摊位坐标 (相对于 dungeonEntrance 的偏移)
   STALL_POSITIONS: [
-    { x: 350, y: -80 },   // 摊位1: 右上
-    { x: 380, y: 0 },     // 摊位2: 右中
-    { x: 350, y: 80 },    // 摊位3: 右下
-    { x: 300, y: -40 },   // 摊位4: 内侧上
-    { x: 300, y: 40 }     // 摊位5: 内侧下
+    { x: 420, y: -120 },  // 摊位1: 外侧上
+    { x: 455, y: 0 },     // 摊位2: 外侧中
+    { x: 420, y: 120 },   // 摊位3: 外侧下
+    { x: 315, y: -62 },   // 摊位4: 内侧上
+    { x: 315, y: 62 }     // 摊位5: 内侧下
   ]
 };
 
@@ -896,19 +896,19 @@ const MarketSystem = {
       // 有人摆摊，打开查看面板
       this.openViewPanel(stallPoint);
     } else {
-      // 空摊位，打开设置面板（不绑定具体位置）
-      this.openSetupPanel();
+      // 空摊位，打开设置面板并绑定玩家点击的具体位置
+      this.openSetupPanel(stallPoint.index);
     }
   },
 
   // ========== 打开摆摊设置面板 ==========
-  openSetupPanel() {
+  openSetupPanel(stallIndex = -1) {
     if (this.isStalling) {
       showNotification('你已经在摆摊了', 'warning');
       return;
     }
 
-    // 不再绑定具体摊位，开始营业时实时分配
+    this.currentStallIndex = Number.isInteger(stallIndex) ? stallIndex : -1;
     this.setupItems = [];
 
     const panel = document.getElementById('stall-setup-panel');
@@ -1211,10 +1211,19 @@ const MarketSystem = {
     const occupiedIndices = this.stalls.map(s => s.stall_index);
     let assignedIndex = -1;
 
-    for (let i = 0; i < MARKET_CONFIG.STALL_POSITIONS.length; i++) {
-      if (!occupiedIndices.includes(i)) {
-        assignedIndex = i;
-        break;
+    if (this.currentStallIndex >= 0) {
+      if (occupiedIndices.includes(this.currentStallIndex)) {
+        showNotification('该摊位已被占用，请重新选择', 'warning');
+        this.loadStalls();
+        return;
+      }
+      assignedIndex = this.currentStallIndex;
+    } else {
+      for (let i = 0; i < MARKET_CONFIG.STALL_POSITIONS.length; i++) {
+        if (!occupiedIndices.includes(i)) {
+          assignedIndex = i;
+          break;
+        }
       }
     }
 

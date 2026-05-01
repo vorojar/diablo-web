@@ -1,5 +1,5 @@
 // Service Worker - JS/CSS 强制最新，其他资源网络优先
-const CACHE_NAME = 'diablo-web-v7.08';
+const CACHE_NAME = 'diablo-web-v7.09';
 
 // 安装时立即激活
 self.addEventListener('install', event => {

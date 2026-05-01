@@ -2443,7 +2443,7 @@ function getCurrentHeroAction() {
 function getHeroFrame(direction) {
     if (heroSpritesLoaded && processedHeroSprites) {
         const action = getCurrentHeroAction();
-        const safeDirection = normalizeHeroDirection(direction);
+        const safeDirection = action === 'sit' ? 'front' : normalizeHeroDirection(direction);
         const actionRows = HERO_SPRITE_CONFIG.rowsByAction[action] || HERO_SPRITE_CONFIG.rowsByAction.idle;
         const frameInfo = actionRows[safeDirection] || actionRows.front;
         const fps = HERO_SPRITE_CONFIG.fps[action] || HERO_SPRITE_CONFIG.fps.idle;
