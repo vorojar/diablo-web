@@ -2596,6 +2596,34 @@ function drawMonsterSprite(ctx, source, frame, centerX, bottomY, drawW, drawH) {
         centerX - drawW / 2, bottomY - drawH, drawW, drawH);
 }
 
+const ContactShadowCache = new Map();
+
+function getContactShadowSprite(width, height, alpha) {
+    const w = Math.max(8, Math.round(width));
+    const h = Math.max(4, Math.round(height));
+    const a = Math.round(alpha * 100);
+    const key = `${w}x${h}:${a}`;
+    if (ContactShadowCache.has(key)) return ContactShadowCache.get(key);
+
+    const shadow = document.createElement('canvas');
+    shadow.width = w;
+    shadow.height = h;
+    const shadowCtx = shadow.getContext('2d');
+    const gradient = shadowCtx.createRadialGradient(w / 2, h / 2, 1, w / 2, h / 2, w / 2);
+    gradient.addColorStop(0, `rgba(0, 0, 0, ${alpha})`);
+    gradient.addColorStop(0.62, `rgba(0, 0, 0, ${alpha * 0.45})`);
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    shadowCtx.fillStyle = gradient;
+    shadowCtx.fillRect(0, 0, w, h);
+    ContactShadowCache.set(key, shadow);
+    return shadow;
+}
+
+function drawContactShadow(ctx, x, y, width, height, alpha = 0.28) {
+    const shadow = getContactShadowSprite(width, height, alpha);
+    ctx.drawImage(shadow, Math.round(x - shadow.width / 2), Math.round(y - shadow.height / 2));
+}
+
 function drawOutlinedText(ctx, text, x, y, fillStyle, font, strokeStyle = 'rgba(0,0,0,0.85)', lineWidth = 3) {
     ctx.save();
     ctx.font = font;
@@ -2616,6 +2644,11 @@ function drawEnemyActor(ctx, e) {
 
     const rx = Math.round(e.x);
     const ry = Math.round(e.y);
+    const animatedMonsterFrame = getMonsterSpriteFrame(e);
+
+    const shadowWidth = e.isBoss ? Math.max(64, e.radius * 4.4) : (animatedMonsterFrame ? 46 : 34);
+    const shadowHeight = e.isBoss ? 18 : (animatedMonsterFrame ? 12 : 9);
+    drawContactShadow(ctx, rx, ry - 2, shadowWidth, shadowHeight, e.isBoss ? 0.36 : 0.27);
 
     if (e.isBoss) {
         ctx.beginPath();
@@ -2627,7 +2660,6 @@ function drawEnemyActor(ctx, e) {
         ctx.stroke();
     }
 
-    const animatedMonsterFrame = getMonsterSpriteFrame(e);
     if (animatedMonsterFrame) {
         const renderHeight = MONSTER_SPRITE_CONFIG.renderSize;
         const renderWidth = renderHeight * animatedMonsterFrame.width / animatedMonsterFrame.height;
@@ -7220,6 +7252,7 @@ function draw() {
         const n = npcs[ni];
         const nx = Math.round(n.x);
         const ny = Math.round(n.y);
+        drawContactShadow(ctx, nx, ny - 2, 32, 8, 0.24);
         if (spritesLoaded && processedSpriteSheet && n.frameIndex !== undefined) {
             const frame = getNPCFrame(n.frameIndex);
             const renderHeight = 52;
@@ -7401,6 +7434,9 @@ function draw() {
         else if (player.frozen || player.slowedTimer > 0) source = tintCache.ice;
         else if (player.poisoned) source = tintCache.poison;
         else if (player.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = tintCache.lightning;
+
+        const isPlayerStalling = typeof MarketSystem !== 'undefined' && MarketSystem.isStalling;
+        drawContactShadow(ctx, px, py - 2, useHeroSheet ? 44 : 30, useHeroSheet ? 12 : 8, isPlayerStalling ? 0.22 : 0.3);
 
         if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) {
             drawHeroSprite(ctx, source, frame, px, py - renderHeight / 2 + (frame.offsetY || 0), renderWidth, renderHeight);
@@ -9227,14 +9263,16 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         e.x = nx; e.y = ny;
     }
 
-    // 击中粒子 (Impact Particles)
-    let particleColor = '#ff3333';
+    // 击中粒子：按怪物材质区分骨屑、腐肉、灵体散雾等反馈。
+    let particleColor = getMonsterImpactProfile(e).color;
     if (e.frozenTimer > 0 || e.slowedTimer > 0) particleColor = '#33ccff';
     else if (e.poisonTimer > 0) particleColor = '#33ff33';
     else if (e.lightningOverloadTimer > 0) particleColor = '#ffff33';
 
-    if (typeof createImpactParticles !== 'undefined') {
+    if (isSkillDamage) {
         createImpactParticles(e.x, e.y, particleColor, isCrit ? 8 : 4);
+    } else {
+        createMonsterImpactParticles(e, isCrit);
     }
 
     // 触发打击感
@@ -10699,6 +10737,55 @@ function createImpactParticles(x, y, color, count = 5) {
             gravity: 800,
             type: 'impact',
             canBake: color === '#ff3333' // 只有红血可以烘焙到地面
+        }));
+    }
+}
+
+function getMonsterImpactProfile(enemy) {
+    const type = getEnemyMonsterType(enemy);
+    if (enemy?.isBoss) {
+        return { color: '#ff3333', secondary: '#ffcc66', type: 'flesh', text: null };
+    }
+
+    const profiles = {
+        skeleton: { color: '#e8e2cf', secondary: '#9d9278', type: 'bone', text: null },
+        ranged: { color: '#e8e2cf', secondary: '#9d9278', type: 'bone', text: null },
+        zombie: { color: '#6f8f42', secondary: '#3f5f2a', type: 'rot', text: null },
+        mummy: { color: '#d7c28f', secondary: '#8c7345', type: 'dust', text: null },
+        ghost: { color: '#8fd8ff', secondary: '#d8f4ff', type: 'spirit', text: null },
+        specter: { color: '#75d7ff', secondary: '#fff6a8', type: 'spirit', text: null },
+        vampire: { color: '#b40022', secondary: '#ff6b7a', type: 'blood', text: null },
+        shaman: { color: '#ff5333', secondary: '#ffd166', type: 'demon', text: null },
+        melee: { color: '#ff3333', secondary: '#ff9a4d', type: 'flesh', text: null }
+    };
+    return profiles[type] || profiles.melee;
+}
+
+function createMonsterImpactParticles(enemy, isCrit = false) {
+    const profile = getMonsterImpactProfile(enemy);
+    const baseCount = isCrit ? 10 : 5;
+    createImpactParticles(enemy.x, enemy.y - 8, profile.color, baseCount);
+
+    const maxP = getParticleConfig().maxParticles;
+    const extraCount = isCrit ? 8 : 4;
+    for (let i = 0; i < extraCount; i++) {
+        if (particles.length >= maxP) break;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 45 + Math.random() * (isCrit ? 115 : 70);
+        const upward = profile.type === 'dust' || profile.type === 'spirit' ? 30 : 85;
+        particles.push(ParticlePool.acquire({
+            x: enemy.x + (Math.random() - 0.5) * 14,
+            y: enemy.y - 14 + (Math.random() - 0.5) * 14,
+            z: 3 + Math.random() * 8,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - upward,
+            vz: profile.type === 'bone' ? 110 + Math.random() * 90 : 55 + Math.random() * 80,
+            color: Math.random() < 0.6 ? profile.secondary : profile.color,
+            life: profile.type === 'spirit' ? 0.45 + Math.random() * 0.35 : 0.35 + Math.random() * 0.35,
+            size: profile.type === 'bone' ? 1.2 + Math.random() * 2.4 : 1.8 + Math.random() * 2.6,
+            gravity: profile.type === 'spirit' ? 120 : 760,
+            type: 'impact',
+            canBake: profile.type === 'blood' || profile.type === 'flesh'
         }));
     }
 }

@@ -153,31 +153,37 @@ const AudioSys = {
         const bus = this.ctx.createGain();
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(kind === 'kill' ? 2800 : kind === 'crit' ? 5200 : 3600, t);
-        filter.Q.setValueAtTime(0.7, t);
+        filter.frequency.setValueAtTime(kind === 'kill' ? 7200 : kind === 'crit' ? 9000 : 7600, t);
+        filter.Q.setValueAtTime(0.9, t);
         bus.gain.setValueAtTime(1, t);
         bus.connect(filter);
         filter.connect(this.sfxGain);
 
         if (kind === 'hit') {
-            this.playNoiseLayer(t, 0.035, 0.09, 'bandpass', 1300 + Math.random() * 300, 0.9, bus);
-            this.playToneLayer('triangle', t + 0.006, 0.075, 185, 92, 0.105, bus);
-            this.playToneLayer('sine', t + 0.018, 0.045, 360, 190, 0.035, bus);
+            // 普通近战命中：刀刃短擦 + 金属亮边 + 肉体冲击，避免木棒式闷低频。
+            this.playNoiseLayer(t, 0.018, 0.075, 'highpass', 3600 + Math.random() * 900, 0.7, bus);
+            this.playNoiseLayer(t + 0.006, 0.045, 0.07, 'bandpass', 2100 + Math.random() * 500, 1.4, bus);
+            this.playToneLayer('sawtooth', t + 0.004, 0.035, 1700, 820, 0.035, bus);
+            this.playToneLayer('triangle', t + 0.012, 0.055, 240, 115, 0.055, bus);
             return;
         }
 
         if (kind === 'crit') {
-            this.playNoiseLayer(t, 0.045, 0.13, 'bandpass', 1900 + Math.random() * 500, 1.2, bus);
-            this.playToneLayer('sawtooth', t + 0.004, 0.13, 520, 145, 0.12, bus);
-            this.playToneLayer('sine', t + 0.012, 0.07, 1680, 1180, 0.075, bus);
-            this.playToneLayer('triangle', t + 0.055, 0.12, 740, 330, 0.045, bus);
+            // 暴击命中：更尖的撕裂感和金属擦响，保留短促重心。
+            this.playNoiseLayer(t, 0.024, 0.11, 'highpass', 4200 + Math.random() * 1200, 0.8, bus);
+            this.playNoiseLayer(t + 0.01, 0.07, 0.1, 'bandpass', 2500 + Math.random() * 800, 1.6, bus);
+            this.playToneLayer('sawtooth', t + 0.004, 0.06, 2300, 950, 0.055, bus);
+            this.playToneLayer('sine', t + 0.014, 0.08, 1800, 1260, 0.06, bus);
+            this.playToneLayer('triangle', t + 0.035, 0.09, 310, 120, 0.065, bus);
             return;
         }
 
-        this.playNoiseLayer(t, 0.06, 0.16, 'bandpass', 900 + Math.random() * 260, 0.8, bus);
-        this.playToneLayer('square', t, 0.22, 92, 38, 0.18, bus);
-        this.playToneLayer('triangle', t + 0.035, 0.16, 230, 70, 0.09, bus);
-        this.playToneLayer('sine', t + 0.095, 0.18, 520, 180, 0.045, bus);
+        // 击杀：命中后追加碎裂尾音，但不再用大块低频钝击当主体。
+        this.playNoiseLayer(t, 0.03, 0.13, 'highpass', 3800 + Math.random() * 1000, 0.75, bus);
+        this.playNoiseLayer(t + 0.018, 0.095, 0.12, 'bandpass', 1600 + Math.random() * 500, 1.1, bus);
+        this.playToneLayer('sawtooth', t + 0.003, 0.07, 1550, 620, 0.06, bus);
+        this.playToneLayer('triangle', t + 0.02, 0.12, 260, 80, 0.09, bus);
+        this.playToneLayer('sine', t + 0.085, 0.12, 720, 240, 0.035, bus);
     },
     play: function (type) {
         if (!this.ctx) { console.log('AudioSys: No context'); return; }
