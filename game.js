@@ -979,7 +979,7 @@ function createTintedSpriteSheet(source, filterStr) {
 }
 // --- Hero Animation Sprites ---
 const heroSpriteSheet = new Image();
-heroSpriteSheet.src = 'hero_sprites.png?v=202605010500';
+heroSpriteSheet.src = 'hero_sprites.png?v=202605010530';
 let heroSpritesLoaded = false;
 let processedHeroSprites = null;
 const HeroTintCache = {
@@ -996,12 +996,6 @@ const HERO_SPRITE_CONFIG = {
     frameHeight: 128,
     renderSize: 88,
     fps: { idle: 3, walk: 7, attack: 10, cast: 8, sit: 2, hurt: 8 },
-    sideWalkFrameMotion: [
-        { offsetX: -4, offsetY: 1, scaleX: 1.03, scaleY: 0.98, shearX: -0.08 },
-        { offsetX: 0, offsetY: -3, scaleX: 0.97, scaleY: 1.04, shearX: 0.06 },
-        { offsetX: 4, offsetY: 1, scaleX: 1.03, scaleY: 0.98, shearX: 0.08 },
-        { offsetX: 0, offsetY: -2, scaleX: 0.98, scaleY: 1.03, shearX: -0.06 }
-    ],
     rowsByAction: {
         idle: {
             front: { row: 0 }, back: { row: 1 }, left: { row: 2 }, right: { row: 3 }
@@ -2071,20 +2065,12 @@ function getHeroFrame(direction) {
         const frameInfo = actionRows[safeDirection] || actionRows.front;
         const fps = HERO_SPRITE_CONFIG.fps[action] || HERO_SPRITE_CONFIG.fps.idle;
         const frameIndex = Math.floor((player.animTime || 0) * fps) % HERO_SPRITE_CONFIG.cols;
-        const sideWalkMotion = action === 'walk' && (safeDirection === 'left' || safeDirection === 'right')
-            ? HERO_SPRITE_CONFIG.sideWalkFrameMotion[frameIndex] || {}
-            : {};
         return {
             x: frameIndex * HERO_SPRITE_CONFIG.frameWidth,
             y: frameInfo.row * HERO_SPRITE_CONFIG.frameHeight,
             width: HERO_SPRITE_CONFIG.frameWidth,
             height: HERO_SPRITE_CONFIG.frameHeight,
             flipX: !!frameInfo.flipX,
-            offsetX: frameInfo.flipX ? -(sideWalkMotion.offsetX || 0) : (sideWalkMotion.offsetX || 0),
-            offsetY: sideWalkMotion.offsetY || 0,
-            scaleX: sideWalkMotion.scaleX || 1,
-            scaleY: sideWalkMotion.scaleY || 1,
-            shearX: frameInfo.flipX ? -(sideWalkMotion.shearX || 0) : (sideWalkMotion.shearX || 0),
             animated: true
         };
     }
@@ -2118,16 +2104,12 @@ function getHeroFrame(direction) {
 }
 
 function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH) {
-    const offsetX = frame.offsetX || 0;
-    const scaleX = frame.scaleX || 1;
-    const scaleY = frame.scaleY || 1;
-    const shearX = frame.shearX || 0;
-    if (frame.flipX || scaleX !== 1 || scaleY !== 1 || offsetX !== 0 || shearX !== 0) {
+    if (frame.flipX) {
         ctx.save();
-        ctx.translate(centerX + offsetX, topY + drawH);
-        ctx.transform(frame.flipX ? -scaleX : scaleX, 0, shearX, scaleY, 0, 0);
+        ctx.translate(centerX, topY);
+        ctx.scale(-1, 1);
         ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
-            -drawW / 2, -drawH, drawW, drawH);
+            -drawW / 2, 0, drawW, drawH);
         ctx.restore();
         return;
     }
