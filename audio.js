@@ -111,6 +111,13 @@ const AudioSys = {
         if (!this.ctx) { console.log('AudioSys: No context'); return; }
         if (this.ctx.state === 'suspended') { console.log('AudioSys: Context suspended'); this.ctx.resume(); }
 
+        if (type === 'portal') {
+            this.playPortalOpen();
+            return;
+        }
+        if (type === 'pickup_unique') type = 'drop_unique';
+        if (type === 'coins' || type === 'cash' || type === 'buy' || type === 'sell') type = 'gold';
+
         const t = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -142,19 +149,22 @@ const AudioSys = {
             gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
 
             osc.start(); osc.stop(t + 0.2);
-        } else if (type === 'attack') {
-            osc.type = 'triangle'; osc.frequency.setValueAtTime(100, t); osc.frequency.linearRampToValueAtTime(50, t + 0.1);
-            gain.gain.setValueAtTime(0.1, t); gain.gain.linearRampToValueAtTime(0, t + 0.1);
-            osc.start(); osc.stop(t + 0.1);
-        } else if (type === 'hit') {
+        } else if (type === 'attack' || type === 'swing' || type === 'melee_swing') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(560, t);
+            osc.frequency.exponentialRampToValueAtTime(170, t + 0.08);
+            gain.gain.setValueAtTime(0.055, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+            osc.start(); osc.stop(t + 0.09);
+        } else if (type === 'hit' || type === 'melee_hit') {
             // 普通击中：闷响 (低频三角波)
             osc.type = 'triangle';
-            osc.frequency.setValueAtTime(120, t);
-            osc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
-            gain.gain.setValueAtTime(0.15, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
-            osc.start(); osc.stop(t + 0.1);
-        } else if (type === 'hit_crit') {
+            osc.frequency.setValueAtTime(220, t);
+            osc.frequency.exponentialRampToValueAtTime(70, t + 0.11);
+            gain.gain.setValueAtTime(0.13, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.11);
+            osc.start(); osc.stop(t + 0.11);
+        } else if (type === 'hit_crit' || type === 'melee_crit') {
             // 暴击击中：金属撞击/撕裂声 (高频锯齿波叠加)
             osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(800, t);
@@ -173,7 +183,7 @@ const AudioSys = {
             osc2.connect(gain2);
             gain2.connect(this.sfxGain);
             osc2.start(t); osc2.stop(t + 0.05);
-        } else if (type === 'hit_kill') {
+        } else if (type === 'hit_kill' || type === 'melee_kill') {
             // 击杀：沉重的破碎声 (低频方波 + 快速衰减)
             osc.type = 'square';
             osc.frequency.setValueAtTime(60, t);
@@ -192,6 +202,34 @@ const AudioSys = {
             osc3.connect(gain3);
             gain3.connect(this.sfxGain);
             osc3.start(t); osc3.stop(t + 0.1);
+        } else if (type === 'pickup') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(900, t);
+            osc.frequency.exponentialRampToValueAtTime(1350, t + 0.08);
+            gain.gain.setValueAtTime(0.075, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+            osc.start(t); osc.stop(t + 0.12);
+        } else if (type === 'break_prop') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(140, t);
+            osc.frequency.exponentialRampToValueAtTime(55, t + 0.14);
+            gain.gain.setValueAtTime(0.12, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+            osc.start(t); osc.stop(t + 0.16);
+        } else if (type === 'ui_error') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(220, t);
+            osc.frequency.setValueAtTime(165, t + 0.06);
+            gain.gain.setValueAtTime(0.045, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+            osc.start(t); osc.stop(t + 0.12);
+        } else if (type === 'hell_enter') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(90, t);
+            osc.frequency.exponentialRampToValueAtTime(32, t + 0.6);
+            gain.gain.setValueAtTime(0.18, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+            osc.start(t); osc.stop(t + 0.65);
         } else if (type === 'quest') {
             osc.type = 'sine'; osc.frequency.setValueAtTime(440, t);
             osc.frequency.setValueAtTime(554, t + 0.2); osc.frequency.setValueAtTime(659, t + 0.4);

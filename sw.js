@@ -1,5 +1,5 @@
 // Service Worker - JS/CSS 强制最新，其他资源网络优先
-const CACHE_NAME = 'diablo-web-v1';
+const CACHE_NAME = 'diablo-web-v7.03';
 
 // 安装时立即激活
 self.addEventListener('install', event => {
@@ -8,7 +8,15 @@ self.addEventListener('install', event => {
 
 // 激活时立即接管页面
 self.addEventListener('activate', event => {
-    event.waitUntil(self.clients.claim());
+    event.waitUntil(
+        caches.keys()
+            .then(cacheNames => Promise.all(
+                cacheNames
+                    .filter(cacheName => cacheName.startsWith('diablo-web-') && cacheName !== CACHE_NAME)
+                    .map(cacheName => caches.delete(cacheName))
+            ))
+            .then(() => self.clients.claim())
+    );
 });
 
 // fetch 策略
@@ -20,10 +28,11 @@ self.addEventListener('fetch', event => {
         return;
     }
 
-    const url = request.url;
+    const url = new URL(request.url);
+    const path = url.pathname;
 
     // JS、CSS、HTML 强制从服务器拿最新，不用缓存
-    if (url.endsWith('.js') || url.endsWith('.css') || url.endsWith('.html') || url.endsWith('/')) {
+    if (path.endsWith('.js') || path.endsWith('.css') || path.endsWith('.html') || path.endsWith('/')) {
         event.respondWith(fetch(request, { cache: 'no-store' }));
         return;
     }

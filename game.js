@@ -152,6 +152,8 @@ let projectiles = [];
 let npcs = [];
 // bloodSplats 已废弃，血迹现在直接绘制到离屏Canvas (bloodCanvas)
 let destructibles = []; // 场景可破坏物体
+const renderEnemies = [];
+const foregroundActors = [];
 
 // 地图缓存系统（离屏Canvas优化）
 let mapCacheCanvas = null;
@@ -611,7 +613,7 @@ const player = {
     // 技能树系统（初始化为null，存档加载时会处理）
     skillTree: null,
     targetX: null, targetY: null, targetItem: null, attacking: false, attackCooldown: 0, attackAnim: 0,
-    animTime: 0, moving: false, heroAction: null, heroActionTimer: 0,
+    animTime: 0, moving: false, wasMoving: false, heroAction: null, heroActionTimer: 0,
     skillCooldowns: { fireball: 0, thunder: 0, multishot: 0 },
     // 护盾系统
     shield: {
@@ -975,10 +977,9 @@ function createTintedSpriteSheet(source, filterStr) {
     ctx.drawImage(source, 0, 0);
     return canvas;
 }
-
 // --- Hero Animation Sprites ---
 const heroSpriteSheet = new Image();
-heroSpriteSheet.src = 'hero_sprites.png?v=202604301145';
+heroSpriteSheet.src = 'hero_sprites.png?v=202605010130';
 let heroSpritesLoaded = false;
 let processedHeroSprites = null;
 const HeroTintCache = {
@@ -995,6 +996,7 @@ const HERO_SPRITE_CONFIG = {
     frameHeight: 128,
     renderSize: 88,
     fps: { idle: 3, walk: 7, attack: 10, cast: 8, sit: 2, hurt: 8 },
+    sideWalkFrameOffsets: [0, 2, 0, 2],
     rowsByAction: {
         idle: {
             front: { row: 0 }, back: { row: 1 }, left: { row: 2 }, right: { row: 3 }
@@ -1050,7 +1052,7 @@ heroSpriteSheet.onload = () => {
 
 // --- Monster Animation Sprites ---
 const monsterSpriteSheet = new Image();
-monsterSpriteSheet.src = 'monster_sprites.png?v=202604301500';
+monsterSpriteSheet.src = 'monster_sprites.png?v=202605010130';
 let monsterSpritesLoaded = false;
 let processedMonsterSprites = null;
 const MonsterTintCache = {
@@ -1459,35 +1461,41 @@ const DestructibleSystem = {
         }
     },
 
-    draw: function (ctx) {
+    drawOne: function (ctx, d) {
+        if (!destructiblesLoaded || !processedDestructibleSprites) return;
+        if (d.x < camera.x - 100 || d.x > camera.x + canvas.width + 100 ||
+            d.y < camera.y - 120 || d.y > camera.y + canvas.height + 100) return;
+
+        const spriteIndex = d.type.row * 2 + (d.broken ? 1 : 0);
+        const spriteBounds = destructibleSpriteBounds[spriteIndex] || {
+            sx: d.broken ? DESTRUCTIBLE_CONFIG.cellWidth : 0,
+            sy: d.type.row * DESTRUCTIBLE_CONFIG.cellHeight,
+            sw: DESTRUCTIBLE_CONFIG.cellWidth,
+            sh: DESTRUCTIBLE_CONFIG.cellHeight
+        };
+        const drawWidthByType = { barrel: 47, crate: 52, urn: 45 };
+        const drawW = Math.round((drawWidthByType[d.type.name] || 47) * (d.broken ? 1.04 : 1));
+        const drawH = Math.round(drawW * (spriteBounds.sh / spriteBounds.sw));
+        const rx = Math.round(d.x - drawW / 2);
+        const ry = Math.round(d.y - drawH + 12);
+
+        ctx.save();
+        ctx.filter = 'brightness(1.08) saturate(1.04) contrast(1.03)';
+        ctx.drawImage(
+            processedDestructibleSprites,
+            spriteBounds.sx, spriteBounds.sy, spriteBounds.sw, spriteBounds.sh,
+            rx, ry, drawW, drawH
+        );
+        ctx.restore();
+    },
+
+    draw: function (ctx, mode = 'all') {
         if (!destructiblesLoaded || !processedDestructibleSprites) return;
 
         destructibles.forEach(d => {
-            // 视口剔除
-            if (d.x < camera.x - 100 || d.x > camera.x + canvas.width + 100 ||
-                d.y < camera.y - 120 || d.y > camera.y + canvas.height + 100) return;
-
-            const spriteIndex = d.type.row * 2 + (d.broken ? 1 : 0);
-            const spriteBounds = destructibleSpriteBounds[spriteIndex] || {
-                sx: d.broken ? DESTRUCTIBLE_CONFIG.cellWidth : 0,
-                sy: d.type.row * DESTRUCTIBLE_CONFIG.cellHeight,
-                sw: DESTRUCTIBLE_CONFIG.cellWidth,
-                sh: DESTRUCTIBLE_CONFIG.cellHeight
-            };
-            const drawWidthByType = { barrel: 47, crate: 52, urn: 45 };
-            const drawW = Math.round((drawWidthByType[d.type.name] || 47) * (d.broken ? 1.04 : 1));
-            const drawH = Math.round(drawW * (spriteBounds.sh / spriteBounds.sw));
-            const rx = Math.round(d.x - drawW / 2);
-            const ry = Math.round(d.y - drawH + 12); // 微调底部锚点
-
-            ctx.save();
-            ctx.filter = 'brightness(1.08) saturate(1.04) contrast(1.03)';
-            ctx.drawImage(
-                processedDestructibleSprites,
-                spriteBounds.sx, spriteBounds.sy, spriteBounds.sw, spriteBounds.sh,
-                rx, ry, drawW, drawH
-            );
-            ctx.restore();
+            if (mode === 'behindPlayer' && d.y > player.y + 4) return;
+            if (mode === 'foreground' && d.y <= player.y + 4) return;
+            this.drawOne(ctx, d);
         });
     },
 
@@ -2058,12 +2066,16 @@ function getHeroFrame(direction) {
         const frameInfo = actionRows[safeDirection] || actionRows.front;
         const fps = HERO_SPRITE_CONFIG.fps[action] || HERO_SPRITE_CONFIG.fps.idle;
         const frameIndex = Math.floor((player.animTime || 0) * fps) % HERO_SPRITE_CONFIG.cols;
+        const sideWalkOffset = action === 'walk' && (safeDirection === 'left' || safeDirection === 'right')
+            ? HERO_SPRITE_CONFIG.sideWalkFrameOffsets[frameIndex] || 0
+            : 0;
         return {
             x: frameIndex * HERO_SPRITE_CONFIG.frameWidth,
             y: frameInfo.row * HERO_SPRITE_CONFIG.frameHeight,
             width: HERO_SPRITE_CONFIG.frameWidth,
             height: HERO_SPRITE_CONFIG.frameHeight,
             flipX: !!frameInfo.flipX,
+            offsetY: sideWalkOffset,
             animated: true
         };
     }
@@ -2128,6 +2140,15 @@ function triggerMonsterAction(enemy, action, duration) {
 function directionFromDelta(dx, dy) {
     if (Math.abs(dx) > Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
     return dy >= 0 ? 'front' : 'back';
+}
+
+function heroDirectionFromMoveDelta(dx, dy) {
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    if (absX > 0 && absY > 0 && Math.min(absX, absY) / Math.max(absX, absY) > 0.45) {
+        return dy >= 0 ? 'front' : 'back';
+    }
+    return directionFromDelta(dx, dy);
 }
 
 function setMonsterFacingToward(enemy, targetX, targetY, lockDuration = 0) {
@@ -2195,6 +2216,219 @@ function drawMonsterSprite(ctx, source, frame, centerX, bottomY, drawW, drawH) {
 
     ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
         centerX - drawW / 2, bottomY - drawH, drawW, drawH);
+}
+
+function drawOutlinedText(ctx, text, x, y, fillStyle, font, strokeStyle = 'rgba(0,0,0,0.85)', lineWidth = 3) {
+    ctx.save();
+    ctx.font = font;
+    ctx.textAlign = 'center';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = lineWidth;
+    ctx.strokeText(text, x, y);
+    ctx.fillStyle = fillStyle;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+}
+
+function drawEnemyActor(ctx, e) {
+    if (!e || e.dead) return;
+    if (e.x < camera.x - 100 || e.x > camera.x + canvas.width + 100 ||
+        e.y < camera.y - 120 || e.y > camera.y + canvas.height + 100) return;
+
+    const rx = Math.round(e.x);
+    const ry = Math.round(e.y);
+
+    if (e.isBoss) {
+        ctx.beginPath();
+        ctx.arc(rx, ry, (e.radius + 5) / 2, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(180, 0, 0, 0.25)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 50, 50, 0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+
+    const animatedMonsterFrame = getMonsterSpriteFrame(e);
+    if (animatedMonsterFrame) {
+        const renderHeight = MONSTER_SPRITE_CONFIG.renderSize;
+        const renderWidth = renderHeight * animatedMonsterFrame.width / animatedMonsterFrame.height;
+
+        let source = processedMonsterSprites;
+        if (e.hitFlashTimer > 0) source = MonsterTintCache.white;
+        else if (e.frozenTimer > 0 || e.slowedTimer > 0) source = MonsterTintCache.ice;
+        else if (e.poisonTimer > 0) source = MonsterTintCache.poison;
+        else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = MonsterTintCache.lightning;
+
+        ctx.save();
+        ctx.translate(rx, ry);
+        const juiceScale = e.juiceScale || 1.0;
+        ctx.scale(juiceScale, 1.0 / juiceScale);
+        drawMonsterSprite(ctx, source, animatedMonsterFrame, 0, 0, renderWidth, renderHeight);
+        ctx.restore();
+    } else if (spritesLoaded && processedSpriteSheet && e.frameIndex !== undefined) {
+        const frame = e.isBoss ? getBossFrame(e.frameIndex) : getMonsterFrame(e.frameIndex);
+        const renderHeight = e.isBoss ? 66 : 44;
+        const renderWidth = renderHeight * frame.width / frame.height;
+
+        let source = processedSpriteSheet;
+        if (e.hitFlashTimer > 0) source = TintCache.white;
+        else if (e.frozenTimer > 0 || e.slowedTimer > 0) source = TintCache.ice;
+        else if (e.poisonTimer > 0) source = TintCache.poison;
+        else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = TintCache.lightning;
+
+        ctx.save();
+        ctx.translate(rx, ry);
+        const juiceScale = e.juiceScale || 1.0;
+        ctx.scale(juiceScale, 1.0 / juiceScale);
+        ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
+            -renderWidth / 2, -renderHeight, renderWidth, renderHeight);
+        ctx.restore();
+    } else {
+        if (e.hitFlashTimer > 0) ctx.fillStyle = '#ffffff';
+        else ctx.fillStyle = e.frozenTimer > 0 ? COLORS.ice : (e.rarity > 0 ? '#ffaa00' : (e.isBoss ? '#9000cc' : '#880000'));
+        if (e.isQuestTarget) ctx.fillStyle = '#ff00aa';
+        ctx.beginPath();
+        ctx.arc(rx, ry, e.radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.fillStyle = '#500';
+    ctx.fillRect(rx - 15, ry - e.radius - 8, 30, 4);
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(rx - 15, ry - e.radius - 8, 30 * (e.hp / e.maxHp), 4);
+    drawOutlinedText(ctx, e.isBoss ? '⚔ ' + e.name : e.name, rx, ry - e.radius - 35,
+        e.isBoss ? '#ff5555' : (e.rarity > 0 ? '#ffaa00' : '#dddddd'), '10px Cinzel');
+
+    if (e.eliteAffixes && e.eliteAffixes.length > 0) {
+        let yOffset = -45;
+        for (let ai = 0, aLen = e.eliteAffixes.length; ai < aLen; ai++) {
+            const affix = e.eliteAffixes[ai];
+            drawOutlinedText(ctx, affix.name, e.x, e.y - e.radius + yOffset, affix.color, '9px Cinzel', 'rgba(0,0,0,0.9)', 2);
+            yOffset -= 12;
+        }
+    }
+
+    if (e.freezeOnHit) drawOutlinedText(ctx, '❄', e.x, e.y - e.radius - 50, '#99ddff', '16px Arial');
+    if (e.eliteAffixes) {
+        let hasFireEnchanted = false;
+        for (let ai = 0, aLen = e.eliteAffixes.length; ai < aLen; ai++) {
+            if (e.eliteAffixes[ai].id === 'fire_enchanted') { hasFireEnchanted = true; break; }
+        }
+        if (hasFireEnchanted) drawOutlinedText(ctx, '🔥', e.x + (e.freezeOnHit ? 18 : 0), e.y - e.radius - 50, '#ff8833', '16px Arial');
+    }
+}
+
+function drawArrowProjectile(ctx, p, color, length = 22, width = 4) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.angle);
+    ctx.lineCap = 'round';
+    ctx.shadowColor = color;
+    ctx.shadowBlur = player.graphicsQuality === 'high' ? 8 : 0;
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = width + 2;
+    ctx.beginPath();
+    ctx.moveTo(-length, 0);
+    ctx.lineTo(4, 0);
+    ctx.stroke();
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(-length, 0);
+    ctx.lineTo(4, 0);
+    ctx.stroke();
+
+    ctx.fillStyle = '#f8f1c8';
+    ctx.beginPath();
+    ctx.moveTo(9, 0);
+    ctx.lineTo(-2, -5);
+    ctx.lineTo(1, 0);
+    ctx.lineTo(-2, 5);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-length + 4, -3);
+    ctx.lineTo(-length - 4, -7);
+    ctx.moveTo(-length + 4, 3);
+    ctx.lineTo(-length - 4, 7);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawOrbProjectile(ctx, p) {
+    const color = p.color || '#ffaa00';
+    const radius = p.type === 'fireball' ? 7 : 5;
+    ctx.save();
+    setGlow(ctx, p.type === 'fireball' ? 18 : 10, color);
+    const grad = ctx.createRadialGradient(p.x - radius * 0.35, p.y - radius * 0.35, 1, p.x, p.y, radius);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.35, color);
+    grad.addColorStop(1, 'rgba(0,0,0,0.15)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    clearGlow(ctx);
+    ctx.restore();
+}
+
+function drawGroundItem(ctx, i) {
+    if (i.x < camera.x - 100 || i.x > camera.x + canvas.width + 100 ||
+        i.y < camera.y - 100 || i.y > camera.y + canvas.height + 100) return;
+
+    const isConsumable = i.type === 'gold' || i.type === 'potion' || i.type === 'scroll';
+    if (!isAltPressed && !isConsumable && i.rarity < 2) return;
+
+    const rx = Math.round(i.x);
+    const ry = Math.round(i.y);
+    const rz = Math.round(i.z || 0);
+
+    if (itemSpritesLoaded && processedItemSprites) {
+        const coords = getItemSpriteCoords(i);
+        const size = 32;
+        const spriteSize = processedItemSprites.width / 4;
+
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.ellipse(rx, ry, i.z > 0 ? 8 : 10, i.z > 0 ? 4 : 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.drawImage(processedItemSprites,
+            coords.col * spriteSize, coords.row * spriteSize, spriteSize, spriteSize,
+            rx - size / 2, ry - rz - size / 2, size, size
+        );
+    } else {
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.ellipse(rx, ry, 10, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.fillStyle = getItemColor(i.rarity);
+        ctx.textAlign = 'center';
+        ctx.font = '20px serif';
+        ctx.fillText(i.icon || '📦', rx, ry - rz + 7);
+    }
+
+    if (i.rarity >= 4) {
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = getItemColor(i.rarity);
+        ctx.beginPath();
+        ctx.moveTo(rx, ry);
+        ctx.lineTo(rx - 9, ry - 70);
+        ctx.lineTo(rx + 9, ry - 70);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    }
+}
+
+function drawGroundItems(ctx) {
+    for (let gi = 0, gLen = groundItems.length; gi < gLen; gi++) drawGroundItem(ctx, groundItems[gi]);
 }
 
 function getNPCFrame(frameIndex) {
@@ -4701,6 +4935,7 @@ function update(dt) {
     if (player.attackCooldown > 0) player.attackCooldown -= dt;
     if (player.attackAnim > 0) player.attackAnim -= dt * 5;
     player.animTime = (player.animTime || 0) + dt;
+    player.wasMoving = player.moving;
     player.moving = false;
     if (player.heroActionTimer > 0) {
         player.heroActionTimer -= dt;
@@ -5097,7 +5332,7 @@ function update(dt) {
                     player.attackAnim = 1;
                     triggerHeroAction('attack', 0.35);
                     player.attackCooldown = 0.4; // 短暂冷却
-                    AudioSys.play('hit');
+                    AudioSys.play('break_prop');
                 }
             } else {
                 player.targetX = d.x;
@@ -5117,17 +5352,18 @@ function update(dt) {
         const dx = player.targetX - player.x, dy = player.targetY - player.y;
         const dist = Math.hypot(dx, dy);
         if (dist > 5) {
-            if (Math.abs(dx) > Math.abs(dy)) {
-                player.direction = dx > 0 ? 'right' : 'left';
-            } else {
-                player.direction = dy > 0 ? 'front' : 'back';
-            }
+            const intendedDirection = heroDirectionFromMoveDelta(dx, dy);
+            player.direction = intendedDirection;
             const speedMultiplier = player.frozen ? 0 : (player.slowedTimer > 0 ? 0.4 : 1.0);  // 冰冻时完全不能动，减速期40%速度
             const move = player.speed * dt * speedMultiplier;
             const nx = player.x + (dx / dist) * move, ny = player.y + (dy / dist) * move;
+            const oldX = player.x, oldY = player.y;
             if (!isWall(nx, player.y)) player.x = nx;
             if (!isWall(player.x, ny)) player.y = ny;
-            player.moving = speedMultiplier > 0;
+            const movedX = player.x - oldX, movedY = player.y - oldY;
+            player.moving = Math.hypot(movedX, movedY) > 0.35;
+            if (player.moving) player.direction = heroDirectionFromMoveDelta(movedX, movedY);
+            player.wasMoving = player.moving;
             if (isWall(nx, ny) && isWall(nx, player.y) && isWall(player.x, ny)) player.targetX = null;
         } else {
             // 到达目标位置
@@ -6017,115 +6253,21 @@ function draw() {
     }
 
     // 渲染可破坏物体
-    DestructibleSystem.draw(ctx);
+    drawGroundItems(ctx);
+    DestructibleSystem.draw(ctx, 'behindPlayer');
 
-    // 性能优化：使用 for 循环渲染敌人
+    renderEnemies.length = 0;
     for (let ei = 0, eLen = enemies.length; ei < eLen; ei++) {
         const e = enemies[ei];
-        if (e.dead) continue;
-        // 视口剔除
-        if (e.x < camera.x - 100 || e.x > camera.x + canvas.width + 100 ||
-            e.y < camera.y - 120 || e.y > camera.y + canvas.height + 100) continue;
-
-        const rx = Math.round(e.x);
-        const ry = Math.round(e.y);
-
-        // BOSS脚下光环
-        if (e.isBoss) {
-            ctx.beginPath(); ctx.arc(rx, ry, (e.radius + 5) / 2, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(180, 0, 0, 0.25)'; ctx.fill();
-            ctx.strokeStyle = 'rgba(255, 50, 50, 0.5)'; ctx.lineWidth = 1.5; ctx.stroke();
-        }
-
-        const animatedMonsterFrame = getMonsterSpriteFrame(e);
-        if (animatedMonsterFrame) {
-            const renderHeight = MONSTER_SPRITE_CONFIG.renderSize;
-            const renderWidth = renderHeight * animatedMonsterFrame.width / animatedMonsterFrame.height;
-
-            let source = processedMonsterSprites;
-            if (e.hitFlashTimer > 0) source = MonsterTintCache.white;
-            else if (e.frozenTimer > 0 || e.slowedTimer > 0) source = MonsterTintCache.ice;
-            else if (e.poisonTimer > 0) source = MonsterTintCache.poison;
-            else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = MonsterTintCache.lightning;
-
-            ctx.save();
-            ctx.translate(rx, ry);
-            const juiceScale = e.juiceScale || 1.0;
-            ctx.scale(juiceScale, 1.0 / juiceScale);
-            drawMonsterSprite(ctx, source, animatedMonsterFrame, 0, 0, renderWidth, renderHeight);
-            ctx.restore();
-        } else if (spritesLoaded && processedSpriteSheet && e.frameIndex !== undefined) {
-            const frame = e.isBoss ? getBossFrame(e.frameIndex) : getMonsterFrame(e.frameIndex);
-            const renderHeight = e.isBoss ? 66 : 44;
-            const renderWidth = renderHeight * frame.width / frame.height;
-
-            // 确定绘制源（消除 ctx.filter）
-            let source = processedSpriteSheet;
-            if (e.hitFlashTimer > 0) source = TintCache.white;
-            else if (e.frozenTimer > 0 || e.slowedTimer > 0) source = TintCache.ice;
-            else if (e.poisonTimer > 0) source = TintCache.poison;
-            else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = TintCache.lightning;
-
-            ctx.save();
-            ctx.translate(rx, ry);
-            // 应用 Juice 缩放 (受击挤压效果)
-            const juiceScale = e.juiceScale || 1.0;
-            ctx.scale(juiceScale, 1.0 / juiceScale); // 保持体积一致性 (Squash and Stretch)
-
-            ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
-                -renderWidth / 2, -renderHeight, renderWidth, renderHeight);
-            ctx.restore();
-        } else {
-            // 优先级：受击闪白 > 冰冻 > 精英/Boss/普通颜色
-            if (e.hitFlashTimer > 0) {
-                ctx.fillStyle = '#ffffff'; // 受击闪白
-            } else {
-                ctx.fillStyle = e.frozenTimer > 0 ? COLORS.ice : (e.rarity > 0 ? '#ffaa00' : (e.isBoss ? '#9000cc' : '#880000'));
-            }
-            if (e.isQuestTarget) ctx.fillStyle = '#ff00aa';
-            ctx.beginPath(); ctx.arc(rx, ry, e.radius, 0, Math.PI * 2); ctx.fill();
-        }
-
-        ctx.fillStyle = '#500'; ctx.fillRect(rx - 15, ry - e.radius - 8, 30, 4);
-        ctx.fillStyle = '#f00'; ctx.fillRect(rx - 15, ry - e.radius - 8, 30 * (e.hp / e.maxHp), 4);
-        ctx.fillStyle = e.isBoss ? '#f33' : (e.rarity > 0 ? '#fa0' : '#ccc');
-        ctx.font = '10px Cinzel';
-        ctx.textAlign = 'center';
-        ctx.fillText(e.isBoss ? '☠️ ' + e.name : e.name, rx, ry - e.radius - 35);
-
-        // 渲染精英词缀 - 性能优化：使用 for 循环
-        if (e.eliteAffixes && e.eliteAffixes.length > 0) {
-            let yOffset = -45;
-            for (let ai = 0, aLen = e.eliteAffixes.length; ai < aLen; ai++) {
-                const affix = e.eliteAffixes[ai];
-                ctx.fillStyle = affix.color;
-                ctx.font = '9px Cinzel';
-                ctx.fillText(affix.name, e.x, e.y - e.radius + yOffset);
-                yOffset -= 12;
-            }
-        }
-
-        // 冰冻怪头顶显示❄️图标警告
-        if (e.freezeOnHit) {
-            ctx.font = '16px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('❄️', e.x, e.y - e.radius - 50);
-        }
-
-        // 火焰强化怪头顶显示🔥图标警告 - 性能优化：使用 for 循环检查
-        if (e.eliteAffixes) {
-            let hasFireEnchanted = false;
-            for (let ai = 0, aLen = e.eliteAffixes.length; ai < aLen; ai++) {
-                if (e.eliteAffixes[ai].id === 'fire_enchanted') { hasFireEnchanted = true; break; }
-            }
-            if (hasFireEnchanted) {
-                ctx.font = '16px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('🔥', e.x + (e.freezeOnHit ? 18 : 0), e.y - e.radius - 50);
-            }
-        }
+        if (!e.dead) renderEnemies.push(e);
     }
+    renderEnemies.sort((a, b) => a.y - b.y);
 
+    for (let ei = 0, eLen = renderEnemies.length; ei < eLen; ei++) {
+        const e = renderEnemies[ei];
+        if (e.y > player.y + 4) continue;
+        drawEnemyActor(ctx, e);
+    }
     // 绘制雷电特效 (直接在最上层绘制，确保可见)
     if (player.activeLightning && player.activeLightning.life > 0) {
         const l = player.activeLightning;
@@ -6164,14 +6306,6 @@ function draw() {
         l.life -= 0.05; // 持续约 20 帧
     }
 
-    // 显示自动战斗目标
-    if (AutoBattle.enabled && AutoBattle.currentTarget && !AutoBattle.currentTarget.dead) {
-        const target = AutoBattle.currentTarget;
-        ctx.fillStyle = '#ff4444';
-        ctx.font = 'bold 20px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('▼', target.x, target.y - target.radius - 25);
-    }
 
     if (player.targetX !== null) { ctx.strokeStyle = '#333'; ctx.beginPath(); ctx.arc(player.targetX, player.targetY, 5, 0, Math.PI * 2); ctx.stroke(); }
     const px = Math.round(player.x);
@@ -6249,12 +6383,12 @@ function draw() {
         else if (player.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = tintCache.lightning;
 
         if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) {
-            drawHeroSprite(ctx, source, frame, px, py - renderHeight / 2, renderWidth, renderHeight);
+            drawHeroSprite(ctx, source, frame, px, py - renderHeight / 2 + (frame.offsetY || 0), renderWidth, renderHeight);
         } else if (scale === 1) {
-            drawHeroSprite(ctx, source, frame, px, py - renderHeight, renderWidth, renderHeight);
+            drawHeroSprite(ctx, source, frame, px, py - renderHeight + (frame.offsetY || 0), renderWidth, renderHeight);
         } else {
             ctx.save();
-            ctx.translate(px, py - renderHeight / 2);
+            ctx.translate(px, py - renderHeight / 2 + (frame.offsetY || 0));
             ctx.scale(scale, scale);
             drawHeroSprite(ctx, source, frame, 0, -renderHeight / 2, renderWidth, renderHeight);
             ctx.restore();
@@ -6315,6 +6449,26 @@ function draw() {
     }
 
     // 性能优化：使用 for 循环渲染弹道
+    foregroundActors.length = 0;
+    for (let di = 0, dLen = destructibles.length; di < dLen; di++) {
+        const d = destructibles[di];
+        if (d.y > player.y + 4) foregroundActors.push(d);
+    }
+    for (let ei = 0, eLen = renderEnemies.length; ei < eLen; ei++) {
+        const e = renderEnemies[ei];
+        if (e.y > player.y + 4) foregroundActors.push(e);
+    }
+    foregroundActors.sort((a, b) => a.y - b.y);
+    for (let ai = 0, aLen = foregroundActors.length; ai < aLen; ai++) {
+        const actor = foregroundActors[ai];
+        if (actor.maxHp !== undefined) drawEnemyActor(ctx, actor);
+        else DestructibleSystem.drawOne(ctx, actor);
+    }
+    if (AutoBattle.enabled && AutoBattle.currentTarget && !AutoBattle.currentTarget.dead) {
+        const target = AutoBattle.currentTarget;
+        drawOutlinedText(ctx, '▼', target.x, target.y - target.radius - 48, '#ff4444', 'bold 18px Arial');
+    }
+
     for (let pi = 0, pLen = projectiles.length; pi < pLen; pi++) {
         const p = projectiles[pi];
         // 视口剔除
@@ -6326,22 +6480,11 @@ function draw() {
         ctx.lineWidth = 2;
 
         if (p.type === 'multishot') {
-            ctx.save();
-            ctx.translate(p.x, p.y);
-            ctx.rotate(p.angle);
-            ctx.fillStyle = '#aaff00';
-            ctx.beginPath();
-            ctx.moveTo(8, 0); ctx.lineTo(-12, -2); ctx.lineTo(-8, 0); ctx.lineTo(-12, 2);
-            ctx.closePath(); ctx.fill();
-            ctx.restore();
+            drawArrowProjectile(ctx, p, '#aaff00', 26, 3);
         } else if (p.color === '#ffaa00' && p.owner !== player) {
-            const len = 15;
-            ctx.beginPath();
-            ctx.moveTo(p.x - Math.cos(p.angle) * len, p.y - Math.sin(p.angle) * len);
-            ctx.lineTo(p.x, p.y);
-            ctx.stroke();
+            drawArrowProjectile(ctx, p, '#ffaa00', 22, 3);
         } else {
-            ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI * 2); ctx.fill();
+            drawOrbProjectile(ctx, p);
         }
     }
 
@@ -6552,57 +6695,6 @@ function draw() {
         });
     }
 
-    // 渲染地面物品 (放在遮挡修复后，防止闪烁) - 性能优化：使用 for 循环
-    for (let gi = 0, gLen = groundItems.length; gi < gLen; gi++) {
-        const i = groundItems[gi];
-        // 视口剔除 (Culling)
-        if (i.x < camera.x - 100 || i.x > camera.x + canvas.width + 100 ||
-            i.y < camera.y - 100 || i.y > camera.y + canvas.height + 100) continue;
-
-        const isConsumable = i.type === 'gold' || i.type === 'potion' || i.type === 'scroll';
-        if (!isAltPressed && !isConsumable && i.rarity < 2) continue;
-
-        const rx = Math.round(i.x);
-        const ry = Math.round(i.y);
-        const rz = Math.round(i.z || 0);
-
-        if (itemSpritesLoaded && processedItemSprites) {
-            const coords = getItemSpriteCoords(i);
-            const size = 32;
-            const spriteSize = processedItemSprites.width / 4;
-
-            // 绘制阴影
-            ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.beginPath();
-            ctx.ellipse(rx, ry, i.z > 0 ? 8 : 10, i.z > 0 ? 4 : 5, 0, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.drawImage(processedItemSprites,
-                coords.col * spriteSize, coords.row * spriteSize, spriteSize, spriteSize,
-                rx - size / 2, ry - rz - size / 2, size, size
-            );
-
-            if (isAltPressed || i.rarity >= 3) {
-                ctx.fillStyle = getItemColor(i.rarity); ctx.textAlign = 'center';
-                ctx.font = '12px Cinzel';
-                ctx.fillText(i.displayName || i.name, rx, ry - rz - 22);
-            }
-        } else {
-            ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.beginPath();
-            ctx.ellipse(rx, ry, 10, 5, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath(); ctx.fillStyle = getItemColor(i.rarity); ctx.textAlign = 'center';
-            ctx.font = '20px serif'; ctx.fillText(i.icon || '📦', rx, ry - rz + 7);
-        }
-        if (i.rarity >= 4) {
-            ctx.globalAlpha = 0.2;
-            ctx.fillStyle = getItemColor(i.rarity);
-            ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - 10, ry - 100); ctx.lineTo(rx + 10, ry - 100); ctx.fill();
-            ctx.globalAlpha = 1;
-        }
-    }
-
     ctx.textAlign = 'center';
     // 性能优化：使用 for 循环渲染伤害数字
     for (let di = 0, dLen = damageNumbers.length; di < dLen; di++) {
@@ -6682,9 +6774,21 @@ function draw() {
 }
 
 let _lastCamX = 0, _lastCamY = 0;
+let _lastLabelsSignature = '';
 function updateLabelsPosition() {
-    // 性能优化：仅摄像机移动时更新（物品静止，屏幕坐标只因摄像机变化）
-    if (camera.x === _lastCamX && camera.y === _lastCamY) return;
+    let hasMovingDrop = false;
+    for (let li = 0, lLen = groundItems.length; li < lLen; li++) {
+        const i = groundItems[li];
+        if ((i.z || 0) !== 0 || (i.vz || 0) !== 0 || (i.vx || 0) !== 0 || (i.vy || 0) !== 0) {
+            hasMovingDrop = true;
+            break;
+        }
+    }
+    const camX = Math.round(camera.x);
+    const camY = Math.round(camera.y);
+    const signature = `${camX}|${camY}|${groundItems.length}|${hasMovingDrop ? 1 : 0}`;
+    if (!hasMovingDrop && signature === _lastLabelsSignature) return;
+    _lastLabelsSignature = signature;
     _lastCamX = camera.x; _lastCamY = camera.y;
 
     for (let li = 0, lLen = groundItems.length; li < lLen; li++) {
@@ -8173,11 +8277,11 @@ function takeDamage(e, dmg, isSkillDamage = false) {
 
     // 层次感打击音效触发
     if (e.hp <= 0) {
-        AudioSys.play('hit_kill');
+        AudioSys.play(isSkillDamage ? 'hit_kill' : 'melee_kill');
     } else if (isCrit) {
-        AudioSys.play('hit_crit');
+        AudioSys.play(isSkillDamage ? 'hit_crit' : 'melee_crit');
     } else {
-        AudioSys.play('hit');
+        AudioSys.play(isSkillDamage ? 'hit' : 'melee_hit');
     }
 
     if (e.hp <= 0) {
@@ -8544,7 +8648,7 @@ function buyTalent(talentId) {
     // 如果是免费模式(深渊)，不检查金币
     if (!talentShopIsFree && player.gold < talent.price) {
         showNotification('金币不足！');
-        AudioSys.play('hit');
+        AudioSys.play('ui_error');
         return;
     }
 
@@ -8580,7 +8684,7 @@ function refreshTalentShop() {
 
     if (player.gold < refreshCost) {
         showNotification(`金币不足！需要 ${refreshCost} 金`);
-        AudioSys.play('hit');
+        AudioSys.play('ui_error');
         return;
     }
 
@@ -10576,8 +10680,6 @@ function performAttack(t) {
             });
         }
 
-        // 暴击专属音效
-        AudioSys.play('quest');  // 借用任务完成音效，比较响亮
     }
     // 已移除普通攻击震屏，优化性能
 
@@ -10586,11 +10688,12 @@ function performAttack(t) {
         physical: dmg,
         fire: player.elementalDamage.fire,
         lightning: player.elementalDamage.lightning,
-        poison: player.elementalDamage.poison
+        poison: player.elementalDamage.poison,
+        isCrit: isCrit
     };
 
-    takeDamage(t, damageObj, false, isCrit);  // 传递isCrit参数
-    AudioSys.play('attack');
+    AudioSys.play('melee_swing');
+    takeDamage(t, damageObj, false);
     createSlashEffect(player.x, player.y, t.x, t.y, dmg, isCrit);  // 传递isCrit给斩击效果
     player.attackAnim = 1;
     triggerHeroAction('attack', 0.35);
@@ -10620,17 +10723,20 @@ function castSkill(skillName) {
         // 护盾技能检查 skillTree
         if (!player.skillTree || !player.skillTree.holy_shield || player.skillTree.holy_shield.stage1 <= 0) {
             showNotification('技能未学习：神圣护盾');
+            AudioSys.play('ui_error');
             return;
         }
     } else if (!player.skills[skillName] || player.skills[skillName] <= 0) {
         const typeNames = { fireball: '火球术', thunder: '雷电术', multishot: '多重射击' };
         showNotification(`技能未学习：${typeNames[skillName] || skillName}`);
+        AudioSys.play('ui_error');
         return;
     }
 
     if (skillName === 'fireball') {
         if (player.mp < 5) {
             createFloatingText(player.x, player.y - 40, '法力不足！(需要 5 法力)', '#4d94ff', 1.5);
+            AudioSys.play('ui_error');
             if (cachedUI.mpOrb) GSAPAnims.shake(cachedUI.mpOrb, 5);
             return;
         }
@@ -10660,6 +10766,7 @@ function castSkill(skillName) {
         const cost = 8 + (player.skills.thunder - 1) * 0.5;
         if (player.mp < cost) {
             createFloatingText(player.x, player.y - 60, "法力不足!", '#55aaff');
+            AudioSys.play('ui_error');
             if (cachedUI.mpOrb) GSAPAnims.shake(cachedUI.mpOrb, 5);
             return;
         }
@@ -10674,6 +10781,7 @@ function castSkill(skillName) {
         // 检查射程 (缩小为 200 像素)
         if (Math.hypot(target.x - player.x, target.y - player.y) > 200) {
             createFloatingText(player.x, player.y - 60, "目标太远!", '#ff5555');
+            AudioSys.play('ui_error');
             return;
         }
 
@@ -10808,6 +10916,7 @@ function castSkill(skillName) {
     } else if (skillName === 'multishot') {
         if (player.mp < 8) {
             createFloatingText(player.x, player.y - 40, '法力不足！(需要 8 法力)', '#4d94ff', 1.5);
+            AudioSys.play('ui_error');
             if (cachedUI.mpOrb) GSAPAnims.shake(cachedUI.mpOrb, 5);
             return;
         }
@@ -10855,6 +10964,7 @@ function castSkill(skillName) {
         const manaCost = SKILL_TREE.holy_shield.stage1.manaCost;
         if (player.mp < manaCost) {
             createFloatingText(player.x, player.y - 40, '法力不足！(需要 ' + manaCost + ' 法力)', '#4d94ff', 1.5);
+            AudioSys.play('ui_error');
             if (cachedUI.mpOrb) GSAPAnims.shake(cachedUI.mpOrb, 5);
             return;
         }
@@ -10867,6 +10977,7 @@ function castSkill(skillName) {
 
         if (skillLevel <= 0) {
             showNotification('技能未学习：神圣护盾');
+            AudioSys.play('ui_error');
             return;
         }
 
@@ -13746,7 +13857,7 @@ function forgeItem(successRate, cost) {
 
         // 全服公告：强化成功
         if (typeof OnlineSystem !== 'undefined') {
-            OnlineSystem.announce('enhance_success', mainItem.displayName);
+            OnlineSystem.announce('enhance_success', mainItem.displayName, mainItem.enhanceLvl);
         }
 
         // 成就追踪：最高强化等级
@@ -13801,7 +13912,7 @@ function createUIForgeEffect(type) {
     if (type === 'success') {
         AudioSys.play('drop_unique'); // 借用暗金掉落音效
     } else {
-        AudioSys.play('hit');
+        AudioSys.play('ui_error');
     }
 
     for (let i = 0; i < count; i++) {
@@ -14378,7 +14489,6 @@ function sortInventory() {
     showNotification('背包已整理');
     AudioSys.play('gold');
 }
-
 // 整理仓库
 function sortStash() {
     // 提取所有非空物品

@@ -65,7 +65,7 @@
 
         canvas {
             display: block;
-            image-rendering: pixelated;
+            image-rendering: auto;
         }
 
         /* 高质模式下，让Canvas平滑缩放以减少锯齿（适用于非像素画风格或大屏幕） */
@@ -2248,14 +2248,19 @@
 
         .drop-label {
             position: absolute;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 2px 5px;
-            border: 1px solid #333;
+            background: rgba(4, 5, 8, 0.82);
+            padding: 3px 7px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 4px;
             font-size: 12px;
+            line-height: 1.15;
             cursor: pointer;
             transform: translate(-50%, -50%);
             z-index: 10;
             pointer-events: auto;
+            text-shadow: 0 1px 2px #000, 0 0 4px #000;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+            white-space: nowrap;
         }
 
         .drop-label:hover {

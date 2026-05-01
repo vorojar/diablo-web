@@ -1063,6 +1063,36 @@ const OnlineSystem = {
     },
 
     // 更新在线状态（使用 cloud_record_id 实现跨设备检测）
+    isUnknownPbFieldError(error, fieldName) {
+        const text = JSON.stringify(error?.data || error?.response || error?.message || error || '').toLowerCase();
+        return text.includes(fieldName.toLowerCase()) && (
+            text.includes('unknown') ||
+            text.includes('invalid') ||
+            text.includes('field')
+        );
+    },
+
+    async writeOnlineRecord(recordId, data) {
+        try {
+            if (recordId) {
+                return await pb.collection('online').update(recordId, data);
+            }
+            return await pb.collection('online').create(data);
+        } catch (e) {
+            if (!Object.prototype.hasOwnProperty.call(data, 'user_id') || !this.isUnknownPbFieldError(e, 'user_id')) {
+                throw e;
+            }
+
+            const retryData = { ...data };
+            delete retryData.user_id;
+            console.warn('[在线] online.user_id 字段不存在，已降级写入在线状态。私聊目标解析会使用聊天记录兜底。');
+            if (recordId) {
+                return await pb.collection('online').update(recordId, retryData);
+            }
+            return await pb.collection('online').create(retryData);
+        }
+    },
+
     async updateOnlineStatus(isHeartbeat = false) {
         const cloudRecordId = CloudSync.recordId;
         if (!cloudRecordId || !this.nickname) return;
@@ -1085,16 +1115,18 @@ const OnlineSystem = {
                 }
 
                 // 更新现有记录
-                await pb.collection('online').update(this.onlineRecordId, {
+                await this.writeOnlineRecord(this.onlineRecordId, {
                     nickname: this.nickname,
+                    user_id: this.userId,
                     session_token: this.sessionToken,
                     last_active: new Date().toISOString()
                 });
             } else {
                 // 创建新记录
-                const record = await pb.collection('online').create({
+                const record = await this.writeOnlineRecord(null, {
                     cloud_record_id: cloudRecordId,
                     nickname: this.nickname,
+                    user_id: this.userId,
                     session_token: this.sessionToken,
                     last_active: new Date().toISOString()
                 });
@@ -1719,6 +1751,18 @@ const OnlineSystem = {
     lastAnnouncementTime: 0,    // 上次获取公告时间
     shownAnnouncementIds: new Set(),  // 已显示的公告ID（防重复）
     realtimeSubscribed: false,  // 是否已订阅 Realtime
+    announcementCooldowns: {},
+    announcementPolicies: {
+        boss_kill: { cooldownMs: 5 * 60 * 1000 },
+        set_drop: { cooldownMs: 12 * 1000 },
+        level_milestone: { cooldownMs: 10 * 60 * 1000 },
+        enhance_success: { cooldownMs: 60 * 1000, minExtraData: 6 },
+        title_unlock: { cooldownMs: 5 * 60 * 1000 },
+        abyss_champion: { cooldownMs: 10 * 60 * 1000 },
+        abyss_top10: { cooldownMs: 10 * 60 * 1000 },
+        stall_open: { enabled: false },
+        item_sold: { enabled: false }
+    },
 
     // 初始化公告系统
     initAnnouncements() {
@@ -1783,10 +1827,10 @@ const OnlineSystem = {
     // 加载历史公告（初始化时调用一次）
     async loadAnnouncements() {
         try {
-            // 获取最近5分钟的公告
-            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString().replace('T', ' ');
-            const records = await pb.collection('announcements').getList(1, 20, {
-                filter: `created >= "${fiveMinutesAgo}"`,
+            // 初始化只拉近期公告，避免刷新后把历史公告重新滚一遍。
+            const recentCutoff = new Date(Date.now() - 45 * 1000).toISOString().replace('T', ' ');
+            const records = await pb.collection('announcements').getList(1, 8, {
+                filter: `created >= "${recentCutoff}"`,
                 sort: '-created'
             });
 
@@ -1911,6 +1955,7 @@ const OnlineSystem = {
     // 提交公告
     async announce(type, targetName, extraData) {
         if (!this.userId || !this.nickname) return;
+        if (!this.shouldPublishAnnouncement(type, targetName, extraData)) return;
 
         const floor = typeof player !== 'undefined' ?
             (player.isInHell ? player.hellFloor : player.floor) : 1;
@@ -1931,11 +1976,12 @@ const OnlineSystem = {
 
         try {
             await pb.collection('announcements').create(recordData);
-            // 顺便清理旧公告，只保留最近20条
-            this.gcKeepRecent('announcements', 20);
+            // 顺便清理旧公告，只保留最近30条
+            this.gcKeepRecent('announcements', 30);
 
-            // 双发：同时发送到世界频道（作为系统消息）
-            this.sendAnnouncementToChat(type, targetName, floor, isHell, extraData);
+            if (this.shouldMirrorAnnouncementToChat(type, extraData)) {
+                this.sendAnnouncementToChat(type, targetName, floor, isHell, extraData);
+            }
         } catch (e) {
             if (e.status === 403) {
                 console.warn('[公告系统] 无法发布公告: 请在 PocketBase 后台将 announcements 表的 Create 权限设置为开放 (空字符串)。');
@@ -1946,6 +1992,29 @@ const OnlineSystem = {
                 }
             }
         }
+    },
+
+    shouldPublishAnnouncement(type, targetName, extraData) {
+        const policy = this.announcementPolicies[type] || { cooldownMs: 60 * 1000 };
+        if (policy.enabled === false) return false;
+
+        if (policy.minExtraData !== undefined) {
+            const numericExtra = Number(extraData);
+            if (!Number.isFinite(numericExtra) || numericExtra < policy.minExtraData) return false;
+        }
+
+        const cooldownMs = policy.cooldownMs || 0;
+        if (cooldownMs <= 0) return true;
+
+        const key = policy.byTarget === true ? `${type}:${targetName || ''}` : type;
+        const now = Date.now();
+        if (this.announcementCooldowns[key] && now - this.announcementCooldowns[key] < cooldownMs) return false;
+        this.announcementCooldowns[key] = now;
+        return true;
+    },
+
+    shouldMirrorAnnouncementToChat(type, extraData) {
+        return false;
     },
 
     // 发送公告到世界频道
@@ -2010,6 +2079,8 @@ const ChatSystem = {
     lastSendTime: 0,
     SEND_COOLDOWN: 3000,  // 3秒发言冷却
     MAX_MESSAGES: 50,     // 最大保留消息数
+    HISTORY_FETCH_LIMIT: 80,
+    HISTORY_DISPLAY_LIMIT: 20,
     realtimeSubscribed: false,
     unreadCount: 0,       // 未读消息数
     isSending: false,     // 发送锁，防止重复发送
@@ -2150,11 +2221,14 @@ const ChatSystem = {
     // 加载最近消息
     async loadRecentMessages() {
         try {
-            const records = await pb.collection('chat_messages').getList(1, 20, {
+            const records = await pb.collection('chat_messages').getList(1, this.HISTORY_FETCH_LIMIT, {
                 sort: '-created'
             });
-            // 倒序添加（旧消息在上）
-            records.items.reverse().forEach(msg => this.addMessage(msg, false));
+            const messages = records.items
+                .filter(msg => !this.shouldHideSystemAnnouncement(msg))
+                .slice(0, this.HISTORY_DISPLAY_LIMIT)
+                .reverse();
+            messages.forEach(msg => this.addMessage(msg, false));
             this.scrollToBottom();
         } catch (e) {
             console.warn('[聊天系统] 加载历史消息失败', e);
@@ -2164,6 +2238,46 @@ const ChatSystem = {
     // 发送消息
     // 私聊目标缓存 { nickname: userId }
     whisperTargetCache: {},
+
+    escapePbFilterValue(value) {
+        return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    },
+
+    async findOnlineUserIdByNickname(nickname) {
+        const safeNickname = this.escapePbFilterValue(nickname);
+        const activeCutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString().replace('T', ' ');
+        const records = await pb.collection('online').getList(1, 1, {
+            filter: `nickname = "${safeNickname}" && last_active >= "${activeCutoff}"`,
+            sort: '-last_active'
+        });
+        const userId = records.items[0]?.user_id;
+        return userId || null;
+    },
+
+    async findRecentChatUserIdByNickname(nickname) {
+        const safeNickname = this.escapePbFilterValue(nickname);
+        const records = await pb.collection('chat_messages').getList(1, 1, {
+            filter: `nickname = "${safeNickname}" && user_id != "system"`,
+            sort: '-created'
+        });
+        const userId = records.items[0]?.user_id;
+        return userId || null;
+    },
+
+    async findWhisperTargetUserId(nickname) {
+        if (this.whisperTargetCache[nickname]) {
+            return this.whisperTargetCache[nickname];
+        }
+
+        let userId = await this.findOnlineUserIdByNickname(nickname);
+        if (!userId) {
+            userId = await this.findRecentChatUserIdByNickname(nickname);
+        }
+        if (userId) {
+            this.whisperTargetCache[nickname] = userId;
+        }
+        return userId;
+    },
 
     async sendMessage() {
         const input = document.getElementById('chat-input');
@@ -2205,23 +2319,10 @@ const ChatSystem = {
                 return;
             }
 
-            // 查找目标用户ID（先查缓存）
-            if (this.whisperTargetCache[targetNickname]) {
-                targetUserId = this.whisperTargetCache[targetNickname];
-            } else {
-                // 从最近消息中查找
-                try {
-                    const result = await pb.collection('chat_messages').getList(1, 1, {
-                        filter: `nickname = "${targetNickname}"`,
-                        sort: '-created'
-                    });
-                    if (result.items.length > 0) {
-                        targetUserId = result.items[0].user_id;
-                        this.whisperTargetCache[targetNickname] = targetUserId;
-                    }
-                } catch (e) {
-                    console.warn('[私聊] 查找用户失败', e);
-                }
+            try {
+                targetUserId = await this.findWhisperTargetUserId(targetNickname);
+            } catch (e) {
+                console.warn('[私聊] 查找用户失败', e);
             }
 
             if (!targetUserId) {
@@ -2314,6 +2415,10 @@ const ChatSystem = {
 
     shownMessageIds: new Set(),  // 防重复显示
 
+    shouldHideSystemAnnouncement(record) {
+        return record.user_id === 'system' && typeof record.message === 'string' && /^\[type:\w+\]/.test(record.message);
+    },
+
     // 解析并渲染物品链接
     parseItemLinks(text) {
         // 匹配 [item:base64data] 格式
@@ -2382,6 +2487,7 @@ const ChatSystem = {
 
         // 防重复
         if (this.shownMessageIds.has(record.id)) return;
+        if (this.shouldHideSystemAnnouncement(record)) return;
         this.shownMessageIds.add(record.id);
         // 清理过多的ID
         if (this.shownMessageIds.size > 200) {
@@ -2532,17 +2638,10 @@ const ChatSystem = {
         input.value = `@${nickname} `;
         input.focus();
 
-        // 缓存昵称对应的userId（如果有的话，从最近消息中查找）
+        // 缓存昵称对应的userId（优先查在线表，再回退最近聊天）
         // 这里不阻塞，后台查找
         if (!this.whisperTargetCache[nickname]) {
-            pb.collection('chat_messages').getList(1, 1, {
-                filter: `nickname = "${nickname}"`,
-                sort: '-created'
-            }).then(result => {
-                if (result.items.length > 0) {
-                    this.whisperTargetCache[nickname] = result.items[0].user_id;
-                }
-            }).catch(() => {});
+            this.findWhisperTargetUserId(nickname).catch(() => {});
         }
     },
 

@@ -28,14 +28,15 @@
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
     <!-- PWA -->
+    <link rel="icon" href="icon-192.png">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1a1a2e">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <link rel="stylesheet" href="style.css?v=202601111930">
+    <link rel="stylesheet" href="style.css?v=202605010130">
 </head>
 
-<!-- 版本标记: v6.99 物品分享功能 -->
+<!-- 版本标记: v7.03 视觉与在线体验修复 -->
 
 <body>
 
@@ -753,21 +754,21 @@
     <script src="gsap-animations.js?v=202512301047"></script>
     <script src="ui-panels.js?v=202601101510"></script>
     <!-- 业务逻辑脚本 -->
-    <script src="changelog.js?v=202601101625"></script>
+    <script src="changelog.js?v=202605010300"></script>
     <script src="constants.js?v=202601101100"></script>
     <script src="items-data.js?v=202512191630"></script>
     <script src="set-items.js?v=202512301030"></script>
     <script src="item-system.js?v=202601101630"></script>
-    <script src="audio.js?v=202601051035"></script>
+    <script src="audio.js?v=202605010230"></script>
     <script src="daily-quest.js?v=202512230805"></script>
     <script src="save-system.js?v=202604281200"></script>
     <script src="enemy-system.js?v=202604302345"></script>
     <script src="abyss-system.js?v=202601061400"></script>
     <script src="auto-battle.js?v=202601101200"></script>
-    <script src="game.js?v=202604302345"></script>
+    <script src="game.js?v=202605010330"></script>
     <script src="pocketbase.umd.js"></script>
-    <script src="online.js?v=202604281200"></script>
-    <script src="market.js?v=202604281200"></script>
+    <script src="online.js?v=202605010330"></script>
+    <script src="market.js?v=202605010330"></script>
     <script>
         // 显示欢迎回来信息
         const savedNickname = localStorage.getItem('pb_nickname');
@@ -777,7 +778,7 @@
 
         // 注册 Service Worker（强制更新策略）
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/diablo/sw.js', { updateViaCache: 'none' })
+            navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
                 .then(reg => {
                     console.log('SW registered');
                     reg.update(); // 每次访问检查更新
