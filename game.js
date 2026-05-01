@@ -1853,7 +1853,6 @@ function addDungeonLightSource(x, y, light, seed) {
 }
 
 function drawDungeonLightSources(ctx, biome) {
-    if (isInTown()) return;
     const time = Date.now() / 1000;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -4519,9 +4518,178 @@ function generateTown() {
     dungeonExit = { x: cx * TILE_SIZE, y: (cy - r + 2) * TILE_SIZE };
     // 固定传送门位置：地牢入口右侧
     townPortalSpot = { x: dungeonExit.x + 80, y: dungeonExit.y };
+    seedTownScenicProps(cx, cy, r, marketCx, marketRx, marketRy);
 }
 
 // 验证并修正传送门位置，确保在罗格营地的有效区域内
+function getTownTileZone(c, r) {
+    const cx = Math.floor(MAP_WIDTH / 2), cy = Math.floor(MAP_HEIGHT / 2);
+    if (Math.hypot(c - cx, r - cy) <= 4.2) return 'plaza';
+    if (Math.abs(c - cx) <= 2 && r >= cy - 10 && r <= cy + 4) return 'path';
+    if (c >= cx + 6 && Math.abs(r - cy) <= 7) return 'market';
+    return 'camp';
+}
+
+function drawTownFloorDetails(ctx, x, y, c, r) {
+    const zone = getTownTileZone(c, r);
+    const seed = r * 4099 + c * 131;
+    const n = mapTileNoise(seed);
+
+    ctx.save();
+    if (zone === 'path') {
+        ctx.fillStyle = 'rgba(92, 70, 48, 0.30)';
+        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+        if (r % 2 === 0) {
+            ctx.strokeStyle = 'rgba(145, 115, 78, 0.16)';
+            ctx.beginPath();
+            ctx.moveTo(x + 5, y + TILE_SIZE - 5);
+            ctx.lineTo(x + TILE_SIZE - 5, y + TILE_SIZE - 5);
+            ctx.stroke();
+        }
+    } else if (zone === 'plaza') {
+        ctx.fillStyle = 'rgba(86, 74, 56, 0.28)';
+        ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+        ctx.strokeStyle = 'rgba(170, 145, 95, 0.14)';
+        ctx.strokeRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+    } else if (zone === 'market') {
+        ctx.fillStyle = 'rgba(82, 58, 38, 0.22)';
+        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+        ctx.strokeStyle = 'rgba(170, 115, 70, 0.16)';
+        ctx.beginPath();
+        ctx.moveTo(x + 6, y + 8 + (c % 2) * 6);
+        ctx.lineTo(x + TILE_SIZE - 6, y + 8 + (c % 2) * 6);
+        ctx.stroke();
+    } else {
+        ctx.fillStyle = 'rgba(28, 58, 26, 0.20)';
+        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+    }
+
+    if (n > 0.78) {
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = zone === 'camp' ? 'rgba(72, 118, 58, 0.55)' : 'rgba(40, 28, 18, 0.55)';
+        ctx.beginPath();
+        ctx.ellipse(x + 8 + mapTileNoise(seed + 1) * 24, y + 10 + mapTileNoise(seed + 2) * 20, 5 + mapTileNoise(seed + 3) * 8, 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    if (!hasFloorAtTile(c, r - 1)) {
+        const grad = ctx.createLinearGradient(0, y, 0, y + TILE_SIZE * 0.65);
+        grad.addColorStop(0, 'rgba(0,0,0,0.28)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE * 0.65);
+    }
+    ctx.restore();
+}
+
+function drawTownWallDetails(ctx, x, y, c, r) {
+    if (!isWallBoundaryTile(c, r)) return;
+    const floorS = hasFloorAtTile(c, r + 1);
+    const floorN = hasFloorAtTile(c, r - 1);
+    const floorW = hasFloorAtTile(c - 1, r);
+    const floorE = hasFloorAtTile(c + 1, r);
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(20, 42, 18, 0.24)';
+    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+    if (floorS) {
+        const face = ctx.createLinearGradient(0, y + 4, 0, y + TILE_SIZE);
+        face.addColorStop(0, 'rgba(74, 96, 55, 0.18)');
+        face.addColorStop(1, 'rgba(0,0,0,0.38)');
+        ctx.fillStyle = face;
+        ctx.fillRect(x, y + 4, TILE_SIZE, TILE_SIZE - 4);
+        ctx.strokeStyle = 'rgba(155, 190, 112, 0.18)';
+        ctx.beginPath();
+        ctx.moveTo(x + 3, y + TILE_SIZE - 9);
+        ctx.lineTo(x + TILE_SIZE - 3, y + TILE_SIZE - 9);
+        ctx.stroke();
+    }
+    if (floorN) {
+        ctx.fillStyle = 'rgba(0,0,0,0.24)';
+        ctx.fillRect(x, y, TILE_SIZE, 6);
+    }
+    if (floorW || floorE) {
+        ctx.fillStyle = 'rgba(0,0,0,0.20)';
+        if (floorW) ctx.fillRect(x, y, 7, TILE_SIZE);
+        if (floorE) ctx.fillRect(x + TILE_SIZE - 7, y, 7, TILE_SIZE);
+    }
+    ctx.restore();
+}
+
+function seedTownScenicProps(cx, cy, r, marketCx, marketRx, marketRy) {
+    scenicProps = [];
+    dungeonLightSources = [];
+
+    const townDefs = {
+        barrel: { name: 'town_barrel', row: 6, col: 0, scale: 0.48, tall: true },
+        crate: { name: 'town_crate', row: 6, col: 2, scale: 0.50, tall: true },
+        urn: { name: 'town_urn', row: 6, col: 3, scale: 0.46, tall: true },
+        bucket: { name: 'town_bucket', row: 6, col: 5, scale: 0.44, tall: false },
+        wheel: { name: 'town_wheel', row: 6, col: 6, scale: 0.44, tall: false },
+        torch: { name: 'town_torch', row: 7, col: 0, scale: 0.54, tall: true, light: { color: 'rgba(255, 172, 76, 0.44)', radius: 135, strength: 0.62, flicker: true } },
+        shrine: { name: 'town_shrine', row: 7, col: 1, scale: 0.50, tall: true, light: { color: 'rgba(255, 214, 128, 0.22)', radius: 110, strength: 0.42 } },
+        flag: { name: 'town_flag', row: 7, col: 5, scale: 0.52, tall: true },
+        well: { name: 'town_well', row: 7, col: 3, scale: 0.48, tall: true }
+    };
+
+    const occupied = new Set();
+    const safeTiles = [
+        { x: cx, y: cy },
+        { x: cx - 3, y: cy - 3 }, { x: cx + 3, y: cy - 2 },
+        { x: cx, y: cy + 3 }, { x: cx + 2, y: cy + 2 },
+        { x: cx - 4, y: cy + 1 }, { x: cx + 4, y: cy + 1 },
+        { x: Math.floor(dungeonExit.x / TILE_SIZE), y: Math.floor(dungeonExit.y / TILE_SIZE) },
+        { x: Math.floor(townPortalSpot.x / TILE_SIZE), y: Math.floor(townPortalSpot.y / TILE_SIZE) }
+    ];
+    const isTownPropTile = (x, y) => {
+        if (!isClearFloorFootprint(x, y, 1)) return false;
+        for (const p of safeTiles) if (Math.hypot(x - p.x, y - p.y) < 2.2) return false;
+        for (let yy = y - 1; yy <= y + 1; yy++) {
+            for (let xx = x - 1; xx <= x + 1; xx++) {
+                if (occupied.has(`${xx},${yy}`)) return false;
+            }
+        }
+        return true;
+    };
+    const addTownProp = (tx, ty, def, seed) => {
+        if (!isTownPropTile(tx, ty)) return false;
+        const px = tx * TILE_SIZE + TILE_SIZE / 2 + (mapTileNoise(seed + 3) - 0.5) * 8;
+        const py = ty * TILE_SIZE + TILE_SIZE / 2 + 6;
+        scenicProps.push({
+            scenicProp: true,
+            x: px,
+            y: py,
+            sortY: py,
+            row: def.row,
+            col: def.col,
+            scale: (def.scale || 0.5) * (0.94 + mapTileNoise(seed + 5) * 0.12),
+            drawH: def.tall ? 68 : 48,
+            baseOffset: def.tall ? 9 : 7,
+            alpha: 0.94,
+            name: def.name
+        });
+        occupied.add(`${tx},${ty}`);
+        if (def.light) addDungeonLightSource(px, py - 28, def.light, seed);
+        return true;
+    };
+
+    [
+        [cx - 7, cy - 5, townDefs.torch], [cx + 7, cy - 4, townDefs.torch],
+        [cx - 7, cy + 5, townDefs.flag], [cx + 8, cy + 5, townDefs.shrine],
+        [cx - 5, cy + 7, townDefs.well], [marketCx + 4, cy - 5, townDefs.crate],
+        [marketCx + 6, cy + 4, townDefs.barrel], [marketCx + 2, cy + 6, townDefs.wheel],
+        [cx - 8, cy - 1, townDefs.urn], [cx + 5, cy - 7, townDefs.bucket]
+    ].forEach((entry, i) => addTownProp(entry[0], entry[1], entry[2], 9000 + i * 97));
+
+    for (let i = 0; i < 8; i++) {
+        const angle = i * Math.PI * 2 / 8 + 0.25;
+        const tx = Math.round(cx + Math.cos(angle) * (r - 2));
+        const ty = Math.round(cy + Math.sin(angle) * (r - 2));
+        const def = i % 3 === 0 ? townDefs.barrel : i % 3 === 1 ? townDefs.crate : townDefs.bucket;
+        addTownProp(tx, ty, def, 11000 + i * 131);
+    }
+}
+
 function validateAndFixPortalPosition(x, y) {
     // 检查当前位置是否在罗格营地的圆形区域内
     const cx = Math.floor(MAP_WIDTH / 2), cy = Math.floor(MAP_HEIGHT / 2);
@@ -5458,6 +5626,7 @@ function generateMapCache() {
 
     // 获取当前层群系样式
     const biome = getBiomeStyle(player.floor);
+    const townMode = isInTown();
 
     // 绘制整个地图到缓存
     for (let r = 0; r < MAP_HEIGHT; r++) {
@@ -5493,7 +5662,8 @@ function generateMapCache() {
                         cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
                     }
                 }
-                drawDungeonWallDetails(cctx, x, y, c, r, biome);
+                if (townMode) drawTownWallDetails(cctx, x, y, c, r);
+                else drawDungeonWallDetails(cctx, x, y, c, r, biome);
             } else {
                 // 地板
                 if (floorTilesLoaded) {
@@ -5530,8 +5700,9 @@ function generateMapCache() {
                         cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
                     }
                 }
-                drawDungeonFloorDetails(cctx, x, y, c, r, biome);
-                if (biome) {
+                if (townMode) drawTownFloorDetails(cctx, x, y, c, r);
+                else drawDungeonFloorDetails(cctx, x, y, c, r, biome);
+                if (!townMode && biome) {
                     const decorationDensity = getFloorDecorationDensity(c, r);
                     if (decorationDensity > 0) {
                         drawBiomeFloorDecoration(cctx, x, y, TILE_SIZE, biome.type, r * 1000 + c, decorationDensity);
@@ -6975,6 +7146,7 @@ function draw() {
         const sc = Math.floor(camera.x / TILE_SIZE), ec = sc + (canvas.width / TILE_SIZE) + 1;
         const sr = Math.floor(camera.y / TILE_SIZE), er = sr + (canvas.height / TILE_SIZE) + 1;
         const fallbackBiome = getBiomeStyle(player.floor);
+        const fallbackTown = isInTown();
 
         for (let r = sr - 1; r < er + 1; r++) {
             for (let c = sc - 1; c < ec + 1; c++) {
@@ -6987,11 +7159,13 @@ function draw() {
                             ctx.fillStyle = 'rgba(0,0,0,0.35)';
                             ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
                         }
-                        drawDungeonWallDetails(ctx, x, y, c, r, fallbackBiome);
+                        if (fallbackTown) drawTownWallDetails(ctx, x, y, c, r);
+                        else drawDungeonWallDetails(ctx, x, y, c, r, fallbackBiome);
                     } else {
                         ctx.fillStyle = ((c + r) % 2 === 0) ? '#151515' : '#1a1a1a';
                         ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
-                        drawDungeonFloorDetails(ctx, x, y, c, r, fallbackBiome);
+                        if (fallbackTown) drawTownFloorDetails(ctx, x, y, c, r);
+                        else drawDungeonFloorDetails(ctx, x, y, c, r, fallbackBiome);
                     }
                 }
             }
