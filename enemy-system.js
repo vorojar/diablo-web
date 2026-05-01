@@ -517,6 +517,8 @@ const ELITE_AFFIXES = [
     id: 'extra_fast',
     name: '额外快速',
     color: '#00ffff',
+    icon: 'speed',
+    threatTag: 'mobility',
     description: '移动速度+50%',
     applyStats: (enemy) => {
       enemy.speed *= 1.5;
@@ -526,6 +528,8 @@ const ELITE_AFFIXES = [
     id: 'extra_strong',
     name: '额外强壮',
     color: '#ff4400',
+    icon: 'power',
+    threatTag: 'burst',
     description: '伤害+100%',
     applyStats: (enemy) => {
       enemy.dmg *= 2.0;
@@ -535,6 +539,8 @@ const ELITE_AFFIXES = [
     id: 'fire_enchanted',
     name: '火焰强化',
     color: '#ff6600',
+    icon: 'fire',
+    threatTag: 'elemental',
     description: '攻击附带火焰伤害，死亡时爆炸',
     applyStats: (enemy) => {
       enemy.elementalDmg = enemy.elementalDmg || {};
@@ -566,6 +572,8 @@ const ELITE_AFFIXES = [
     id: 'cold_enchanted',
     name: '寒冰强化',
     color: '#00aaff',
+    icon: 'cold',
+    threatTag: 'control',
     description: '攻击附带冰冻效果',
     applyStats: (enemy) => {
       enemy.elementalDmg = enemy.elementalDmg || {};
@@ -577,6 +585,8 @@ const ELITE_AFFIXES = [
     id: 'lightning_enchanted',
     name: '闪电强化',
     color: '#ffff00',
+    icon: 'lightning',
+    threatTag: 'elemental',
     description: '攻击附带闪电伤害',
     applyStats: (enemy) => {
       enemy.elementalDmg = enemy.elementalDmg || {};
@@ -587,6 +597,8 @@ const ELITE_AFFIXES = [
     id: 'stone_skin',
     name: '石肤',
     color: '#888888',
+    icon: 'armor',
+    threatTag: 'defense',
     description: '受到伤害减少50%',
     applyStats: (enemy) => {
       enemy.damageReduction = 0.5;
@@ -596,6 +608,8 @@ const ELITE_AFFIXES = [
     id: 'magic_resistant',
     name: '魔法抗性',
     color: '#aa00ff',
+    icon: 'resist',
+    threatTag: 'defense',
     description: '技能伤害减免70%',
     applyStats: (enemy) => {
       enemy.magicResist = 0.7;
@@ -605,6 +619,8 @@ const ELITE_AFFIXES = [
     id: 'vampiric',
     name: '吸血',
     color: '#cc0000',
+    icon: 'leech',
+    threatTag: 'sustain',
     description: '攻击回复生命',
     applyStats: (enemy) => {
       enemy.lifeSteal = 0.5;  // 50%吸血
@@ -614,6 +630,8 @@ const ELITE_AFFIXES = [
     id: 'mana_burn',
     name: '法力燃烧',
     color: '#0066ff',
+    icon: 'mana',
+    threatTag: 'resource',
     description: '攻击消耗玩家法力',
     applyStats: (enemy) => {
       enemy.manaBurn = true;
@@ -623,26 +641,34 @@ const ELITE_AFFIXES = [
     id: 'cursed',
     name: '诅咒',
     color: '#9900cc',
+    icon: 'curse',
+    threatTag: 'debuff',
     description: '降低玩家防御',
     applyStats: (enemy) => {
       enemy.cursed = true;
+      enemy.curseArmorBreak = 0.25;
+      enemy.curseDamageTakenMult = 1.2;
+      enemy.curseDuration = 3.0;
     }
   },
   {
     id: 'multiple_shot',
     name: '多重射击',
     color: '#ffaa00',
+    icon: 'volley',
+    threatTag: 'projectile',
     description: '远程怪物发射3支箭',
     applyStats: (enemy) => {
-      if (enemy.ai === 'ranged') {
-        enemy.multiShot = 3;
-      }
+      enemy.multiShot = 3;
+      if (enemy.ai !== 'ranged') enemy.scatterVolley = true;
     }
   },
   {
     id: 'spectral_hit',
     name: '幽灵打击',
     color: '#00ffaa',
+    icon: 'spectral',
+    threatTag: 'pierce',
     description: '无视护甲',
     applyStats: (enemy) => {
       enemy.ignoreArmor = true;

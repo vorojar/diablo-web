@@ -107,6 +107,78 @@ const AudioSys = {
             this.startBGM();
         }
     },
+    makeNoiseBuffer: function (duration) {
+        const sampleRate = this.ctx.sampleRate;
+        const frameCount = Math.max(1, Math.floor(sampleRate * duration));
+        const buffer = this.ctx.createBuffer(1, frameCount, sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < frameCount; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        return buffer;
+    },
+    playToneLayer: function (type, start, duration, startFreq, endFreq, volume, destination) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(startFreq, start);
+        if (endFreq && endFreq !== startFreq) {
+            osc.frequency.exponentialRampToValueAtTime(Math.max(1, endFreq), start + duration);
+        }
+        gain.gain.setValueAtTime(Math.max(0.001, volume), start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+        osc.connect(gain);
+        gain.connect(destination || this.sfxGain);
+        osc.start(start);
+        osc.stop(start + duration);
+    },
+    playNoiseLayer: function (start, duration, volume, filterType, frequency, q, destination) {
+        const source = this.ctx.createBufferSource();
+        const gain = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+        source.buffer = this.makeNoiseBuffer(duration);
+        filter.type = filterType;
+        filter.frequency.setValueAtTime(frequency, start);
+        filter.Q.setValueAtTime(q || 0.6, start);
+        gain.gain.setValueAtTime(Math.max(0.001, volume), start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(destination || this.sfxGain);
+        source.start(start);
+        source.stop(start + duration);
+    },
+    playCombatImpact: function (kind) {
+        const t = this.ctx.currentTime;
+        const bus = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(kind === 'kill' ? 2800 : kind === 'crit' ? 5200 : 3600, t);
+        filter.Q.setValueAtTime(0.7, t);
+        bus.gain.setValueAtTime(1, t);
+        bus.connect(filter);
+        filter.connect(this.sfxGain);
+
+        if (kind === 'hit') {
+            this.playNoiseLayer(t, 0.035, 0.09, 'bandpass', 1300 + Math.random() * 300, 0.9, bus);
+            this.playToneLayer('triangle', t + 0.006, 0.075, 185, 92, 0.105, bus);
+            this.playToneLayer('sine', t + 0.018, 0.045, 360, 190, 0.035, bus);
+            return;
+        }
+
+        if (kind === 'crit') {
+            this.playNoiseLayer(t, 0.045, 0.13, 'bandpass', 1900 + Math.random() * 500, 1.2, bus);
+            this.playToneLayer('sawtooth', t + 0.004, 0.13, 520, 145, 0.12, bus);
+            this.playToneLayer('sine', t + 0.012, 0.07, 1680, 1180, 0.075, bus);
+            this.playToneLayer('triangle', t + 0.055, 0.12, 740, 330, 0.045, bus);
+            return;
+        }
+
+        this.playNoiseLayer(t, 0.06, 0.16, 'bandpass', 900 + Math.random() * 260, 0.8, bus);
+        this.playToneLayer('square', t, 0.22, 92, 38, 0.18, bus);
+        this.playToneLayer('triangle', t + 0.035, 0.16, 230, 70, 0.09, bus);
+        this.playToneLayer('sine', t + 0.095, 0.18, 520, 180, 0.045, bus);
+    },
     play: function (type) {
         if (!this.ctx) { console.log('AudioSys: No context'); return; }
         if (this.ctx.state === 'suspended') { console.log('AudioSys: Context suspended'); this.ctx.resume(); }
@@ -150,58 +222,18 @@ const AudioSys = {
 
             osc.start(); osc.stop(t + 0.2);
         } else if (type === 'attack' || type === 'swing' || type === 'melee_swing') {
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(560, t);
-            osc.frequency.exponentialRampToValueAtTime(170, t + 0.08);
-            gain.gain.setValueAtTime(0.055, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
-            osc.start(); osc.stop(t + 0.09);
+            this.playNoiseLayer(t, 0.045, 0.045, 'highpass', 950, 0.5);
+            this.playToneLayer('sawtooth', t, 0.075, 660, 210, 0.045);
+            this.playToneLayer('triangle', t + 0.018, 0.055, 260, 150, 0.025);
         } else if (type === 'hit' || type === 'melee_hit') {
-            // 普通击中：闷响 (低频三角波)
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(220, t);
-            osc.frequency.exponentialRampToValueAtTime(70, t + 0.11);
-            gain.gain.setValueAtTime(0.13, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.11);
-            osc.start(); osc.stop(t + 0.11);
+            // 普通击中：短促接触声 + 低频身体感
+            this.playCombatImpact('hit');
         } else if (type === 'hit_crit' || type === 'melee_crit') {
-            // 暴击击中：金属撞击/撕裂声 (高频锯齿波叠加)
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(800, t);
-            osc.frequency.exponentialRampToValueAtTime(200, t + 0.2);
-            gain.gain.setValueAtTime(0.2, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
-            osc.start(); osc.stop(t + 0.2);
-
-            // 额外叠加一个金属 ping 声
-            const osc2 = this.ctx.createOscillator();
-            const gain2 = this.ctx.createGain();
-            osc2.type = 'sine';
-            osc2.frequency.setValueAtTime(1600, t);
-            gain2.gain.setValueAtTime(0.1, t);
-            gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
-            osc2.connect(gain2);
-            gain2.connect(this.sfxGain);
-            osc2.start(t); osc2.stop(t + 0.05);
+            // 暴击击中：更亮的撕裂感 + 金属高频点缀
+            this.playCombatImpact('crit');
         } else if (type === 'hit_kill' || type === 'melee_kill') {
-            // 击杀：沉重的破碎声 (低频方波 + 快速衰减)
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(60, t);
-            osc.frequency.linearRampToValueAtTime(30, t + 0.3);
-            gain.gain.setValueAtTime(0.25, t);
-            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
-            osc.start(); osc.stop(t + 0.3);
-
-            // 叠加一层“碎裂”噪声感
-            const osc3 = this.ctx.createOscillator();
-            const gain3 = this.ctx.createGain();
-            osc3.type = 'sawtooth';
-            osc3.frequency.setValueAtTime(100 + Math.random() * 200, t);
-            gain3.gain.setValueAtTime(0.15, t);
-            gain3.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
-            osc3.connect(gain3);
-            gain3.connect(this.sfxGain);
-            osc3.start(t); osc3.stop(t + 0.1);
+            // 击杀：重击下沉 + 碎裂尾音
+            this.playCombatImpact('kill');
         } else if (type === 'pickup') {
             osc.type = 'sine';
             osc.frequency.setValueAtTime(900, t);

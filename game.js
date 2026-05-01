@@ -211,6 +211,7 @@ let combo = {
 // ========== Game Juice 系统 (打击感与反馈) ==========
 const Juice = {
     hitStopTimer: 0,
+    lastLightHitStopAt: 0,
 
     // 触发打击感核心逻辑
     // entity: 受击者, isCrit: 是否暴击, isKill: 是否击杀
@@ -219,10 +220,16 @@ const Juice = {
         const isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
 
         // 1. 顿帧 (Hit Stop) - 产生卡肉感
-        // 只有暴击或重要时刻才顿帧，普通攻击保持连贯
+        // 普通命中给极短顿帧，但做节流，避免高攻速时像卡顿
         if (isCrit || isKill) {
             this.hitStopTimer = isKill ? 0.06 : 0.03;
             if (isMobile) this.hitStopTimer *= 0.7; // 移动端稍微短一点，防止误判为卡顿
+        } else if (!isMobile) {
+            const now = performance.now();
+            if (now - this.lastLightHitStopAt > 90) {
+                this.hitStopTimer = 0.012;
+                this.lastLightHitStopAt = now;
+            }
         }
 
         // 2. 震屏 (Screen Shake)
@@ -366,10 +373,24 @@ const EnemyPool = {
         Object.assign(enemy, {
             x: 0, y: 0, hp: 0, maxHp: 0, dmg: 0, speed: 0, radius: 12,
             dead: false, cooldown: 0, name: '', rarity: 0, xpValue: 0,
-            frameIndex: 0, ai: 'chase', isBoss: false, isQuestTarget: false,
+            frameIndex: 0, ai: 'chase', monsterType: 'melee',
+            isBoss: false, isQuestTarget: false, isElite: false,
+            bossTraits: null, bossCooldowns: null, enraged: false,
+            canTeleport: false, skillCd: 0,
+            teleportCdMax: 0, summonCdMax: 0, slamCdMax: 0, breathCdMax: 0, tentacleCdMax: 0,
+            slamRadius: 0, dashDistance: 0, breathAngle: 0, breathRange: 0, tentacleCount: 0,
+            summonCount: 0,
             facingDirection: 'front', lastSideDirection: 'right',
             facingLockTimer: 0, actionDirection: null, actionDirectionTimer: 0,
-            eliteAffixes: null, frozenTimer: 0, damageReduction: 0,
+            eliteAffixes: null, frozenTimer: 0, slowedTimer: 0, lightningOverloadTimer: 0,
+            poisoned: false, poisonTimer: 0, poisonDamagePerTick: 0, lastPoisonTick: 0,
+            damageReduction: 0,
+            elementalDmg: null, magicResist: 0, freezeOnHit: false, manaBurn: false,
+            cursed: false, curseArmorBreak: 0, curseDamageTakenMult: 1, curseDuration: 0,
+            multiShot: 0, scatterVolley: false, scatterVolleyCooldown: 0, ignoreArmor: false,
+            phaseThrough: false, dodgeChance: 0, poisonOnHit: false, poisonDamage: 0,
+            lifeSteal: 0, slamHit: false, blockChance: 0, moraleTimer: 0, fleeYellTimer: 0,
+            isDashing: false, dashTimer: 0, dashCooldown: 0,
             hitFlashTimer: 0,  // 受击闪白计时器
             ...props
         });
@@ -1017,6 +1038,164 @@ const HERO_SPRITE_CONFIG = {
         }
     }
 };
+
+function isAffixCompatibleWithEnemy(affix, enemy) {
+    if (!affix || !enemy) return false;
+    if (affix.allowedAi && !affix.allowedAi.includes(enemy.ai)) return false;
+    return true;
+}
+
+function rollEliteAffixesForEnemy(enemy) {
+    const affixCount = Math.random() < GAME_CONFIG.DOUBLE_AFFIX_RATE ? 2 : 1;
+    const availableAffixes = ELITE_AFFIXES.filter(affix => isAffixCompatibleWithEnemy(affix, enemy));
+    const rolled = [];
+
+    for (let i = 0; i < affixCount && availableAffixes.length > 0; i++) {
+        const idx = Math.floor(Math.random() * availableAffixes.length);
+        rolled.push(availableAffixes.splice(idx, 1)[0]);
+    }
+
+    return rolled;
+}
+
+function applyEliteAffixesToEnemy(enemy) {
+    if (!enemy.eliteAffixes || enemy.eliteAffixes.length === 0) return;
+
+    enemy.eliteAffixes.forEach(affix => {
+        if (affix.applyStats) affix.applyStats(enemy);
+    });
+
+    if (enemy.cursed && !enemy.curseArmorBreak) enemy.curseArmorBreak = 0.35;
+    if (enemy.cursed && !enemy.curseDuration) enemy.curseDuration = 4.0;
+    enemy.maxHp = enemy.hp;
+}
+
+function applyMonsterBaseTraits(enemy, type, dmg) {
+    enemy.phaseThrough = false;
+    enemy.dodgeChance = 0;
+    enemy.poisonOnHit = false;
+    enemy.poisonDamage = 0;
+    enemy.lifeSteal = 0;
+    enemy.slamHit = false;
+    enemy.blockChance = 0;
+
+    if (type === 'ghost') {
+        enemy.phaseThrough = true;
+        enemy.dodgeChance = 0.3;
+    } else if (type === 'mummy') {
+        enemy.poisonOnHit = true;
+        enemy.poisonDamage = Math.floor(dmg * 0.3);
+    } else if (type === 'vampire') {
+        enemy.lifeSteal = 0.2;
+    } else if (type === 'zombie') {
+        enemy.slamHit = true;
+    } else if (type === 'skeleton') {
+        enemy.blockChance = 0.14;
+    }
+}
+
+function applyEnemyCursedHit(enemy, dealt) {
+    if (!enemy || !enemy.cursed || dealt <= 0) return;
+
+    const wasCursed = player.cursedTimer > 0;
+    player.cursedTimer = Math.max(player.cursedTimer || 0, enemy.curseDuration || 4.0);
+    player.cursedArmorBreak = enemy.curseArmorBreak || 0.35;
+    player.curseDamageTakenMult = enemy.curseDamageTakenMult || 1.15;
+
+    if (!wasCursed) {
+        createDamageNumber(player.x, player.y - 55, '诅咒!', '#cc66ff');
+        for (let i = 0; i < 6; i++) {
+            createParticle(player.x + (Math.random() - 0.5) * 28, player.y - 20 + (Math.random() - 0.5) * 24, '#aa44ff', 3);
+        }
+    }
+}
+
+function applyEnemyProjectileOnHit(enemy, dealt) {
+    if (!enemy || dealt <= 0) return;
+
+    applyEnemyCursedHit(enemy, dealt);
+
+    if (enemy.freezeOnHit && !(player.freezeImmuneTimer > 0) && !(player.slowedTimer > 0)) {
+        player.frozen = true;
+        player.frozenTimer = 0.45;
+        createDamageNumber(player.x, player.y - 40, '冰冻!', COLORS.ice);
+    }
+
+    if (enemy.manaBurn) {
+        const manaBurned = Math.floor(Math.min(player.mp, dealt * 0.5));
+        player.mp -= manaBurned;
+        if (manaBurned > 0) createDamageNumber(player.x, player.y - 50, '-' + manaBurned + ' MP', COLORS.manaCost);
+    }
+}
+
+function calculateEnemyOutgoingDamage(enemy, baseDamage) {
+    let totalDamage = baseDamage;
+
+    if (enemy && enemy.elementalDmg) {
+        for (const type of ['fire', 'cold', 'lightning', 'poison']) {
+            if (enemy.elementalDmg[type]) {
+                totalDamage += enemy.elementalDmg[type] * (1 - (player.resistances[type] || 0) / 100);
+            }
+        }
+        if (enemy.elementalDmg.lightning > 0) player.lightningOverloadTimer = 0.5;
+    }
+
+    return totalDamage;
+}
+
+function emitEnemyScatterVolley(enemy) {
+    if (!enemy.scatterVolley || !(enemy.multiShot > 1)) return;
+    if (enemy.scatterVolleyCooldown > 0) return;
+
+    const baseAngle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+    const count = enemy.multiShot;
+    const spread = 0.35;
+    for (let shotIndex = 0; shotIndex < count; shotIndex++) {
+        const shotAngle = baseAngle + (shotIndex - (count - 1) / 2) * spread;
+        projectiles.push(ProjectilePool.acquire({
+            x: enemy.x + Math.cos(baseAngle) * 16,
+            y: enemy.y - 20 + Math.sin(baseAngle) * 8,
+            angle: shotAngle,
+            speed: 230,
+            life: 1.4,
+            damage: Math.max(1, Math.floor(enemy.dmg * 0.55)),
+            color: enemy.elementalDmg?.lightning ? '#66ccff' : '#ffaa00',
+            owner: enemy,
+            type: enemy.elementalDmg?.lightning ? 'lightning_ball' : 'scatter_shot'
+        }));
+    }
+    enemy.scatterVolleyCooldown = 2.2;
+    AudioSys.play(enemy.elementalDmg?.lightning ? 'specter_bolt' : 'arrow');
+}
+
+function emitMummyDeathCloud(enemy) {
+    if (enemy.monsterType !== 'mummy') return;
+
+    const radius = 95;
+    for (let i = 0; i < 18; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 10 + Math.random() * radius;
+        particles.push({
+            x: enemy.x + Math.cos(angle) * dist,
+            y: enemy.y + Math.sin(angle) * dist,
+            vx: Math.cos(angle) * 12,
+            vy: Math.sin(angle) * 12,
+            life: 1.0 + Math.random() * 0.6,
+            maxLife: 1.4,
+            color: COLORS.poison,
+            size: 5 + Math.random() * 6,
+            alpha: 0.45,
+            maxAlpha: 0.45
+        });
+    }
+
+    if (Math.hypot(player.x - enemy.x, player.y - enemy.y) < radius) {
+        player.poisoned = true;
+        player.poisonTimer = Math.max(player.poisonTimer || 0, 2.5);
+        player.poisonDamage = Math.max(player.poisonDamage || 0, Math.floor(enemy.dmg * 0.25));
+        createDamageNumber(player.x, player.y - 45, '毒云!', COLORS.poison);
+    }
+}
 
 heroSpriteSheet.onload = () => {
     const tempCanvas = document.createElement('canvas');
@@ -2302,15 +2481,19 @@ function drawEnemyActor(ctx, e) {
             drawOutlinedText(ctx, affix.name, e.x, e.y - e.radius + yOffset, affix.color, '9px Cinzel', 'rgba(0,0,0,0.9)', 2);
             yOffset -= 12;
         }
-    }
 
-    if (e.freezeOnHit) drawOutlinedText(ctx, '❄', e.x, e.y - e.radius - 50, '#99ddff', '16px Arial');
-    if (e.eliteAffixes) {
-        let hasFireEnchanted = false;
+        const affixIconMap = {
+            speed: '»', power: '▲', fire: '🔥', cold: '❄', lightning: '⚡',
+            armor: '◆', resist: '◇', leech: '♥', mana: '◆',
+            curse: '☠', volley: '≋', spectral: '✦'
+        };
+        const iconY = e.y - e.radius - 52;
+        const iconStartX = e.x - (e.eliteAffixes.length - 1) * 9;
         for (let ai = 0, aLen = e.eliteAffixes.length; ai < aLen; ai++) {
-            if (e.eliteAffixes[ai].id === 'fire_enchanted') { hasFireEnchanted = true; break; }
+            const affix = e.eliteAffixes[ai];
+            const icon = affixIconMap[affix.icon] || affix.icon || '✦';
+            drawOutlinedText(ctx, icon, iconStartX + ai * 18, iconY, affix.color, '15px Arial');
         }
-        if (hasFireEnchanted) drawOutlinedText(ctx, '🔥', e.x + (e.freezeOnHit ? 18 : 0), e.y - e.radius - 50, '#ff8833', '16px Arial');
     }
 }
 
@@ -3974,20 +4157,24 @@ function enterFloor(f, spawnAt = 'start') {
             let speed = Math.floor(selected.speed * difficulty.monsterSpeedMult);
             let xpValue = Math.floor(baseXp * difficulty.xpMult);
 
+            const isElite = Math.random() < GAME_CONFIG.ELITE_SPAWN_RATE;
             const enemy = EnemyPool.acquire({
                 x, y, hp, maxHp: hp, dmg, speed, radius: 12,
                 dead: false, cooldown: 0,
-                name: isInHell ? "地狱" + selected.name : selected.name,
-                rarity: Math.random() < 0.1 ? 1 : 0, xpValue: xpValue,
+                name: (isElite ? "精英" : "") + (isInHell ? "地狱" : "") + selected.name,
+                rarity: isElite ? 1 : 0, xpValue: xpValue,
                 ai: selected.ai,
                 monsterType: selected.type,
-                frameIndex: MONSTER_FRAMES[selected.type]
+                frameIndex: MONSTER_FRAMES[selected.type],
+                eliteAffixes: [],
+                isElite: isElite
             });
 
-            // 为特殊怪物添加额外属性
-            if (selected.type === 'ghost') { enemy.phaseThrough = true; enemy.dodgeChance = 0.3; }
-            if (selected.type === 'mummy') { enemy.poisonOnHit = true; enemy.poisonDamage = Math.floor(dmg * 0.3); }
-            if (selected.type === 'vampire') { enemy.lifeSteal = 0.2; }
+            applyMonsterBaseTraits(enemy, selected.type, dmg);
+            if (isElite) {
+                enemy.eliteAffixes = rollEliteAffixesForEnemy(enemy);
+                applyEliteAffixesToEnemy(enemy);
+            }
 
             enemies.push(enemy);
         }
@@ -4060,6 +4247,7 @@ function enterFloor(f, spawnAt = 'start') {
 
             // 应用 Boss 特殊属性
             applyBossTraits(bossEnemy, bossData.originalName, dmg);
+            applyEliteAffixesToEnemy(bossEnemy);
 
             enemies.push(bossEnemy);
 
@@ -5112,6 +5300,15 @@ function update(dt) {
         player.lightningOverloadTimer -= dt;
     }
 
+    if (player.cursedTimer > 0) {
+        player.cursedTimer -= dt;
+        if (player.cursedTimer <= 0) {
+            player.cursedTimer = 0;
+            player.cursedArmorBreak = 0;
+            player.curseDamageTakenMult = 1;
+        }
+    }
+
     // 处理中毒伤害
     if (player.poisoned && player.poisonTimer > 0) {
         player.poisonTimer -= dt;
@@ -5497,7 +5694,9 @@ function update(dt) {
             if (dx * dx + dy * dy < (player.radius + 10) ** 2) {
                 // 使用统一伤害函数（弹幕伤害类型根据弹幕类型判断）
                 const dmgType = p.type === 'lightning_ball' ? 'lightning' : 'physical';
-                playerTakeDamage(p.damage, p.owner, { damageType: dmgType });
+                const projectileDamage = calculateEnemyOutgoingDamage(p.owner, p.damage);
+                const dealt = playerTakeDamage(projectileDamage, p.owner, { damageType: dmgType, ignoreArmor: p.owner.ignoreArmor });
+                applyEnemyProjectileOnHit(p.owner, dealt);
                 p.life = 0;
                 for (let j = 0; j < 5; j++)createParticle(p.x, p.y, p.color || '#ff4400');
             }
@@ -5770,6 +5969,9 @@ function updateEnemies(dt) {
 
         if (e.frozenTimer > 0) { e.frozenTimer -= dt; e.wasMoving = false; continue; }
         if (e.slowedTimer > 0) e.slowedTimer -= dt;
+        if (e.moraleTimer > 0) e.moraleTimer -= dt;
+        if (e.fleeYellTimer > 0) e.fleeYellTimer -= dt;
+        if (e.scatterVolleyCooldown > 0) e.scatterVolleyCooldown -= dt;
         if (e.lightningOverloadTimer > 0) e.lightningOverloadTimer -= dt;
         if (e.cooldown > 0) e.cooldown -= dt;
 
@@ -5784,7 +5986,7 @@ function updateEnemies(dt) {
             updateBossSkills(e, dt);
         }
 
-        const speedMultiplier = e.slowedTimer > 0 ? 0.4 : 1.0;
+        const speedMultiplier = (e.slowedTimer > 0 ? 0.4 : 1.0) * (e.moraleTimer > 0 ? 1.25 : 1.0);
         const currentSpeed = e.speed * speedMultiplier;
 
         const dx = player.x - e.x, dy = player.y - e.y;
@@ -5832,6 +6034,12 @@ function updateEnemies(dt) {
                 if (!isWall(e.x, ny)) e.y = ny;
             }
         } else if (e.ai === 'revive') {
+            for (let mi = 0; mi < enemies.length; mi++) {
+                const ally = enemies[mi];
+                if (!ally.dead && ally.monsterType === 'melee' && Math.hypot(ally.x - e.x, ally.y - e.y) < 180) {
+                    ally.moraleTimer = Math.max(ally.moraleTimer || 0, 0.6);
+                }
+            }
             if (e.cooldown <= 0) {
                 // 复活附近的尸体，但不能复活 Boss
                 const body = enemies.find(other => other.dead && !other.isBoss && Math.hypot(other.x - e.x, other.y - e.y) < 200);
@@ -5891,7 +6099,9 @@ function updateEnemies(dt) {
             if (distSq <= 1600 && e.cooldown <= 0) { // 40^2 = 1600
                 setMonsterFacingToward(e, player.x, player.y, 0.35);
                 triggerMonsterAction(e, 'attack', 0.35);
-                playerTakeDamage(e.dmg, e, { ignoreArmor: e.ignoreArmor });
+                const dealt = playerTakeDamage(calculateEnemyOutgoingDamage(e, e.dmg), e, { ignoreArmor: e.ignoreArmor });
+                applyEnemyProjectileOnHit(e, dealt);
+                emitEnemyScatterVolley(e);
                 e.cooldown = 1.5;
             }
         } else if (e.ai === 'vampire') {
@@ -5931,7 +6141,9 @@ function updateEnemies(dt) {
                 if (dashDist <= 40 && e.cooldown <= 0) {
                     setMonsterFacingToward(e, player.x, player.y, 0.35);
                     triggerMonsterAction(e, 'attack', 0.35);
-                    const dealt = playerTakeDamage(e.dmg, e, { ignoreArmor: e.ignoreArmor });
+                    const dealt = playerTakeDamage(calculateEnemyOutgoingDamage(e, e.dmg), e, { ignoreArmor: e.ignoreArmor });
+                    applyEnemyCursedHit(e, dealt);
+                    emitEnemyScatterVolley(e);
                     // 吸血效果（基于实际造成的伤害）
                     if (dealt > 0) {
                         const healAmount = Math.floor(dealt * (e.lifeSteal || 0.2));
@@ -5976,7 +6188,9 @@ function updateEnemies(dt) {
                     // 近身普通攻击
                     setMonsterFacingToward(e, player.x, player.y, 0.35);
                     triggerMonsterAction(e, 'attack', 0.35);
-                    const dealt = playerTakeDamage(e.dmg, e, { ignoreArmor: e.ignoreArmor });
+                    const dealt = playerTakeDamage(calculateEnemyOutgoingDamage(e, e.dmg), e, { ignoreArmor: e.ignoreArmor });
+                    applyEnemyCursedHit(e, dealt);
+                    emitEnemyScatterVolley(e);
                     // 吸血效果
                     if (dealt > 0) {
                         const healAmount = Math.floor(dealt * (e.lifeSteal || 0.2));
@@ -6002,17 +6216,22 @@ function updateEnemies(dt) {
                     const angle = Math.atan2(player.y - e.y, player.x - e.x);
                     setMonsterFacingToward(e, player.x, player.y, 0.35);
                     triggerMonsterAction(e, 'attack', 0.35);
-                    projectiles.push(ProjectilePool.acquire({
-                        x: e.x + Math.cos(angle) * 16,
-                        y: e.y - 32 + Math.sin(angle) * 8,
-                        angle: angle,
-                        speed: 280,
-                        life: 2,
-                        damage: e.dmg,
-                        color: '#66ccff',
-                        owner: e,
-                        type: 'lightning_ball'  // 闪电球类型
-                    }));
+                    const boltCount = e.multiShot || 1;
+                    const spread = boltCount > 1 ? 0.2 : 0;
+                    for (let shotIndex = 0; shotIndex < boltCount; shotIndex++) {
+                        const shotAngle = angle + (shotIndex - (boltCount - 1) / 2) * spread;
+                        projectiles.push(ProjectilePool.acquire({
+                            x: e.x + Math.cos(angle) * 16,
+                            y: e.y - 32 + Math.sin(angle) * 8,
+                            angle: shotAngle,
+                            speed: 280,
+                            life: 2,
+                            damage: e.dmg,
+                            color: '#66ccff',
+                            owner: e,
+                            type: 'lightning_ball'  // 闪电球类型
+                        }));
+                    }
                     // 发射音效（轻柔版）
                     AudioSys.play('specter_bolt');
                     e.cooldown = 1.8;
@@ -6025,32 +6244,38 @@ function updateEnemies(dt) {
             }
         } else {
             // 普通chase AI
-            if (distSq < GAME_CONFIG.MONSTER_CHASE_RANGE_SQ && distSq > GAME_CONFIG.MONSTER_DISENGAGE_RANGE_SQ) {
+            const shouldFlee = e.monsterType === 'melee' && !e.isElite && e.hp / e.maxHp < 0.35 && distSq < 62500;
+            if (shouldFlee) {
+                const dist = Math.sqrt(distSq);
+                const fleeSpeed = currentSpeed * 1.15;
+                const nx = e.x - (dx / dist) * fleeSpeed * dt;
+                const ny = e.y - (dy / dist) * fleeSpeed * dt;
+                if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
+                if (!(e.fleeYellTimer > 0)) {
+                    createDamageNumber(e.x, e.y - 22, "逃跑!", '#ffcc66');
+                    e.fleeYellTimer = 2.5;
+                }
+            } else if (distSq < GAME_CONFIG.MONSTER_CHASE_RANGE_SQ && distSq > GAME_CONFIG.MONSTER_DISENGAGE_RANGE_SQ) {
                 const dist = Math.sqrt(distSq);
                 const nx = e.x + (dx / dist) * currentSpeed * dt, ny = e.y + (dy / dist) * currentSpeed * dt;
                 if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
             }
-            if (distSq <= GAME_CONFIG.MONSTER_MELEE_RANGE_SQ && e.cooldown <= 0) {
+            if (!shouldFlee && distSq <= GAME_CONFIG.MONSTER_MELEE_RANGE_SQ && e.cooldown <= 0) {
                 setMonsterFacingToward(e, player.x, player.y, 0.35);
                 triggerMonsterAction(e, 'attack', 0.35);
                 // 预计算基础伤害（物理+元素）
-                let baseDmg = e.dmg;
-                if (e.elementalDmg) {
-                    // 元素伤害按抗性计算后累加
-                    for (const type of ['fire', 'cold', 'lightning', 'poison']) {
-                        if (e.elementalDmg[type]) {
-                            baseDmg += e.elementalDmg[type] * (1 - (player.resistances[type] || 0) / 100);
-                        }
-                    }
-                    // 闪电过载视觉效果
-                    if (e.elementalDmg.lightning > 0) {
-                        player.lightningOverloadTimer = 0.5;
-                    }
-                }
+                const baseDmg = calculateEnemyOutgoingDamage(e, e.slamHit ? e.dmg * 1.35 : e.dmg);
 
                 // 统一伤害处理（护盾、护甲、天赋、边界检查）
                 const dealt = playerTakeDamage(baseDmg, e, { ignoreArmor: e.ignoreArmor });
-                e.cooldown = 1.5;
+                e.cooldown = e.slamHit ? 2.1 : 1.5;
+
+                if (dealt > 0 && e.slamHit) {
+                    player.slowedTimer = Math.max(player.slowedTimer || 0, 0.35);
+                    createDamageNumber(player.x, player.y - 60, "重击!", '#ddaa66');
+                }
+                applyEnemyCursedHit(e, dealt);
+                emitEnemyScatterVolley(e);
 
                 // 敌人吸血效果
                 if (dealt > 0 && e.lifeSteal) {
@@ -8057,21 +8282,11 @@ function spawnEnemyTimer() {
 
         let frameIndex = MONSTER_FRAMES[type];
         const isElite = Math.random() < GAME_CONFIG.ELITE_SPAWN_RATE;
-        let eliteAffixes = [];
 
         if (isElite) {
             // 精英怪保持原来的外观，只是名字加前缀
             name = `精英${name}`;
 
-            // 为精英怪添加随机词缀（1-2个）
-            const affixCount = Math.random() < GAME_CONFIG.DOUBLE_AFFIX_RATE ? 2 : 1;  // 双词缀概率
-            const availableAffixes = [...ELITE_AFFIXES];
-
-            for (let i = 0; i < affixCount; i++) {
-                const idx = Math.floor(Math.random() * availableAffixes.length);
-                const affix = availableAffixes.splice(idx, 1)[0];
-                eliteAffixes.push(affix);
-            }
         }
 
         // 应用怪物类型的属性倍率
@@ -8083,33 +8298,15 @@ function spawnEnemyTimer() {
             dead: false, cooldown: 0, hitFlashTimer: 0, name, rarity: isElite ? 1 : 0, xpValue: xp,
             ai: ai, frameIndex: frameIndex,
             monsterType: type,              // 怪物类型标识
-            eliteAffixes: eliteAffixes,     // 精英词缀列表
+            eliteAffixes: [],               // 精英词缀列表
             isElite: isElite                // 精英怪标记
         });
 
-        // 为特殊怪物添加额外属性
-        if (type === 'ghost') {
-            enemy.phaseThrough = true;      // 穿墙
-            enemy.dodgeChance = 0.3;        // 30%闪避
-        }
-        if (type === 'mummy') {
-            enemy.poisonOnHit = true;       // 中毒攻击
-            enemy.poisonDamage = Math.floor(finalDmg * 0.3);  // 30%伤害的毒
-        }
-        if (type === 'vampire') {
-            enemy.lifeSteal = 0.2;          // 20%吸血
-        }
+        applyMonsterBaseTraits(enemy, type, finalDmg);
+        if (isElite) enemy.eliteAffixes = rollEliteAffixesForEnemy(enemy);
 
         // 应用精英词缀效果
-        if (eliteAffixes.length > 0) {
-            eliteAffixes.forEach(affix => {
-                if (affix.applyStats) {
-                    affix.applyStats(enemy);
-                }
-            });
-            // 更新生命值上限（因为词缀可能修改了属性）
-            enemy.maxHp = enemy.hp;
-        }
+        applyEliteAffixesToEnemy(enemy);
 
         enemies.push(enemy);
     }, GAME_CONFIG.ENEMY_SPAWN_INTERVAL);
@@ -8119,6 +8316,13 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     // 幽灵闪避检测
     if (e.dodgeChance && Math.random() < e.dodgeChance) {
         createDamageNumber(e.x, e.y - 20, "闪避!", '#aaaaaa');
+        return;
+    }
+    if (e.blockChance && !isSkillDamage && Math.random() < e.blockChance) {
+        e.hitFlashTimer = 0.06;
+        Juice.hit(e, false, false);
+        createDamageNumber(e.x, e.y - 20, "格挡!", '#dddddd');
+        AudioSys.play('melee_hit');
         return;
     }
 
@@ -8286,6 +8490,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
 
         // 创建地面血迹
         createBloodSplat(e.x, e.y, e.radius);
+        emitMummyDeathCloud(e);
 
         player.kills++;
         // 新手引导：步骤5 - 击杀第一只怪物
@@ -10219,6 +10424,9 @@ function playerTakeDamage(rawDamage, source, options = {}) {
     if (damageTakenPct > 0) {
         damage *= (1 + damageTakenPct / 100);
     }
+    if (player.cursedTimer > 0 && player.curseDamageTakenMult > 1) {
+        damage *= player.curseDamageTakenMult;
+    }
 
     // 4. 元素抗性减伤（非物理伤害）
     if (damageType !== 'physical' && player.resistances[damageType]) {
@@ -10227,7 +10435,9 @@ function playerTakeDamage(rawDamage, source, options = {}) {
 
     // 5. 护甲减伤（物理伤害，新公式：护甲/(护甲+100)）
     if (!ignoreArmor && damageType === 'physical' && player.armor > 0) {
-        const reduction = player.armor / (player.armor + 100);
+        const armorBreak = player.cursedTimer > 0 ? (player.cursedArmorBreak || 0) : 0;
+        const effectiveArmor = Math.max(0, player.armor * (1 - armorBreak));
+        const reduction = effectiveArmor / (effectiveArmor + 100);
         damage *= (1 - reduction);
     }
 
