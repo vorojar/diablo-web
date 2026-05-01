@@ -979,7 +979,7 @@ function createTintedSpriteSheet(source, filterStr) {
 }
 // --- Hero Animation Sprites ---
 const heroSpriteSheet = new Image();
-heroSpriteSheet.src = 'hero_sprites.png?v=202605010400';
+heroSpriteSheet.src = 'hero_sprites.png?v=202605010430';
 let heroSpritesLoaded = false;
 let processedHeroSprites = null;
 const HeroTintCache = {
