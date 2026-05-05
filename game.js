@@ -7430,7 +7430,7 @@ function updateEnemies(dt) {
 
         if (e.ai === 'ranged') {
             const hasLOS = hasLineOfSight(e.x, e.y, player.x, player.y);
-            if (distSq < 22500 && hasLOS) {
+            if (distSq < 22500) {
                 // 太近了，后退 (150^2 = 22500)
                 const dist = Math.sqrt(distSq);
                 if (dist > 0) {
@@ -7449,8 +7449,6 @@ function updateEnemies(dt) {
                         targetX: player.x,
                         targetY: player.y,
                         resolve: (attacker) => {
-                            if (!hasLineOfSight(attacker.x, attacker.y, player.x, player.y)) return;
-
                             const angle = Math.atan2(player.y - attacker.y, player.x - attacker.x);
                             spawnCastSourceVfx(CAST_SOURCE_VFX.enemyArrow, attacker.x, attacker.y, angle, 0.7, 18, 34);
                             const arrowCount = attacker.multiShot || 1;
