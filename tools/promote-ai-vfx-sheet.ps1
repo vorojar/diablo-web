@@ -6,6 +6,8 @@ param(
     [int]$FrameSize = 128,
     [int]$SourceRows = 1,
     [int]$TargetRowOffset = 0,
+    [ValidateSet('LightChecker', 'BlackAdditive')]
+    [string]$BackgroundMode = 'LightChecker',
     [switch]$PreserveExisting
 )
 
@@ -23,6 +25,10 @@ function Test-BackgroundPixel {
     $max = [Math]::Max($Color.R, [Math]::Max($Color.G, $Color.B))
     $min = [Math]::Min($Color.R, [Math]::Min($Color.G, $Color.B))
     $brightness = ($Color.R + $Color.G + $Color.B) / 3
+
+    if ($BackgroundMode -eq 'BlackAdditive') {
+        return $brightness -lt 10 -and ($max - $min) -lt 12
+    }
 
     return $brightness -gt 215 -and ($max - $min) -lt 24
 }
