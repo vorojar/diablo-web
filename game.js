@@ -1103,6 +1103,15 @@ const KILL_FEEDBACK_VFX = {
     boss: 'bossDeathBurst'
 };
 
+const PLAYER_DAMAGE_VFX = {
+    physical: 'playerPhysicalHit',
+    fire: 'playerFireHit',
+    cold: 'playerColdHit',
+    lightning: 'playerLightningHit',
+    poison: 'playerPoisonHit',
+    lowHp: 'playerLowHpPulse'
+};
+
 const ELITE_AFFIX_AURA_VFX = {
     fire_enchanted: 'affixFireAura',
     cold_enchanted: 'affixColdAura',
@@ -1278,6 +1287,38 @@ function spawnEnemyDeathVfx(enemy) {
     const effectId = enemy.isBoss ? KILL_FEEDBACK_VFX.boss : (enemy.isElite ? KILL_FEEDBACK_VFX.elite : KILL_FEEDBACK_VFX.normal);
     const scale = enemy.isBoss ? 1.18 : (enemy.isElite ? 0.96 : 0.78);
     spawnVfxEffect(effectId, enemy.x, enemy.y + 4, scale, Math.random() * Math.PI * 2);
+}
+
+function getPlayerDamageFeedbackType(damageType, source) {
+    if (damageType && damageType !== 'physical') return damageType;
+
+    if (source?.elementalDmg) {
+        let bestType = 'physical';
+        let bestValue = 0;
+        for (const type of ['fire', 'cold', 'lightning', 'poison']) {
+            const value = source.elementalDmg[type] || 0;
+            if (value > bestValue) {
+                bestValue = value;
+                bestType = type;
+            }
+        }
+        if (bestValue > 0) return bestType;
+    }
+
+    if (source?.poisonOnHit) return 'poison';
+    if (source?.freezeOnHit) return 'cold';
+    return 'physical';
+}
+
+function spawnPlayerDamageVfx(damageType, source, wasLowHp) {
+    const feedbackType = getPlayerDamageFeedbackType(damageType, source);
+    const effectId = PLAYER_DAMAGE_VFX[feedbackType] || PLAYER_DAMAGE_VFX.physical;
+    const sourceAngle = source ? Math.atan2(player.y - source.y, player.x - source.x) : 0;
+    spawnVfxEffect(effectId, player.x, player.y - 12, feedbackType === 'physical' ? 0.78 : 0.86, sourceAngle);
+
+    if (!wasLowHp && player.hp / player.maxHp <= GAME_CONFIG.LOW_HP_THRESHOLD) {
+        spawnVfxEffect(PLAYER_DAMAGE_VFX.lowHp, player.x, player.y + 4, 1, 0);
+    }
 }
 
 function isAffixCompatibleWithEnemy(affix, enemy) {
@@ -11899,10 +11940,12 @@ function playerTakeDamage(rawDamage, source, options = {}) {
 
     // 7. 扣除生命值（边界检查）
     if (damage > 0) {
+        const wasLowHp = player.hp / player.maxHp <= GAME_CONFIG.LOW_HP_THRESHOLD;
         player.hp = Math.max(0, player.hp - damage);
         player.lastDamageSource = source?.name || '未知';
 
         // 受击反馈
+        spawnPlayerDamageVfx(damageType, source, wasLowHp);
         createDamageNumber(player.x, player.y - 20, Math.floor(damage), COLORS.damage);
         if (cachedUI.hpOrb) GSAPAnims.shake(cachedUI.hpOrb, 8);
         AudioSys.play('hit');

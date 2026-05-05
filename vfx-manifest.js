@@ -1,5 +1,5 @@
 window.VFX_SPRITE_MANIFEST = {
-    sheet: 'vfx_sheet.png?v=202605051925',
+    sheet: 'vfx_sheet.png?v=202605051940',
     effects: {
         fireballImpact: {
             row: 0,
@@ -384,6 +384,72 @@ window.VFX_SPRITE_MANIFEST = {
             renderSize: 130,
             pivotX: 64,
             pivotY: 104,
+            blend: 'lighter'
+        },
+        playerPhysicalHit: {
+            row: 35,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 24,
+            renderSize: 58,
+            pivotX: 64,
+            pivotY: 72,
+            blend: 'lighter'
+        },
+        playerFireHit: {
+            row: 36,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 24,
+            renderSize: 66,
+            pivotX: 64,
+            pivotY: 76,
+            blend: 'lighter'
+        },
+        playerColdHit: {
+            row: 37,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 24,
+            renderSize: 66,
+            pivotX: 64,
+            pivotY: 76,
+            blend: 'lighter'
+        },
+        playerLightningHit: {
+            row: 38,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 26,
+            renderSize: 68,
+            pivotX: 64,
+            pivotY: 72,
+            blend: 'lighter'
+        },
+        playerPoisonHit: {
+            row: 39,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 22,
+            renderSize: 64,
+            pivotX: 64,
+            pivotY: 76,
+            blend: 'lighter'
+        },
+        playerLowHpPulse: {
+            row: 40,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 18,
+            renderSize: 92,
+            pivotX: 64,
+            pivotY: 88,
             blend: 'lighter'
         }
     }
