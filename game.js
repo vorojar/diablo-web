@@ -15694,7 +15694,8 @@ initDragging();
 init();
 
 // ========== 更新公告系统 ==========
-const CHANGELOG_MAX_DISPLAY = 2; // 更新公告只显示最新两版，避免信息过载
+const CHANGELOG_MAX_DISPLAY = 30; // 最多显示的版本数
+const CHANGELOG_MAX_LATEST_DATE_DISPLAY = 2; // 最新日期只显示两个版本，避免当天更新刷屏
 
 // 检查是否需要显示更新公告
 function checkChangelog() {
@@ -15716,12 +15717,12 @@ function showChangelogPanel() {
 
     if (!panel || !content) return;
 
-    // 清空并加载最新版本
+    // 清空并加载更新记录
     content.innerHTML = '';
-    const displayCount = Math.min(CHANGELOG_MAX_DISPLAY, CHANGELOG.length);
+    const displayItems = getChangelogDisplayItems();
 
-    for (let i = 0; i < displayCount; i++) {
-        const item = CHANGELOG[i];
+    for (let i = 0; i < displayItems.length; i++) {
+        const item = displayItems[i];
         const div = document.createElement('div');
         div.className = 'changelog-item';
 
@@ -15743,6 +15744,23 @@ function showChangelogPanel() {
     }
 
     panel.style.display = 'flex';
+}
+
+function getChangelogDisplayItems() {
+    const latestDate = CHANGELOG[0]?.date || '';
+    let latestDateCount = 0;
+    const items = [];
+
+    for (let i = 0; i < CHANGELOG.length && items.length < CHANGELOG_MAX_DISPLAY; i++) {
+        const item = CHANGELOG[i];
+        if (item.date === latestDate) {
+            if (latestDateCount >= CHANGELOG_MAX_LATEST_DATE_DISPLAY) continue;
+            latestDateCount++;
+        }
+        items.push(item);
+    }
+
+    return items;
 }
 
 // 关闭更新公告面板
