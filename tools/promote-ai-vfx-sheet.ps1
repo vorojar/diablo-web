@@ -158,7 +158,26 @@ for ($i = 0; $i -lt $frames.Count; $i++) {
 
     $srcRect = [System.Drawing.Rectangle]::new($bounds.X, $bounds.Y, $bounds.Width, $bounds.Height)
     $dstRect = [System.Drawing.Rectangle]::new($drawX, $drawY, $drawWidth, $drawHeight)
-    $graphics.DrawImage($entry.Bitmap, $dstRect, $srcRect, [System.Drawing.GraphicsUnit]::Pixel)
+    $imageAttributes = $null
+    if ($i -ge 4) {
+        $imageAttributes = [System.Drawing.Imaging.ImageAttributes]::new()
+        $matrix = [System.Drawing.Imaging.ColorMatrix]::new()
+        $matrix.Matrix00 = 0.78
+        $matrix.Matrix11 = 0.66
+        $matrix.Matrix22 = 0.54
+        $matrix.Matrix33 = 0.92
+        $matrix.Matrix40 = 0.02
+        $matrix.Matrix41 = -0.02
+        $matrix.Matrix42 = -0.03
+        $imageAttributes.SetColorMatrix($matrix)
+    }
+
+    if ($imageAttributes) {
+        $graphics.DrawImage($entry.Bitmap, $dstRect, $srcRect.X, $srcRect.Y, $srcRect.Width, $srcRect.Height, [System.Drawing.GraphicsUnit]::Pixel, $imageAttributes)
+        $imageAttributes.Dispose()
+    } else {
+        $graphics.DrawImage($entry.Bitmap, $dstRect, $srcRect, [System.Drawing.GraphicsUnit]::Pixel)
+    }
 }
 
 $target.Save($Output, [System.Drawing.Imaging.ImageFormat]::Png)

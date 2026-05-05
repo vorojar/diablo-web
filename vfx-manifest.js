@@ -1,5 +1,5 @@
 window.VFX_SPRITE_MANIFEST = {
-    sheet: 'vfx_sheet.png?v=202605051610',
+    sheet: 'vfx_sheet.png?v=202605051645',
     effects: {
         fireballImpact: {
             row: 0,
@@ -7,9 +7,9 @@ window.VFX_SPRITE_MANIFEST = {
             frameHeight: 128,
             frameCount: 8,
             fps: 24,
-            renderSize: 104,
+            renderSize: 82,
             pivotX: 64,
-            pivotY: 72,
+            pivotY: 100,
             blend: 'lighter'
         }
     }
