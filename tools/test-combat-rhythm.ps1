@@ -33,6 +33,12 @@ $indexPath = Join-Path $Root 'index.html'
 
 $game = Get-Content -LiteralPath $gamePath -Raw
 $index = Get-Content -LiteralPath $indexPath -Raw
+$specterStart = $game.IndexOf("} else if (e.ai === 'specter') {")
+$chaseStart = $game.IndexOf('const shouldFlee =', $specterStart)
+if ($specterStart -lt 0 -or $chaseStart -lt 0) {
+    throw 'FAIL: cannot locate specter AI block.'
+}
+$specterBlock = $game.Substring($specterStart, $chaseStart - $specterStart)
 
 Assert-Contains -Text $game -Pattern 'const scheduledMonsterAttacks = []' -Message 'FAIL: missing scheduled monster attack queue.'
 Assert-Contains -Text $game -Pattern 'function startMonsterAttack' -Message 'FAIL: missing monster attack windup entry.'
@@ -41,8 +47,10 @@ Assert-Contains -Text $game -Pattern 'processScheduledMonsterAttacks' -Message '
 Assert-Contains -Text $game -Pattern 'function resolveEnemyMeleeImpact' -Message 'FAIL: missing unified melee impact resolver.'
 Assert-Contains -Text $game -Pattern 'deathVisualTimer' -Message 'FAIL: missing death visibility window.'
 Assert-Contains -Text $game -Pattern 'if (!e || (e.dead && !(e.deathVisualTimer > 0))) return;' -Message 'FAIL: drawEnemyActor does not render the death visibility window.'
-Assert-Contains -Text $index -Pattern 'game.js?v=202605060800' -Message 'FAIL: index.html did not bump the game.js cache version.'
+Assert-Contains -Text $index -Pattern 'game.js?v=202605060840' -Message 'FAIL: index.html did not bump the game.js cache version.'
 Assert-NotContains -Text $game -Pattern "triggerMonsterAction(e, 'attack'" -Message 'FAIL: monster AI still triggers attack animation directly.'
 Assert-NotContains -Text $game -Pattern 'playerTakeDamage(calculateEnemyOutgoingDamage(e' -Message 'FAIL: monster AI still applies player damage immediately.'
+Assert-Contains -Text $specterBlock -Pattern "type: 'lightning_ball'" -Message 'FAIL: specter delayed attack does not emit lightning projectiles.'
+Assert-NotContains -Text $specterBlock -Pattern 'if (!hasLineOfSight(attacker.x, attacker.y, player.x, player.y)) return;' -Message 'FAIL: specter delayed impact cancels the lightning shot after windup.'
 
 Write-Host 'PASS: combat rhythm contract'

@@ -7676,8 +7676,6 @@ function updateEnemies(dt) {
                         targetX: player.x,
                         targetY: player.y,
                         resolve: (attacker) => {
-                            if (!hasLineOfSight(attacker.x, attacker.y, player.x, player.y)) return;
-
                             const angle = Math.atan2(player.y - attacker.y, player.x - attacker.x);
                             spawnCastSourceVfx(CAST_SOURCE_VFX.enemyLightning, attacker.x, attacker.y, angle, 0.78, 16, 30);
                             const boltCount = attacker.multiShot || 1;
