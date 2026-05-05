@@ -1,5 +1,5 @@
 window.VFX_SPRITE_MANIFEST = {
-    sheet: 'vfx_sheet.png?v=202605051730',
+    sheet: 'vfx_sheet.png?v=202605051750',
     effects: {
         fireballImpact: {
             row: 0,
@@ -197,6 +197,72 @@ window.VFX_SPRITE_MANIFEST = {
             renderSize: 60,
             pivotX: 88,
             pivotY: 64,
+            blend: 'lighter'
+        },
+        affixFireAura: {
+            row: 18,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 12,
+            renderSize: 74,
+            pivotX: 64,
+            pivotY: 92,
+            blend: 'lighter'
+        },
+        affixColdAura: {
+            row: 19,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 12,
+            renderSize: 74,
+            pivotX: 64,
+            pivotY: 92,
+            blend: 'lighter'
+        },
+        affixLightningAura: {
+            row: 20,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 16,
+            renderSize: 76,
+            pivotX: 64,
+            pivotY: 92,
+            blend: 'lighter'
+        },
+        affixThreatAura: {
+            row: 21,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 14,
+            renderSize: 74,
+            pivotX: 64,
+            pivotY: 92,
+            blend: 'lighter'
+        },
+        affixDefenseAura: {
+            row: 22,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 10,
+            renderSize: 72,
+            pivotX: 64,
+            pivotY: 92,
+            blend: 'lighter'
+        },
+        affixArcaneAura: {
+            row: 23,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 12,
+            renderSize: 74,
+            pivotX: 64,
+            pivotY: 92,
             blend: 'lighter'
         }
     }

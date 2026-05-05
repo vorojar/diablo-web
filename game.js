@@ -1083,6 +1083,21 @@ const PROJECTILE_VFX = {
     tentacle: 'tentacleProjectile'
 };
 
+const ELITE_AFFIX_AURA_VFX = {
+    fire_enchanted: 'affixFireAura',
+    cold_enchanted: 'affixColdAura',
+    lightning_enchanted: 'affixLightningAura',
+    extra_fast: 'affixThreatAura',
+    extra_strong: 'affixThreatAura',
+    vampiric: 'affixThreatAura',
+    multiple_shot: 'affixThreatAura',
+    stone_skin: 'affixDefenseAura',
+    magic_resistant: 'affixDefenseAura',
+    mana_burn: 'affixArcaneAura',
+    cursed: 'affixArcaneAura',
+    spectral_hit: 'affixArcaneAura'
+};
+
 const VFX_SPRITE_CONFIG = window.VFX_SPRITE_MANIFEST;
 const vfxSpriteSheet = new Image();
 let vfxSpritesLoaded = false;
@@ -1170,6 +1185,63 @@ function drawProjectileVfx(ctx, p) {
     );
     ctx.restore();
     return true;
+}
+
+function drawLoopingVfxEffect(ctx, effectId, x, y, scale = 1, rotation = 0, time = Date.now() / 1000) {
+    const effect = VFX_SPRITE_CONFIG?.effects?.[effectId];
+    if (!vfxSpritesLoaded || !effect) return false;
+
+    const frameIndex = Math.floor(time * effect.fps) % effect.frameCount;
+    const sx = frameIndex * effect.frameWidth;
+    const sy = effect.row * effect.frameHeight;
+    const renderSize = (effect.renderSize || effect.frameWidth) * scale;
+    const frameScale = renderSize / effect.frameWidth;
+    const dx = x - (effect.pivotX || effect.frameWidth / 2) * frameScale;
+    const dy = y - (effect.pivotY || effect.frameHeight / 2) * frameScale;
+
+    ctx.save();
+    if (effect.blend) ctx.globalCompositeOperation = effect.blend;
+    if (rotation) {
+        ctx.translate(x, y);
+        ctx.rotate(rotation);
+        ctx.drawImage(
+            vfxSpriteSheet,
+            sx, sy, effect.frameWidth, effect.frameHeight,
+            dx - x, dy - y, renderSize, renderSize
+        );
+    } else {
+        ctx.drawImage(
+            vfxSpriteSheet,
+            sx, sy, effect.frameWidth, effect.frameHeight,
+            dx, dy, renderSize, renderSize
+        );
+    }
+    ctx.restore();
+    return true;
+}
+
+function getEliteAffixAuraIds(enemy) {
+    if (!enemy?.eliteAffixes?.length) return [];
+
+    const auraIds = [];
+    for (let i = 0; i < enemy.eliteAffixes.length; i++) {
+        const effectId = ELITE_AFFIX_AURA_VFX[enemy.eliteAffixes[i].id];
+        if (!effectId || auraIds.includes(effectId)) continue;
+        auraIds.push(effectId);
+        if (auraIds.length >= 2) break;
+    }
+    return auraIds;
+}
+
+function drawEliteAffixAuras(ctx, enemy, x, y) {
+    const auraIds = getEliteAffixAuraIds(enemy);
+    if (auraIds.length === 0) return;
+
+    const baseScale = enemy.isBoss ? 1.32 : (enemy.rarity > 0 ? 0.92 : 0.78);
+    const now = Date.now() / 1000;
+    for (let i = 0; i < auraIds.length; i++) {
+        drawLoopingVfxEffect(ctx, auraIds[i], x, y + 2, baseScale * (1 + i * 0.08), i * 0.2, now + i * 0.17);
+    }
 }
 
 function isAffixCompatibleWithEnemy(affix, enemy) {
@@ -2787,6 +2859,7 @@ function drawEnemyActor(ctx, e) {
     const shadowWidth = e.isBoss ? Math.max(64, e.radius * 4.4) : (animatedMonsterFrame ? 46 : 34);
     const shadowHeight = e.isBoss ? 18 : (animatedMonsterFrame ? 12 : 9);
     drawContactShadow(ctx, rx, ry - 2, shadowWidth, shadowHeight, e.isBoss ? 0.36 : 0.27);
+    drawEliteAffixAuras(ctx, e, rx, ry);
 
     if (e.isBoss) {
         ctx.beginPath();
