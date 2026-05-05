@@ -1,5 +1,5 @@
 window.VFX_SPRITE_MANIFEST = {
-    sheet: 'vfx_sheet.png?v=202605051520',
+    sheet: 'vfx_sheet.png?v=202605051540',
     effects: {
         fireballImpact: {
             row: 0,
@@ -76,6 +76,50 @@ window.VFX_SPRITE_MANIFEST = {
             renderSize: 44,
             pivotX: 64,
             pivotY: 96,
+            blend: 'lighter'
+        },
+        bossCastBurst: {
+            row: 7,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 20,
+            renderSize: 86,
+            pivotX: 64,
+            pivotY: 86,
+            blend: 'lighter'
+        },
+        telegraphCircle: {
+            row: 8,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 18,
+            renderSize: 160,
+            pivotX: 64,
+            pivotY: 64,
+            blend: 'lighter'
+        },
+        telegraphCone: {
+            row: 9,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 18,
+            renderSize: 180,
+            pivotX: 18,
+            pivotY: 64,
+            blend: 'lighter'
+        },
+        telegraphLine: {
+            row: 10,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 18,
+            renderSize: 220,
+            pivotX: 12,
+            pivotY: 64,
             blend: 'lighter'
         }
     }

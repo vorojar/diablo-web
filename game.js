@@ -382,7 +382,7 @@ const EnemyPool = {
             frameIndex: 0, ai: 'chase', monsterType: 'melee',
             isBoss: false, isQuestTarget: false, isElite: false,
             bossTraits: null, bossCooldowns: null, enraged: false,
-            canTeleport: false, skillCd: 0,
+            canTeleport: false, skillCd: 0, pendingSkill: null,
             teleportCdMax: 0, summonCdMax: 0, slamCdMax: 0, breathCdMax: 0, tentacleCdMax: 0,
             slamRadius: 0, dashDistance: 0, breathAngle: 0, breathRange: 0, tentacleCount: 0,
             summonCount: 0,

@@ -8,6 +8,7 @@ param(
     [int]$TargetRowOffset = 0,
     [ValidateSet('LightChecker', 'BlackAdditive')]
     [string]$BackgroundMode = 'LightChecker',
+    [switch]$UseSourceGrid,
     [switch]$PreserveExisting
 )
 
@@ -27,7 +28,7 @@ function Test-BackgroundPixel {
     $brightness = ($Color.R + $Color.G + $Color.B) / 3
 
     if ($BackgroundMode -eq 'BlackAdditive') {
-        return $brightness -lt 10 -and ($max - $min) -lt 12
+        return $brightness -lt 55 -and ($max - $min) -lt 18
     }
 
     return $brightness -gt 215 -and ($max - $min) -lt 24
@@ -161,9 +162,13 @@ $sourceRowHeight = [int][Math]::Floor($transparentSource.Height / $SourceRows)
 for ($sourceRow = 0; $sourceRow -lt $SourceRows; $sourceRow++) {
     $sourceMinY = $sourceRow * $sourceRowHeight
     $sourceMaxY = if ($sourceRow -eq $SourceRows - 1) { $transparentSource.Height - 1 } else { (($sourceRow + 1) * $sourceRowHeight) - 1 }
-    $runs = Get-ContentColumnRuns -Bitmap $transparentSource -MinSearchY $sourceMinY -MaxSearchY $sourceMaxY
+    $runs = if ($UseSourceGrid) {
+        New-Object System.Collections.Generic.List[object]
+    } else {
+        Get-ContentColumnRuns -Bitmap $transparentSource -MinSearchY $sourceMinY -MaxSearchY $sourceMaxY
+    }
 
-    if ($runs.Count -ne $FrameCount) {
+    if ($UseSourceGrid -or $runs.Count -ne $FrameCount) {
         $runs = New-Object System.Collections.Generic.List[object]
         $sourceFrameWidth = [int][Math]::Floor($transparentSource.Width / $FrameCount)
         for ($i = 0; $i -lt $FrameCount; $i++) {

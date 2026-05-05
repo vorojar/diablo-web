@@ -39,6 +39,55 @@ function syncBossSkillVisual(boss, action, duration) {
   }
 }
 
+function spawnBossTelegraph(effectId, x, y, scale = 1, rotation = 0) {
+  if (typeof spawnVfxEffect === 'function') {
+    spawnVfxEffect(effectId, x, y, scale, rotation);
+  }
+}
+
+function startBossSkillWindup(boss, skillId, cooldown, data = {}) {
+  const windup = data.windup || 0.45;
+  boss.pendingSkill = { id: skillId, timer: windup, data };
+  boss.skillCd = cooldown;
+  syncBossSkillVisual(boss, 'cast', windup);
+  spawnBossTelegraph('bossCastBurst', boss.x, boss.y, 1, 0);
+
+  if (data.telegraph === 'circle') {
+    const radius = data.radius || 150;
+    spawnBossTelegraph('telegraphCircle', boss.x, boss.y, Math.max(0.75, radius / 80), 0);
+  } else if (data.telegraph === 'cone') {
+    spawnBossTelegraph('telegraphCone', boss.x, boss.y, Math.max(0.8, (data.range || 200) / 180), data.angle || 0);
+  } else if (data.telegraph === 'line') {
+    spawnBossTelegraph('telegraphLine', boss.x, boss.y, Math.max(0.8, (data.range || 220) / 210), data.angle || 0);
+  }
+}
+
+function updateBossPendingSkill(boss, dt) {
+  if (!boss.pendingSkill) return false;
+
+  boss.pendingSkill.timer -= dt;
+  if (boss.pendingSkill.timer > 0) return true;
+
+  const pending = boss.pendingSkill;
+  boss.pendingSkill = null;
+
+  if (boss.dead || player.dead) return true;
+
+  if (pending.id === 'fireNova') {
+    bossFireNova(boss, pending.data.radius, pending.data.damage);
+  } else if (pending.id === 'groundSlam') {
+    bossGroundSlam(boss);
+  } else if (pending.id === 'summonMinions') {
+    bossSummonMinions(boss);
+  } else if (pending.id === 'breathAttack') {
+    bossBreathAttack(boss, pending.data.angle);
+  } else if (pending.id === 'tentacleAttack') {
+    bossTentacleAttack(boss, pending.data.angle);
+  }
+
+  return true;
+}
+
 // 根据Boss名称获取frameIndex（用于BOSS_FRAMES）
 function getBossFrameIndex(bossName) {
   // 移除"地狱"前缀
@@ -215,6 +264,7 @@ function applyBossTraits(boss, bossName, baseDmg) {
 // 更新 Boss 技能逻辑 (在 gameLoop 中调用)
 function updateBossSkills(boss, dt) {
   if (player.dead) return;
+  if (updateBossPendingSkill(boss, dt)) return;
 
   // 屠夫狂暴逻辑
   if (boss.name.includes('屠夫') && !boss.enraged) {
@@ -240,10 +290,15 @@ function updateBossSkills(boss, dt) {
   if (boss.canTeleport && dist > 250) { // 玩家太远时瞬移
     boss.x = player.x + (Math.random() - 0.5) * 100;
     boss.y = player.y + (Math.random() - 0.5) * 100;
-    boss.skillCd = boss.teleportCdMax || 5;
     createParticle(boss.x, boss.y, '#ff4400', 10); // 出现特效
     if (boss.bossTraits && boss.bossTraits.fireNovaOnTeleport) {
-      bossFireNova(boss, 150, boss.dmg * 0.8);
+      startBossSkillWindup(boss, 'fireNova', boss.teleportCdMax || 5, {
+        telegraph: 'circle',
+        radius: 150,
+        damage: boss.dmg * 0.8
+      });
+    } else {
+      boss.skillCd = boss.teleportCdMax || 5;
     }
     showNotification(`${boss.name} 使用了瞬移！`);
     return;
@@ -251,29 +306,38 @@ function updateBossSkills(boss, dt) {
 
   // 树头木拳地震波
   if (boss.bossTraits && boss.bossTraits.groundSlam && dist < 120) {
-    bossGroundSlam(boss);
-    boss.skillCd = boss.slamCdMax || 6;
+    startBossSkillWindup(boss, 'groundSlam', boss.slamCdMax || 6, {
+      telegraph: 'circle',
+      radius: boss.slamRadius || 150
+    });
     return;
   }
 
   // 树头木拳召唤
   if (boss.bossTraits && boss.bossTraits.canSummon && Math.random() < 0.3) {
-    bossSummonMinions(boss);
-    boss.skillCd = boss.summonCdMax || 12;
+    startBossSkillWindup(boss, 'summonMinions', boss.summonCdMax || 12);
     return;
   }
 
   // 暗黑破坏神吐息
   if (boss.bossTraits && boss.bossTraits.breathAttack && dist < 200 && dist > 50) {
-    bossBreathAttack(boss);
-    boss.skillCd = boss.breathCdMax || 4;
+    const angleToPlayer = Math.atan2(player.y - boss.y, player.x - boss.x);
+    startBossSkillWindup(boss, 'breathAttack', boss.breathCdMax || 4, {
+      telegraph: 'cone',
+      angle: angleToPlayer,
+      range: boss.breathRange || 200
+    });
     return;
   }
 
   // 巴尔触手
   if (boss.bossTraits && boss.bossTraits.tentacleAttack) {
-    bossTentacleAttack(boss);
-    boss.skillCd = boss.tentacleCdMax || 6;
+    const angleToPlayer = Math.atan2(player.y - boss.y, player.x - boss.x);
+    startBossSkillWindup(boss, 'tentacleAttack', boss.tentacleCdMax || 6, {
+      telegraph: 'line',
+      angle: angleToPlayer,
+      range: 240
+    });
     return;
   }
 }
@@ -363,12 +427,12 @@ function bossSummonMinions(boss) {
 }
 
 // Boss 技能：吐息攻击（扇形）
-function bossBreathAttack(boss) {
+function bossBreathAttack(boss, lockedAngle) {
   syncBossSkillVisual(boss, 'attack', 0.6);
 
   const range = boss.breathRange || 200;
   const halfAngle = (boss.breathAngle || 60) * Math.PI / 360; // 转为弧度的一半
-  const angleToPlayer = Math.atan2(player.y - boss.y, player.x - boss.x);
+  const angleToPlayer = typeof lockedAngle === 'number' ? lockedAngle : Math.atan2(player.y - boss.y, player.x - boss.x);
 
   const dist = Math.hypot(player.x - boss.x, player.y - boss.y);
   if (dist < range && player.invincibleTimer <= 0) {
@@ -398,11 +462,11 @@ function bossBreathAttack(boss) {
 }
 
 // Boss 技能：触手攻击
-function bossTentacleAttack(boss) {
+function bossTentacleAttack(boss, lockedAngle) {
   syncBossSkillVisual(boss, 'attack', 0.5);
 
   const count = boss.tentacleCount || 4;
-  const baseAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
+  const baseAngle = typeof lockedAngle === 'number' ? lockedAngle : Math.atan2(player.y - boss.y, player.x - boss.x);
 
   for (let i = 0; i < count; i++) {
     const angle = baseAngle + (i - (count - 1) / 2) * 0.3; // 扇形分布
