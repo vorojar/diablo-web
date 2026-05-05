@@ -1,5 +1,5 @@
 window.VFX_SPRITE_MANIFEST = {
-    sheet: 'vfx_sheet.png?v=202605051915',
+    sheet: 'vfx_sheet.png?v=202605051925',
     effects: {
         fireballImpact: {
             row: 0,
@@ -351,6 +351,39 @@ window.VFX_SPRITE_MANIFEST = {
             renderSize: 54,
             pivotX: 64,
             pivotY: 76,
+            blend: 'lighter'
+        },
+        monsterDeathDust: {
+            row: 32,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 20,
+            renderSize: 70,
+            pivotX: 64,
+            pivotY: 92,
+            blend: 'lighter'
+        },
+        eliteDeathBurst: {
+            row: 33,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 22,
+            renderSize: 92,
+            pivotX: 64,
+            pivotY: 96,
+            blend: 'lighter'
+        },
+        bossDeathBurst: {
+            row: 34,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 20,
+            renderSize: 130,
+            pivotX: 64,
+            pivotY: 104,
             blend: 'lighter'
         }
     }

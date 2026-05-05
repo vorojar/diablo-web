@@ -1097,6 +1097,12 @@ const CAST_SOURCE_VFX = {
     enemyLightning: 'enemyLightningMuzzle'
 };
 
+const KILL_FEEDBACK_VFX = {
+    normal: 'monsterDeathDust',
+    elite: 'eliteDeathBurst',
+    boss: 'bossDeathBurst'
+};
+
 const ELITE_AFFIX_AURA_VFX = {
     fire_enchanted: 'affixFireAura',
     cold_enchanted: 'affixColdAura',
@@ -1266,6 +1272,12 @@ function spawnCastSourceVfx(effectId, x, y, angle = 0, scale = 1, forward = 14, 
         scale,
         angle
     );
+}
+
+function spawnEnemyDeathVfx(enemy) {
+    const effectId = enemy.isBoss ? KILL_FEEDBACK_VFX.boss : (enemy.isElite ? KILL_FEEDBACK_VFX.elite : KILL_FEEDBACK_VFX.normal);
+    const scale = enemy.isBoss ? 1.18 : (enemy.isElite ? 0.96 : 0.78);
+    spawnVfxEffect(effectId, enemy.x, enemy.y + 4, scale, Math.random() * Math.PI * 2);
 }
 
 function isAffixCompatibleWithEnemy(affix, enemy) {
@@ -9846,6 +9858,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         // 怪物死亡 - 强烈的果汁感
         e.dead = true;
         Juice.hit(e, false, true); // 击杀反馈
+        spawnEnemyDeathVfx(e);
 
         // 创建地面血迹
         createBloodSplat(e.x, e.y, e.radius);
