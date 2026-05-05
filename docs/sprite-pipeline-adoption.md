@@ -46,6 +46,10 @@
 
 闪电命中和多重射击命中作为第二批一起做，因为它们复用火球命中的资源链路和同一个 `emitSkillImpactBurst()` 接入点。图集从单行升级为多行：第 1 行 `fireballImpact`，第 2 行 `thunderImpact`，第 3 行 `multishotImpact`。检查脚本和预览器必须按 manifest 枚举所有效果，不能只校验火球。
 
+## 第三条完整闭环：通用反馈 VFX
+
+升级、暗金/套装掉落、回城传送门开启和药水使用作为第三批一起做，因为它们都是高频、瞬时、发光型反馈，不改变战斗判定和角色状态机。图集继续使用纯黑底 additive 源图，第 4 行 `levelUpBurst`，第 5 行 `rareDropBurst`，第 6 行 `portalOpen`，第 7 行 `potionUse`。接入点必须放在业务动作已经成功发生之后：升级函数、稀有掉落创建、回城施法启动、药水实际消耗。
+
 ## 美术资产纪律
 
 火球命中爆炸 VFX 已从程序占位图替换为 AI 生成位图资产。后续新增正式 VFX 时，默认流程是：先生成或绘制高质量位图源图，再用 `tools/promote-ai-vfx-sheet.ps1` 晋升为游戏图集，最后通过 `tools/validate-sprite-assets.ps1` 和预览器验收。不要把程序生成图作为正式美术提交。

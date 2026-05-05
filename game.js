@@ -11256,6 +11256,7 @@ function triggerLevelUpEffect(newLevel) {
 
     // 创建金色光柱
     createLevelUpBeam(player.x, player.y);
+    spawnVfxEffect('levelUpBurst', player.x, player.y, 1, 0);
 
     // 创建大量金色粒子爆发
     const particleCount = 40;

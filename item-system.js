@@ -405,6 +405,9 @@ function useOrEquipItem(idx) {
     }
     if (item.mana) player.mp = Math.min(player.maxMp, player.mp + item.mana);
     AudioSys.play('potion'); // 播放喝药音效
+    if (typeof spawnVfxEffect !== 'undefined') {
+      spawnVfxEffect('potionUse', player.x, player.y + 8, 1, 0);
+    }
     // 每日任务：使用药水
     if (typeof DailyQuestSystem !== 'undefined') {
       DailyQuestSystem.updateProgress('use_potion', 1);
@@ -438,6 +441,9 @@ function useOrEquipItem(idx) {
 
       // 立刻触发光柱效果和音效（不等施法完成）
       if (typeof createPortalBeam !== 'undefined') createPortalBeam(player.x, player.y);
+      if (typeof spawnVfxEffect !== 'undefined') {
+        spawnVfxEffect('portalOpen', player.x, player.y, 1, 0);
+      }
       AudioSys.playPortalOpen();
       triggerScreenShake(4, 0.2);
 
@@ -516,6 +522,9 @@ function createDropBeam(x, y, rarity) {
   const isSet = rarity === RARITY.SET;
 
   if (!isUnique && !isSet) return;
+  if (typeof spawnVfxEffect !== 'undefined') {
+    spawnVfxEffect('rareDropBurst', x, y, isUnique ? 1.05 : 0.95, 0);
+  }
 
   // 光柱颜色
   const beamColor = isUnique ? '#ffd700' : '#00ff88';
