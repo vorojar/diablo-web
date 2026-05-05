@@ -16,8 +16,7 @@ const AudioSys = {
     // 心跳音效计时
     heartbeatTimer: 0,
     sfxAssetConfig: {
-        lightningCharge: { url: 'audio/sfx/lightning_charge.mp3', volume: 0.9 },
-        lightningImpact: { url: 'audio/sfx/lightning_impact.mp3', volume: 0.78 },
+        lightningImpact: { url: 'audio/sfx/lightning_impact.mp3', volume: 0.86 },
         lightningEnemy: { url: 'audio/sfx/lightning_enemy.mp3', volume: 0.74 }
     },
     sfxBuffers: {},
@@ -410,8 +409,6 @@ const AudioSys = {
             return;
         }
         if (type === 'thunder_cast') {
-            if (this.playSfxAsset('lightningCharge')) return;
-            this.playCastCue('thunder');
             return;
         }
         if (type === 'thunder_impact') {
