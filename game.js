@@ -12466,13 +12466,14 @@ function castSkill(skillName) {
         player.skillCooldowns.thunder = 2; // 2秒冷却
         const thunderAngle = Math.atan2(target.y - player.y, target.x - player.x);
         spawnCastSourceVfx(CAST_SOURCE_VFX.thunder, player.x, player.y, thunderAngle, 0.92, 12, 14);
+        AudioSys.play('thunder_cast');
 
         // 如果击中可破坏物体
         if (target.broken !== undefined) {
             DestructibleSystem.break(target);
             createLightningEffect(target.x, target.y);
             emitSkillImpactBurst('thunder', target.x, target.y, thunderAngle, 0.9);
-            AudioSys.play('thunder_cast');
+            AudioSys.play('thunder_impact');
             if (typeof DailyQuestSystem !== 'undefined') DailyQuestSystem.updateProgress('use_skill', 1);
             return;
         }
@@ -12486,6 +12487,7 @@ function castSkill(skillName) {
         // 造成闪电伤害（主目标）
         takeDamage(target, { lightning: dmg }, true);
         emitSkillImpactBurst('thunder', target.x, target.y, Math.atan2(target.y - player.y, target.x - player.x), 1.08);
+        AudioSys.play('thunder_impact');
 
         // 视觉效果：闪电（根据技能阶段增加数量，优先攻击不同敌人）
         // 阶段1：1根雷电；阶段2：2根雷电；阶段3：4根雷电
@@ -12526,8 +12528,6 @@ function castSkill(skillName) {
             }, delay);
         }
 
-        // 音效
-        AudioSys.play('thunder_cast');
         // 每日任务和成就：使用技能
         if (typeof DailyQuestSystem !== 'undefined') {
             DailyQuestSystem.updateProgress('use_skill', 1);

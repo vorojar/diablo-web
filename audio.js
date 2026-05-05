@@ -15,6 +15,13 @@ const AudioSys = {
     lastGoldTime: 0,
     // 心跳音效计时
     heartbeatTimer: 0,
+    sfxAssetConfig: {
+        lightningCharge: { url: 'audio/sfx/lightning_charge.mp3', volume: 0.9 },
+        lightningImpact: { url: 'audio/sfx/lightning_impact.mp3', volume: 0.78 },
+        lightningEnemy: { url: 'audio/sfx/lightning_enemy.mp3', volume: 0.74 }
+    },
+    sfxBuffers: {},
+    sfxLoading: {},
     init: function () {
         if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -59,8 +66,58 @@ const AudioSys = {
                     this.bgmEl.play().catch(e => console.log("BGM restart failed:", e));
                 }
             });
+
+            this.preloadSfxAssets();
         }
         if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    },
+    preloadSfxAssets: function () {
+        Object.keys(this.sfxAssetConfig).forEach(id => this.loadSfxAsset(id));
+    },
+    loadSfxAsset: function (id) {
+        const config = this.sfxAssetConfig[id];
+        if (!this.ctx || !config) return Promise.resolve(null);
+        if (this.sfxBuffers[id]) return Promise.resolve(this.sfxBuffers[id]);
+        if (this.sfxLoading[id]) return this.sfxLoading[id];
+
+        this.sfxLoading[id] = fetch(config.url)
+            .then(response => {
+                if (!response.ok) throw new Error(`音效加载失败 ${config.url}`);
+                return response.arrayBuffer();
+            })
+            .then(buffer => this.ctx.decodeAudioData(buffer))
+            .then(decoded => {
+                this.sfxBuffers[id] = decoded;
+                return decoded;
+            })
+            .catch(error => {
+                console.warn(error.message);
+                return null;
+            })
+            .finally(() => {
+                delete this.sfxLoading[id];
+            });
+
+        return this.sfxLoading[id];
+    },
+    playSfxAsset: function (id, volume = 1, delay = 0) {
+        const config = this.sfxAssetConfig[id];
+        if (!this.ctx || !config) return false;
+
+        const buffer = this.sfxBuffers[id];
+        if (!buffer) {
+            this.loadSfxAsset(id);
+            return false;
+        }
+
+        const source = this.ctx.createBufferSource();
+        const gain = this.ctx.createGain();
+        source.buffer = buffer;
+        gain.gain.setValueAtTime((config.volume || 1) * volume, this.ctx.currentTime + delay);
+        source.connect(gain);
+        gain.connect(this.sfxGain);
+        source.start(this.ctx.currentTime + delay);
+        return true;
     },
     startBGM: function () {
         if (this.bgmEl && Settings.bgm && !this.bgmPlaying) {
@@ -353,7 +410,13 @@ const AudioSys = {
             return;
         }
         if (type === 'thunder_cast') {
+            if (this.playSfxAsset('lightningCharge')) return;
             this.playCastCue('thunder');
+            return;
+        }
+        if (type === 'thunder_impact') {
+            if (this.playSfxAsset('lightningImpact')) return;
+            this.playSkillImpact('hit');
             return;
         }
         if (type === 'multishot_cast' || type === 'enemy_arrow_cast') {
@@ -361,6 +424,7 @@ const AudioSys = {
             return;
         }
         if (type === 'enemy_lightning_cast') {
+            if (this.playSfxAsset('lightningEnemy')) return;
             this.playCastCue('thunder');
             return;
         }
@@ -375,6 +439,9 @@ const AudioSys = {
         if (type === 'boss_death') {
             this.playDeathCue('boss');
             return;
+        }
+        if (type === 'player_hit_lightning' || type === 'player_hit_lightning_low') {
+            if (this.playSfxAsset('lightningImpact', type.endsWith('_low') ? 0.62 : 0.48)) return;
         }
         if (type.startsWith('player_hit_')) {
             const isLowHp = type.endsWith('_low');
@@ -530,6 +597,7 @@ const AudioSys = {
             this.playToneLayer('triangle', t, 0.055, 880, 420, 0.045, bus);
             this.playToneLayer('sine', t + 0.018, 0.08, 180, 120, 0.025, bus);
         } else if (type === 'thunder') {
+            if (this.playSfxAsset('lightningImpact')) return;
             const bus = this.ctx.createGain();
             const filter = this.ctx.createBiquadFilter();
             filter.type = 'highpass';
