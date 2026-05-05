@@ -760,6 +760,44 @@ const player = {
     offlineRewardsClaimed: false  // 离线收益是否已领取（初始为false，第一次进入游戏后会被设置为true）
 };
 
+function createDefaultSkillTree(skills) {
+    const sourceSkills = skills === undefined || skills === null ? { fireball: 1, thunder: 0, multishot: 0 } : skills;
+    const stage1Level = (skillId, defaultLevel) => {
+        const rawValue = sourceSkills[skillId];
+        const level = Number.isFinite(rawValue) ? rawValue : defaultLevel;
+        return Math.max(0, Math.min(level, SKILL_TREE_MAX_LEVEL));
+    };
+
+    return {
+        fireball: { stage1: stage1Level('fireball', 1), stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } },
+        thunder: { stage1: stage1Level('thunder', 0), stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } },
+        multishot: { stage1: stage1Level('multishot', 0), stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } },
+        holy_shield: { stage1: 0, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } }
+    };
+}
+
+function ensurePlayerSkillTree() {
+    if (!player.skills) player.skills = { fireball: 1, thunder: 0, multishot: 0 };
+    if (!player.skillTree) player.skillTree = createDefaultSkillTree(player.skills);
+
+    const defaults = createDefaultSkillTree(player.skills);
+    for (const skillId of ['fireball', 'thunder', 'multishot', 'holy_shield']) {
+        if (!player.skillTree[skillId]) {
+            player.skillTree[skillId] = defaults[skillId];
+            continue;
+        }
+
+        const tree = player.skillTree[skillId];
+        if (!Number.isFinite(tree.stage1)) tree.stage1 = defaults[skillId].stage1;
+        if (!tree.stage2) tree.stage2 = { chosen: null, level: 0 };
+        if (!Number.isFinite(tree.stage2.level)) tree.stage2.level = 0;
+        if (tree.stage2.chosen === undefined) tree.stage2.chosen = null;
+        if (!tree.stage3) tree.stage3 = { chosen: null, level: 0 };
+        if (!Number.isFinite(tree.stage3.level)) tree.stage3.level = 0;
+        if (tree.stage3.chosen === undefined) tree.stage3.chosen = null;
+    }
+}
+
 // UI 视觉状态（用于平滑动画与脏检查）
 let uiDisplayState = {
     hp: 100, hpGhost: 100, mp: 50, mpGhost: 50, xpPct: 0, lvl: -1, gold: -1,
@@ -4438,30 +4476,9 @@ function startGame() {
         if (!player.skills) player.skills = { fireball: 1, thunder: 0, multishot: 0 };
 
         // 向后兼容：技能树系统迁移
-        if (!player.skillTree && player.skills) {
+        if (!player.skillTree) {
             // 从旧版 skills 迁移到技能树
-            player.skillTree = {
-                fireball: {
-                    stage1: Math.min(player.skills.fireball || 1, SKILL_TREE_MAX_LEVEL),
-                    stage2: { chosen: null, level: 0 },
-                    stage3: { chosen: null, level: 0 }
-                },
-                thunder: {
-                    stage1: Math.min(player.skills.thunder || 0, SKILL_TREE_MAX_LEVEL),
-                    stage2: { chosen: null, level: 0 },
-                    stage3: { chosen: null, level: 0 }
-                },
-                multishot: {
-                    stage1: Math.min(player.skills.multishot || 0, SKILL_TREE_MAX_LEVEL),
-                    stage2: { chosen: null, level: 0 },
-                    stage3: { chosen: null, level: 0 }
-                },
-                holy_shield: {
-                    stage1: 0,
-                    stage2: { chosen: null, level: 0 },
-                    stage3: { chosen: null, level: 0 }
-                }
-            };
+            player.skillTree = createDefaultSkillTree(player.skills);
             // 多余的点数退还
             const oldTotal = (player.skills.fireball || 0) + (player.skills.thunder || 0) + (player.skills.multishot || 0);
             const newTotal = player.skillTree.fireball.stage1 + player.skillTree.thunder.stage1 + player.skillTree.multishot.stage1;
@@ -4471,31 +4488,8 @@ function startGame() {
                 console.log(`[技能树迁移] 退还 ${refund} 点技能点`);
             }
         } else {
-            // 为新玩家初始化技能树
-            if (!player.skillTree) {
-                player.skillTree = {
-                    fireball: { stage1: 1, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } },
-                    thunder: { stage1: 0, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } },
-                    multishot: { stage1: 0, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } },
-                    holy_shield: { stage1: 0, stage2: { chosen: null, level: 0 }, stage3: { chosen: null, level: 0 } }
-                };
-            }
             // 确保技能树结构完整
-            for (const skillId of ['fireball', 'thunder', 'multishot', 'holy_shield']) {
-                if (!player.skillTree[skillId]) {
-                    player.skillTree[skillId] = {
-                        stage1: skillId === 'fireball' ? 1 : 0,
-                        stage2: { chosen: null, level: 0 },
-                        stage3: { chosen: null, level: 0 }
-                    };
-                }
-                if (!player.skillTree[skillId].stage2) {
-                    player.skillTree[skillId].stage2 = { chosen: null, level: 0 };
-                }
-                if (!player.skillTree[skillId].stage3) {
-                    player.skillTree[skillId].stage3 = { chosen: null, level: 0 };
-                }
-            }
+            ensurePlayerSkillTree();
         }
 
         // 向后兼容：套装系统
@@ -4690,6 +4684,7 @@ function startGame() {
         player.died = false;
         player.achievements = {};
         initAchievements();
+        player.skillTree = createDefaultSkillTree(player.skills);
     }
 
     // 同步自动拾取设置的复选框状态
