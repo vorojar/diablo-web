@@ -1,5 +1,5 @@
 window.VFX_SPRITE_MANIFEST = {
-    sheet: 'vfx_sheet.png?v=202605051720',
+    sheet: 'vfx_sheet.png?v=202605051730',
     effects: {
         fireballImpact: {
             row: 0,
@@ -153,6 +153,50 @@ window.VFX_SPRITE_MANIFEST = {
             renderSize: 72,
             pivotX: 64,
             pivotY: 96,
+            blend: 'lighter'
+        },
+        fireballProjectile: {
+            row: 14,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 18,
+            renderSize: 58,
+            pivotX: 88,
+            pivotY: 64,
+            blend: 'lighter'
+        },
+        lightningProjectile: {
+            row: 15,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 22,
+            renderSize: 54,
+            pivotX: 88,
+            pivotY: 64,
+            blend: 'lighter'
+        },
+        multishotProjectile: {
+            row: 16,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 18,
+            renderSize: 50,
+            pivotX: 92,
+            pivotY: 64,
+            blend: 'lighter'
+        },
+        tentacleProjectile: {
+            row: 17,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 18,
+            renderSize: 60,
+            pivotX: 88,
+            pivotY: 64,
             blend: 'lighter'
         }
     }

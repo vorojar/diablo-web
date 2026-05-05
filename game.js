@@ -322,7 +322,7 @@ const ProjectilePool = {
     release(p) {
         if (this._pool.length < 200) {
             // 清理属性防止复用污染
-            p.type = undefined; p.freeze = undefined; p.owner = undefined;
+            p.type = undefined; p.freeze = undefined; p.owner = undefined; p.age = undefined;
             this._pool.push(p);
         }
     }
@@ -1076,6 +1076,13 @@ const SKILL_IMPACT_VFX = {
     multishot: 'multishotImpact'
 };
 
+const PROJECTILE_VFX = {
+    fireball: 'fireballProjectile',
+    lightning_ball: 'lightningProjectile',
+    multishot: 'multishotProjectile',
+    tentacle: 'tentacleProjectile'
+};
+
 const VFX_SPRITE_CONFIG = window.VFX_SPRITE_MANIFEST;
 const vfxSpriteSheet = new Image();
 let vfxSpritesLoaded = false;
@@ -1137,6 +1144,32 @@ function drawVfxEffect(ctx, fx) {
         );
     }
     ctx.restore();
+}
+
+function drawProjectileVfx(ctx, p) {
+    const effectId = PROJECTILE_VFX[p.type] || (p.isTentacle ? PROJECTILE_VFX.tentacle : null);
+    const effect = effectId ? VFX_SPRITE_CONFIG?.effects?.[effectId] : null;
+    if (!vfxSpritesLoaded || !effect) return false;
+
+    const frameIndex = Math.floor((p.age || 0) * effect.fps) % effect.frameCount;
+    const sx = frameIndex * effect.frameWidth;
+    const sy = effect.row * effect.frameHeight;
+    const renderSize = effect.renderSize || effect.frameWidth;
+    const scale = renderSize / effect.frameWidth;
+    const dx = -(effect.pivotX || effect.frameWidth / 2) * scale;
+    const dy = -(effect.pivotY || effect.frameHeight / 2) * scale;
+
+    ctx.save();
+    if (effect.blend) ctx.globalCompositeOperation = effect.blend;
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.angle || 0);
+    ctx.drawImage(
+        vfxSpriteSheet,
+        sx, sy, effect.frameWidth, effect.frameHeight,
+        dx, dy, renderSize, renderSize
+    );
+    ctx.restore();
+    return true;
 }
 
 function isAffixCompatibleWithEnemy(affix, enemy) {
@@ -6736,6 +6769,7 @@ function update(dt) {
 
     for (let i = projectiles.length - 1; i >= 0; i--) {
         const p = projectiles[i];
+        p.age = (p.age || 0) + dt;
         p.life -= dt; p.x += Math.cos(p.angle) * p.speed * dt; p.y += Math.sin(p.angle) * p.speed * dt;
 
         // 火球拖尾粒子（概率根据画质动态调整）
@@ -7833,6 +7867,10 @@ function draw() {
         ctx.strokeStyle = p.color || '#fa0';
         ctx.fillStyle = p.color || '#fa0';
         ctx.lineWidth = 2;
+
+        if (drawProjectileVfx(ctx, p)) {
+            continue;
+        }
 
         if (p.type === 'multishot') {
             drawArrowProjectile(ctx, p, '#aaff00', 26, 3);

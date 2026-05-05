@@ -480,6 +480,7 @@ function bossTentacleAttack(boss, lockedAngle) {
       damage: boss.dmg * 0.6,
       color: '#9966ff',
       owner: boss,
+      type: 'tentacle',
       isTentacle: true // 标记为触手
     });
   }
