@@ -113,6 +113,32 @@ $contracts = @(
         -ConfigName 'MONSTER_SPRITE_CONFIG'
 )
 
+$vfxManifestPath = Join-Path $Root 'vfx-manifest.js'
+if (-not (Test-Path -LiteralPath $vfxManifestPath)) {
+    throw "Cannot find vfx-manifest.js: $vfxManifestPath"
+}
+
+$vfxManifest = Get-Content -LiteralPath $vfxManifestPath -Raw
+$vfxSheetMatch = [regex]::Match($vfxManifest, "sheet\s*:\s*'([^']+)'")
+if (-not $vfxSheetMatch.Success) {
+    throw "Cannot find VFX sheet path"
+}
+
+$vfxEffectMatch = [regex]::Match($vfxManifest, "fireballImpact\s*:\s*\{(?<body>[\s\S]*?)\n\s*\}")
+if (-not $vfxEffectMatch.Success) {
+    throw "Cannot find VFX effect config fireballImpact"
+}
+
+$vfxBody = $vfxEffectMatch.Groups['body'].Value
+$vfxContract = [pscustomobject]@{
+    Label = 'vfx:fireballImpact'
+    File = $vfxSheetMatch.Groups[1].Value.Split('?')[0]
+    Row = Get-NumberAfterKey -Text $vfxBody -Key 'row'
+    FrameWidth = Get-NumberAfterKey -Text $vfxBody -Key 'frameWidth'
+    FrameHeight = Get-NumberAfterKey -Text $vfxBody -Key 'frameHeight'
+    FrameCount = Get-NumberAfterKey -Text $vfxBody -Key 'frameCount'
+}
+
 $failed = $false
 foreach ($contract in $contracts) {
     $pngPath = Join-Path $Root $contract.File
@@ -143,6 +169,27 @@ foreach ($contract in $contracts) {
     } else {
         Write-Host "PASS: $($contract.Label) $($contract.File) [$($size.Width)x$($size.Height)], grid $($contract.Cols)x$($contract.Rows), cell $cellWidth x $cellHeight"
     }
+}
+
+$vfxPngPath = Join-Path $Root $vfxContract.File
+$vfxSize = Get-PngSize -Path $vfxPngPath
+$vfxRequiredWidth = $vfxContract.FrameWidth * $vfxContract.FrameCount
+$vfxRequiredHeight = $vfxContract.FrameHeight * ($vfxContract.Row + 1)
+$vfxErrors = @()
+if ($vfxSize.Width -ne $vfxRequiredWidth) {
+    $vfxErrors += "width $($vfxSize.Width) differs from required $vfxRequiredWidth"
+}
+if ($vfxSize.Height -lt $vfxRequiredHeight) {
+    $vfxErrors += "height $($vfxSize.Height) is smaller than required $vfxRequiredHeight"
+}
+if ($vfxErrors.Count -gt 0) {
+    $failed = $true
+    Write-Host "FAIL: $($vfxContract.Label) $($vfxContract.File) [$($vfxSize.Width)x$($vfxSize.Height)]"
+    foreach ($err in $vfxErrors) {
+        Write-Host "  - $err"
+    }
+} else {
+    Write-Host "PASS: $($vfxContract.Label) $($vfxContract.File) [$($vfxSize.Width)x$($vfxSize.Height)], frames $($vfxContract.FrameCount), cell $($vfxContract.FrameWidth) x $($vfxContract.FrameHeight)"
 }
 
 if ($failed) {

@@ -144,6 +144,7 @@ function initUICache() {
 let gameActive = false;
 let lastTime = 0;
 let particles = [];
+let vfxEffects = [];
 let damageNumbers = [];
 let slashEffects = [];
 let enemies = [];
@@ -1068,6 +1069,69 @@ const SKILL_IMPACT_PALETTES = {
         ring: '#d8ff5a'
     }
 };
+
+const VFX_SPRITE_CONFIG = window.VFX_SPRITE_MANIFEST;
+const vfxSpriteSheet = new Image();
+let vfxSpritesLoaded = false;
+
+if (VFX_SPRITE_CONFIG?.sheet) {
+    vfxSpriteSheet.src = VFX_SPRITE_CONFIG.sheet;
+    vfxSpriteSheet.onload = () => {
+        vfxSpritesLoaded = true;
+    };
+    vfxSpriteSheet.onerror = () => {
+        console.error('VFX sprite sheet failed to load:', VFX_SPRITE_CONFIG.sheet);
+    };
+} else {
+    console.error('VFX_SPRITE_MANIFEST is missing.');
+}
+
+function spawnVfxEffect(effectId, x, y, scale = 1, rotation = 0) {
+    const effect = VFX_SPRITE_CONFIG?.effects?.[effectId];
+    if (!effect) return;
+
+    vfxEffects.push({
+        effectId,
+        x,
+        y,
+        scale,
+        rotation,
+        age: 0,
+        duration: effect.frameCount / effect.fps
+    });
+}
+
+function drawVfxEffect(ctx, fx) {
+    const effect = VFX_SPRITE_CONFIG?.effects?.[fx.effectId];
+    if (!vfxSpritesLoaded || !effect) return;
+
+    const frameIndex = Math.min(effect.frameCount - 1, Math.floor(fx.age * effect.fps));
+    const sx = frameIndex * effect.frameWidth;
+    const sy = effect.row * effect.frameHeight;
+    const renderSize = (effect.renderSize || effect.frameWidth) * (fx.scale || 1);
+    const scale = renderSize / effect.frameWidth;
+    const dx = fx.x - (effect.pivotX || effect.frameWidth / 2) * scale;
+    const dy = fx.y - (effect.pivotY || effect.frameHeight / 2) * scale;
+
+    ctx.save();
+    if (effect.blend) ctx.globalCompositeOperation = effect.blend;
+    if (fx.rotation) {
+        ctx.translate(fx.x, fx.y);
+        ctx.rotate(fx.rotation);
+        ctx.drawImage(
+            vfxSpriteSheet,
+            sx, sy, effect.frameWidth, effect.frameHeight,
+            dx - fx.x, dy - fx.y, renderSize, renderSize
+        );
+    } else {
+        ctx.drawImage(
+            vfxSpriteSheet,
+            sx, sy, effect.frameWidth, effect.frameHeight,
+            dx, dy, renderSize, renderSize
+        );
+    }
+    ctx.restore();
+}
 
 function isAffixCompatibleWithEnemy(affix, enemy) {
     if (!affix || !enemy) return false;
@@ -2828,6 +2892,10 @@ function emitSkillImpactBurst(type, x, y, angle = 0, power = 1) {
     const palette = SKILL_IMPACT_PALETTES[type];
     if (!palette) return;
 
+    if (type === 'fireball') {
+        spawnVfxEffect('fireballImpact', x, y, Math.min(1.75, Math.max(0.72, power)), angle);
+    }
+
     const maxP = getParticleConfig().maxParticles;
     if (particles.length >= maxP) return;
 
@@ -4358,6 +4426,7 @@ function enterFloor(f, spawnAt = 'start') {
     projectiles.forEach(p => ProjectilePool.release(p));
     flyingPickups.forEach(f => FlyingPickupPool.release(f));
     enemies = []; groundItems = []; projectiles = []; npcs = []; flyingPickups = [];
+    vfxEffects = [];
     destructibles = []; // 清空可破坏物体
     dungeonRoomFeatures = [];
     scenicProps = [];
@@ -6862,6 +6931,14 @@ function update(dt) {
         ParticlePool.release(particles.shift());
     }
 
+    for (let i = vfxEffects.length - 1; i >= 0; i--) {
+        const fx = vfxEffects[i];
+        fx.age += dt;
+        if (fx.age >= fx.duration) {
+            vfxEffects.splice(i, 1);
+        }
+    }
+
     // 伤害数字物理更新与回收
     for (let i = damageNumbers.length - 1; i >= 0; i--) {
         const d = damageNumbers[i];
@@ -7920,6 +7997,13 @@ function draw() {
         }
     }
     ctx.globalAlpha = 1;
+
+    for (let vi = 0, vLen = vfxEffects.length; vi < vLen; vi++) {
+        const fx = vfxEffects[vi];
+        if (fx.x < camera.x - 140 || fx.x > camera.x + canvas.width + 140 ||
+            fx.y < camera.y - 160 || fx.y > camera.y + canvas.height + 160) continue;
+        drawVfxEffect(ctx, fx);
+    }
 
     // 绘制飞行拾取粒子（吸入效果）- 性能优化：使用 for 循环
     for (let fpi = 0, fpLen = flyingPickups.length; fpi < fpLen; fpi++) {

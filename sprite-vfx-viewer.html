@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VFX 图集预览</title>
+    <script src="vfx-manifest.js?v=202605051610"></script>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #11120f;
+            --panel: #1a1a16;
+            --line: #564734;
+            --text: #f2e6c8;
+            --muted: #b39a70;
+            --accent: #e09a36;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+            letter-spacing: 0;
+        }
+
+        main {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 300px 1fr;
+        }
+
+        aside {
+            border-right: 1px solid var(--line);
+            background: #151511;
+            padding: 18px;
+        }
+
+        h1 {
+            margin: 0 0 18px;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        label {
+            display: block;
+            margin: 16px 0 7px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        select,
+        input,
+        button {
+            width: 100%;
+            min-height: 38px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: var(--panel);
+            color: var(--text);
+            font: inherit;
+        }
+
+        input {
+            padding: 0 10px;
+        }
+
+        button {
+            margin-top: 18px;
+            border-color: #8a5a22;
+            background: #2a2114;
+            cursor: pointer;
+        }
+
+        button:hover {
+            border-color: var(--accent);
+        }
+
+        .meta {
+            margin-top: 18px;
+            color: var(--muted);
+            font: 13px/1.7 Consolas, monospace;
+        }
+
+        section {
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background:
+                linear-gradient(45deg, #171713 25%, transparent 25%),
+                linear-gradient(-45deg, #171713 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #171713 75%),
+                linear-gradient(-45deg, transparent 75%, #171713 75%);
+            background-color: #202018;
+            background-size: 32px 32px;
+            background-position: 0 0, 0 16px, 16px -16px, -16px 0;
+        }
+
+        canvas {
+            width: min(70vw, 560px);
+            aspect-ratio: 1;
+            image-rendering: auto;
+            border: 1px solid var(--line);
+            background: rgba(0, 0, 0, 0.28);
+        }
+
+        @media (max-width: 760px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+
+            aside {
+                border-right: 0;
+                border-bottom: 1px solid var(--line);
+            }
+
+            canvas {
+                width: min(92vw, 520px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <aside>
+            <h1>VFX 图集预览</h1>
+            <label for="effect">效果</label>
+            <select id="effect"></select>
+            <label for="fps">FPS</label>
+            <input id="fps" type="number" min="1" max="60" step="1">
+            <label for="scale">缩放</label>
+            <input id="scale" type="number" min="0.5" max="4" step="0.1" value="2.4">
+            <button id="restart">重播</button>
+            <div class="meta" id="meta"></div>
+        </aside>
+        <section>
+            <canvas id="preview" width="512" height="512"></canvas>
+        </section>
+    </main>
+    <script>
+        const manifest = window.VFX_SPRITE_MANIFEST;
+        const effectSelect = document.getElementById('effect');
+        const fpsInput = document.getElementById('fps');
+        const scaleInput = document.getElementById('scale');
+        const restartButton = document.getElementById('restart');
+        const meta = document.getElementById('meta');
+        const canvas = document.getElementById('preview');
+        const ctx = canvas.getContext('2d');
+        const image = new Image();
+        let startedAt = performance.now();
+
+        Object.keys(manifest.effects).forEach(effectId => {
+            const option = document.createElement('option');
+            option.value = effectId;
+            option.textContent = effectId;
+            effectSelect.appendChild(option);
+        });
+
+        function currentEffect() {
+            return manifest.effects[effectSelect.value];
+        }
+
+        function resetPlayback() {
+            const effect = currentEffect();
+            fpsInput.value = effect.fps;
+            startedAt = performance.now();
+            renderMeta();
+        }
+
+        function renderMeta() {
+            const effect = currentEffect();
+            meta.textContent = [
+                `sheet: ${manifest.sheet.split('?')[0]}`,
+                `frame: ${effect.frameWidth}x${effect.frameHeight}`,
+                `frames: ${effect.frameCount}`,
+                `duration: ${(effect.frameCount / Number(fpsInput.value)).toFixed(2)}s`
+            ].join('\n');
+        }
+
+        function draw(now) {
+            const effect = currentEffect();
+            const fps = Number(fpsInput.value) || effect.fps;
+            const scale = Number(scaleInput.value) || 1;
+            const elapsed = (now - startedAt) / 1000;
+            const frameIndex = Math.floor(elapsed * fps) % effect.frameCount;
+            const sx = frameIndex * effect.frameWidth;
+            const sy = effect.row * effect.frameHeight;
+            const drawSize = effect.frameWidth * scale;
+            const dx = canvas.width / 2 - (effect.pivotX || effect.frameWidth / 2) * scale;
+            const dy = canvas.height / 2 - (effect.pivotY || effect.frameHeight / 2) * scale;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.globalCompositeOperation = effect.blend || 'source-over';
+            ctx.drawImage(image, sx, sy, effect.frameWidth, effect.frameHeight, dx, dy, drawSize, drawSize);
+            ctx.restore();
+            requestAnimationFrame(draw);
+        }
+
+        effectSelect.addEventListener('change', resetPlayback);
+        fpsInput.addEventListener('input', renderMeta);
+        restartButton.addEventListener('click', () => {
+            startedAt = performance.now();
+        });
+
+        image.onload = () => {
+            resetPlayback();
+            requestAnimationFrame(draw);
+        };
+        image.src = manifest.sheet;
+    </script>
+</body>
+</html>

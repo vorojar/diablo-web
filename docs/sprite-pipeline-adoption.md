@@ -28,3 +28,15 @@
 ## 当前第一步
 
 先落地“资源合同与本地检查脚本”。它成本低、风险小，能立刻保护现有 `hero_sprites.png` 和 `monster_sprites.png`，也是后续预览器、离线清理和 manifest 的基础。
+
+## 第一条完整闭环：火球命中爆炸 VFX
+
+选择火球命中爆炸作为第一条完整闭环，因为它是高频战斗反馈，接入面小，不改角色/怪物状态机，也不改变技能伤害判定。它用于验证整条资源链路：离线生成图集、manifest 声明、脚本检查、静态预览、游戏内真实命中播放。
+
+| 环节 | 落地文件 | 验收方式 |
+| --- | --- | --- |
+| 图集生成 | `tools/generate-vfx-sheet.ps1`、`vfx_sheet.png` | 生成 `1024 x 128` 透明横向图集 |
+| 配置事实源 | `vfx-manifest.js` | 声明 `fireballImpact` 的帧宽、帧高、帧数、FPS、pivot 和渲染尺寸 |
+| 资源检查 | `tools/validate-sprite-assets.ps1` | 同时检查主角、怪物和火球 VFX 图集合同 |
+| 静态预览 | `sprite-vfx-viewer.html` | 直接通过浏览器播放火球命中爆炸 |
+| 游戏接入 | `game.js`、`index.html` | 火球命中敌人、墙体或可破坏物时播放序列帧 VFX |
