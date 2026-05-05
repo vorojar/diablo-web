@@ -17,7 +17,8 @@ const AudioSys = {
     heartbeatTimer: 0,
     sfxAssetConfig: {
         lightningImpact: { url: 'audio/sfx/lightning_impact.mp3', volume: 0.86 },
-        lightningEnemy: { url: 'audio/sfx/lightning_enemy.mp3', volume: 0.74 }
+        lightningEnemy: { url: 'audio/sfx/lightning_enemy.mp3', volume: 0.74 },
+        swordSwing: { url: 'audio/sfx/sword_swing.mp3', volume: 0.86 }
     },
     sfxBuffers: {},
     sfxLoading: {},
@@ -479,6 +480,7 @@ const AudioSys = {
 
             osc.start(); osc.stop(t + 0.2);
         } else if (type === 'attack' || type === 'swing' || type === 'melee_swing') {
+            if (this.playSfxAsset('swordSwing')) return;
             this.playNoiseLayer(t, 0.045, 0.045, 'highpass', 950, 0.5);
             this.playToneLayer('sawtooth', t, 0.075, 660, 210, 0.045);
             this.playToneLayer('triangle', t + 0.018, 0.055, 260, 150, 0.025);
