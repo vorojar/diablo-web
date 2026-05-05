@@ -7657,7 +7657,7 @@ function updateEnemies(dt) {
         } else if (e.ai === 'specter') {
             // 闪电幽魂AI：穿墙移动 + 远程闪电球 + 保持距离
             const hasLOS = hasLineOfSight(e.x, e.y, player.x, player.y);
-            if (distSq < 14400 && hasLOS) { // 120^2 = 14400
+            if (distSq < 14400) { // 120^2 = 14400
                 // 太近了，后退（可穿墙）
                 const dist = Math.sqrt(distSq);
                 if (dist > 0) {
