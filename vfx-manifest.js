@@ -1,5 +1,5 @@
 window.VFX_SPRITE_MANIFEST = {
-    sheet: 'vfx_sheet.png?v=202605051540',
+    sheet: 'vfx_sheet.png?v=202605051720',
     effects: {
         fireballImpact: {
             row: 0,
@@ -120,6 +120,39 @@ window.VFX_SPRITE_MANIFEST = {
             renderSize: 220,
             pivotX: 12,
             pivotY: 64,
+            blend: 'lighter'
+        },
+        poisonStatusBurst: {
+            row: 11,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 20,
+            renderSize: 58,
+            pivotX: 64,
+            pivotY: 96,
+            blend: 'lighter'
+        },
+        lightningOverloadStatus: {
+            row: 12,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 24,
+            renderSize: 62,
+            pivotX: 64,
+            pivotY: 96,
+            blend: 'lighter'
+        },
+        shieldPulseStatus: {
+            row: 13,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 22,
+            renderSize: 72,
+            pivotX: 64,
+            pivotY: 96,
             blend: 'lighter'
         }
     }

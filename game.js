@@ -1237,7 +1237,11 @@ function calculateEnemyOutgoingDamage(enemy, baseDamage) {
                 totalDamage += enemy.elementalDmg[type] * (1 - (player.resistances[type] || 0) / 100);
             }
         }
-        if (enemy.elementalDmg.lightning > 0) player.lightningOverloadTimer = 0.5;
+        if (enemy.elementalDmg.lightning > 0) {
+            const wasOverloaded = player.lightningOverloadTimer > 0;
+            player.lightningOverloadTimer = 0.5;
+            if (!wasOverloaded) spawnVfxEffect('lightningOverloadStatus', player.x, player.y + 4, 1, 0);
+        }
     }
 
     return totalDamage;
@@ -1290,6 +1294,7 @@ function emitMummyDeathCloud(enemy) {
     }
 
     if (Math.hypot(player.x - enemy.x, player.y - enemy.y) < radius) {
+        if (!player.poisoned) spawnVfxEffect('poisonStatusBurst', player.x, player.y + 4, 1, 0);
         player.poisoned = true;
         player.poisonTimer = Math.max(player.poisonTimer || 0, 2.5);
         player.poisonDamage = Math.max(player.poisonDamage || 0, Math.floor(enemy.dmg * 0.25));
@@ -7393,6 +7398,7 @@ function updateEnemies(dt) {
                 // 中毒效果（木乃伊或精英词缀）
                 if (dealt > 0 && e.poisonOnHit && e.poisonDamage) {
                     if (!player.poisoned) {
+                        spawnVfxEffect('poisonStatusBurst', player.x, player.y + 4, 1, 0);
                         createDamageNumber(player.x, player.y - 45, "中毒!", COLORS.poison);
                     }
                     player.poisoned = true;
@@ -9642,7 +9648,9 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         }
         if (dmg.lightning > 0) {
             // 闪电：设置过载视觉
+            const wasOverloaded = e.lightningOverloadTimer > 0;
             e.lightningOverloadTimer = 0.5;
+            if (!wasOverloaded) spawnVfxEffect('lightningOverloadStatus', e.x, e.y + 4, 0.9, 0);
         }
     }
 
@@ -9651,6 +9659,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         const poisonVal = (typeof dmg === 'object' && dmg.poison) ? dmg.poison : (totalDamage * 0.2);
         if (poisonVal > 0) {
             if (!e.poisoned) {
+                spawnVfxEffect('poisonStatusBurst', e.x, e.y + 4, 0.9, angle);
                 createDamageNumber(e.x, e.y - 25, "中毒!", COLORS.poison, angle);
             }
             e.poisoned = true;
@@ -11714,6 +11723,7 @@ function playerTakeDamage(rawDamage, source, options = {}) {
         }
 
         if (shieldAbsorbed > 0) {
+            spawnVfxEffect('shieldPulseStatus', player.x, player.y + 4, 0.75, 0);
             createDamageNumber(player.x, player.y - 50, `护盾-${shieldAbsorbed}`, '#66ccff');
         }
     }
@@ -12457,6 +12467,7 @@ function castSkill(skillName) {
 
         // 音效和视觉效果
         AudioSys.play('shield');
+        spawnVfxEffect('shieldPulseStatus', player.x, player.y + 4, 1, 0);
         createParticle(player.x, player.y, '#ffd700', 15);
         for (let i = 0; i < 20; i++) {
             setTimeout(() => {
