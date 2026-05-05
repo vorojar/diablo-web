@@ -1007,7 +1007,7 @@ function createTintedSpriteSheet(source, filterStr) {
 }
 // --- Hero Animation Sprites ---
 const heroSpriteSheet = new Image();
-heroSpriteSheet.src = 'hero_sprites.png?v=202605010600';
+heroSpriteSheet.src = 'hero_sprites.png?v=202605052205';
 let heroSpritesLoaded = false;
 let processedHeroSprites = null;
 const HeroTintCache = {
@@ -1019,7 +1019,7 @@ const HeroTintCache = {
 
 const HERO_SPRITE_CONFIG = {
     cols: 4,
-    rows: 18,
+    rows: 22,
     frameWidth: 128,
     frameHeight: 128,
     renderSize: 88,
@@ -1029,7 +1029,9 @@ const HERO_SPRITE_CONFIG = {
             front: { row: 0 }, back: { row: 1 }, left: { row: 2 }, right: { row: 3 }
         },
         walk: {
-            front: { row: 4 }, back: { row: 5 }, left: { row: 6 }, right: { row: 6, flipX: true }
+            front: { row: 4 }, back: { row: 5 }, left: { row: 6 }, right: { row: 6, flipX: true },
+            frontLeft: { row: 18 }, frontRight: { row: 19 },
+            backLeft: { row: 20 }, backRight: { row: 21 }
         },
         attack: {
             front: { row: 7 }, back: { row: 8 }, left: { row: 9 }, right: { row: 9, flipX: true }
@@ -2717,7 +2719,10 @@ function getAchievementStats() {
 }
 
 function normalizeHeroDirection(direction) {
-    return ['front', 'back', 'left', 'right'].includes(direction) ? direction : 'front';
+    return [
+        'front', 'back', 'left', 'right',
+        'frontLeft', 'frontRight', 'backLeft', 'backRight'
+    ].includes(direction) ? direction : 'front';
 }
 
 function triggerHeroAction(action, duration) {
@@ -2817,7 +2822,8 @@ function heroDirectionFromMoveDelta(dx, dy) {
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
     if (absX > 0 && absY > 0 && Math.min(absX, absY) / Math.max(absX, absY) > 0.45) {
-        return dy >= 0 ? 'front' : 'back';
+        if (dy >= 0) return dx >= 0 ? 'frontRight' : 'frontLeft';
+        return dx >= 0 ? 'backRight' : 'backLeft';
     }
     return directionFromDelta(dx, dy);
 }
