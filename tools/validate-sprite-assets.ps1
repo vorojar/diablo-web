@@ -124,19 +124,22 @@ if (-not $vfxSheetMatch.Success) {
     throw "Cannot find VFX sheet path"
 }
 
-$vfxEffectMatch = [regex]::Match($vfxManifest, "fireballImpact\s*:\s*\{(?<body>[\s\S]*?)\n\s*\}")
-if (-not $vfxEffectMatch.Success) {
-    throw "Cannot find VFX effect config fireballImpact"
+$vfxEffectMatches = [regex]::Matches($vfxManifest, "(?ms)^\s{8}([A-Za-z][A-Za-z0-9_]*)\s*:\s*\{(?<body>.*?)^\s{8}\}")
+if ($vfxEffectMatches.Count -eq 0) {
+    throw "Cannot find VFX effect configs"
 }
 
-$vfxBody = $vfxEffectMatch.Groups['body'].Value
-$vfxContract = [pscustomobject]@{
-    Label = 'vfx:fireballImpact'
-    File = $vfxSheetMatch.Groups[1].Value.Split('?')[0]
-    Row = Get-NumberAfterKey -Text $vfxBody -Key 'row'
-    FrameWidth = Get-NumberAfterKey -Text $vfxBody -Key 'frameWidth'
-    FrameHeight = Get-NumberAfterKey -Text $vfxBody -Key 'frameHeight'
-    FrameCount = Get-NumberAfterKey -Text $vfxBody -Key 'frameCount'
+$vfxContracts = @()
+foreach ($match in $vfxEffectMatches) {
+    $vfxBody = $match.Groups['body'].Value
+    $vfxContracts += [pscustomobject]@{
+        Label = "vfx:$($match.Groups[1].Value)"
+        File = $vfxSheetMatch.Groups[1].Value.Split('?')[0]
+        Row = Get-NumberAfterKey -Text $vfxBody -Key 'row'
+        FrameWidth = Get-NumberAfterKey -Text $vfxBody -Key 'frameWidth'
+        FrameHeight = Get-NumberAfterKey -Text $vfxBody -Key 'frameHeight'
+        FrameCount = Get-NumberAfterKey -Text $vfxBody -Key 'frameCount'
+    }
 }
 
 $failed = $false
@@ -171,25 +174,27 @@ foreach ($contract in $contracts) {
     }
 }
 
-$vfxPngPath = Join-Path $Root $vfxContract.File
+$vfxPngPath = Join-Path $Root $vfxContracts[0].File
 $vfxSize = Get-PngSize -Path $vfxPngPath
-$vfxRequiredWidth = $vfxContract.FrameWidth * $vfxContract.FrameCount
-$vfxRequiredHeight = $vfxContract.FrameHeight * ($vfxContract.Row + 1)
-$vfxErrors = @()
-if ($vfxSize.Width -ne $vfxRequiredWidth) {
-    $vfxErrors += "width $($vfxSize.Width) differs from required $vfxRequiredWidth"
-}
-if ($vfxSize.Height -lt $vfxRequiredHeight) {
-    $vfxErrors += "height $($vfxSize.Height) is smaller than required $vfxRequiredHeight"
-}
-if ($vfxErrors.Count -gt 0) {
-    $failed = $true
-    Write-Host "FAIL: $($vfxContract.Label) $($vfxContract.File) [$($vfxSize.Width)x$($vfxSize.Height)]"
-    foreach ($err in $vfxErrors) {
-        Write-Host "  - $err"
+foreach ($vfxContract in $vfxContracts) {
+    $vfxRequiredWidth = $vfxContract.FrameWidth * $vfxContract.FrameCount
+    $vfxRequiredHeight = $vfxContract.FrameHeight * ($vfxContract.Row + 1)
+    $vfxErrors = @()
+    if ($vfxSize.Width -ne $vfxRequiredWidth) {
+        $vfxErrors += "width $($vfxSize.Width) differs from required $vfxRequiredWidth"
     }
-} else {
-    Write-Host "PASS: $($vfxContract.Label) $($vfxContract.File) [$($vfxSize.Width)x$($vfxSize.Height)], frames $($vfxContract.FrameCount), cell $($vfxContract.FrameWidth) x $($vfxContract.FrameHeight)"
+    if ($vfxSize.Height -lt $vfxRequiredHeight) {
+        $vfxErrors += "height $($vfxSize.Height) is smaller than required $vfxRequiredHeight"
+    }
+    if ($vfxErrors.Count -gt 0) {
+        $failed = $true
+        Write-Host "FAIL: $($vfxContract.Label) $($vfxContract.File) [$($vfxSize.Width)x$($vfxSize.Height)]"
+        foreach ($err in $vfxErrors) {
+            Write-Host "  - $err"
+        }
+    } else {
+        Write-Host "PASS: $($vfxContract.Label) $($vfxContract.File) [$($vfxSize.Width)x$($vfxSize.Height)], row $($vfxContract.Row), frames $($vfxContract.FrameCount), cell $($vfxContract.FrameWidth) x $($vfxContract.FrameHeight)"
+    }
 }
 
 if ($failed) {

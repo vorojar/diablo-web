@@ -42,6 +42,10 @@
 | 静态预览 | `sprite-vfx-viewer.html` | 直接通过浏览器播放火球命中爆炸 |
 | 游戏接入 | `game.js`、`index.html` | 火球命中敌人、墙体或可破坏物时播放序列帧 VFX |
 
+## 第二条完整闭环：闪电与多重射击命中 VFX
+
+闪电命中和多重射击命中作为第二批一起做，因为它们复用火球命中的资源链路和同一个 `emitSkillImpactBurst()` 接入点。图集从单行升级为多行：第 1 行 `fireballImpact`，第 2 行 `thunderImpact`，第 3 行 `multishotImpact`。检查脚本和预览器必须按 manifest 枚举所有效果，不能只校验火球。
+
 ## 美术资产纪律
 
 火球命中爆炸 VFX 已从程序占位图替换为 AI 生成位图资产。后续新增正式 VFX 时，默认流程是：先生成或绘制高质量位图源图，再用 `tools/promote-ai-vfx-sheet.ps1` 晋升为游戏图集，最后通过 `tools/validate-sprite-assets.ps1` 和预览器验收。不要把程序生成图作为正式美术提交。

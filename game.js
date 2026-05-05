@@ -1070,6 +1070,12 @@ const SKILL_IMPACT_PALETTES = {
     }
 };
 
+const SKILL_IMPACT_VFX = {
+    fireball: 'fireballImpact',
+    thunder: 'thunderImpact',
+    multishot: 'multishotImpact'
+};
+
 const VFX_SPRITE_CONFIG = window.VFX_SPRITE_MANIFEST;
 const vfxSpriteSheet = new Image();
 let vfxSpritesLoaded = false;
@@ -2892,8 +2898,9 @@ function emitSkillImpactBurst(type, x, y, angle = 0, power = 1) {
     const palette = SKILL_IMPACT_PALETTES[type];
     if (!palette) return;
 
-    if (type === 'fireball') {
-        spawnVfxEffect('fireballImpact', x, y, Math.min(1.75, Math.max(0.72, power)), angle);
+    const vfxEffectId = SKILL_IMPACT_VFX[type];
+    if (vfxEffectId) {
+        spawnVfxEffect(vfxEffectId, x, y, Math.min(1.75, Math.max(0.72, power)), angle);
     }
 
     const maxP = getParticleConfig().maxParticles;
