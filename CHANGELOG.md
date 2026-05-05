@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## Unreleased
+
+### Added
+- 新增 Sprite Pipeline 借鉴落地路线，明确资源管线、预览、校验、VFX 和 Boss 动作的分阶段收益。
+- 新增 sprite 资源合同检查脚本，用于校验主角和怪物图集尺寸与 `game.js` 配置一致。
+
 ## v7.09 - 2026-05-01
 
 ### Changed
