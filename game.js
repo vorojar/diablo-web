@@ -1089,6 +1089,14 @@ const COMBAT_FEEDBACK_VFX = {
     guardFlash: 'guardFlash'
 };
 
+const CAST_SOURCE_VFX = {
+    fireball: 'fireballCastSource',
+    thunder: 'thunderCastSource',
+    multishot: 'multishotCastSource',
+    enemyArrow: 'enemyArrowMuzzle',
+    enemyLightning: 'enemyLightningMuzzle'
+};
+
 const ELITE_AFFIX_AURA_VFX = {
     fire_enchanted: 'affixFireAura',
     cold_enchanted: 'affixColdAura',
@@ -1250,6 +1258,16 @@ function drawEliteAffixAuras(ctx, enemy, x, y) {
     }
 }
 
+function spawnCastSourceVfx(effectId, x, y, angle = 0, scale = 1, forward = 14, lift = 14) {
+    spawnVfxEffect(
+        effectId,
+        x + Math.cos(angle) * forward,
+        y - lift + Math.sin(angle) * 8,
+        scale,
+        angle
+    );
+}
+
 function isAffixCompatibleWithEnemy(affix, enemy) {
     if (!affix || !enemy) return false;
     if (affix.allowedAi && !affix.allowedAi.includes(enemy.ai)) return false;
@@ -1363,6 +1381,15 @@ function emitEnemyScatterVolley(enemy) {
     if (enemy.scatterVolleyCooldown > 0) return;
 
     const baseAngle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+    spawnCastSourceVfx(
+        enemy.elementalDmg?.lightning ? CAST_SOURCE_VFX.enemyLightning : CAST_SOURCE_VFX.enemyArrow,
+        enemy.x,
+        enemy.y,
+        baseAngle,
+        enemy.elementalDmg?.lightning ? 0.74 : 0.68,
+        16,
+        24
+    );
     const count = enemy.multiShot;
     const spread = 0.35;
     for (let shotIndex = 0; shotIndex < count; shotIndex++) {
@@ -7228,6 +7255,7 @@ function updateEnemies(dt) {
                     const angle = Math.atan2(player.y - e.y, player.x - e.x);
                     setMonsterFacingToward(e, player.x, player.y, 0.35);
                     triggerMonsterAction(e, 'attack', 0.35);
+                    spawnCastSourceVfx(CAST_SOURCE_VFX.enemyArrow, e.x, e.y, angle, 0.7, 18, 34);
                     const arrowCount = e.multiShot || 1;
                     const spread = arrowCount > 1 ? 0.18 : 0;
                     for (let shotIndex = 0; shotIndex < arrowCount; shotIndex++) {
@@ -7440,6 +7468,7 @@ function updateEnemies(dt) {
                     const angle = Math.atan2(player.y - e.y, player.x - e.x);
                     setMonsterFacingToward(e, player.x, player.y, 0.35);
                     triggerMonsterAction(e, 'attack', 0.35);
+                    spawnCastSourceVfx(CAST_SOURCE_VFX.enemyLightning, e.x, e.y, angle, 0.78, 16, 30);
                     const boltCount = e.multiShot || 1;
                     const spread = boltCount > 1 ? 0.2 : 0;
                     for (let shotIndex = 0; shotIndex < boltCount; shotIndex++) {
@@ -12333,6 +12362,7 @@ function castSkill(skillName) {
         const angle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
         player.direction = directionFromDelta(Math.cos(angle), Math.sin(angle));
         triggerHeroAction('cast', 0.45);
+        spawnCastSourceVfx(CAST_SOURCE_VFX.fireball, player.x, player.y, angle, 0.9, 16, 16);
         projectiles.push(ProjectilePool.acquire({
             x: player.x,
             y: player.y,
@@ -12377,12 +12407,14 @@ function castSkill(skillName) {
         player.direction = directionFromDelta(target.x - player.x, target.y - player.y);
         triggerHeroAction('cast', 0.45);
         player.skillCooldowns.thunder = 2; // 2秒冷却
+        const thunderAngle = Math.atan2(target.y - player.y, target.x - player.x);
+        spawnCastSourceVfx(CAST_SOURCE_VFX.thunder, player.x, player.y, thunderAngle, 0.92, 12, 14);
 
         // 如果击中可破坏物体
         if (target.broken !== undefined) {
             DestructibleSystem.break(target);
             createLightningEffect(target.x, target.y);
-            emitSkillImpactBurst('thunder', target.x, target.y, Math.atan2(target.y - player.y, target.x - player.x), 0.9);
+            emitSkillImpactBurst('thunder', target.x, target.y, thunderAngle, 0.9);
             AudioSys.play('thunder');
             if (typeof DailyQuestSystem !== 'undefined') DailyQuestSystem.updateProgress('use_skill', 1);
             return;
@@ -12517,6 +12549,7 @@ function castSkill(skillName) {
         const base = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
         player.direction = directionFromDelta(Math.cos(base), Math.sin(base));
         triggerHeroAction('cast', 0.45);
+        spawnCastSourceVfx(CAST_SOURCE_VFX.multishot, player.x, player.y, base, 0.92, 14, 14);
         // 每日任务和成就：使用技能
         if (typeof DailyQuestSystem !== 'undefined') {
             DailyQuestSystem.updateProgress('use_skill', 1);

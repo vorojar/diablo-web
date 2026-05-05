@@ -1,5 +1,5 @@
 window.VFX_SPRITE_MANIFEST = {
-    sheet: 'vfx_sheet.png?v=202605051855',
+    sheet: 'vfx_sheet.png?v=202605051915',
     effects: {
         fireballImpact: {
             row: 0,
@@ -296,6 +296,61 @@ window.VFX_SPRITE_MANIFEST = {
             renderSize: 72,
             pivotX: 64,
             pivotY: 72,
+            blend: 'lighter'
+        },
+        fireballCastSource: {
+            row: 27,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 24,
+            renderSize: 64,
+            pivotX: 64,
+            pivotY: 72,
+            blend: 'lighter'
+        },
+        thunderCastSource: {
+            row: 28,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 24,
+            renderSize: 72,
+            pivotX: 64,
+            pivotY: 78,
+            blend: 'lighter'
+        },
+        multishotCastSource: {
+            row: 29,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 24,
+            renderSize: 78,
+            pivotX: 64,
+            pivotY: 84,
+            blend: 'lighter'
+        },
+        enemyArrowMuzzle: {
+            row: 30,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 24,
+            renderSize: 48,
+            pivotX: 64,
+            pivotY: 72,
+            blend: 'lighter'
+        },
+        enemyLightningMuzzle: {
+            row: 31,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 24,
+            renderSize: 54,
+            pivotX: 64,
+            pivotY: 76,
             blend: 'lighter'
         }
     }
