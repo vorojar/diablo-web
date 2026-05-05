@@ -51,6 +51,7 @@ function startBossSkillWindup(boss, skillId, cooldown, data = {}) {
   boss.skillCd = cooldown;
   syncBossSkillVisual(boss, 'cast', windup);
   spawnBossTelegraph('bossCastBurst', boss.x, boss.y, 1, 0);
+  AudioSys.play('boss_cast');
 
   if (data.telegraph === 'circle') {
     const radius = data.radius || 150;
@@ -499,8 +500,7 @@ function triggerBossDeathEffect(boss, damage) {
   // 强力震屏
   triggerScreenShake(20, 0.6);
 
-  // 播放专属音效（可以复用暗金掉落音效，更史诗）
-  AudioSys.play('drop_unique');
+  AudioSys.play('boss_death');
 
   // 巨型伤害数字（红色，更大）
   damageNumbers.push({

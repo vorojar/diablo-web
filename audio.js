@@ -218,6 +218,126 @@ const AudioSys = {
         this.playToneLayer('triangle', t, 0.14, 420, 85, 0.085, bus);
         this.playToneLayer('sine', t + 0.05, 0.2, 880, 220, 0.045, bus);
     },
+    playCastCue: function (kind) {
+        const t = this.ctx.currentTime;
+        const bus = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = kind === 'multishot' ? 'highpass' : 'bandpass';
+        filter.frequency.setValueAtTime(kind === 'thunder' ? 2500 : kind === 'multishot' ? 850 : 1250, t);
+        filter.Q.setValueAtTime(kind === 'thunder' ? 1.9 : 1.1, t);
+        bus.gain.setValueAtTime(0.9, t);
+        bus.connect(filter);
+        filter.connect(this.sfxGain);
+
+        if (kind === 'fire') {
+            this.playNoiseLayer(t, 0.026, 0.095, 'highpass', 2600 + Math.random() * 700, 0.7, bus);
+            this.playNoiseLayer(t + 0.016, 0.2, 0.075, 'bandpass', 950 + Math.random() * 280, 1.0, bus);
+            this.playToneLayer('sawtooth', t, 0.2, 210, 92, 0.085, bus);
+            this.playToneLayer('sine', t + 0.025, 0.12, 1280, 520, 0.04, bus);
+            return;
+        }
+
+        if (kind === 'thunder') {
+            this.playNoiseLayer(t, 0.018, 0.13, 'highpass', 7600 + Math.random() * 1500, 0.65, bus);
+            this.playNoiseLayer(t + 0.028, 0.075, 0.075, 'bandpass', 3200 + Math.random() * 700, 2.2, bus);
+            this.playToneLayer('square', t, 0.075, 1800, 220, 0.07, bus);
+            this.playToneLayer('sawtooth', t + 0.012, 0.12, 980, 120, 0.055, bus);
+            return;
+        }
+
+        this.playNoiseLayer(t, 0.025, 0.07, 'bandpass', 2900 + Math.random() * 800, 1.8, bus);
+        this.playNoiseLayer(t + 0.012, 0.11, 0.045, 'highpass', 1700 + Math.random() * 500, 0.8, bus);
+        this.playToneLayer('triangle', t, 0.06, 760, 380, 0.055, bus);
+        this.playToneLayer('sine', t + 0.015, 0.08, 190, 120, 0.026, bus);
+    },
+    playPlayerDamageCue: function (kind, isLowHp) {
+        const t = this.ctx.currentTime;
+        const bus = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+        const baseFreq = {
+            physical: 1150,
+            fire: 820,
+            cold: 2600,
+            lightning: 3600,
+            poison: 720
+        }[kind] || 1100;
+        filter.type = kind === 'physical' ? 'lowpass' : 'bandpass';
+        filter.frequency.setValueAtTime(baseFreq, t);
+        filter.Q.setValueAtTime(kind === 'lightning' ? 2.4 : 1.2, t);
+        bus.gain.setValueAtTime(isLowHp ? 1.08 : 0.92, t);
+        bus.connect(filter);
+        filter.connect(this.sfxGain);
+
+        if (kind === 'fire') {
+            this.playNoiseLayer(t, 0.04, 0.085, 'bandpass', 950 + Math.random() * 380, 1.1, bus);
+            this.playNoiseLayer(t + 0.018, 0.12, 0.05, 'highpass', 3800 + Math.random() * 900, 0.6, bus);
+            this.playToneLayer('sawtooth', t, 0.12, 230, 90, 0.075, bus);
+        } else if (kind === 'cold') {
+            this.playNoiseLayer(t, 0.035, 0.075, 'highpass', 5200 + Math.random() * 1200, 0.8, bus);
+            this.playToneLayer('triangle', t, 0.1, 1140, 620, 0.06, bus);
+            this.playToneLayer('sine', t + 0.045, 0.12, 1840, 980, 0.032, bus);
+        } else if (kind === 'lightning') {
+            this.playNoiseLayer(t, 0.025, 0.105, 'highpass', 7200 + Math.random() * 1600, 0.65, bus);
+            this.playToneLayer('square', t, 0.07, 1640, 230, 0.075, bus);
+            this.playToneLayer('sawtooth', t + 0.018, 0.08, 980, 180, 0.045, bus);
+        } else if (kind === 'poison') {
+            this.playNoiseLayer(t, 0.14, 0.075, 'bandpass', 760 + Math.random() * 220, 1.5, bus);
+            this.playToneLayer('sine', t, 0.18, 340, 130, 0.06, bus);
+        } else {
+            this.playNoiseLayer(t, 0.024, 0.09, 'bandpass', 1350 + Math.random() * 450, 1.2, bus);
+            this.playToneLayer('triangle', t, 0.09, 220, 96, 0.08, bus);
+            this.playNoiseLayer(t + 0.018, 0.06, 0.04, 'highpass', 2600 + Math.random() * 600, 0.7, bus);
+        }
+
+        if (isLowHp) {
+            this.playToneLayer('triangle', t + 0.035, 0.12, 88, 54, 0.07, bus);
+            this.playNoiseLayer(t + 0.05, 0.08, 0.035, 'lowpass', 520, 0.5, bus);
+        }
+    },
+    playDeathCue: function (kind) {
+        const t = this.ctx.currentTime;
+        const bus = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(kind === 'boss' ? 7200 : 6200, t);
+        filter.frequency.exponentialRampToValueAtTime(kind === 'boss' ? 680 : 1450, t + (kind === 'boss' ? 0.95 : 0.42));
+        filter.Q.setValueAtTime(kind === 'boss' ? 0.9 : 1.1, t);
+        bus.gain.setValueAtTime(1, t);
+        bus.connect(filter);
+        filter.connect(this.sfxGain);
+
+        if (kind === 'boss') {
+            this.playNoiseLayer(t, 0.055, 0.18, 'highpass', 3600 + Math.random() * 1000, 0.8, bus);
+            this.playNoiseLayer(t + 0.05, 0.4, 0.14, 'bandpass', 880 + Math.random() * 240, 1.1, bus);
+            this.playToneLayer('square', t, 0.28, 120, 42, 0.14, bus);
+            this.playToneLayer('sawtooth', t + 0.08, 0.55, 260, 72, 0.12, bus);
+            [262, 330, 392, 523].forEach((f, i) => this.playToneLayer('sine', t + 0.16 + i * 0.07, 0.55, f, f * 0.52, 0.05, bus));
+            return;
+        }
+
+        this.playNoiseLayer(t, 0.035, 0.12, 'highpass', 4200 + Math.random() * 900, 0.8, bus);
+        this.playNoiseLayer(t + 0.025, 0.18, 0.09, 'bandpass', 1600 + Math.random() * 500, 1.4, bus);
+        this.playToneLayer('sawtooth', t, 0.12, 820, 230, 0.07, bus);
+        this.playToneLayer('triangle', t + 0.045, 0.22, 300, 94, 0.075, bus);
+        [740, 980].forEach((f, i) => this.playToneLayer('sine', t + 0.1 + i * 0.05, 0.2, f, f * 0.62, 0.03, bus));
+    },
+    playBossCastCue: function () {
+        const t = this.ctx.currentTime;
+        const bus = this.ctx.createGain();
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(740, t);
+        filter.frequency.exponentialRampToValueAtTime(1180, t + 0.42);
+        filter.Q.setValueAtTime(1.35, t);
+        bus.gain.setValueAtTime(0.85, t);
+        bus.connect(filter);
+        filter.connect(this.sfxGain);
+
+        this.playNoiseLayer(t, 0.12, 0.055, 'bandpass', 680 + Math.random() * 180, 1.2, bus);
+        this.playToneLayer('sawtooth', t, 0.42, 96, 180, 0.06, bus);
+        this.playToneLayer('triangle', t + 0.06, 0.32, 300, 520, 0.04, bus);
+        this.playNoiseLayer(t + 0.28, 0.08, 0.04, 'highpass', 4200 + Math.random() * 900, 0.7, bus);
+    },
     play: function (type) {
         if (!this.ctx) { console.log('AudioSys: No context'); return; }
         if (this.ctx.state === 'suspended') { console.log('AudioSys: Context suspended'); this.ctx.resume(); }
@@ -228,6 +348,40 @@ const AudioSys = {
         }
         if (type === 'pickup_unique') type = 'drop_unique';
         if (type === 'coins' || type === 'cash' || type === 'buy' || type === 'sell') type = 'gold';
+        if (type === 'fireball_cast') {
+            this.playCastCue('fire');
+            return;
+        }
+        if (type === 'thunder_cast') {
+            this.playCastCue('thunder');
+            return;
+        }
+        if (type === 'multishot_cast' || type === 'enemy_arrow_cast') {
+            this.playCastCue('multishot');
+            return;
+        }
+        if (type === 'enemy_lightning_cast') {
+            this.playCastCue('thunder');
+            return;
+        }
+        if (type === 'boss_cast') {
+            this.playBossCastCue();
+            return;
+        }
+        if (type === 'elite_death') {
+            this.playDeathCue('elite');
+            return;
+        }
+        if (type === 'boss_death') {
+            this.playDeathCue('boss');
+            return;
+        }
+        if (type.startsWith('player_hit_')) {
+            const isLowHp = type.endsWith('_low');
+            const kind = type.replace('player_hit_', '').replace('_low', '');
+            this.playPlayerDamageCue(kind, isLowHp);
+            return;
+        }
 
         const t = this.ctx.currentTime;
         const osc = this.ctx.createOscillator();

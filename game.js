@@ -1460,7 +1460,7 @@ function emitEnemyScatterVolley(enemy) {
         }));
     }
     enemy.scatterVolleyCooldown = 2.2;
-    AudioSys.play(enemy.elementalDmg?.lightning ? 'specter_bolt' : 'arrow');
+    AudioSys.play(enemy.elementalDmg?.lightning ? 'enemy_lightning_cast' : 'enemy_arrow_cast');
 }
 
 function emitMummyDeathCloud(enemy) {
@@ -7324,7 +7324,7 @@ function updateEnemies(dt) {
                             owner: e
                         }));
                     }
-                    AudioSys.play('arrow');
+                    AudioSys.play('enemy_arrow_cast');
                     e.cooldown = 2.0;
                 }
             } else if (distSq < 160000 && !hasLOS) { // 400^2 = 160000
@@ -7539,7 +7539,7 @@ function updateEnemies(dt) {
                         }));
                     }
                     // 发射音效（轻柔版）
-                    AudioSys.play('specter_bolt');
+                    AudioSys.play('enemy_lightning_cast');
                     e.cooldown = 1.8;
                 }
             } else if (distSq < 202500) { // 450^2 = 202500
@@ -9888,7 +9888,9 @@ function takeDamage(e, dmg, isSkillDamage = false) {
 
     // 层次感打击音效触发
     if (e.hp <= 0) {
-        AudioSys.play(isSkillDamage ? 'hit_kill' : 'melee_kill');
+        if (!e.isBoss && !e.isElite) {
+            AudioSys.play(isSkillDamage ? 'hit_kill' : 'melee_kill');
+        }
     } else if (isCrit) {
         AudioSys.play(isSkillDamage ? 'hit_crit' : 'melee_crit');
     } else {
@@ -11543,8 +11545,7 @@ function triggerEliteDeathEffect(elite, damage) {
     // 中等震屏
     triggerScreenShake(12, 0.3);
 
-    // 音效 (已取消)
-    // AudioSys.play('quest');
+    AudioSys.play('elite_death');
 
     // 大伤害数字（紫色，中等大小）
     damageNumbers.push({
@@ -11948,7 +11949,7 @@ function playerTakeDamage(rawDamage, source, options = {}) {
         spawnPlayerDamageVfx(damageType, source, wasLowHp);
         createDamageNumber(player.x, player.y - 20, Math.floor(damage), COLORS.damage);
         if (cachedUI.hpOrb) GSAPAnims.shake(cachedUI.hpOrb, 8);
-        AudioSys.play('hit');
+        AudioSys.play(wasLowHp ? `player_hit_${damageType}_low` : `player_hit_${damageType}`);
         triggerHeroAction('hurt', 0.25);
 
         // 连击中断
@@ -12430,7 +12431,7 @@ function castSkill(skillName) {
             type: 'fireball',
             color: '#ff4400'
         }));
-        AudioSys.play('fireball');
+        AudioSys.play('fireball_cast');
         // 每日任务和成就：使用技能
         if (typeof DailyQuestSystem !== 'undefined') {
             DailyQuestSystem.updateProgress('use_skill', 1);
@@ -12471,7 +12472,7 @@ function castSkill(skillName) {
             DestructibleSystem.break(target);
             createLightningEffect(target.x, target.y);
             emitSkillImpactBurst('thunder', target.x, target.y, thunderAngle, 0.9);
-            AudioSys.play('thunder');
+            AudioSys.play('thunder_cast');
             if (typeof DailyQuestSystem !== 'undefined') DailyQuestSystem.updateProgress('use_skill', 1);
             return;
         }
@@ -12526,7 +12527,7 @@ function castSkill(skillName) {
         }
 
         // 音效
-        AudioSys.play('thunder');
+        AudioSys.play('thunder_cast');
         // 每日任务和成就：使用技能
         if (typeof DailyQuestSystem !== 'undefined') {
             DailyQuestSystem.updateProgress('use_skill', 1);
@@ -12637,7 +12638,7 @@ function castSkill(skillName) {
                 type: 'multishot'  // 标记类型用于拖尾粒子
             }));
         }
-        AudioSys.play('attack');
+        AudioSys.play('multishot_cast');
     } else if (skillName === 'holy_shield') {
         // 检查冷却时间和法力值
         if (player.shield.cooldown > 0) return;
