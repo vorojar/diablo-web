@@ -1083,6 +1083,12 @@ const PROJECTILE_VFX = {
     tentacle: 'tentacleProjectile'
 };
 
+const COMBAT_FEEDBACK_VFX = {
+    meleeSlash: 'meleeSlashHit',
+    criticalHit: 'criticalHitBurst',
+    guardFlash: 'guardFlash'
+};
+
 const ELITE_AFFIX_AURA_VFX = {
     fire_enchanted: 'affixFireAura',
     cold_enchanted: 'affixColdAura',
@@ -9617,14 +9623,18 @@ function spawnEnemyTimer() {
 }
 
 function takeDamage(e, dmg, isSkillDamage = false) {
+    const feedbackAngle = Math.atan2(e.y - player.y, e.x - player.x);
+
     // 幽灵闪避检测
     if (e.dodgeChance && Math.random() < e.dodgeChance) {
+        spawnVfxEffect(COMBAT_FEEDBACK_VFX.guardFlash, e.x, e.y - 8, 0.7, feedbackAngle);
         createDamageNumber(e.x, e.y - 20, "闪避!", '#aaaaaa');
         return;
     }
     if (e.blockChance && !isSkillDamage && Math.random() < e.blockChance) {
         e.hitFlashTimer = 0.06;
         Juice.hit(e, false, false);
+        spawnVfxEffect(COMBAT_FEEDBACK_VFX.guardFlash, e.x, e.y - 8, 0.8, feedbackAngle);
         createDamageNumber(e.x, e.y - 20, "格挡!", '#dddddd');
         AudioSys.play('melee_hit');
         return;
@@ -9633,7 +9643,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     // 处理新的伤害系统：支持物理和元素伤害
     let totalDamage = 0;
     const isCrit = typeof dmg === 'object' && dmg.isCrit;
-    const angle = Math.atan2(e.y - player.y, e.x - player.x);
+    const angle = feedbackAngle;
 
     if (typeof dmg === 'number') {
         // 兼容旧代码：纯数值伤害
@@ -9742,7 +9752,11 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     if (isSkillDamage) {
         createImpactParticles(e.x, e.y, particleColor, isCrit ? 8 : 4);
     } else {
+        spawnVfxEffect(COMBAT_FEEDBACK_VFX.meleeSlash, e.x, e.y - 10, isCrit ? 1.02 : 0.88, angle);
         createMonsterImpactParticles(e, isCrit);
+    }
+    if (isCrit) {
+        spawnVfxEffect(COMBAT_FEEDBACK_VFX.criticalHit, e.x, e.y - 12, 0.95, angle);
     }
 
     // 触发打击感
@@ -11834,6 +11848,8 @@ function playerTakeDamage(rawDamage, source, options = {}) {
         }
 
         if (shieldAbsorbed > 0) {
+            const sourceAngle = source ? Math.atan2(player.y - source.y, player.x - source.x) : 0;
+            spawnVfxEffect(COMBAT_FEEDBACK_VFX.guardFlash, player.x, player.y - 12, 0.82, sourceAngle);
             spawnVfxEffect('shieldPulseStatus', player.x, player.y + 4, 0.75, 0);
             createDamageNumber(player.x, player.y - 50, `护盾-${shieldAbsorbed}`, '#66ccff');
         }

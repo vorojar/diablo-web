@@ -1,5 +1,5 @@
 window.VFX_SPRITE_MANIFEST = {
-    sheet: 'vfx_sheet.png?v=202605051750',
+    sheet: 'vfx_sheet.png?v=202605051855',
     effects: {
         fireballImpact: {
             row: 0,
@@ -263,6 +263,39 @@ window.VFX_SPRITE_MANIFEST = {
             renderSize: 74,
             pivotX: 64,
             pivotY: 92,
+            blend: 'lighter'
+        },
+        meleeSlashHit: {
+            row: 24,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 26,
+            renderSize: 74,
+            pivotX: 64,
+            pivotY: 72,
+            blend: 'lighter'
+        },
+        criticalHitBurst: {
+            row: 25,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 26,
+            renderSize: 82,
+            pivotX: 64,
+            pivotY: 72,
+            blend: 'lighter'
+        },
+        guardFlash: {
+            row: 26,
+            frameWidth: 128,
+            frameHeight: 128,
+            frameCount: 8,
+            fps: 24,
+            renderSize: 72,
+            pivotX: 64,
+            pivotY: 72,
             blend: 'lighter'
         }
     }
