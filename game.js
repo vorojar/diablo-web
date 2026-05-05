@@ -400,6 +400,7 @@ const EnemyPool = {
             isDashing: false, dashTimer: 0, dashCooldown: 0,
             hitFlashTimer: 0, hitReactTimer: 0, hitReactDuration: 0,
             hitReactX: 0, hitReactY: 0, hitTilt: 0,  // 受击闪白计时器
+            deathVisualTimer: 0, deathVisualDuration: 0,
             ...props
         });
         return enemy;
@@ -1106,6 +1107,8 @@ const KILL_FEEDBACK_VFX = {
     boss: 'bossDeathBurst'
 };
 
+const scheduledMonsterAttacks = [];
+
 const PLAYER_DAMAGE_VFX = {
     physical: 'playerPhysicalHit',
     fire: 'playerFireHit',
@@ -1292,6 +1295,31 @@ function spawnEnemyDeathVfx(enemy) {
     spawnVfxEffect(effectId, enemy.x, enemy.y + 4, scale, Math.random() * Math.PI * 2);
 }
 
+function startMonsterAttack(enemy, options) {
+    if (!enemy || enemy.dead || !options || typeof options.resolve !== 'function') return;
+
+    setMonsterFacingToward(enemy, options.targetX, options.targetY, options.duration);
+    triggerMonsterAction(enemy, 'attack', options.duration);
+    scheduledMonsterAttacks.push({
+        enemy,
+        timer: options.impactDelay,
+        resolve: options.resolve
+    });
+}
+
+function processScheduledMonsterAttacks(dt) {
+    for (let i = scheduledMonsterAttacks.length - 1; i >= 0; i--) {
+        const attack = scheduledMonsterAttacks[i];
+        attack.timer -= dt;
+        if (attack.timer > 0) continue;
+
+        scheduledMonsterAttacks.splice(i, 1);
+        const enemy = attack.enemy;
+        if (!enemy || enemy.dead || player.isDead || !enemies.includes(enemy)) continue;
+        attack.resolve(enemy);
+    }
+}
+
 function getPlayerDamageFeedbackType(damageType, source) {
     if (damageType && damageType !== 'physical') return damageType;
 
@@ -1464,6 +1492,70 @@ function emitEnemyScatterVolley(enemy) {
     }
     enemy.scatterVolleyCooldown = 2.2;
     AudioSys.play(enemy.elementalDmg?.lightning ? 'enemy_lightning_cast' : 'enemy_arrow_cast');
+}
+
+function resolveEnemyMeleeImpact(enemy, options = {}) {
+    const dx = player.x - enemy.x;
+    const dy = player.y - enemy.y;
+    const rangeSq = options.rangeSq ?? GAME_CONFIG.MONSTER_MELEE_RANGE_SQ;
+    if (dx * dx + dy * dy > rangeSq) return 0;
+
+    const damageMultiplier = options.damageMultiplier ?? 1;
+    const dealt = playerTakeDamage(
+        calculateEnemyOutgoingDamage(enemy, enemy.dmg * damageMultiplier),
+        enemy,
+        { ignoreArmor: enemy.ignoreArmor }
+    );
+
+    if (dealt <= 0) return dealt;
+
+    if (options.slamHit) {
+        player.slowedTimer = Math.max(player.slowedTimer || 0, 0.35);
+        createDamageNumber(player.x, player.y - 60, "重击!", '#ddaa66');
+    }
+
+    applyEnemyCursedHit(enemy, dealt);
+    emitEnemyScatterVolley(enemy);
+
+    let lifeStealRatio = 0;
+    if (enemy.lifeSteal > 0) {
+        lifeStealRatio = enemy.lifeSteal;
+    } else if (options.lifeStealFallback > 0) {
+        lifeStealRatio = options.lifeStealFallback;
+    }
+    if (lifeStealRatio > 0) {
+        const heal = Math.floor(dealt * lifeStealRatio);
+        if (heal > 0) {
+            enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal);
+            createDamageNumber(enemy.x, enemy.y - 30, "+" + heal, COLORS.green);
+        }
+    }
+
+    if (enemy.poisonOnHit && enemy.poisonDamage) {
+        if (!player.poisoned) {
+            spawnVfxEffect('poisonStatusBurst', player.x, player.y + 4, 1, 0);
+            createDamageNumber(player.x, player.y - 45, "中毒!", COLORS.poison);
+        }
+        player.poisoned = true;
+        player.poisonTimer = Math.max(player.poisonTimer || 0, 3.0);
+        player.poisonDamage = Math.max(player.poisonDamage || 0, enemy.poisonDamage);
+    }
+
+    if (enemy.freezeOnHit && !(player.freezeImmuneTimer > 0) && !(player.slowedTimer > 0)) {
+        player.frozen = true;
+        player.frozenTimer = 0.5;
+        createDamageNumber(player.x, player.y - 40, "冰冻!", COLORS.ice);
+    }
+
+    if (enemy.manaBurn) {
+        const manaBurned = Math.floor(Math.min(player.mp, dealt * 0.5));
+        player.mp -= manaBurned;
+        if (manaBurned > 0) {
+            createDamageNumber(player.x, player.y - 50, "-" + manaBurned + " MP", COLORS.manaCost);
+        }
+    }
+
+    return dealt;
 }
 
 function emitMummyDeathCloud(enemy) {
@@ -2962,7 +3054,7 @@ function drawOutlinedText(ctx, text, x, y, fillStyle, font, strokeStyle = 'rgba(
 }
 
 function drawEnemyActor(ctx, e) {
-    if (!e || e.dead) return;
+    if (!e || (e.dead && !(e.deathVisualTimer > 0))) return;
     if (e.x < camera.x - 100 || e.x > camera.x + canvas.width + 100 ||
         e.y < camera.y - 120 || e.y > camera.y + canvas.height + 100) return;
 
@@ -2972,13 +3064,15 @@ function drawEnemyActor(ctx, e) {
     const bodyX = rx + (e.hitReactX || 0) * reactAlpha;
     const bodyY = ry + (e.hitReactY || 0) * reactAlpha;
     const animatedMonsterFrame = getMonsterSpriteFrame(e);
+    const deathAlpha = e.dead ? Math.max(0, e.deathVisualTimer / e.deathVisualDuration) : 1;
+    const deathProgress = e.dead ? 1 - deathAlpha : 0;
 
     const shadowWidth = e.isBoss ? Math.max(64, e.radius * 4.4) : (animatedMonsterFrame ? 46 : 34);
     const shadowHeight = e.isBoss ? 18 : (animatedMonsterFrame ? 12 : 9);
-    drawContactShadow(ctx, rx, ry - 2, shadowWidth, shadowHeight, e.isBoss ? 0.36 : 0.27);
-    drawEliteAffixAuras(ctx, e, rx, ry);
+    drawContactShadow(ctx, rx, ry - 2, shadowWidth, shadowHeight, (e.isBoss ? 0.36 : 0.27) * deathAlpha);
+    if (!e.dead) drawEliteAffixAuras(ctx, e, rx, ry);
 
-    if (e.isBoss) {
+    if (e.isBoss && !e.dead) {
         ctx.beginPath();
         ctx.arc(rx, ry, (e.radius + 5) / 2, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(180, 0, 0, 0.25)';
@@ -2999,10 +3093,11 @@ function drawEnemyActor(ctx, e) {
         else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = MonsterTintCache.lightning;
 
         ctx.save();
-        ctx.translate(bodyX, bodyY);
+        ctx.globalAlpha *= deathAlpha;
+        ctx.translate(bodyX, bodyY + deathProgress * 6);
         if (reactAlpha > 0) ctx.rotate((e.hitTilt || 0) * reactAlpha);
         const juiceScale = e.juiceScale || 1.0;
-        ctx.scale(juiceScale, 1.0 / juiceScale);
+        ctx.scale(juiceScale * (1 + deathProgress * 0.08), (1.0 / juiceScale) * (1 - deathProgress * 0.22));
         drawMonsterSprite(ctx, source, animatedMonsterFrame, 0, 0, renderWidth, renderHeight);
         ctx.restore();
     } else if (spritesLoaded && processedSpriteSheet && e.frameIndex !== undefined) {
@@ -3017,10 +3112,11 @@ function drawEnemyActor(ctx, e) {
         else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = TintCache.lightning;
 
         ctx.save();
-        ctx.translate(bodyX, bodyY);
+        ctx.globalAlpha *= deathAlpha;
+        ctx.translate(bodyX, bodyY + deathProgress * 6);
         if (reactAlpha > 0) ctx.rotate((e.hitTilt || 0) * reactAlpha);
         const juiceScale = e.juiceScale || 1.0;
-        ctx.scale(juiceScale, 1.0 / juiceScale);
+        ctx.scale(juiceScale * (1 + deathProgress * 0.08), (1.0 / juiceScale) * (1 - deathProgress * 0.22));
         ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
             -renderWidth / 2, -renderHeight, renderWidth, renderHeight);
         ctx.restore();
@@ -3032,6 +3128,8 @@ function drawEnemyActor(ctx, e) {
         ctx.arc(bodyX, bodyY, e.radius, 0, Math.PI * 2);
         ctx.fill();
     }
+
+    if (e.dead) return;
 
     ctx.fillStyle = '#500';
     ctx.fillRect(rx - 15, ry - e.radius - 8, 30, 4);
@@ -7248,10 +7346,18 @@ function update(dt) {
 }
 
 function updateEnemies(dt) {
+    processScheduledMonsterAttacks(dt);
+
     // 性能优化：使用 for 循环替代 forEach
     for (let idx = 0, len = enemies.length; idx < len; idx++) {
         const e = enemies[idx];
-        if (e.dead) continue;
+        if (e.dead) {
+            if (e.deathVisualTimer > 0) {
+                e.deathVisualTimer = Math.max(0, e.deathVisualTimer - dt);
+                if (e.hitReactTimer > 0) e.hitReactTimer = Math.max(0, e.hitReactTimer - dt);
+            }
+            continue;
+        }
         e.monsterAnimTime = (e.monsterAnimTime || 0) + dt;
         if (e.monsterActionTimer > 0) {
             e.monsterActionTimer -= dt;
@@ -7337,26 +7443,34 @@ function updateEnemies(dt) {
                 // 有视线才能射击 (400^2 = 160000)
                 // 有视线才能射击
                 if (e.cooldown <= 0) {
-                    const angle = Math.atan2(player.y - e.y, player.x - e.x);
-                    setMonsterFacingToward(e, player.x, player.y, 0.35);
-                    triggerMonsterAction(e, 'attack', 0.35);
-                    spawnCastSourceVfx(CAST_SOURCE_VFX.enemyArrow, e.x, e.y, angle, 0.7, 18, 34);
-                    const arrowCount = e.multiShot || 1;
-                    const spread = arrowCount > 1 ? 0.18 : 0;
-                    for (let shotIndex = 0; shotIndex < arrowCount; shotIndex++) {
-                        const shotAngle = angle + (shotIndex - (arrowCount - 1) / 2) * spread;
-                        projectiles.push(ProjectilePool.acquire({
-                            x: e.x + Math.cos(angle) * 18,
-                            y: e.y - 36 + Math.sin(angle) * 10,
-                            angle: shotAngle,
-                            speed: 250,
-                            life: 2,
-                            damage: e.dmg,
-                            color: '#ffaa00',
-                            owner: e
-                        }));
-                    }
-                    AudioSys.play('enemy_arrow_cast');
+                    startMonsterAttack(e, {
+                        duration: 0.42,
+                        impactDelay: 0.18,
+                        targetX: player.x,
+                        targetY: player.y,
+                        resolve: (attacker) => {
+                            if (!hasLineOfSight(attacker.x, attacker.y, player.x, player.y)) return;
+
+                            const angle = Math.atan2(player.y - attacker.y, player.x - attacker.x);
+                            spawnCastSourceVfx(CAST_SOURCE_VFX.enemyArrow, attacker.x, attacker.y, angle, 0.7, 18, 34);
+                            const arrowCount = attacker.multiShot || 1;
+                            const spread = arrowCount > 1 ? 0.18 : 0;
+                            for (let shotIndex = 0; shotIndex < arrowCount; shotIndex++) {
+                                const shotAngle = angle + (shotIndex - (arrowCount - 1) / 2) * spread;
+                                projectiles.push(ProjectilePool.acquire({
+                                    x: attacker.x + Math.cos(angle) * 18,
+                                    y: attacker.y - 36 + Math.sin(angle) * 10,
+                                    angle: shotAngle,
+                                    speed: 250,
+                                    life: 2,
+                                    damage: attacker.dmg,
+                                    color: '#ffaa00',
+                                    owner: attacker
+                                }));
+                            }
+                            AudioSys.play('enemy_arrow_cast');
+                        }
+                    });
                     e.cooldown = 2.0;
                 }
             } else if (distSq < 160000 && !hasLOS) { // 400^2 = 160000
@@ -7378,42 +7492,51 @@ function updateEnemies(dt) {
                 // 复活附近的尸体，但不能复活 Boss
                 const body = enemies.find(other => other.dead && !other.isBoss && Math.hypot(other.x - e.x, other.y - e.y) < 200);
                 if (body) {
-                    setMonsterFacingToward(e, body.x, body.y, 0.45);
-                    triggerMonsterAction(e, 'attack', 0.45);
-                    body.dead = false; body.hp = body.maxHp;
+                    startMonsterAttack(e, {
+                        duration: 0.48,
+                        impactDelay: 0.28,
+                        targetX: body.x,
+                        targetY: body.y,
+                        resolve: () => {
+                            if (!body.dead || body.isBoss || !enemies.includes(body)) return;
+                            body.dead = false;
+                            body.hp = body.maxHp;
+                            body.deathVisualTimer = 0;
 
-                    // 调整复活位置，确保离主角有一定距离
-                    const distToPlayer = Math.hypot(body.x - player.x, body.y - player.y);
-                    if (distToPlayer < 150) {
-                        // 如果尸体离主角太近，将复活位置调整到距离主角150-250像素的位置
-                        const angle = Math.atan2(body.y - player.y, body.x - player.x);
-                        const newDist = 150 + Math.random() * 100; // 150-250像素距离
-                        body.x = player.x + Math.cos(angle) * newDist;
-                        body.y = player.y + Math.sin(angle) * newDist;
-
-                        // 检查新位置是否是墙，如果是则稍微调整
-                        if (isWall(body.x, body.y)) {
-                            // 尝试在附近找非墙位置
-                            let foundPos = false;
-                            for (let angleOffset = 0; angleOffset < Math.PI * 2; angleOffset += Math.PI / 4) {
-                                const testX = player.x + Math.cos(angle + angleOffset) * newDist;
-                                const testY = player.y + Math.sin(angle + angleOffset) * newDist;
-                                if (!isWall(testX, testY)) {
-                                    body.x = testX;
-                                    body.y = testY;
-                                    foundPos = true;
-                                    break;
-                                }
-                            }
-                            // 如果还找不到，就使用原位置
-                            if (!foundPos) {
+                            // 调整复活位置，确保离主角有一定距离
+                            const distToPlayer = Math.hypot(body.x - player.x, body.y - player.y);
+                            if (distToPlayer < 150) {
+                                // 如果尸体离主角太近，将复活位置调整到距离主角150-250像素的位置
+                                const angle = Math.atan2(body.y - player.y, body.x - player.x);
+                                const newDist = 150 + Math.random() * 100; // 150-250像素距离
                                 body.x = player.x + Math.cos(angle) * newDist;
                                 body.y = player.y + Math.sin(angle) * newDist;
-                            }
-                        }
-                    }
 
-                    createDamageNumber(body.x, body.y - 20, "复活!", COLORS.revive);
+                                // 检查新位置是否是墙，如果是则稍微调整
+                                if (isWall(body.x, body.y)) {
+                                    // 尝试在附近找非墙位置
+                                    let foundPos = false;
+                                    for (let angleOffset = 0; angleOffset < Math.PI * 2; angleOffset += Math.PI / 4) {
+                                        const testX = player.x + Math.cos(angle + angleOffset) * newDist;
+                                        const testY = player.y + Math.sin(angle + angleOffset) * newDist;
+                                        if (!isWall(testX, testY)) {
+                                            body.x = testX;
+                                            body.y = testY;
+                                            foundPos = true;
+                                            break;
+                                        }
+                                    }
+                                    // 如果还找不到，就使用原位置
+                                    if (!foundPos) {
+                                        body.x = player.x + Math.cos(angle) * newDist;
+                                        body.y = player.y + Math.sin(angle) * newDist;
+                                    }
+                                }
+                            }
+
+                            createDamageNumber(body.x, body.y - 20, "复活!", COLORS.revive);
+                        }
+                    });
                     e.cooldown = 5.0;
                     continue;
                 }
@@ -7431,11 +7554,15 @@ function updateEnemies(dt) {
                 e.y += (dy / dist) * currentSpeed * dt;
             }
             if (distSq <= 1600 && e.cooldown <= 0) { // 40^2 = 1600
-                setMonsterFacingToward(e, player.x, player.y, 0.35);
-                triggerMonsterAction(e, 'attack', 0.35);
-                const dealt = playerTakeDamage(calculateEnemyOutgoingDamage(e, e.dmg), e, { ignoreArmor: e.ignoreArmor });
-                applyEnemyProjectileOnHit(e, dealt);
-                emitEnemyScatterVolley(e);
+                startMonsterAttack(e, {
+                    duration: 0.38,
+                    impactDelay: 0.18,
+                    targetX: player.x,
+                    targetY: player.y,
+                    resolve: (attacker) => {
+                        resolveEnemyMeleeImpact(attacker, { rangeSq: 1800 });
+                    }
+                });
                 e.cooldown = 1.5;
             }
         } else if (e.ai === 'vampire') {
@@ -7473,30 +7600,27 @@ function updateEnemies(dt) {
                 }
                 // 突进到达后攻击
                 if (dashDist <= 40 && e.cooldown <= 0) {
-                    setMonsterFacingToward(e, player.x, player.y, 0.35);
-                    triggerMonsterAction(e, 'attack', 0.35);
-                    const dealt = playerTakeDamage(calculateEnemyOutgoingDamage(e, e.dmg), e, { ignoreArmor: e.ignoreArmor });
-                    applyEnemyCursedHit(e, dealt);
-                    emitEnemyScatterVolley(e);
-                    // 吸血效果（基于实际造成的伤害）
-                    if (dealt > 0) {
-                        const healAmount = Math.floor(dealt * (e.lifeSteal || 0.2));
-                        if (healAmount > 0) {
-                            e.hp = Math.min(e.maxHp, e.hp + healAmount);
-                            createDamageNumber(e.x, e.y - 30, '+' + healAmount, '#00ff00');
-                            // 吸血粒子效果
-                            for (let i = 0; i < 5; i++) {
-                                particles.push({
-                                    x: player.x + (Math.random() - 0.5) * 30,
-                                    y: player.y + (Math.random() - 0.5) * 30,
-                                    vx: (e.x - player.x) * 2 + (Math.random() - 0.5) * 50,
-                                    vy: (e.y - player.y) * 2 + (Math.random() - 0.5) * 50,
-                                    life: 0.4, maxLife: 0.4,
-                                    color: '#ff0000', size: 6, type: 'lifesteal'
-                                });
+                    startMonsterAttack(e, {
+                        duration: 0.38,
+                        impactDelay: 0.16,
+                        targetX: player.x,
+                        targetY: player.y,
+                        resolve: (attacker) => {
+                            const dealt = resolveEnemyMeleeImpact(attacker, { lifeStealFallback: 0.2, rangeSq: 2200 });
+                            if (dealt > 0) {
+                                for (let i = 0; i < 5; i++) {
+                                    particles.push({
+                                        x: player.x + (Math.random() - 0.5) * 30,
+                                        y: player.y + (Math.random() - 0.5) * 30,
+                                        vx: (attacker.x - player.x) * 2 + (Math.random() - 0.5) * 50,
+                                        vy: (attacker.y - player.y) * 2 + (Math.random() - 0.5) * 50,
+                                        life: 0.4, maxLife: 0.4,
+                                        color: '#ff0000', size: 6, type: 'lifesteal'
+                                    });
+                                }
                             }
                         }
-                    }
+                    });
                     e.cooldown = 1.5;
                     e.isDashing = false;
                 }
@@ -7520,19 +7644,15 @@ function updateEnemies(dt) {
                     if (!isWall(e.x, ny)) e.y = ny;
                 } else if (distSq <= 1600 && e.cooldown <= 0) { // 40^2 = 1600
                     // 近身普通攻击
-                    setMonsterFacingToward(e, player.x, player.y, 0.35);
-                    triggerMonsterAction(e, 'attack', 0.35);
-                    const dealt = playerTakeDamage(calculateEnemyOutgoingDamage(e, e.dmg), e, { ignoreArmor: e.ignoreArmor });
-                    applyEnemyCursedHit(e, dealt);
-                    emitEnemyScatterVolley(e);
-                    // 吸血效果
-                    if (dealt > 0) {
-                        const healAmount = Math.floor(dealt * (e.lifeSteal || 0.2));
-                        if (healAmount > 0) {
-                            e.hp = Math.min(e.maxHp, e.hp + healAmount);
-                            createDamageNumber(e.x, e.y - 30, '+' + healAmount, '#00ff00');
+                    startMonsterAttack(e, {
+                        duration: 0.38,
+                        impactDelay: 0.18,
+                        targetX: player.x,
+                        targetY: player.y,
+                        resolve: (attacker) => {
+                            resolveEnemyMeleeImpact(attacker, { lifeStealFallback: 0.2, rangeSq: 1800 });
                         }
-                    }
+                    });
                     e.cooldown = 1.5;
                 }
             }
@@ -7550,28 +7670,36 @@ function updateEnemies(dt) {
             } else if (distSq < 122500 && hasLOS) { // 350^2 = 122500
                 // 有视线才能发射闪电球
                 if (e.cooldown <= 0) {
-                    const angle = Math.atan2(player.y - e.y, player.x - e.x);
-                    setMonsterFacingToward(e, player.x, player.y, 0.35);
-                    triggerMonsterAction(e, 'attack', 0.35);
-                    spawnCastSourceVfx(CAST_SOURCE_VFX.enemyLightning, e.x, e.y, angle, 0.78, 16, 30);
-                    const boltCount = e.multiShot || 1;
-                    const spread = boltCount > 1 ? 0.2 : 0;
-                    for (let shotIndex = 0; shotIndex < boltCount; shotIndex++) {
-                        const shotAngle = angle + (shotIndex - (boltCount - 1) / 2) * spread;
-                        projectiles.push(ProjectilePool.acquire({
-                            x: e.x + Math.cos(angle) * 16,
-                            y: e.y - 32 + Math.sin(angle) * 8,
-                            angle: shotAngle,
-                            speed: 280,
-                            life: 2,
-                            damage: e.dmg,
-                            color: '#66ccff',
-                            owner: e,
-                            type: 'lightning_ball'  // 闪电球类型
-                        }));
-                    }
-                    // 发射音效（轻柔版）
-                    AudioSys.play('enemy_lightning_cast');
+                    startMonsterAttack(e, {
+                        duration: 0.42,
+                        impactDelay: 0.18,
+                        targetX: player.x,
+                        targetY: player.y,
+                        resolve: (attacker) => {
+                            if (!hasLineOfSight(attacker.x, attacker.y, player.x, player.y)) return;
+
+                            const angle = Math.atan2(player.y - attacker.y, player.x - attacker.x);
+                            spawnCastSourceVfx(CAST_SOURCE_VFX.enemyLightning, attacker.x, attacker.y, angle, 0.78, 16, 30);
+                            const boltCount = attacker.multiShot || 1;
+                            const spread = boltCount > 1 ? 0.2 : 0;
+                            for (let shotIndex = 0; shotIndex < boltCount; shotIndex++) {
+                                const shotAngle = angle + (shotIndex - (boltCount - 1) / 2) * spread;
+                                projectiles.push(ProjectilePool.acquire({
+                                    x: attacker.x + Math.cos(angle) * 16,
+                                    y: attacker.y - 32 + Math.sin(angle) * 8,
+                                    angle: shotAngle,
+                                    speed: 280,
+                                    life: 2,
+                                    damage: attacker.dmg,
+                                    color: '#66ccff',
+                                    owner: attacker,
+                                    type: 'lightning_ball'  // 闪电球类型
+                                }));
+                            }
+                            // 发射音效（轻柔版）
+                            AudioSys.play('enemy_lightning_cast');
+                        }
+                    });
                     e.cooldown = 1.8;
                 }
             } else if (distSq < 202500) { // 450^2 = 202500
@@ -7599,55 +7727,20 @@ function updateEnemies(dt) {
                 if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
             }
             if (!shouldFlee && distSq <= GAME_CONFIG.MONSTER_MELEE_RANGE_SQ && e.cooldown <= 0) {
-                setMonsterFacingToward(e, player.x, player.y, 0.35);
-                triggerMonsterAction(e, 'attack', 0.35);
-                // 预计算基础伤害（物理+元素）
-                const baseDmg = calculateEnemyOutgoingDamage(e, e.slamHit ? e.dmg * 1.35 : e.dmg);
-
-                // 统一伤害处理（护盾、护甲、天赋、边界检查）
-                const dealt = playerTakeDamage(baseDmg, e, { ignoreArmor: e.ignoreArmor });
+                startMonsterAttack(e, {
+                    duration: e.slamHit ? 0.46 : 0.38,
+                    impactDelay: e.slamHit ? 0.24 : 0.18,
+                    targetX: player.x,
+                    targetY: player.y,
+                    resolve: (attacker) => {
+                        resolveEnemyMeleeImpact(attacker, {
+                            damageMultiplier: attacker.slamHit ? 1.35 : 1,
+                            slamHit: attacker.slamHit,
+                            rangeSq: GAME_CONFIG.MONSTER_MELEE_RANGE_SQ
+                        });
+                    }
+                });
                 e.cooldown = e.slamHit ? 2.1 : 1.5;
-
-                if (dealt > 0 && e.slamHit) {
-                    player.slowedTimer = Math.max(player.slowedTimer || 0, 0.35);
-                    createDamageNumber(player.x, player.y - 60, "重击!", '#ddaa66');
-                }
-                applyEnemyCursedHit(e, dealt);
-                emitEnemyScatterVolley(e);
-
-                // 敌人吸血效果
-                if (dealt > 0 && e.lifeSteal) {
-                    const heal = Math.floor(dealt * e.lifeSteal);
-                    e.hp = Math.min(e.maxHp, e.hp + heal);
-                    createDamageNumber(e.x, e.y - 30, "+" + heal, COLORS.green);
-                }
-
-                // 中毒效果（木乃伊或精英词缀）
-                if (dealt > 0 && e.poisonOnHit && e.poisonDamage) {
-                    if (!player.poisoned) {
-                        spawnVfxEffect('poisonStatusBurst', player.x, player.y + 4, 1, 0);
-                        createDamageNumber(player.x, player.y - 45, "中毒!", COLORS.poison);
-                    }
-                    player.poisoned = true;
-                    player.poisonTimer = Math.max(player.poisonTimer || 0, 3.0);
-                    player.poisonDamage = Math.max(player.poisonDamage || 0, e.poisonDamage);
-                }
-
-                // 冰冻：硬控玩家（免疫期内无效）
-                if (dealt > 0 && e.freezeOnHit && !(player.freezeImmuneTimer > 0) && !(player.slowedTimer > 0)) {
-                    player.frozen = true;
-                    player.frozenTimer = 0.5;
-                    createDamageNumber(player.x, player.y - 40, "冰冻!", COLORS.ice);
-                }
-
-                // 法力燃烧
-                if (dealt > 0 && e.manaBurn) {
-                    const manaBurned = Math.floor(Math.min(player.mp, dealt * 0.5));
-                    player.mp -= manaBurned;
-                    if (manaBurned > 0) {
-                        createDamageNumber(player.x, player.y - 50, "-" + manaBurned + " MP", COLORS.manaCost);
-                    }
-                }
             }
         }
         const movedX = e.x - prevEnemyX;
@@ -9932,6 +10025,8 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     if (e.hp <= 0) {
         // 怪物死亡 - 强烈的果汁感
         e.dead = true;
+        e.deathVisualDuration = e.isBoss ? 0.38 : (e.isElite ? 0.30 : 0.24);
+        e.deathVisualTimer = e.deathVisualDuration;
         Juice.hit(e, false, true); // 击杀反馈
         spawnEnemyDeathVfx(e);
 
