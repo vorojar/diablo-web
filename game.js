@@ -388,6 +388,7 @@ const EnemyPool = {
             summonCount: 0,
             facingDirection: 'front', lastSideDirection: 'right',
             facingLockTimer: 0, actionDirection: null, actionDirectionTimer: 0,
+            monsterAction: null, monsterActionTimer: 0, monsterActionDuration: 0, monsterAnimTime: 0,
             eliteAffixes: null, frozenTimer: 0, slowedTimer: 0, lightningOverloadTimer: 0,
             poisoned: false, poisonTimer: 0, poisonDamagePerTick: 0, lastPoisonTick: 0,
             damageReduction: 0,
@@ -2805,11 +2806,29 @@ function getEnemyMonsterType(enemy) {
     return undefined;
 }
 
+const MONSTER_ACTION_PRIORITY = {
+    attack: 1,
+    hurt: 2
+};
+
+function getMonsterActionPriority(action) {
+    if (!action || !Object.prototype.hasOwnProperty.call(MONSTER_ACTION_PRIORITY, action)) return 0;
+    return MONSTER_ACTION_PRIORITY[action];
+}
+
 function triggerMonsterAction(enemy, action, duration) {
     const monsterType = getEnemyMonsterType(enemy);
-    if (!enemy || !MONSTER_SPRITE_CONFIG.types[monsterType]) return;
+    const typeConfig = MONSTER_SPRITE_CONFIG.types[monsterType];
+    if (!enemy || !typeConfig || !typeConfig[action]) return;
+
+    const currentAction = enemy.monsterActionTimer > 0 ? enemy.monsterAction : null;
+    const currentPriority = getMonsterActionPriority(currentAction);
+    const nextPriority = getMonsterActionPriority(action);
+    if (currentAction && currentPriority > nextPriority) return;
+
     enemy.monsterAction = action;
-    enemy.monsterActionTimer = Math.max(enemy.monsterActionTimer || 0, duration);
+    enemy.monsterActionTimer = duration;
+    enemy.monsterActionDuration = duration;
     enemy.monsterAnimTime = 0;
 }
 
@@ -2851,9 +2870,9 @@ function getMonsterSpriteFrame(enemy) {
     if (!typeConfig) return null;
 
     let action = 'idle';
-    if (enemy.monsterActionTimer > 0 && enemy.monsterAction === 'attack') action = 'attack';
+    if (enemy.monsterActionTimer > 0 && enemy.monsterAction === 'hurt') action = 'hurt';
     else if (enemy.hitFlashTimer > 0) action = 'hurt';
-    else if (enemy.monsterActionTimer > 0 && enemy.monsterAction) action = enemy.monsterAction;
+    else if (enemy.monsterActionTimer > 0 && enemy.monsterAction === 'attack') action = 'attack';
     else if (enemy.wasMoving) action = 'walk';
 
     const direction = getMonsterSpriteDirection(enemy);
@@ -2869,7 +2888,13 @@ function getMonsterSpriteFrame(enemy) {
     else frameInfo = actionRows.front || actionRows.side;
 
     const fps = MONSTER_SPRITE_CONFIG.fps[action] || MONSTER_SPRITE_CONFIG.fps.idle;
-    const frameIndex = Math.floor((enemy.monsterAnimTime || 0) * fps) % MONSTER_SPRITE_CONFIG.cols;
+    let frameIndex;
+    if ((action === 'attack' || action === 'hurt') && enemy.monsterActionDuration > 0) {
+        const progress = Math.max(0, Math.min(0.999, 1 - (enemy.monsterActionTimer / enemy.monsterActionDuration)));
+        frameIndex = Math.floor(progress * MONSTER_SPRITE_CONFIG.cols);
+    } else {
+        frameIndex = Math.floor((enemy.monsterAnimTime || 0) * fps) % MONSTER_SPRITE_CONFIG.cols;
+    }
     return {
         x: frameIndex * MONSTER_SPRITE_CONFIG.frameWidth,
         y: frameInfo.row * MONSTER_SPRITE_CONFIG.frameHeight,
@@ -7232,6 +7257,7 @@ function updateEnemies(dt) {
             e.monsterActionTimer -= dt;
             if (e.monsterActionTimer <= 0) {
                 e.monsterActionTimer = 0;
+                e.monsterActionDuration = 0;
                 e.monsterAction = null;
             }
         }
