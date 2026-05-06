@@ -151,6 +151,7 @@ let enemies = [];
 let groundItems = [];
 let projectiles = [];
 let npcs = [];
+let pendingNpcInteraction = null;
 // bloodSplats 已废弃，血迹现在直接绘制到离屏Canvas (bloodCanvas)
 let destructibles = []; // 场景可破坏物体
 let dungeonRoomFeatures = []; // 只影响视觉的房间结构标记
@@ -322,7 +323,7 @@ const ProjectilePool = {
     release(p) {
         if (this._pool.length < 200) {
             // 清理属性防止复用污染
-            p.type = undefined; p.freeze = undefined; p.owner = undefined; p.age = undefined;
+            p.type = undefined; p.freeze = undefined; p.owner = undefined; p.sourceName = undefined; p.age = undefined;
             this._pool.push(p);
         }
     }
@@ -1544,6 +1545,7 @@ function emitEnemyScatterVolley(enemy) {
             damage: Math.max(1, Math.floor(enemy.dmg * 0.55)),
             color: enemy.elementalDmg?.lightning ? '#66ccff' : '#ffaa00',
             owner: enemy,
+            sourceName: enemy.name,
             type: enemy.elementalDmg?.lightning ? 'lightning_ball' : 'scatter_shot'
         }));
     }
@@ -6889,6 +6891,8 @@ function update(dt) {
     // 更新飞行拾取粒子 (逻辑已移至 createFlyingPickup 中的 GSAP 驱动)
     // 此处无需再手动更新坐标，GSAP 会在每一帧自动修改 fp.x 和 fp.y
 
+    tryResolvePendingNpcInteraction();
+
     if (mouse.leftDown && !isHoveringUI()) {
         const t = getEnemyAtCursor();
         const d = getDestructibleAtCursor();
@@ -6916,21 +6920,32 @@ function update(dt) {
         }
 
         // NPC交互只在点击瞬间触发一次，避免面板闪烁
-        if (npc && Math.hypot(npc.x - player.x, npc.y - player.y) < 60) {
-            if (mouse.leftClick) {
+        if (npc && mouse.leftClick) {
+            if (Math.hypot(npc.x - player.x, npc.y - player.y) < 60) {
                 player.targetX = null;
+                player.targetY = null;
+                pendingNpcInteraction = null;
                 interactNPC(npc);
-                mouse.leftClick = false; // 消费掉点击，避免重复触发
+            } else {
+                const approach = getNpcApproachTarget(npc);
+                pendingNpcInteraction = npc;
+                player.targetX = approach.x;
+                player.targetY = approach.y;
             }
+            mouse.leftClick = false; // 消费掉点击，避免重复触发
         } else if (mouse.leftClick && interactionTarget && isClickOnInteraction()) {
             // 点击在出口/入口/传送门上时才触发
             handleInteraction();
             player.targetX = null;
+            player.targetY = null;
+            pendingNpcInteraction = null;
             mouse.leftClick = false;
         } else if (t) {
+            pendingNpcInteraction = null;
             if (Math.hypot(t.x - player.x, t.y - player.y) < 50) { player.targetX = null; performAttack(t); }
             else { player.targetX = t.x; player.targetY = t.y; }
         } else if (d) {
+            pendingNpcInteraction = null;
             // 点击可破坏物体：走向并破坏
             const dist = Math.hypot(d.x - player.x, d.y - player.y);
             if (dist < 60) {
@@ -6947,7 +6962,11 @@ function update(dt) {
                 player.targetX = d.x;
                 player.targetY = d.y;
             }
-        } else { player.targetX = mouse.worldX; player.targetY = mouse.worldY; }
+        } else {
+            pendingNpcInteraction = null;
+            player.targetX = mouse.worldX;
+            player.targetY = mouse.worldY;
+        }
     }
 
 
@@ -6965,7 +6984,9 @@ function update(dt) {
             player.direction = intendedDirection;
             const speedMultiplier = player.frozen ? 0 : (player.slowedTimer > 0 ? 0.4 : 1.0);  // 冰冻时完全不能动，减速期40%速度
             const move = player.speed * dt * speedMultiplier;
-            const nx = player.x + (dx / dist) * move, ny = player.y + (dy / dist) * move;
+            const actualMove = Math.min(move, dist);
+            const nx = player.x + (dx / dist) * actualMove;
+            const ny = player.y + (dy / dist) * actualMove;
             const oldX = player.x, oldY = player.y;
             if (!isWall(nx, player.y)) player.x = nx;
             if (!isWall(player.x, ny)) player.y = ny;
@@ -7119,7 +7140,7 @@ function update(dt) {
                 // 使用统一伤害函数（弹幕伤害类型根据弹幕类型判断）
                 const dmgType = p.type === 'lightning_ball' ? 'lightning' : 'physical';
                 const projectileDamage = calculateEnemyOutgoingDamage(p.owner, p.damage);
-                const dealt = playerTakeDamage(projectileDamage, p.owner, { damageType: dmgType, ignoreArmor: p.owner.ignoreArmor });
+                const dealt = playerTakeDamage(projectileDamage, p.owner, { damageType: dmgType, ignoreArmor: p.owner?.ignoreArmor, sourceName: p.sourceName });
                 applyEnemyProjectileOnHit(p.owner, dealt);
                 p.life = 0;
                 for (let j = 0; j < 5; j++)createParticle(p.x, p.y, p.color || '#ff4400');
@@ -7482,7 +7503,8 @@ function updateEnemies(dt) {
                                     life: 2,
                                     damage: attacker.dmg,
                                     color: '#ffaa00',
-                                    owner: attacker
+                                    owner: attacker,
+                                    sourceName: attacker.name
                                 }));
                             }
                             AudioSys.play('enemy_arrow_cast');
@@ -7714,6 +7736,7 @@ function updateEnemies(dt) {
                                     damage: attacker.dmg,
                                     color: '#66ccff',
                                     owner: attacker,
+                                    sourceName: attacker.name,
                                     type: 'lightning_ball'  // 闪电球类型
                                 }));
                             }
@@ -8691,6 +8714,41 @@ function interactNPC(npc) {
             player.hp = player.maxHp; player.mp = player.maxMp; showNotification("阿卡拉治愈了你");
         }
     }
+}
+
+function getNpcApproachTarget(npc) {
+    const dx = player.x - npc.x;
+    const dy = player.y - npc.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const stopDistance = Math.max(42, (npc.radius || 20) + player.radius + 14);
+    const targetX = npc.x + (dx / dist) * stopDistance;
+    const targetY = npc.y + (dy / dist) * stopDistance;
+
+    if (!isWall(targetX, targetY)) {
+        return { x: targetX, y: targetY };
+    }
+
+    return { x: npc.x, y: npc.y };
+}
+
+function tryResolvePendingNpcInteraction() {
+    const npc = pendingNpcInteraction;
+    if (!npc) return false;
+
+    if (!npcs.includes(npc)) {
+        pendingNpcInteraction = null;
+        return false;
+    }
+
+    if (Math.hypot(npc.x - player.x, npc.y - player.y) < 60) {
+        player.targetX = null;
+        player.targetY = null;
+        pendingNpcInteraction = null;
+        interactNPC(npc);
+        return true;
+    }
+
+    return false;
 }
 
 function showDialog(name, text, options) {
@@ -12026,7 +12084,8 @@ function playerTakeDamage(rawDamage, source, options = {}) {
     const {
         ignoreShield = false,   // 是否忽略护盾
         ignoreArmor = false,    // 是否忽略护甲
-        damageType = 'physical' // 伤害类型: physical/fire/cold/lightning/poison
+        damageType = 'physical', // 伤害类型: physical/fire/cold/lightning/poison
+        sourceName = null
     } = options;
 
     // 1. 无敌状态检查
@@ -12097,7 +12156,7 @@ function playerTakeDamage(rawDamage, source, options = {}) {
     if (damage > 0) {
         const wasLowHp = player.hp / player.maxHp <= GAME_CONFIG.LOW_HP_THRESHOLD;
         player.hp = Math.max(0, player.hp - damage);
-        player.lastDamageSource = source?.name || '未知';
+        player.lastDamageSource = sourceName || source?.name || player.lastDamageSource || '环境伤害';
 
         // 受击反馈
         spawnPlayerDamageVfx(damageType, source, wasLowHp);
