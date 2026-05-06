@@ -303,6 +303,10 @@ function addItemToInventory(i) {
   // 追踪稀有物品发现
   trackItemFound(i);
 
+  // 收集类成就在物品实际进入背包后推进，避免落地未拾取也计数
+  if (i.rarity === RARITY.UNIQUE) trackAchievement('collect_unique');
+  if (i.rarity === RARITY.SET) trackAchievement('collect_set_item');
+
   // 检查套装收藏成就和图鉴发现
   if (i.setId) {
     if (typeof discoverSetPiece !== 'undefined') discoverSetPiece(i);
@@ -771,12 +775,9 @@ function dropLoot(monster) {
       item.dropTime = Date.now();
       groundItems.push(item);
 
-      // 暗金/套装掉落特效和成就追踪
+      // 暗金/套装掉落特效
       if (item.rarity === RARITY.UNIQUE || item.rarity === RARITY.SET) {
         createDropBeam(item.x, item.y, item.rarity);
-        // 成就追踪：收集暗金/套装
-        if (item.rarity === RARITY.UNIQUE) trackAchievement('collect_unique');
-        if (item.rarity === RARITY.SET) trackAchievement('collect_set_item');
       }
     }
   }
