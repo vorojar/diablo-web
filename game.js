@@ -7393,7 +7393,10 @@ function updateEnemies(dt) {
                 const pDmg = Math.max(1, Math.floor(e.poisonDamagePerTick || 1));
                 e.hp -= pDmg;
                 createDamageNumber(e.x, e.y, pDmg, COLORS.poison);
-                if (e.hp <= 0) e.dead = true;
+                if (e.hp <= 0) {
+                    finalizeEnemyDeath(e, pDmg);
+                    continue;
+                }
             }
             if (e.poisonTimer <= 0) e.poisoned = false;
         }
@@ -10013,170 +10016,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         AudioSys.play(isSkillDamage ? 'hit' : 'melee_hit');
     }
 
-    if (e.hp <= 0) {
-        // 怪物死亡 - 强烈的果汁感
-        e.dead = true;
-        e.deathVisualDuration = e.isBoss ? 0.38 : (e.isElite ? 0.30 : 0.24);
-        e.deathVisualTimer = e.deathVisualDuration;
-        Juice.hit(e, false, true); // 击杀反馈
-        spawnEnemyDeathVfx(e);
-
-        // 创建地面血迹
-        createBloodSplat(e.x, e.y, e.radius);
-        emitMummyDeathCloud(e);
-
-        player.kills++;
-        // 新手引导：步骤5 - 击杀第一只怪物
-        if (player.kills === 1) advanceTutorial(5);
-
-        // 怪物图鉴：记录发现
-        discoverMonster(e);
-
-        // 每日任务：击杀怪物
-        if (typeof DailyQuestSystem !== 'undefined') {
-            DailyQuestSystem.updateProgress('kill', 1);
-        }
-
-        // 更新击杀统计
-        player.stats.currentStreak++;
-        if (player.stats.currentStreak > player.stats.maxKillStreak) {
-            player.stats.maxKillStreak = player.stats.currentStreak;
-        }
-        if (e.isBoss) {
-            player.stats.bossKills++;
-            // Boss死亡特效：慢动作 + 爆炸粒子 + 巨型伤害数字
-            triggerBossDeathEffect(e, totalDamage);
-            // 全服公告：击杀Boss
-            if (typeof OnlineSystem !== 'undefined') {
-                OnlineSystem.announce('boss_kill', e.name);
-            }
-            // 每日任务：击杀Boss
-            if (typeof DailyQuestSystem !== 'undefined') {
-                DailyQuestSystem.updateProgress('kill_boss', 1);
-            }
-        }
-        if (e.isElite) {
-            player.stats.eliteKills++;
-            // 精英怪死亡特效：比普通怪华丽，比Boss轻
-            triggerEliteDeathEffect(e, totalDamage);
-            // 每日任务：击杀精英怪
-            if (typeof DailyQuestSystem !== 'undefined') {
-                DailyQuestSystem.updateProgress('kill_elite', 1);
-            }
-        }
-
-        // ========== 击杀相关天赋效果 ==========
-        // 嗜血：击杀恢复生命（天赋+天神赐福）
-        const onKillHealPct = getTalentEffect('onKillHealPct', 0) + (player.onKillHealPct || 0);
-        if (onKillHealPct > 0) {
-            const healAmt = player.maxHp * onKillHealPct / 100;
-            player.hp = Math.min(player.maxHp, player.hp + healAmt);
-            createDamageNumber(player.x, player.y - 30, `+${Math.floor(healAmt)}`, '#00ff00');
-        }
-
-        // 连锁闪电：击杀时电击周围敌人
-        if (hasTalent('thunder_chain')) {
-            const chainRange = 150;
-            const chainDamage = totalDamage * 0.3;
-            enemies.forEach(other => {
-                if (!other.dead && other !== e) {
-                    const dist = Math.hypot(other.x - e.x, other.y - e.y);
-                    if (dist < chainRange) {
-                        // 使用正常的伤害流程，确保掉落/经验/成就正常触发
-                        takeDamage(other, { lightning: chainDamage }, true);
-                        // 创建闪电视觉效果
-                        particles.push({
-                            x: e.x, y: e.y,
-                            tx: other.x, ty: other.y,
-                            type: 'chain_lightning',
-                            life: 0.3
-                        });
-                    }
-                }
-            });
-        }
-
-        // 触发精英词缀的死亡效果
-        if (e.eliteAffixes && e.eliteAffixes.length > 0) {
-            e.eliteAffixes.forEach(affix => {
-                if (affix.onDeath) {
-                    affix.onDeath(e);
-                }
-            });
-        }
-
-        // 追踪BOSS击杀成就
-        if (e.isBoss || e.isQuestTarget) {
-            trackAchievement('kill_boss', { isBoss: true, isQuestTarget: e.isQuestTarget, name: e.name });
-            trackAchievement('kill_specific_boss', { name: e.name });
-
-            // 设置该层 Boss 刷新计时（5 分钟）
-            const cooldown = 5 * 60 * 1000;
-            player.bossRespawn[player.floor] = Date.now() + cooldown;
-        }
-
-        // 计算经验（检查双倍/三倍经验buff + 等级差系数）
-        let xpGain = e.xpValue || 15;
-
-        // 等级差经验系数：鼓励玩家打匹配等级的怪物
-        const currentFloor = player.isInHell ? player.hellFloor : player.floor;
-        const monsterLevel = currentFloor * 2;  // 怪物等级 ≈ 层数 × 2
-        const levelDiff = player.lvl - monsterLevel;
-        let levelMultiplier = 1;
-        if (levelDiff > 5) {
-            // 玩家比怪物高5级以上，经验骤降（每级-15%，最低10%）
-            levelMultiplier = Math.max(0.1, 1 - (levelDiff - 5) * 0.15);
-        } else if (levelDiff < -5) {
-            // 玩家比怪物低5级以上，经验略增（每级+5%，最高130%）
-            levelMultiplier = Math.min(1.3, 1 + Math.abs(levelDiff + 5) * 0.05);
-        }
-        xpGain *= levelMultiplier;
-
-        // 双倍/三倍经验buff
-        let xpMultiplier = 1;
-        if (player.xpBuffTripleExpiry && Date.now() < player.xpBuffTripleExpiry) {
-            xpMultiplier = 3;  // 三倍经验优先
-        } else if (player.xpBuffExpiry && Date.now() < player.xpBuffExpiry) {
-            xpMultiplier = 2;  // 双倍经验
-        }
-        xpGain *= xpMultiplier;
-        player.xp += xpGain;
-        createDamageNumber(player.x, player.y - 50, "+" + Math.floor(xpGain) + " XP", '#4d69cd');
-        dropLoot(e);
-        checkLevelUp();
-
-        // QUEST LOGIC
-        const currentQ = getCurrentQuest();
-        if (currentQ && player.questState === 1) {
-            let progressMade = false;
-
-            if (currentQ.type === 'kill_count' && player.floor === currentQ.floor) {
-                player.questProgress++;
-                if (player.questProgress >= currentQ.target) {
-                    player.questState = 2;
-                    showNotification("任务完成！");
-                    AudioSys.play('quest');
-                }
-                progressMade = true;
-            } else if ((currentQ.type === 'kill_elite' || currentQ.type === 'kill_boss') && e.isQuestTarget) {
-                player.questState = 2;
-                showNotification(`击败了 ${e.name}！`);
-                AudioSys.play('quest');
-                progressMade = true;
-
-                // 如果是巴尔（第10层BOSS），解锁地狱模式
-                if (e.name === '巴尔' && player.floor === 10) {
-                    player.defeatedBaal = true;
-                    // 显式触发成就（trackAchievement内部已有防重复机制）
-                    trackAchievement('kill_baal', { name: e.name });
-                    showNotification('地狱之门已开启！');
-                    AudioSys.play('quest');
-                }
-            }
-
-            if (progressMade) { updateQuestTracker(); updateMenuIndicators(); }
-        }
-    }
+    if (e.hp <= 0) finalizeEnemyDeath(e, totalDamage);
 }
 
 function showNotification(msg) {
@@ -11984,6 +11824,174 @@ function createBloodSplat(x, y, size) {
     }
 }
 
+function finalizeEnemyDeath(e, totalDamage) {
+    if (!e || e.dead) return;
+
+    // 怪物死亡 - 强烈的果汁感
+    e.hp = 0;
+    e.dead = true;
+    e.deathVisualDuration = e.isBoss ? 0.38 : (e.isElite ? 0.30 : 0.24);
+    e.deathVisualTimer = e.deathVisualDuration;
+    Juice.hit(e, false, true); // 击杀反馈
+    spawnEnemyDeathVfx(e);
+
+    // 创建地面血迹
+    createBloodSplat(e.x, e.y, e.radius);
+    emitMummyDeathCloud(e);
+
+    player.kills++;
+    // 新手引导：步骤5 - 击杀第一只怪物
+    if (player.kills === 1) advanceTutorial(5);
+
+    // 怪物图鉴：记录发现
+    discoverMonster(e);
+
+    // 每日任务：击杀怪物
+    if (typeof DailyQuestSystem !== 'undefined') {
+        DailyQuestSystem.updateProgress('kill', 1);
+    }
+
+    // 更新击杀统计
+    player.stats.currentStreak++;
+    if (player.stats.currentStreak > player.stats.maxKillStreak) {
+        player.stats.maxKillStreak = player.stats.currentStreak;
+    }
+    if (e.isBoss) {
+        player.stats.bossKills++;
+        // Boss死亡特效：慢动作 + 爆炸粒子 + 巨型伤害数字
+        triggerBossDeathEffect(e, totalDamage);
+        // 全服公告：击杀Boss
+        if (typeof OnlineSystem !== 'undefined') {
+            OnlineSystem.announce('boss_kill', e.name);
+        }
+        // 每日任务：击杀Boss
+        if (typeof DailyQuestSystem !== 'undefined') {
+            DailyQuestSystem.updateProgress('kill_boss', 1);
+        }
+    }
+    if (e.isElite) {
+        player.stats.eliteKills++;
+        // 精英怪死亡特效：比普通怪华丽，比Boss轻
+        triggerEliteDeathEffect(e, totalDamage);
+        // 每日任务：击杀精英怪
+        if (typeof DailyQuestSystem !== 'undefined') {
+            DailyQuestSystem.updateProgress('kill_elite', 1);
+        }
+    }
+
+    // ========== 击杀相关天赋效果 ==========
+    // 嗜血：击杀恢复生命（天赋+天神赐福）
+    const onKillHealPct = getTalentEffect('onKillHealPct', 0) + (player.onKillHealPct || 0);
+    if (onKillHealPct > 0) {
+        const healAmt = player.maxHp * onKillHealPct / 100;
+        player.hp = Math.min(player.maxHp, player.hp + healAmt);
+        createDamageNumber(player.x, player.y - 30, `+${Math.floor(healAmt)}`, '#00ff00');
+    }
+
+    // 连锁闪电：击杀时电击周围敌人
+    if (hasTalent('thunder_chain')) {
+        const chainRange = 150;
+        const chainDamage = totalDamage * 0.3;
+        enemies.forEach(other => {
+            if (!other.dead && other !== e) {
+                const dist = Math.hypot(other.x - e.x, other.y - e.y);
+                if (dist < chainRange) {
+                    // 使用正常的伤害流程，确保掉落/经验/成就正常触发
+                    takeDamage(other, { lightning: chainDamage }, true);
+                    // 创建闪电视觉效果
+                    particles.push({
+                        x: e.x, y: e.y,
+                        tx: other.x, ty: other.y,
+                        type: 'chain_lightning',
+                        life: 0.3
+                    });
+                }
+            }
+        });
+    }
+
+    // 触发精英词缀的死亡效果
+    if (e.eliteAffixes && e.eliteAffixes.length > 0) {
+        e.eliteAffixes.forEach(affix => {
+            if (affix.onDeath) {
+                affix.onDeath(e);
+            }
+        });
+    }
+
+    // 追踪BOSS击杀成就
+    if (e.isBoss || e.isQuestTarget) {
+        trackAchievement('kill_boss', { isBoss: true, isQuestTarget: e.isQuestTarget, name: e.name });
+        trackAchievement('kill_specific_boss', { name: e.name });
+
+        // 设置该层 Boss 刷新计时（5 分钟）
+        const cooldown = 5 * 60 * 1000;
+        player.bossRespawn[player.floor] = Date.now() + cooldown;
+    }
+
+    // 计算经验（检查双倍/三倍经验buff + 等级差系数）
+    let xpGain = e.xpValue || 15;
+
+    // 等级差经验系数：鼓励玩家打匹配等级的怪物
+    const currentFloor = player.isInHell ? player.hellFloor : player.floor;
+    const monsterLevel = currentFloor * 2;  // 怪物等级 ≈ 层数 × 2
+    const levelDiff = player.lvl - monsterLevel;
+    let levelMultiplier = 1;
+    if (levelDiff > 5) {
+        // 玩家比怪物高5级以上，经验骤降（每级-15%，最低10%）
+        levelMultiplier = Math.max(0.1, 1 - (levelDiff - 5) * 0.15);
+    } else if (levelDiff < -5) {
+        // 玩家比怪物低5级以上，经验略增（每级+5%，最高130%）
+        levelMultiplier = Math.min(1.3, 1 + Math.abs(levelDiff + 5) * 0.05);
+    }
+    xpGain *= levelMultiplier;
+
+    // 双倍/三倍经验buff
+    let xpMultiplier = 1;
+    if (player.xpBuffTripleExpiry && Date.now() < player.xpBuffTripleExpiry) {
+        xpMultiplier = 3;  // 三倍经验优先
+    } else if (player.xpBuffExpiry && Date.now() < player.xpBuffExpiry) {
+        xpMultiplier = 2;  // 双倍经验
+    }
+    xpGain *= xpMultiplier;
+    player.xp += xpGain;
+    createDamageNumber(player.x, player.y - 50, "+" + Math.floor(xpGain) + " XP", '#4d69cd');
+    dropLoot(e);
+    checkLevelUp();
+
+    // QUEST LOGIC
+    const currentQ = getCurrentQuest();
+    if (currentQ && player.questState === 1) {
+        let progressMade = false;
+
+        if (currentQ.type === 'kill_count' && player.floor === currentQ.floor) {
+            player.questProgress++;
+            if (player.questProgress >= currentQ.target) {
+                player.questState = 2;
+                showNotification("任务完成！");
+                AudioSys.play('quest');
+            }
+            progressMade = true;
+        } else if ((currentQ.type === 'kill_elite' || currentQ.type === 'kill_boss') && e.isQuestTarget) {
+            player.questState = 2;
+            showNotification(`击败了 ${e.name}！`);
+            AudioSys.play('quest');
+            progressMade = true;
+
+            // 如果是巴尔（第10层BOSS），解锁地狱模式
+            if (e.name === '巴尔' && player.floor === 10) {
+                player.defeatedBaal = true;
+                // 显式触发成就（trackAchievement内部已有防重复机制）
+                trackAchievement('kill_baal', { name: e.name });
+                showNotification('地狱之门已开启！');
+                AudioSys.play('quest');
+            }
+        }
+
+        if (progressMade) { updateQuestTracker(); updateMenuIndicators(); }
+    }
+}
+
 // ========== 统一玩家受伤入口 ==========
 // 所有敌人对玩家造成伤害都应通过此函数，确保护盾、护甲、天赋效果统一处理
 function playerTakeDamage(rawDamage, source, options = {}) {
@@ -12044,7 +12052,7 @@ function playerTakeDamage(rawDamage, source, options = {}) {
                 if (reflectDmg > 0) {
                     source.hp -= reflectDmg;
                     createDamageNumber(source.x, source.y - 10, reflectDmg, '#ffff00');
-                    if (source.hp <= 0) source.dead = true;
+                    if (source.hp <= 0) finalizeEnemyDeath(source, reflectDmg);
                 }
             }
         }
@@ -12086,7 +12094,7 @@ function playerTakeDamage(rawDamage, source, options = {}) {
             if (thornsDmg > 0) {
                 source.hp -= thornsDmg;
                 createDamageNumber(source.x, source.y - 10, thornsDmg, COLORS.thornsDamage);
-                if (source.hp <= 0) source.dead = true;
+                if (source.hp <= 0) finalizeEnemyDeath(source, thornsDmg);
             }
         }
     }
@@ -13459,17 +13467,17 @@ function updateStats() {
         player.resistances.poison += dbAllRes;
     }
     // 生命恢复（百分比）- 与天赋一致
-    player.hpRegenPct = (player.hpRegenPct || 0) + getDivineBlessingEffect('hpRegenPct', 0);
+    player.hpRegenPct = getDivineBlessingEffect('hpRegenPct', 0);
     // 法力恢复（百分比）- 与天赋一致
-    player.mpRegenPct = (player.mpRegenPct || 0) + getDivineBlessingEffect('mpRegenPct', 0);
+    player.mpRegenPct = getDivineBlessingEffect('mpRegenPct', 0);
     // 荆棘反伤
-    player.thornsPct = (player.thornsPct || 0) + getDivineBlessingEffect('thornsPct', 0);
+    player.thornsPct = getDivineBlessingEffect('thornsPct', 0);
     // 金币掉落
-    player.goldPct = (player.goldPct || 0) + getDivineBlessingEffect('goldPct', 0);
+    player.goldPct = getDivineBlessingEffect('goldPct', 0);
     // 装备掉落率
-    player.dropRatePct = (player.dropRatePct || 0) + getDivineBlessingEffect('dropRatePct', 0);
+    player.dropRatePct = getDivineBlessingEffect('dropRatePct', 0);
     // 击杀回血
-    player.onKillHealPct = (player.onKillHealPct || 0) + getDivineBlessingEffect('onKillHealPct', 0);
+    player.onKillHealPct = getDivineBlessingEffect('onKillHealPct', 0);
 
     // 检查套装成就
     checkSetAchievements();
