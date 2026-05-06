@@ -1333,11 +1333,30 @@ function spawnEnemyDeathVfx(enemy) {
     spawnVfxEffect(effectId, enemy.x, enemy.y + 4, scale, Math.random() * Math.PI * 2);
 }
 
+function spawnMonsterAttackTelegraph(enemy, options) {
+    if (!enemy || enemy.dead || !options) return;
+
+    const targetX = options.targetX ?? player.x;
+    const targetY = options.targetY ?? player.y;
+    const angle = Math.atan2(targetY - enemy.y, targetX - enemy.x);
+
+    if (options.telegraph === 'projectile') {
+        const effectId = options.telegraphVfx || (enemy.elementalDmg?.lightning ? CAST_SOURCE_VFX.enemyLightning : CAST_SOURCE_VFX.enemyArrow);
+        spawnCastSourceVfx(effectId, enemy.x, enemy.y, angle, options.telegraphScale || 0.54, 12, 26);
+        return;
+    }
+
+    if (options.telegraph === 'melee') {
+        spawnVfxEffect(COMBAT_FEEDBACK_VFX.guardFlash, enemy.x, enemy.y - 10, enemy.slamHit ? 0.92 : 0.7, angle);
+    }
+}
+
 function startMonsterAttack(enemy, options) {
     if (!enemy || enemy.dead || !options || typeof options.resolve !== 'function') return;
 
     setMonsterFacingToward(enemy, options.targetX, options.targetY, options.duration);
     triggerMonsterAction(enemy, 'attack', options.duration);
+    spawnMonsterAttackTelegraph(enemy, options);
     scheduledMonsterAttacks.push({
         enemy,
         timer: options.impactDelay,
@@ -7444,6 +7463,8 @@ function updateEnemies(dt) {
                     startMonsterAttack(e, {
                         duration: 0.42,
                         impactDelay: 0.18,
+                        telegraph: 'projectile',
+                        telegraphVfx: CAST_SOURCE_VFX.enemyArrow,
                         targetX: player.x,
                         targetY: player.y,
                         resolve: (attacker) => {
@@ -7553,6 +7574,7 @@ function updateEnemies(dt) {
                 startMonsterAttack(e, {
                     duration: 0.38,
                     impactDelay: 0.18,
+                    telegraph: 'melee',
                     targetX: player.x,
                     targetY: player.y,
                     resolve: (attacker) => {
@@ -7599,6 +7621,7 @@ function updateEnemies(dt) {
                     startMonsterAttack(e, {
                         duration: 0.38,
                         impactDelay: 0.16,
+                        telegraph: 'melee',
                         targetX: player.x,
                         targetY: player.y,
                         resolve: (attacker) => {
@@ -7643,6 +7666,7 @@ function updateEnemies(dt) {
                     startMonsterAttack(e, {
                         duration: 0.38,
                         impactDelay: 0.18,
+                        telegraph: 'melee',
                         targetX: player.x,
                         targetY: player.y,
                         resolve: (attacker) => {
@@ -7669,6 +7693,9 @@ function updateEnemies(dt) {
                     startMonsterAttack(e, {
                         duration: 0.42,
                         impactDelay: 0.18,
+                        telegraph: 'projectile',
+                        telegraphVfx: CAST_SOURCE_VFX.enemyLightning,
+                        telegraphScale: 0.58,
                         targetX: player.x,
                         targetY: player.y,
                         resolve: (attacker) => {
@@ -7724,6 +7751,7 @@ function updateEnemies(dt) {
                 startMonsterAttack(e, {
                     duration: e.slamHit ? 0.46 : 0.38,
                     impactDelay: e.slamHit ? 0.24 : 0.18,
+                    telegraph: 'melee',
                     targetX: player.x,
                     targetY: player.y,
                     resolve: (attacker) => {
@@ -15190,6 +15218,99 @@ function updateMenuIndicators() {
     if (cachedUI.badges.quest) cachedUI.badges.quest.style.display = (hasMainQuestReward || hasDailyQuestReward) ? 'block' : 'none';
 }
 
+function isMobileLayout() {
+    return window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+}
+
+function closeMobileMenu() {
+    document.body.classList.remove('mobile-menu-open');
+}
+
+function toggleMobileMenu(event) {
+    if (event) event.stopPropagation();
+    if (!isMobileLayout()) return;
+
+    const opening = !document.body.classList.contains('mobile-menu-open');
+    document.body.classList.toggle('mobile-menu-open', opening);
+    if (opening) closeMobileChat();
+}
+
+function syncMobileChatState() {
+    const chatBox = document.getElementById('chat-box');
+    const chatOpen = !!chatBox && !chatBox.classList.contains('collapsed');
+    document.body.classList.toggle('mobile-chat-open', isMobileLayout() && chatOpen);
+}
+
+function closeMobileChat() {
+    const chatBox = document.getElementById('chat-box');
+    if (!chatBox || chatBox.classList.contains('collapsed')) {
+        syncMobileChatState();
+        return;
+    }
+
+    if (typeof ChatSystem !== 'undefined') ChatSystem.toggle();
+    else chatBox.classList.add('collapsed');
+    syncMobileChatState();
+}
+
+function toggleMobileChat(event) {
+    if (event) event.stopPropagation();
+    if (!isMobileLayout()) return;
+
+    closeMobileMenu();
+    if (typeof ChatSystem !== 'undefined') ChatSystem.toggle();
+    else document.getElementById('chat-box')?.classList.toggle('collapsed');
+    syncMobileChatState();
+}
+
+function initMobileHudShell() {
+    const chatBox = document.getElementById('chat-box');
+    if (isMobileLayout() && chatBox) {
+        chatBox.classList.add('collapsed');
+        localStorage.setItem('chat_collapsed', 'true');
+    }
+    syncMobileChatState();
+
+    if (chatBox && typeof MutationObserver !== 'undefined') {
+        const observer = new MutationObserver(syncMobileChatState);
+        observer.observe(chatBox, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    const unread = document.getElementById('chat-unread');
+    const dot = document.getElementById('mobile-chat-dot');
+    const syncUnreadDot = () => {
+        if (dot && unread) dot.style.display = unread.textContent.trim() ? 'block' : 'none';
+    };
+    syncUnreadDot();
+    if (unread && typeof MutationObserver !== 'undefined') {
+        const unreadObserver = new MutationObserver(syncUnreadDot);
+        unreadObserver.observe(unread, { childList: true, characterData: true, subtree: true });
+    }
+
+    document.addEventListener('click', (event) => {
+        if (!isMobileLayout()) return;
+
+        const target = event.target;
+        if (target.closest('#mobile-menu-toggle, #mobile-chat-toggle, .chat-box, .panel')) return;
+        if (target.closest('.menu-btns .sys-btn')) {
+            setTimeout(closeMobileMenu, 0);
+            return;
+        }
+
+        closeMobileMenu();
+        closeMobileChat();
+    });
+
+    window.addEventListener('resize', () => {
+        if (!isMobileLayout()) {
+            closeMobileMenu();
+            document.body.classList.remove('mobile-chat-open');
+        } else {
+            syncMobileChatState();
+        }
+    });
+}
+
 // 在物品槽位上显示卖出提示
 function showSellTooltip(idx, val) {
     const bagGrid = document.getElementById('bag-grid');
@@ -15798,8 +15919,14 @@ function checkChangelog() {
     const lastReadVersion = localStorage.getItem('changelog_read_version');
     const currentVersion = CURRENT_VERSION;
 
-    // 如果没有读过 或 有新版本，则自动弹出
-    if (!lastReadVersion || lastReadVersion !== currentVersion) {
+    // 首次访问不自动弹公告，避免挡住新用户进游戏；记录为当前版本已读
+    if (!lastReadVersion) {
+        localStorage.setItem('changelog_read_version', currentVersion);
+        return;
+    }
+
+    // 老用户有未读版本时自动弹出
+    if (lastReadVersion !== currentVersion) {
         showChangelogPanel();
     }
 }
@@ -15876,6 +16003,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof AbyssSystem !== 'undefined') {
         AbyssSystem.init();
     }
+    initMobileHudShell();
     // 延迟检查，等待首屏加载完成
     setTimeout(checkChangelog, 500);
 });

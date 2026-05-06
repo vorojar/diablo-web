@@ -33,7 +33,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <link rel="apple-touch-icon" href="icon-192.png">
 
-    <link rel="stylesheet" href="style.css?v=202605011845">
+    <link rel="stylesheet" href="style.css?v=202605061220">
 </head>
 
 <!-- 版本标记: v7.09 营地、战斗与界面体验优化 -->
@@ -673,6 +673,10 @@
                 <button class="sys-btn" id="btn-achievements" onclick="togglePanel('achievements')">成就 (A)</button>
                 <button class="sys-btn" id="btn-set-collection" onclick="togglePanel('set-collection')">图鉴 (G)</button>
             </div>
+            <button id="mobile-menu-toggle" class="mobile-fab mobile-menu-toggle" onclick="toggleMobileMenu(event)"
+                aria-label="展开菜单">☰</button>
+            <button id="mobile-chat-toggle" class="mobile-fab mobile-chat-toggle" onclick="toggleMobileChat(event)"
+                aria-label="展开聊天">💬<span class="mobile-chat-dot" id="mobile-chat-dot"></span></button>
 
             <div id="bottom-hud">
                 <div class="orb-container" id="health-orb">
@@ -766,7 +770,7 @@
     <script src="abyss-system.js?v=202601061400"></script>
     <script src="auto-battle.js?v=202601101200"></script>
     <script src="vfx-manifest.js?v=202605051940"></script>
-    <script src="game.js?v=202605061120"></script>
+    <script src="game.js?v=202605061220"></script>
     <script src="pocketbase.umd.js"></script>
     <script src="online.js?v=202605010330"></script>
     <script src="market.js?v=202605011345"></script>

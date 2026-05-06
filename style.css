@@ -2565,6 +2565,56 @@
             pointer-events: auto;
         }
 
+        .mobile-fab {
+            display: none;
+            position: absolute;
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            border: 1px solid rgba(199, 179, 119, 0.76);
+            background:
+                radial-gradient(circle at 32% 24%, rgba(255, 235, 178, 0.18), transparent 34%),
+                linear-gradient(180deg, rgba(49, 42, 32, 0.96), rgba(9, 9, 10, 0.98));
+            color: #ead7a9;
+            font-family: 'Cinzel', serif;
+            font-size: 20px;
+            font-weight: 700;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            z-index: 92;
+            box-shadow:
+                0 6px 18px rgba(0, 0, 0, 0.72),
+                inset 0 1px 0 rgba(255, 235, 190, 0.16);
+        }
+
+        .mobile-fab:active {
+            transform: translateY(1px) scale(0.96);
+            filter: brightness(0.9);
+        }
+
+        #mobile-menu-toggle {
+            right: 12px;
+            bottom: 138px;
+        }
+
+        #mobile-chat-toggle {
+            left: 12px;
+            bottom: 138px;
+        }
+
+        .mobile-chat-dot {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ff3333;
+            box-shadow: 0 0 8px rgba(255, 48, 48, 0.9);
+            display: none;
+        }
+
         .sys-btn {
             background:
                 linear-gradient(180deg, rgba(49, 42, 32, 0.96), rgba(13, 13, 14, 0.98));
@@ -5708,16 +5758,34 @@
             }
 
             /* 菜单按钮调整 */
+            .mobile-fab {
+                display: flex;
+            }
+
             .menu-btns {
-                flex-wrap: wrap;
-                gap: 3px;
+                right: 10px;
+                bottom: 190px;
+                flex-wrap: nowrap;
+                gap: 6px;
+                opacity: 0;
+                transform: translateY(10px) scale(0.96);
+                pointer-events: none;
+                transition: opacity 0.16s ease, transform 0.16s ease;
+                z-index: 91;
+            }
+
+            body.mobile-menu-open .menu-btns {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+                pointer-events: auto;
             }
 
             .menu-btns .sys-btn {
                 font-size: 10px;
-                padding: 5px 8px;
-                min-height: 28px !important;
-                min-width: auto !important;
+                padding: 7px 10px;
+                min-height: 34px !important;
+                min-width: 88px !important;
+                text-align: center;
             }
 
             /* 面板在手机上全宽或适应宽度 */
@@ -5812,8 +5880,21 @@
 
             /* 聊天框调整 */
             .chat-box {
-                max-width: calc(100vw - 40px);
-                width: 330px;
+                display: none;
+                left: 10px;
+                right: 10px;
+                bottom: 132px;
+                width: auto;
+                max-width: calc(100vw - 20px);
+                z-index: 93;
+            }
+
+            .chat-box:not(.collapsed) {
+                display: block;
+            }
+
+            body.mobile-chat-open #mobile-chat-toggle {
+                display: none;
             }
 
             .chat-messages {
