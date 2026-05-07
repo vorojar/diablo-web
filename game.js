@@ -11224,7 +11224,7 @@ function createDamageNumber(x, y, val, color, angle = null) {
     if (typeof val === 'number') {
         val = Math.floor(val);
     }
-    const isCrit = val === "暴击!" || (typeof val === 'string' && val.includes('Crit'));
+    const isCrit = color === COLORS.critical || val === "暴击!" || (typeof val === 'string' && val.includes('Crit'));
     const isGold = color === 'gold' || (typeof val === 'string' && val.includes(' G'));
     const useDomDamageNumber = player.graphicsQuality === 'high'
         && cachedUI.floatingTexts

@@ -298,12 +298,55 @@ class CdpClient {
         return result.result.value;
     }
 
+    async evaluateWhenStable(expression, awaitPromise = false, timeoutMs = 10000) {
+        const deadline = Date.now() + timeoutMs;
+        let lastError = null;
+        while (Date.now() < deadline) {
+            try {
+                return await this.evaluate(expression, awaitPromise);
+            } catch (err) {
+                lastError = err;
+                if (!String(err.message).includes('Execution context was destroyed')) throw err;
+                await delay(100);
+            }
+        }
+        throw lastError || new Error('页面执行上下文等待超时');
+    }
+
+    waitForEvent(method, timeoutMs) {
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                cleanup();
+                reject(new Error(`等待 ${method} 超时`));
+            }, timeoutMs);
+            const onMessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.method !== method) return;
+                cleanup();
+                resolve(msg.params || {});
+            };
+            const cleanup = () => {
+                clearTimeout(timeout);
+                this.ws.removeEventListener('message', onMessage);
+            };
+            this.ws.addEventListener('message', onMessage);
+        });
+    }
+
     async waitForLoad() {
         await this.send('Page.enable');
         await this.send('Runtime.enable');
-        const ready = await this.evaluate('document.readyState');
-        if (ready === 'complete') return;
-        await this.evaluate(`new Promise(resolve => window.addEventListener('load', resolve, { once: true }))`, true);
+        for (let i = 0; i < 50; i++) {
+            const ready = await this.evaluateWhenStable('document.readyState', false, 2000);
+            if (ready === 'complete') return;
+            try {
+                await this.waitForEvent('Page.loadEventFired', 500);
+                return;
+            } catch (_) {
+                await delay(100);
+            }
+        }
+        throw new Error('页面加载等待超时');
     }
 
     close() {
