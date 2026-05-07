@@ -22,6 +22,7 @@ const AutoBattle = {
     oscillationDetector: { positions: [], lastCheck: 0 },  // 摇摆检测器
     lastDamagedBy: null,         // 记录最后攻击我的敌人
     lastDamagedTime: 0,          // 最后被攻击时间
+    lastTargetDamageDecisionTime: 0, // 上次因受击触发目标重选的时间
     moveDecisionTimer: 0,        // 移动决策计时器
     lastMoveDecision: null,      // 上次的移动决策
     failedPaths: [],             // 记录失败的寻路尝试
@@ -29,6 +30,15 @@ const AutoBattle = {
     targetFailCount: 0,          // 当前目标的连续失败次数
     lastTargetId: null,          // 上次追击的目标（用于检测目标切换）
     blacklistedTargets: [],      // 被放弃的目标黑名单 [{target, until}]
+    targetDecisionTimer: 0,      // 目标选择降频计时器
+    pickupDecisionTimer: 0,      // 拾取扫描降频计时器
+    targetDecisionInterval: 0.12, // 目标选择约8Hz
+    pickupDecisionInterval: 0.18, // 拾取候选约5.5Hz
+    losCache: new Map(),         // LOS缓存：对象+双方瓦片+区域
+    losObjectIds: new WeakMap(), // 对象引用稳定编号
+    losNextObjectId: 1,
+    losCacheAreaKey: null,
+    losCacheMaxEntries: 600,
 
     // ====== A*寻路系统 ======
     astarCache: {
@@ -326,6 +336,52 @@ const AutoBattle = {
         return null;
     },
 
+    getTileKey(x, y) {
+        return `${Math.floor(x / TILE_SIZE)},${Math.floor(y / TILE_SIZE)}`;
+    },
+
+    getLosAreaKey() {
+        return `${player.floor}:${player.hellFloor}:${player.isInHell}:${isInTown()}`;
+    },
+
+    resetLosCacheIfAreaChanged() {
+        const areaKey = this.getLosAreaKey();
+        if (this.losCacheAreaKey !== areaKey) {
+            this.losCache.clear();
+            this.losCacheAreaKey = areaKey;
+        }
+        return areaKey;
+    },
+
+    getLosObjectId(target) {
+        let id = this.losObjectIds.get(target);
+        if (id === undefined) {
+            id = this.losNextObjectId;
+            this.losNextObjectId++;
+            this.losObjectIds.set(target, id);
+        }
+        return id;
+    },
+
+    hasCachedLineOfSightTo(target) {
+        const areaKey = this.resetLosCacheIfAreaChanged();
+        const playerTile = this.getTileKey(player.x, player.y);
+        const targetTile = this.getTileKey(target.x, target.y);
+        const key = `${areaKey}:${this.getLosObjectId(target)}:${playerTile}:${targetTile}`;
+
+        if (this.losCache.has(key)) {
+            return this.losCache.get(key);
+        }
+
+        const result = hasLineOfSight(player.x, player.y, target.x, target.y);
+        this.losCache.set(key, result);
+        if (this.losCache.size > this.losCacheMaxEntries) {
+            const firstKey = this.losCache.keys().next().value;
+            this.losCache.delete(firstKey);
+        }
+        return result;
+    },
+
     // 寻找目标 - 优先近的能看到的，其次远的任意怪
     // 优化：使用 EnemyCache.aliveList 避免遍历死亡敌人
     findTarget() {
@@ -356,7 +412,7 @@ const AutoBattle = {
             }
 
             // 能看到的怪：优先选，范围600
-            if (distSq < 360000 && distSq < minVisibleDistSq && hasLineOfSight(px, py, e.x, e.y)) {
+            if (distSq < 360000 && distSq < minVisibleDistSq && this.hasCachedLineOfSightTo(e)) {
                 nearestVisible = e;
                 minVisibleDistSq = distSq;
             }
@@ -450,11 +506,29 @@ const AutoBattle = {
             }
         }
 
-        // 3. 拾取物品
-        this.autoPickupItems();
+        // 3. 拾取物品：候选扫描降到约5.5Hz，避免每帧遍历地面物品
+        this.pickupDecisionTimer += dt;
+        const pickupDecisionDue = this.pickupDecisionTimer >= this.pickupDecisionInterval;
+        if (pickupDecisionDue) {
+            this.autoPickupItems();
+            this.pickupDecisionTimer = 0;
+        }
 
-        // 4. 选目标：最近的能看到的怪
-        this.currentTarget = this.findTarget();
+        // 4. 选目标：扫描降到约8Hz；目标死亡/消失/刚受击时立即重选
+        this.targetDecisionTimer += dt;
+        const targetDecisionDue = this.targetDecisionTimer >= this.targetDecisionInterval;
+        const currentTargetRemoved = this.currentTarget && targetDecisionDue && !enemies.includes(this.currentTarget);
+        const currentTargetInvalid = (this.currentTarget && this.currentTarget.dead) ||
+            currentTargetRemoved;
+        const damageTriggeredDecision = this.lastDamagedBy && !this.lastDamagedBy.dead &&
+            this.lastDamagedTime > this.lastTargetDamageDecisionTime;
+        if (currentTargetInvalid || damageTriggeredDecision || targetDecisionDue) {
+            this.currentTarget = this.findTarget();
+            this.targetDecisionTimer = 0;
+            if (damageTriggeredDecision) {
+                this.lastTargetDamageDecisionTime = this.lastDamagedTime;
+            }
+        }
 
         if (!this.currentTarget) {
             // 没敌人，随机走走探索
@@ -503,9 +577,10 @@ const AutoBattle = {
     },
 
     // A*寻路：使用缓存提高性能
-    findPathToTarget(targetX, targetY) {
+    findPathToTarget(targetX, targetY, target = null) {
         // 1. 检查是否有视线，有的话直接走过去
-        if (hasLineOfSight(player.x, player.y, targetX, targetY)) {
+        const hasDirectLOS = target ? this.hasCachedLineOfSightTo(target) : hasLineOfSight(player.x, player.y, targetX, targetY);
+        if (hasDirectLOS) {
             // 清空缓存
             this.astarCache.path = null;
             this.astarCache.currentIndex = 0;
@@ -604,7 +679,7 @@ const AutoBattle = {
 
     // 向目标移动（使用寻路）
     moveTowards(target) {
-        const pathPos = this.findPathToTarget(target.x, target.y);
+        const pathPos = this.findPathToTarget(target.x, target.y, target);
 
         if (pathPos) {
             // 检查是否寻路成功（不是返回原地）
@@ -771,7 +846,7 @@ const AutoBattle = {
         mouse.worldY = target.y;
 
         // 检查视线
-        const hasLOS = hasLineOfSight(player.x, player.y, target.x, target.y);
+        const hasLOS = this.hasCachedLineOfSightTo(target);
 
         // 使用技能
         if (this.settings.useSkill) {
@@ -859,7 +934,7 @@ const AutoBattle = {
 
             // 视线检查：普通物品需要视线；极品物品（套装/暗金/金币）如果距离近即便没视线也要捡（可能在拐角）
             const isSuperRare = it.rarity >= 4 || it.type === 'gold';
-            if (!isSuperRare && !hasLineOfSight(player.x, player.y, it.x, it.y)) continue;
+            if (!isSuperRare && !this.hasCachedLineOfSightTo(it)) continue;
             // 即便没视线，极品物品距离也有限制（防止全图跑）
             if (isSuperRare && dist > 800) continue;
 
@@ -923,11 +998,11 @@ const AutoBattle = {
                 } else {
                     // 保持旧目标，但需要持续更新路径点（用于 A* 寻路）
                     const item = player.targetItem;
-                    if (hasLineOfSight(player.x, player.y, item.x, item.y)) {
+                    if (this.hasCachedLineOfSightTo(item)) {
                         player.targetX = item.x;
                         player.targetY = item.y;
                     } else {
-                        const pathPoint = this.findPathToTarget(item.x, item.y);
+                        const pathPoint = this.findPathToTarget(item.x, item.y, item);
                         if (pathPoint) {
                             player.targetX = pathPoint.x;
                             player.targetY = pathPoint.y;
@@ -959,14 +1034,14 @@ const AutoBattle = {
             }
 
             // 检查是否有视线，决定移动方式
-            if (hasLineOfSight(player.x, player.y, selected.x, selected.y)) {
+            if (this.hasCachedLineOfSightTo(selected)) {
                 // 有视线，直接走过去
                 player.targetItem = selected;
                 player.targetX = selected.x;
                 player.targetY = selected.y;
             } else {
                 // 没有视线，使用 A* 寻路
-                const pathPoint = this.findPathToTarget(selected.x, selected.y);
+                const pathPoint = this.findPathToTarget(selected.x, selected.y, selected);
                 if (pathPoint) {
                     player.targetItem = selected;
                     player.targetX = pathPoint.x;

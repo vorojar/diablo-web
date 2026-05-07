@@ -489,6 +489,61 @@ const EnemyCache = {
 let gameFrameId = 0; // 全局帧计数器
 let enemySpawnIntervalId = null;
 
+// ====== 敌人空间索引（玩家投射物/范围伤害窄查询）======
+const EnemySpatialGrid = {
+    cellSize: 128,
+    cells: new Map(),
+    frameId: -1,
+    ready: false,
+    maxEnemyRadius: 0,
+
+    rebuild(currentFrameId) {
+        this.cells.clear();
+        this.frameId = currentFrameId;
+        this.ready = true;
+        this.maxEnemyRadius = 0;
+
+        for (let i = 0, len = enemies.length; i < len; i++) {
+            const e = enemies[i];
+            if (e.dead) continue;
+            if (e.radius > this.maxEnemyRadius) this.maxEnemyRadius = e.radius;
+
+            const cellX = Math.floor(e.x / this.cellSize);
+            const cellY = Math.floor(e.y / this.cellSize);
+            const key = `${cellX},${cellY}`;
+            let bucket = this.cells.get(key);
+            if (!bucket) {
+                bucket = [];
+                this.cells.set(key, bucket);
+            }
+            bucket.push(e);
+        }
+    },
+
+    queryRadius(x, y, radius) {
+        if (!this.ready || this.frameId !== gameFrameId) return enemies;
+
+        const searchRadius = radius + this.maxEnemyRadius;
+        const minCellX = Math.floor((x - searchRadius) / this.cellSize);
+        const maxCellX = Math.floor((x + searchRadius) / this.cellSize);
+        const minCellY = Math.floor((y - searchRadius) / this.cellSize);
+        const maxCellY = Math.floor((y + searchRadius) / this.cellSize);
+        const result = [];
+
+        for (let cellY = minCellY; cellY <= maxCellY; cellY++) {
+            for (let cellX = minCellX; cellX <= maxCellX; cellX++) {
+                const bucket = this.cells.get(`${cellX},${cellY}`);
+                if (!bucket) continue;
+                for (let i = 0, len = bucket.length; i < len; i++) {
+                    result.push(bucket[i]);
+                }
+            }
+        }
+
+        return result;
+    }
+};
+
 function countAliveEnemiesDirect() {
     let count = 0;
     for (let i = 0, len = enemies.length; i < len; i++) {
@@ -7108,6 +7163,7 @@ function update(dt) {
     camera.y = Math.round(player.y) - canvas.height / 2;
 
     updateEnemies(dt);
+    EnemySpatialGrid.rebuild(gameFrameId);
 
     for (let i = projectiles.length - 1; i >= 0; i--) {
         const p = projectiles[i];
@@ -7167,7 +7223,8 @@ function update(dt) {
         } else {
             // 玩家发射的投射物，检测是否击中敌人
             let hitTarget = null;
-            for (let e of enemies) {
+            const enemyCandidates = EnemySpatialGrid.queryRadius(p.x, p.y, 10);
+            for (let e of enemyCandidates) {
                 if (!e.dead && e !== p.owner) {
                     const dx = p.x - e.x, dy = p.y - e.y;
                     if (dx * dx + dy * dy < (e.radius + 10) ** 2) {
@@ -7217,7 +7274,8 @@ function update(dt) {
 
                 // 对范围内的其他敌人造成伤害
                 const rSq = explosionRadius * explosionRadius;
-                enemies.forEach(e => {
+                const explosionCandidates = EnemySpatialGrid.queryRadius(p.x, p.y, explosionRadius);
+                explosionCandidates.forEach(e => {
                     const dx = p.x - e.x, dy = p.y - e.y;
                     if (!e.dead && e !== hitTarget && dx * dx + dy * dy < rSq) {
                         takeDamage(e, explosionDamage, true);

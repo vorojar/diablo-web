@@ -483,12 +483,12 @@ async function runProbe(args) {
     try {
         await cdp.connect();
         await cdp.waitForLoad();
-        await cdp.evaluate(`new Promise(resolve => {
+        await cdp.evaluateWhenStable(`new Promise(resolve => {
             const done = () => resolve(true);
             if (document.fonts && document.fonts.ready) document.fonts.ready.then(done, done);
             else setTimeout(done, 300);
         })`, true);
-        await cdp.evaluate(`new Promise(resolve => {
+        await cdp.evaluateWhenStable(`new Promise(resolve => {
             const ready = () => typeof update === 'function' && typeof draw === 'function' && typeof updateEnemies === 'function';
             if (ready()) return resolve(true);
             const deadline = performance.now() + 5000;
@@ -496,10 +496,10 @@ async function runProbe(args) {
             tick();
         })`, true);
 
-        const before = await cdp.evaluate(injectionSource(args));
+        const before = await cdp.evaluateWhenStable(injectionSource(args));
         await delay(args.seconds * 1000);
-        const after = await cdp.evaluate('window.__perfProbe.snapshot()');
-        const metrics = await cdp.evaluate('window.__perfProbe.stats()');
+        const after = await cdp.evaluateWhenStable('window.__perfProbe.snapshot()');
+        const metrics = await cdp.evaluateWhenStable('window.__perfProbe.stats()');
 
         return {
             url: args.url,
