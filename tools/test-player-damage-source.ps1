@@ -22,6 +22,6 @@ Assert-Contains -Text $game -Pattern 'sourceName: p\.sourceName' -Message 'FAIL:
 Assert-Contains -Text $game -Pattern 'sourceName: attacker\.name' -Message 'FAIL: enemy projectiles should snapshot the attacker name when fired.'
 Assert-Contains -Text $game -Pattern 'sourceName: enemy\.name' -Message 'FAIL: scatter volley projectiles should snapshot the enemy name when fired.'
 Assert-Contains -Text $enemySystem -Pattern 'sourceName: boss\.name' -Message 'FAIL: boss tentacle projectiles should snapshot the boss name when fired.'
-Assert-Contains -Text $index -Pattern 'enemy-system\.js\?v=202605061245' -Message 'FAIL: index.html did not bump the enemy-system.js cache version.'
+Assert-Contains -Text $index -Pattern 'enemy-system\.js\?v=202605071830' -Message 'FAIL: index.html did not bump the enemy-system.js cache version.'
 
 Write-Host 'PASS: player damage source contract'

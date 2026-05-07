@@ -41,8 +41,10 @@ const AutoBattle = {
     losCacheMaxEntries: 600,
 
     getMeleeEngageDistance(target) {
-        const targetRadius = target?.radius || 12;
-        const playerRadius = player.radius || 15;
+        if (!target || !Number.isFinite(target.radius)) throw new Error('AutoBattle melee target missing radius');
+        if (!Number.isFinite(player.radius)) throw new Error('Player missing radius');
+        const targetRadius = target.radius;
+        const playerRadius = player.radius;
         return Math.max(70, targetRadius + playerRadius + 35);
     },
 
@@ -882,7 +884,7 @@ const AutoBattle = {
 
         // 普攻：近战范围内，有视线或距离很近（墙角）
         const meleeRange = this.getMeleeEngageDistance(target);
-        const canMelee = (hasLOS || dist < meleeRange + 10) && dist < meleeRange;
+        const canMelee = (hasLOS || dist <= meleeRange + 10) && dist <= meleeRange;
         if (canMelee && player.attackCooldown <= 0) {
             const baseDmg = player.damage[0] + Math.random() * (player.damage[1] - player.damage[0]);
             const strBonus = player.str * 0.1;
