@@ -73,11 +73,25 @@ context.AutoBattle.decideAction(0.016);
 if (meleeCalls !== 1) {
     throw new Error(`FAIL: auto battle should use physical attack first in melee range, got ${meleeCalls}.`);
 }
+if (skillCalls !== 0) {
+    throw new Error(`FAIL: auto battle should not override a fresh melee swing with same-frame skill casts, got ${skillCalls}.`);
+}
+if (castOrder.join(',') !== 'melee') {
+    throw new Error(`FAIL: auto battle should let the melee swing own the current frame, got ${castOrder.join(',')}.`);
+}
+
+context.player.attackCooldown = 0.4;
+context.player.skillCooldowns.fireball = 0;
+context.AutoBattle.decideAction(0.016);
+
+if (meleeCalls !== 1) {
+    throw new Error(`FAIL: auto battle should not melee again while physical cooldown is active, got ${meleeCalls}.`);
+}
 if (skillCalls !== 1) {
-    throw new Error(`FAIL: auto battle should still cast ready skills after melee in close range, got ${skillCalls}.`);
+    throw new Error(`FAIL: auto battle should still cast ready skills while waiting for melee cooldown, got ${skillCalls}.`);
 }
 if (castOrder.join(',') !== 'melee,skill') {
-    throw new Error(`FAIL: auto battle should prioritize melee before close-range skills, got ${castOrder.join(',')}.`);
+    throw new Error(`FAIL: auto battle should only weave skills after the melee frame, got ${castOrder.join(',')}.`);
 }
 
 console.log('PASS: auto battle melee priority');

@@ -987,6 +987,7 @@ const AutoBattle = {
         if (canMelee) {
             if (player.attackCooldown <= 0) {
                 performAttack(target);
+                return;
             }
         }
 
