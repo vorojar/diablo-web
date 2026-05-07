@@ -53,6 +53,6 @@ Assert-NotContains -Text $dropLoot -Pattern "trackAchievement\('collect_unique'\
 Assert-NotContains -Text $dropLoot -Pattern "trackAchievement\('collect_set_item'\)" -Message 'FAIL: set collection achievement still triggers on loot drop.'
 Assert-Contains -Text $addItemToInventory -Pattern "trackAchievement\('collect_unique'\)" -Message 'FAIL: unique collection achievement is not triggered after inventory pickup succeeds.'
 Assert-Contains -Text $addItemToInventory -Pattern "trackAchievement\('collect_set_item'\)" -Message 'FAIL: set collection achievement is not triggered after inventory pickup succeeds.'
-Assert-Contains -Text $index -Pattern 'item-system\.js\?v=202605061150' -Message 'FAIL: index.html did not bump the item-system.js cache version.'
+Assert-Contains -Text $index -Pattern 'item-system\.js\?v=202605071930' -Message 'FAIL: index.html did not bump the item-system.js cache version.'
 
 Write-Host 'PASS: item collection achievement contract'

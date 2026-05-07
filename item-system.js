@@ -522,17 +522,18 @@ function useQuickItem(type) {
 
 // 创建掉落光柱特效 (从 game.js 移来)
 function createDropBeam(x, y, rarity) {
+  const isRare = rarity === RARITY.RARE;
   const isUnique = rarity === RARITY.UNIQUE;
   const isSet = rarity === RARITY.SET;
 
-  if (!isUnique && !isSet) return;
+  if (!isRare && !isUnique && !isSet) return;
   if (typeof spawnVfxEffect !== 'undefined') {
-    spawnVfxEffect('rareDropBurst', x, y, isUnique ? 1.05 : 0.95, 0);
+    spawnVfxEffect('rareDropBurst', x, y, isUnique ? 1.05 : (isSet ? 0.98 : 0.78), 0);
   }
 
   // 光柱颜色
-  const beamColor = isUnique ? '#ffd700' : '#00ff88';
-  const glowColor = isUnique ? 'rgba(255, 215, 0, 0.6)' : 'rgba(0, 255, 136, 0.6)';
+  const beamColor = isUnique ? '#ffd700' : (isSet ? '#00ff88' : '#fff05a');
+  const glowColor = isUnique ? 'rgba(255, 215, 0, 0.6)' : (isSet ? 'rgba(0, 255, 136, 0.6)' : 'rgba(255, 240, 90, 0.42)');
 
   // 创建光柱粒子
   particles.push({
@@ -541,21 +542,23 @@ function createDropBeam(x, y, rarity) {
     y: y,
     color: beamColor,
     glowColor: glowColor,
-    life: 1.5,           // 持续1.5秒
-    maxLife: 1.5,
-    height: 200,         // 光柱高度
-    width: isUnique ? 40 : 30,
+    life: isRare ? 0.85 : 1.5,
+    maxLife: isRare ? 0.85 : 1.5,
+    height: isRare ? 125 : 200,
+    width: isUnique ? 40 : (isSet ? 30 : 22),
     isUnique: isUnique
   });
 
   // 火花粒子
-  const sparkCount = isUnique ? 25 : 15;
+  const sparkCount = isUnique ? 25 : (isSet ? 15 : 9);
   for (let i = 0; i < sparkCount; i++) {
     const angle = (Math.PI * 2 / sparkCount) * i + Math.random() * 0.3;
     const speed = 80 + Math.random() * 120;
     const sparkColor = isUnique ?
       ['#ffd700', '#ffaa00', '#ff8800', '#ffffff'][Math.floor(Math.random() * 4)] :
-      ['#00ff88', '#00ffaa', '#88ffcc', '#ffffff'][Math.floor(Math.random() * 4)];
+      isSet ?
+        ['#00ff88', '#00ffaa', '#88ffcc', '#ffffff'][Math.floor(Math.random() * 4)] :
+        ['#fff05a', '#ffd24a', '#ffffff'][Math.floor(Math.random() * 3)];
 
     particles.push({
       x: x,
@@ -563,8 +566,8 @@ function createDropBeam(x, y, rarity) {
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed - 100 + Math.random() * 50,
       color: sparkColor,
-      life: 1.0 + Math.random() * 0.5,
-      size: 3 + Math.random() * 4,
+      life: (isRare ? 0.45 : 1.0) + Math.random() * 0.5,
+      size: (isRare ? 2 : 3) + Math.random() * (isRare ? 2 : 4),
       gravity: 200
     });
   }
@@ -574,8 +577,8 @@ function createDropBeam(x, y, rarity) {
     AudioSys.play('drop_unique');
     triggerScreenShake(8, 0.25);
   } else {
-    AudioSys.play('drop_set');
-    triggerScreenShake(5, 0.2);
+    if (isSet) AudioSys.play('drop_set');
+    triggerScreenShake(isSet ? 5 : 3, isSet ? 0.2 : 0.12);
   }
 }
 
@@ -775,8 +778,8 @@ function dropLoot(monster) {
       item.dropTime = Date.now();
       groundItems.push(item);
 
-      // 暗金/套装掉落特效
-      if (item.rarity === RARITY.UNIQUE || item.rarity === RARITY.SET) {
+      // 高品质掉落特效
+      if (item.rarity >= RARITY.RARE) {
         createDropBeam(item.x, item.y, item.rarity);
       }
     }

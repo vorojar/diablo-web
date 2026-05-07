@@ -3624,6 +3624,38 @@ function emitPhysicalHitAccent(e, angle, isCrit) {
     }
 }
 
+function drawGroundItemRarityAura(ctx, item, x, y) {
+    if (item.rarity < RARITY.MAGIC) return;
+    const color = getItemColor(item.rarity);
+    const time = Date.now() / 1000;
+    const pulse = 0.72 + Math.sin(time * 3.2 + x * 0.01 + y * 0.01) * 0.18;
+    const radius = item.rarity >= RARITY.UNIQUE ? 22 : (item.rarity === RARITY.RARE ? 18 : 14);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.translate(x, y + 2);
+    ctx.scale(1, 0.42);
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+    glow.addColorStop(0, color);
+    glow.addColorStop(0.45, color);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = (item.rarity >= RARITY.RARE ? 0.20 : 0.10) * pulse;
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (item.rarity >= RARITY.RARE) {
+        ctx.globalAlpha = 0.35 * pulse;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, radius * 0.82, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
 function drawGroundItem(ctx, i) {
     if (i.x < camera.x - 100 || i.x > camera.x + canvas.width + 100 ||
         i.y < camera.y - 100 || i.y > camera.y + canvas.height + 100) return;
@@ -3634,6 +3666,7 @@ function drawGroundItem(ctx, i) {
     const rx = Math.round(i.x);
     const ry = Math.round(i.y);
     const rz = Math.round(i.z || 0);
+    drawGroundItemRarityAura(ctx, i, rx, ry);
 
     if (itemSpritesLoaded && processedItemSprites) {
         const coords = getItemSpriteCoords(i);
@@ -12847,6 +12880,12 @@ function updateWorldLabels() {
         d.className = 'drop-label';
         d.innerText = i.displayName || i.name;
         d.style.color = getItemColor(i.rarity);
+        if (i.rarity >= RARITY.MAGIC) {
+            const glow = getItemColor(i.rarity);
+            d.style.textShadow = i.rarity >= RARITY.RARE
+                ? `0 0 8px ${glow}, 0 1px 2px #000`
+                : `0 0 4px ${glow}, 0 1px 2px #000`;
+        }
 
         d.onclick = e => {
             e.stopPropagation();
