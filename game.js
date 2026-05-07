@@ -13287,7 +13287,7 @@ function performAttack(t) {
     for (let i = 0; i < particleCount; i++) {
         createParticle(t.x + (Math.random() - 0.5) * 20, t.y + (Math.random() - 0.5) * 20, isCrit ? '#ffdd00' : '#fff', isCrit ? 4 : 5);
     }
-    player.attackCooldown = 0.5 / (1 + player.attackSpeed / 100);
+    player.attackCooldown = 0.8 / (1 + player.attackSpeed / 100);
 }
 
 function castSkill(skillName) {

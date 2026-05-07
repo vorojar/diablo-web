@@ -7,6 +7,7 @@ const source = fs.readFileSync(path.join(root, 'auto-battle.js'), 'utf8');
 
 let meleeCalls = 0;
 let skillCalls = 0;
+const castOrder = [];
 
 const context = {
     console,
@@ -45,8 +46,8 @@ const context = {
     mouse: { worldX: 0, worldY: 0 },
     isInTown: () => false,
     getSkillManaCost: () => 5,
-    castSkill: () => { skillCalls += 1; },
-    performAttack: () => { meleeCalls += 1; },
+    castSkill: () => { skillCalls += 1; castOrder.push('skill'); },
+    performAttack: () => { meleeCalls += 1; castOrder.push('melee'); },
     useQuickItem: () => {},
     createFloatingText: () => {},
     updateAutoBattleFeeHUD: () => {}
@@ -72,8 +73,11 @@ context.AutoBattle.decideAction(0.016);
 if (meleeCalls !== 1) {
     throw new Error(`FAIL: auto battle should use physical attack first in melee range, got ${meleeCalls}.`);
 }
-if (skillCalls !== 0) {
-    throw new Error(`FAIL: auto battle should not cast an offensive skill before melee, got ${skillCalls}.`);
+if (skillCalls !== 1) {
+    throw new Error(`FAIL: auto battle should still cast ready skills after melee in close range, got ${skillCalls}.`);
+}
+if (castOrder.join(',') !== 'melee,skill') {
+    throw new Error(`FAIL: auto battle should prioritize melee before close-range skills, got ${castOrder.join(',')}.`);
 }
 
 console.log('PASS: auto battle melee priority');

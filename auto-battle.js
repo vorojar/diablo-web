@@ -929,7 +929,6 @@ const AutoBattle = {
             if (player.attackCooldown <= 0) {
                 performAttack(target);
             }
-            return;
         }
 
         // 使用技能
