@@ -9077,11 +9077,12 @@ function draw() {
 
         // 暴击和横扫时添加外发光
         if (s.isCrit || s.isSweep) {
-            setGlow(ctx, s.isSweep ? 22 : 15, s.glowColor || '#ffdd00');
+            setGlow(ctx, s.glowBlur || (s.isSweep ? 10 : 15), s.glowColor || '#ffdd00');
         }
 
-        ctx.globalAlpha = alpha;
+        ctx.globalAlpha = alpha * (s.alphaScale || 1);
         ctx.strokeStyle = color;
+        ctx.lineCap = 'round';
 
         ctx.lineWidth = (s.lineWidth || (s.isCrit ? 5 : 3)) * alpha;
         ctx.beginPath();
@@ -12086,23 +12087,28 @@ function createPhysicalSweepEffect(fromX, fromY, attackAngle, tier, hitCount, is
 
     const profile = getPlayerVisualProfile();
     const color = isCrit ? '#ffdd00' : profile.trail;
-    const glowColor = isCrit ? '#ffdd00' : '#ffe08a';
-    const centerOffset = Math.cos(config.arc * 0.5) * 0.15;
+    const glowColor = isCrit ? '#ffdd00' : profile.trail;
+    const slashCount = config.slashCount + Math.min(hitCount, 2);
+    const fanWidth = Math.min(config.arc * 0.52, 1.95);
 
-    for (let i = 0; i < config.slashCount; i++) {
-        const spread = config.slashCount === 1 ? 0 : (i / (config.slashCount - 1) - 0.5);
+    for (let i = 0; i < slashCount; i++) {
+        const spread = slashCount === 1 ? 0 : (i / (slashCount - 1) - 0.5);
+        const depth = i / Math.max(1, slashCount - 1);
+        const radiusJitter = (i % 2) * 5;
         slashEffects.push({
-            x: fromX + Math.cos(attackAngle) * (18 + i * 2),
-            y: fromY + Math.sin(attackAngle) * (18 + i * 2),
-            angle: attackAngle + spread * config.arc * 0.32 + centerOffset,
-            radius: 46 + i * 15 + tier * 6,
+            x: fromX + Math.cos(attackAngle) * (12 + depth * 24),
+            y: fromY + Math.sin(attackAngle) * (12 + depth * 24),
+            angle: attackAngle + spread * fanWidth,
+            radius: 34 + tier * 5 + depth * 24 + radiusJitter,
             life: 1.0,
             isCrit,
             isSweep: true,
             color,
             glowColor,
-            arcWidth: config.arc * 0.42,
-            lineWidth: 4 + tier + (isCrit ? 1.5 : 0)
+            glowBlur: isCrit ? 14 : 8,
+            alphaScale: 0.52 + depth * 0.34,
+            arcWidth: 0.52 + tier * 0.06 + depth * 0.08,
+            lineWidth: 2.3 + tier * 0.25 + (isCrit ? 0.65 : 0)
         });
     }
 }

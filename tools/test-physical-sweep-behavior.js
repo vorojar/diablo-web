@@ -119,8 +119,11 @@ if (calls.some(c => c.damage.physical !== 60 || c.isSkillDamage !== false)) {
 if (context.slashEffects.length < 3) {
     throw new Error('FAIL: sweep should emit multiple blade arcs.');
 }
-if (!context.slashEffects.every(s => s.isSweep && s.arcWidth > 0.8 && s.lineWidth >= 6)) {
-    throw new Error(`FAIL: sweep slash effects should be wide layered blade arcs, got ${JSON.stringify(context.slashEffects)}.`);
+if (!context.slashEffects.every(s => s.isSweep && s.arcWidth >= 0.46 && s.arcWidth <= 0.86 && s.lineWidth >= 2.2 && s.lineWidth <= 4.2)) {
+    throw new Error(`FAIL: sweep slash effects should reuse the original slim blade standard, got ${JSON.stringify(context.slashEffects)}.`);
+}
+if (!context.slashEffects.some(s => s.alphaScale < 0.9)) {
+    throw new Error('FAIL: sweep should layer semi-transparent blade arcs instead of drawing a thick solid fan.');
 }
 
 calls.length = 0;
