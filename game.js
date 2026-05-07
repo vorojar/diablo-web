@@ -3453,6 +3453,101 @@ function drawPlayerDisciplineAura(ctx, x, y) {
     ctx.restore();
 }
 
+function getPlayerShieldVisualProfile() {
+    if (player.shield?.type === 'reflect') {
+        return {
+            edge: 'rgba(190, 132, 255, ',
+            rim: '#c084fc',
+            core: 'rgba(232, 213, 255, '
+        };
+    }
+    if (player.shield?.type === 'guard') {
+        return {
+            edge: 'rgba(92, 232, 140, ',
+            rim: '#72f0a2',
+            core: 'rgba(210, 255, 226, '
+        };
+    }
+    return {
+        edge: 'rgba(255, 224, 96, ',
+        rim: '#ffe680',
+        core: 'rgba(255, 246, 188, '
+    };
+}
+
+function drawPlayerShieldBack(ctx, x, y) {
+    if (!player.shield?.active || !(player.shield.value > 0)) return;
+
+    const shieldPercent = Math.max(0, Math.min(1, player.shield.value / player.shield.maxValue));
+    const profile = getPlayerShieldVisualProfile();
+    const pulse = 0.5 + Math.sin(Date.now() / 260) * 0.5;
+    const edgeAlpha = 0.16 + shieldPercent * 0.14 + pulse * 0.04;
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    const backGradient = ctx.createRadialGradient(0, -24, 14, 0, -24, 42);
+    backGradient.addColorStop(0, 'rgba(255,255,255,0)');
+    backGradient.addColorStop(0.52, profile.core + (edgeAlpha * 0.10).toFixed(2) + ')');
+    backGradient.addColorStop(0.82, profile.edge + edgeAlpha.toFixed(2) + ')');
+    backGradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = backGradient;
+    ctx.beginPath();
+    ctx.ellipse(0, -24, 34, 42, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = 0.18 + shieldPercent * 0.12;
+    ctx.strokeStyle = profile.rim;
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([7, 10]);
+    ctx.beginPath();
+    ctx.ellipse(0, -24, 30, 38, 0, Math.PI * 1.06, Math.PI * 1.94);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.restore();
+}
+
+function drawPlayerShieldFront(ctx, x, y) {
+    if (!player.shield?.active || !(player.shield.value > 0)) return;
+
+    const shieldPercent = Math.max(0, Math.min(1, player.shield.value / player.shield.maxValue));
+    const profile = getPlayerShieldVisualProfile();
+    const pulse = 0.5 + Math.sin(Date.now() / 220) * 0.5;
+    const alpha = 0.36 + shieldPercent * 0.22 + pulse * 0.08;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.strokeStyle = profile.edge + alpha.toFixed(2) + ')';
+    ctx.lineWidth = 2.2;
+    ctx.shadowColor = profile.rim;
+    ctx.shadowBlur = 9 + pulse * 5;
+    ctx.lineCap = 'round';
+
+    ctx.beginPath();
+    ctx.arc(0, -24, 34, Math.PI * 0.10, Math.PI * 0.90);
+    ctx.stroke();
+
+    ctx.lineWidth = 1.3;
+    ctx.globalAlpha = 0.65;
+    ctx.beginPath();
+    ctx.arc(0, -24, 28, Math.PI * 0.04, Math.PI * 0.32);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, -24, 28, Math.PI * 0.68, Math.PI * 0.96);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.28 + shieldPercent * 0.16;
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = profile.rim;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 24, 8, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+}
+
 function drawEnemyActor(ctx, e) {
     if (!e || (e.dead && !(e.deathVisualTimer > 0))) return;
     if (e.x < camera.x - 100 || e.x > camera.x + canvas.width + 100 ||
@@ -8582,63 +8677,7 @@ function draw() {
     const px = Math.round(player.x);
     const py = Math.round(player.y);
 
-    // 渲染护盾光环（椭圆形）
-    if (player.shield?.active && player.shield?.value > 0) {
-        const shieldPercent = player.shield.value / player.shield.maxValue;
-        const baseRadius = 35;
-        const breathScale = 1 + Math.sin(Date.now() / 300) * 0.05; // 呼吸动画
-        const radius = baseRadius * breathScale;
-        const scaleX = 0.6; // 宽度缩小为 60%，形成椭圆
-
-        // 选择护盾颜色（根据护盾类型）
-        let shieldColor = 'rgba(255, 215, 0, '; // 默认金色
-        if (player.shield.type === 'reflect') {
-            shieldColor = 'rgba(168, 85, 247, '; // 紫色：反射
-        } else if (player.shield.type === 'guard') {
-            shieldColor = 'rgba(34, 197, 94, '; // 绿色：守护
-        }
-
-        // 透明度随护盾值变化
-        const baseAlpha = 0.3 + shieldPercent * 0.3;
-        const pulseAlpha = baseAlpha + Math.sin(Date.now() / 200) * 0.1;
-
-        // 应用椭圆变换（上面位置固定，压缩下半部分）
-        ctx.save();
-        const scaleY = 0.7; // 高度缩小为 70%
-        const topOffset = -radius - 12; // 光环顶部位置
-        ctx.translate(px, py + topOffset + radius * scaleY);
-        ctx.scale(scaleX, scaleY);
-
-        // 外圈光晕
-        ctx.beginPath();
-        ctx.arc(0, 0, radius + 8, 0, Math.PI * 2);
-        const outerGlow = ctx.createRadialGradient(0, 0, radius - 5, 0, 0, radius + 15);
-        outerGlow.addColorStop(0, shieldColor + '0)');
-        outerGlow.addColorStop(0.5, shieldColor + (pulseAlpha * 0.5).toFixed(2) + ')');
-        outerGlow.addColorStop(1, shieldColor + '0)');
-        ctx.fillStyle = outerGlow;
-        ctx.fill();
-
-        // 内圈护盾
-        ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        const innerGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-        innerGlow.addColorStop(0, shieldColor + '0)');
-        innerGlow.addColorStop(0.7, shieldColor + (pulseAlpha * 0.3).toFixed(2) + ')');
-        innerGlow.addColorStop(1, shieldColor + pulseAlpha.toFixed(2) + ')');
-        ctx.fillStyle = innerGlow;
-        ctx.fill();
-
-        // 护盾边缘
-        ctx.beginPath();
-        ctx.arc(0, 0, radius, 0, Math.PI * 2);
-        ctx.strokeStyle = shieldColor + (pulseAlpha + 0.2).toFixed(2) + ')';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        ctx.restore();
-    }
-
+    drawPlayerShieldBack(ctx, px, py);
     if ((heroSpritesLoaded && processedHeroSprites) || (spritesLoaded && processedSpriteSheet)) {
         const frame = getHeroFrame(player.direction);
         const useHeroSheet = heroSpritesLoaded && processedHeroSprites && frame.animated;
@@ -8668,8 +8707,10 @@ function draw() {
             drawHeroSprite(ctx, source, frame, 0, -renderHeight / 2, renderWidth, renderHeight);
             ctx.restore();
         }
+        drawPlayerShieldFront(ctx, px, py);
     } else {
         ctx.fillStyle = player.color; ctx.beginPath(); ctx.arc(px, py, player.radius, 0, Math.PI * 2); ctx.fill();
+        drawPlayerShieldFront(ctx, px, py);
     }
 
     // 渲染玩家头顶称号（最新优先：购买称号 vs 深渊称号）
