@@ -56,8 +56,8 @@ const MAX_CANVAS_RENDER_PIXELS = 1600 * 900;
 const renderViewport = {
     cssWidth: 0,
     cssHeight: 0,
-    scaleX: 1,
-    scaleY: 1
+    renderScaleX: 1,
+    renderScaleY: 1
 };
 
 function updateRenderViewport() {
@@ -69,8 +69,8 @@ function updateRenderViewport() {
 
     renderViewport.cssWidth = cssWidth;
     renderViewport.cssHeight = cssHeight;
-    renderViewport.scaleX = cssWidth / renderWidth;
-    renderViewport.scaleY = cssHeight / renderHeight;
+    renderViewport.renderScaleX = renderWidth / cssWidth;
+    renderViewport.renderScaleY = renderHeight / cssHeight;
 
     canvas.width = renderWidth;
     canvas.height = renderHeight;
@@ -80,20 +80,32 @@ function updateRenderViewport() {
 
 function clientToCanvasX(clientX) {
     const rect = canvas.getBoundingClientRect();
-    return (clientX - rect.left) * canvas.width / rect.width;
+    return clientX - rect.left;
 }
 
 function clientToCanvasY(clientY) {
     const rect = canvas.getBoundingClientRect();
-    return (clientY - rect.top) * canvas.height / rect.height;
+    return clientY - rect.top;
 }
 
 function canvasToCssX(x) {
-    return x * renderViewport.scaleX;
+    return x;
 }
 
 function canvasToCssY(y) {
-    return y * renderViewport.scaleY;
+    return y;
+}
+
+function getViewportWidth() {
+    return renderViewport.cssWidth || canvas.width;
+}
+
+function getViewportHeight() {
+    return renderViewport.cssHeight || canvas.height;
+}
+
+function applyRenderViewportTransform() {
+    ctx.setTransform(renderViewport.renderScaleX, 0, 0, renderViewport.renderScaleY, 0, 0);
 }
 
 // DOM 缓存对象
@@ -2221,8 +2233,8 @@ const DestructibleSystem = {
 
     drawOne: function (ctx, d) {
         if (!destructiblesLoaded || !processedDestructibleSprites) return;
-        if (d.x < camera.x - 100 || d.x > camera.x + canvas.width + 100 ||
-            d.y < camera.y - 120 || d.y > camera.y + canvas.height + 100) return;
+        if (d.x < camera.x - 100 || d.x > camera.x + getViewportWidth() + 100 ||
+            d.y < camera.y - 120 || d.y > camera.y + getViewportHeight() + 100) return;
 
         const spriteIndex = d.type.row * 2 + (d.broken ? 1 : 0);
         const spriteBounds = destructibleSpriteBounds[spriteIndex] || {
@@ -2373,8 +2385,8 @@ function getEnvSpriteBounds(row, col) {
 
 function drawScenicPropOne(ctx, prop) {
     if (!envSpritesLoaded || !processedEnvSprites) return;
-    if (prop.x < camera.x - 140 || prop.x > camera.x + canvas.width + 140 ||
-        prop.y < camera.y - 180 || prop.y > camera.y + canvas.height + 140) return;
+    if (prop.x < camera.x - 140 || prop.x > camera.x + getViewportWidth() + 140 ||
+        prop.y < camera.y - 180 || prop.y > camera.y + getViewportHeight() + 140) return;
 
     const bounds = getEnvSpriteBounds(prop.row, prop.col);
     const ratio = bounds.sw / bounds.sh;
@@ -2430,8 +2442,8 @@ function drawDungeonLightSources(ctx, biome) {
     let drawn = 0;
     for (let i = 0, len = dungeonLightSources.length; i < len; i++) {
         const light = dungeonLightSources[i];
-        if (light.x < camera.x - light.radius || light.x > camera.x + canvas.width + light.radius ||
-            light.y < camera.y - light.radius || light.y > camera.y + canvas.height + light.radius) continue;
+        if (light.x < camera.x - light.radius || light.x > camera.x + getViewportWidth() + light.radius ||
+            light.y < camera.y - light.radius || light.y > camera.y + getViewportHeight() + light.radius) continue;
         if (drawn++ >= maxLights) break;
 
         const flicker = light.flicker ? 0.86 + Math.sin(time * 5.5 + light.phase) * 0.10 + Math.sin(time * 13 + light.phase) * 0.04 : 1;
@@ -3341,9 +3353,10 @@ function drawBossHealthHud() {
     const boss = getActiveBossForHud();
     if (!boss || isInTown()) return;
 
-    const w = Math.min(620, Math.max(340, canvas.width * 0.52));
+    const viewportWidth = getViewportWidth();
+    const w = Math.min(620, Math.max(340, viewportWidth * 0.52));
     const h = 24;
-    const x = (canvas.width - w) / 2;
+    const x = (viewportWidth - w) / 2;
     const y = 78;
     const hpRatio = Math.max(0, Math.min(1, boss.hp / boss.maxHp));
     const enraged = boss.enraged || hpRatio <= 0.3;
@@ -3385,10 +3398,10 @@ function drawBossHealthHud() {
     clearGlow(ctx);
     ctx.fillStyle = '#f1d8a4';
     ctx.font = 'bold 15px Cinzel';
-    ctx.fillText(boss.name, canvas.width / 2, y + h + 16);
+    ctx.fillText(boss.name, viewportWidth / 2, y + h + 16);
     ctx.font = '11px Cinzel';
     ctx.fillStyle = enraged ? '#ffb088' : '#c9a66a';
-    ctx.fillText(`${phaseText}  ${Math.ceil(boss.hp)} / ${boss.maxHp}`, canvas.width / 2, y + 16);
+    ctx.fillText(`${phaseText}  ${Math.ceil(boss.hp)} / ${boss.maxHp}`, viewportWidth / 2, y + 16);
     ctx.restore();
 }
 
@@ -3550,8 +3563,8 @@ function drawPlayerShieldFront(ctx, x, y) {
 
 function drawEnemyActor(ctx, e) {
     if (!e || (e.dead && !(e.deathVisualTimer > 0))) return;
-    if (e.x < camera.x - 100 || e.x > camera.x + canvas.width + 100 ||
-        e.y < camera.y - 120 || e.y > camera.y + canvas.height + 100) return;
+    if (e.x < camera.x - 100 || e.x > camera.x + getViewportWidth() + 100 ||
+        e.y < camera.y - 120 || e.y > camera.y + getViewportHeight() + 100) return;
 
     const rx = Math.round(e.x);
     const ry = Math.round(e.y);
@@ -3861,8 +3874,8 @@ function drawGroundItemRarityAura(ctx, item, x, y) {
 }
 
 function drawGroundItem(ctx, i) {
-    if (i.x < camera.x - 100 || i.x > camera.x + canvas.width + 100 ||
-        i.y < camera.y - 100 || i.y > camera.y + canvas.height + 100) return;
+    if (i.x < camera.x - 100 || i.x > camera.x + getViewportWidth() + 100 ||
+        i.y < camera.y - 100 || i.y > camera.y + getViewportHeight() + 100) return;
 
     const isConsumable = i.type === 'gold' || i.type === 'potion' || i.type === 'scroll';
     if (!isAltPressed && !isConsumable && i.rarity < 2) return;
@@ -5292,13 +5305,8 @@ function enterFloor(f, spawnAt = 'start') {
     scenicProps = [];
     dungeonLightSources = [];
 
-    // 清空A*寻路缓存（新楼层需要重新计算路径）
-    if (AutoBattle.astarCache) {
-        AutoBattle.astarCache.path = null;
-        AutoBattle.astarCache.targetX = null;
-        AutoBattle.astarCache.targetY = null;
-        AutoBattle.astarCache.currentIndex = 0;
-    }
+    // 新地图会使敌人、掉落、路径和视线缓存全部失效。
+    AutoBattle.resetRuntimeState('enterFloor');
 
     // 成就追踪：到达楼层
     trackAchievement('reach_floor', { floor: f });
@@ -7267,8 +7275,8 @@ function update(dt) {
     // 环境氛围粒子生成 (Biome Atmosphere) - 每帧检查
     const currentBiome = getBiomeStyle(player.floor);
     if (currentBiome && Math.random() < 0.2) { // 20%概率每帧
-        const spawnX = camera.x + Math.random() * canvas.width;
-        const spawnY = camera.y + Math.random() * canvas.height;
+        const spawnX = camera.x + Math.random() * getViewportWidth();
+        const spawnY = camera.y + Math.random() * getViewportHeight();
 
         if (currentBiome.type === 'forest') {
             // 森林孢子/萤火虫
@@ -7732,8 +7740,8 @@ function update(dt) {
     const pc = Math.floor(player.x / TILE_SIZE), pr = Math.floor(player.y / TILE_SIZE);
     for (let y = pr - 8; y <= pr + 8; y++) for (let x = pc - 8; x <= pc + 8; x++) if (y >= 0 && y < MAP_HEIGHT && x >= 0 && x < MAP_WIDTH && mapData[y][x] && !visitedMap[y][x]) { visitedMap[y][x] = true; _minimapDirty = true; }
     // 修复抖动：摄像机基于取整后的玩家位置，确保玩家在屏幕上位置稳定
-    camera.x = Math.round(player.x) - canvas.width / 2;
-    camera.y = Math.round(player.y) - canvas.height / 2;
+    camera.x = Math.round(player.x) - getViewportWidth() / 2;
+    camera.y = Math.round(player.y) - getViewportHeight() / 2;
 
     updateEnemies(dt);
     EnemySpatialGrid.rebuild(gameFrameId);
@@ -8452,7 +8460,11 @@ function updateEnemies(dt) {
 
 // --- Rendering ---
 function draw() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    applyRenderViewportTransform();
+    const viewportWidth = getViewportWidth();
+    const viewportHeight = getViewportHeight();
 
     // 震屏效果
     let shakeX = 0, shakeY = 0;
@@ -8481,8 +8493,8 @@ function draw() {
         const dstY = Math.max(0, -Math.floor(camera.y));
 
         // 绘制宽高
-        const drawW = Math.min(canvas.width - dstX, cacheW - srcX);
-        const drawH = Math.min(canvas.height - dstY, cacheH - srcY);
+        const drawW = Math.min(viewportWidth - dstX, cacheW - srcX);
+        const drawH = Math.min(viewportHeight - dstY, cacheH - srcY);
 
         if (drawW > 0 && drawH > 0) {
             ctx.drawImage(mapCacheCanvas, srcX, srcY, drawW, drawH, srcX, srcY, drawW, drawH);
@@ -8492,8 +8504,8 @@ function draw() {
 
     // 缓存无效或绘制失败时的后备方案
     if (!mapDrawn) {
-        const sc = Math.floor(camera.x / TILE_SIZE), ec = sc + (canvas.width / TILE_SIZE) + 1;
-        const sr = Math.floor(camera.y / TILE_SIZE), er = sr + (canvas.height / TILE_SIZE) + 1;
+        const sc = Math.floor(camera.x / TILE_SIZE), ec = sc + (viewportWidth / TILE_SIZE) + 1;
+        const sr = Math.floor(camera.y / TILE_SIZE), er = sr + (viewportHeight / TILE_SIZE) + 1;
         const fallbackBiome = getBiomeStyle(player.floor);
         const fallbackTown = isInTown();
 
@@ -8607,8 +8619,8 @@ function draw() {
     if (bloodCanvas) {
         const sx = Math.max(0, camera.x);
         const sy = Math.max(0, camera.y);
-        const sw = Math.min(bloodCanvas.width - sx, canvas.width);
-        const sh = Math.min(bloodCanvas.height - sy, canvas.height);
+        const sw = Math.min(bloodCanvas.width - sx, viewportWidth);
+        const sh = Math.min(bloodCanvas.height - sy, viewportHeight);
         if (sw > 0 && sh > 0) {
             ctx.drawImage(bloodCanvas, sx, sy, sw, sh, sx, sy, sw, sh);
         }
@@ -8623,8 +8635,8 @@ function draw() {
     for (let ei = 0, eLen = enemies.length; ei < eLen; ei++) {
         const e = enemies[ei];
         if (e.dead) continue;
-        if (e.x < camera.x - 100 || e.x > camera.x + canvas.width + 100 ||
-            e.y < camera.y - 120 || e.y > camera.y + canvas.height + 100) continue;
+        if (e.x < camera.x - 100 || e.x > camera.x + viewportWidth + 100 ||
+            e.y < camera.y - 120 || e.y > camera.y + viewportHeight + 100) continue;
         renderEnemies.push(e);
     }
     renderEnemies.sort((a, b) => a.y - b.y);
@@ -8793,8 +8805,8 @@ function draw() {
     for (let pi = 0, pLen = projectiles.length; pi < pLen; pi++) {
         const p = projectiles[pi];
         // 视口剔除
-        if (p.x < camera.x - 50 || p.x > camera.x + canvas.width + 50 ||
-            p.y < camera.y - 50 || p.y > camera.y + canvas.height + 50) continue;
+        if (p.x < camera.x - 50 || p.x > camera.x + viewportWidth + 50 ||
+            p.y < camera.y - 50 || p.y > camera.y + viewportHeight + 50) continue;
 
         ctx.strokeStyle = p.color || '#fa0';
         ctx.fillStyle = p.color || '#fa0';
@@ -8817,8 +8829,8 @@ function draw() {
     for (let pti = 0, ptLen = particles.length; pti < ptLen; pti++) {
         const p = particles[pti];
         // 视口剔除
-        if (p.x < camera.x - 100 || p.x > camera.x + canvas.width + 100 ||
-            p.y < camera.y - 120 || p.y > camera.y + canvas.height + 100) continue;
+        if (p.x < camera.x - 100 || p.x > camera.x + viewportWidth + 100 ||
+            p.y < camera.y - 120 || p.y > camera.y + viewportHeight + 100) continue;
 
         if (p.type === 'lightning') {
             ctx.beginPath();
@@ -8983,8 +8995,8 @@ function draw() {
 
     for (let vi = 0, vLen = vfxEffects.length; vi < vLen; vi++) {
         const fx = vfxEffects[vi];
-        if (fx.x < camera.x - 140 || fx.x > camera.x + canvas.width + 140 ||
-            fx.y < camera.y - 160 || fx.y > camera.y + canvas.height + 160) continue;
+        if (fx.x < camera.x - 140 || fx.x > camera.x + viewportWidth + 140 ||
+            fx.y < camera.y - 160 || fx.y > camera.y + viewportHeight + 160) continue;
         drawVfxEffect(ctx, fx);
     }
 
@@ -9091,9 +9103,9 @@ function draw() {
 
     // 死亡状态：弹窗已显示，不再需要 canvas 上的倒计时文字
 
-    const g = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 200, canvas.width / 2, canvas.height / 2, canvas.width / 1.2);
+    const g = ctx.createRadialGradient(viewportWidth / 2, viewportHeight / 2, 200, viewportWidth / 2, viewportHeight / 2, viewportWidth / 1.2);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.85)');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, viewportWidth, viewportHeight);
     drawBossHealthHud();
 
     // 回城仪式视觉效果
@@ -9106,13 +9118,13 @@ function draw() {
 
             // 读条UI
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(canvas.width / 2 - 100, canvas.height - 80, 200, 20);
+            ctx.fillRect(viewportWidth / 2 - 100, viewportHeight - 80, 200, 20);
             ctx.fillStyle = '#6699ff';
-            ctx.fillRect(canvas.width / 2 - 98, canvas.height - 78, 196 * progress, 16);
+            ctx.fillRect(viewportWidth / 2 - 98, viewportHeight - 78, 196 * progress, 16);
             ctx.fillStyle = '#fff';
             ctx.font = '14px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText('传送中...', canvas.width / 2, canvas.height - 65);
+            ctx.fillText('传送中...', viewportWidth / 2, viewportHeight - 65);
 
         } else if (portalRitual.phase === 1) {
             // 光效阶段：粒子系统已处理，这里只保留空处理
@@ -9121,7 +9133,7 @@ function draw() {
         // 白闪覆盖层（phase 2 和 3）
         if (portalRitual.flashAlpha > 0) {
             ctx.fillStyle = `rgba(255, 255, 255, ${portalRitual.flashAlpha})`;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillRect(0, 0, viewportWidth, viewportHeight);
         }
 
         ctx.restore();
@@ -9132,14 +9144,14 @@ function draw() {
         ctx.save();
         // 金色径向渐变闪光
         const gradient = ctx.createRadialGradient(
-            canvas.width / 2, canvas.height / 2, 0,
-            canvas.width / 2, canvas.height / 2, canvas.width * 0.8
+            viewportWidth / 2, viewportHeight / 2, 0,
+            viewportWidth / 2, viewportHeight / 2, viewportWidth * 0.8
         );
         gradient.addColorStop(0, `rgba(255, 215, 0, ${levelUpEffect.flashAlpha * 0.6})`);
         gradient.addColorStop(0.5, `rgba(255, 180, 0, ${levelUpEffect.flashAlpha * 0.3})`);
         gradient.addColorStop(1, `rgba(255, 150, 0, 0)`);
         ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillRect(0, 0, viewportWidth, viewportHeight);
         ctx.restore();
     }
 
@@ -9177,7 +9189,7 @@ function updateLabelsPosition() {
         const i = groundItems[li];
         if (i.el) {
             const sx = i.x - camera.x, sy = i.y - camera.y - (i.z || 0) - 25;
-            if (sx > 0 && sx < canvas.width && sy > 0 && sy < canvas.height) {
+            if (sx > 0 && sx < getViewportWidth() && sy > 0 && sy < getViewportHeight()) {
                 i.el.style.display = 'block'; i.el.style.left = canvasToCssX(sx) + 'px'; i.el.style.top = canvasToCssY(sy) + 'px';
             } else i.el.style.display = 'none';
         }

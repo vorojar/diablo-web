@@ -75,6 +75,33 @@ const AutoBattle = {
         return candidateDistSq < currentDistSq * 0.65;
     },
 
+    resetRuntimeState(reason) {
+        this.currentTarget = null;
+        this.lastDamagedBy = null;
+        this.lastDamagedTime = 0;
+        this.lastTargetDamageDecisionTime = 0;
+        this.targetDecisionTimer = 0;
+        this.pickupDecisionTimer = 0;
+        this.stuckTimer = 0;
+        this.stuckPosTimer = 0;
+        this.lastPos = { x: player.x, y: player.y };
+        this.failedPaths = [];
+        this.blacklistedTargets = [];
+        this.targetFailCount = 0;
+        this.lastTargetId = null;
+        this.moveDecisionTimer = 0;
+        this.lastMoveDecision = null;
+        this.losCache.clear();
+        this.losCacheAreaKey = null;
+        this.astarCache.path = null;
+        this.astarCache.targetX = null;
+        this.astarCache.targetY = null;
+        this.astarCache.currentIndex = 0;
+        player.targetItem = null;
+        player.targetX = null;
+        player.targetY = null;
+    },
+
     // ====== A*寻路系统 ======
     astarCache: {
         path: null,              // 当前缓存的路径 [{x, y}, ...]

@@ -29,6 +29,6 @@ Assert-Contains -Text $game -Pattern 'tryResolvePendingNpcInteraction\(\);' -Mes
 Assert-Contains -Text $autoBattle -Pattern 'player\.targetX = pathPos\.x;' -Message 'FAIL: regression contract should cover AutoBattle path targets.'
 Assert-Contains -Text $autoBattle -Pattern 'player\.targetX = selected\.x;' -Message 'FAIL: regression contract should cover AutoBattle pickup targets.'
 
-Assert-Contains -Text $index -Pattern 'game\.js\?v=202605072330' -Message 'FAIL: index.html did not bump the game.js cache version.'
+Assert-Contains -Text $index -Pattern 'game\.js\?v=202605072359' -Message 'FAIL: index.html did not bump the game.js cache version.'
 
 Write-Host 'PASS: player movement oscillation contract'
