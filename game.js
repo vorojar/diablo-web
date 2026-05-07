@@ -1058,7 +1058,6 @@ function updateSmoothUI(dt) {
     const now = Date.now();
     if (!uiDisplayState.lastThrottleTime || now - uiDisplayState.lastThrottleTime > 100) {
         uiDisplayState.lastThrottleTime = now;
-        updateLabelsPosition();
         updateBuffIndicators();
         updateSkillCooldownUI();
         updateHellIndicator();
@@ -8048,7 +8047,10 @@ function draw() {
     renderEnemies.length = 0;
     for (let ei = 0, eLen = enemies.length; ei < eLen; ei++) {
         const e = enemies[ei];
-        if (!e.dead) renderEnemies.push(e);
+        if (e.dead) continue;
+        if (e.x < camera.x - 100 || e.x > camera.x + canvas.width + 100 ||
+            e.y < camera.y - 120 || e.y > camera.y + canvas.height + 100) continue;
+        renderEnemies.push(e);
     }
     renderEnemies.sort((a, b) => a.y - b.y);
 
