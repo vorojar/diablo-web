@@ -58,6 +58,18 @@ const AutoBattle = {
         return dx * dx + dy * dy;
     },
 
+    canMeleeTarget(target, dist, hasLOS) {
+        return (hasLOS || dist < GAME_CONFIG.PLAYER_MELEE_NO_LOS_RANGE) &&
+            dist <= this.getMeleeEngageDistance(target);
+    },
+
+    shouldCloseForMelee(target, dist, hasLOS) {
+        if (target.phaseThrough || target.ai === 'specter') return false;
+        return !hasLOS &&
+            dist >= GAME_CONFIG.PLAYER_MELEE_NO_LOS_RANGE &&
+            dist <= this.getMeleeEngageDistance(target);
+    },
+
     shouldSwitchTarget(candidate, reason) {
         if (!candidate || candidate.dead) return false;
         if (this.isTargetBlacklisted(candidate)) return false;
@@ -504,8 +516,10 @@ const AutoBattle = {
 
         let nearestVisible = null;   // 能看到的最近的怪
         let minVisibleDistSq = Infinity;
-        let nearestClose = null;     // 近距离的怪（即使在墙角）
-        let minCloseDistSq = Infinity;
+        let nearestCloseMelee = null; // 已可普攻的近距离怪
+        let minCloseMeleeDistSq = Infinity;
+        let nearestCloseBlocked = null; // 近但需要继续贴近/绕位的怪
+        let minCloseBlockedDistSq = Infinity;
         let nearestAny = null;       // 任意最近的怪（用于绕路）
         let minAnyDistSq = Infinity;
 
@@ -521,16 +535,27 @@ const AutoBattle = {
             const dx = e.x - px, dy = e.y - py;
             const distSq = dx * dx + dy * dy;
 
-            // 近距离的怪（<100）：即使在墙角也要打，最高优先
-            if (distSq < 10000 && distSq < minCloseDistSq) {
-                nearestClose = e;
-                minCloseDistSq = distSq;
-            }
+            const inVisibleScanRange = distSq < 360000;
+            const hasLOS = inVisibleScanRange && this.hasCachedLineOfSightTo(e);
 
             // 能看到的怪：优先选，范围600
-            if (distSq < 360000 && distSq < minVisibleDistSq && this.hasCachedLineOfSightTo(e)) {
+            if (hasLOS && distSq < minVisibleDistSq) {
                 nearestVisible = e;
                 minVisibleDistSq = distSq;
+            }
+
+            // 近距离怪拆成可普攻和被墙角/障碍挡住两类，避免墙内目标压过可见威胁。
+            if (distSq < 10000) {
+                const dist = Math.sqrt(distSq);
+                if (this.canMeleeTarget(e, dist, hasLOS)) {
+                    if (distSq < minCloseMeleeDistSq) {
+                        nearestCloseMelee = e;
+                        minCloseMeleeDistSq = distSq;
+                    }
+                } else if (distSq < minCloseBlockedDistSq) {
+                    nearestCloseBlocked = e;
+                    minCloseBlockedDistSq = distSq;
+                }
             }
 
             // 任意怪：范围扩大到1500（整个屏幕），用于绕路追击
@@ -540,8 +565,8 @@ const AutoBattle = {
             }
         }
 
-        // 优先级：近距离怪 > 能看到的 > 任意怪
-        return nearestClose || nearestVisible || nearestAny;
+        // 优先级：可普攻近怪 > 可见威胁 > 近距离受阻怪 > 任意怪
+        return nearestCloseMelee || nearestVisible || nearestCloseBlocked || nearestAny;
     },
 
     // 记录被攻击
@@ -673,10 +698,14 @@ const AutoBattle = {
         if (player.targetItem === null) {
             const tdx = this.currentTarget.x - player.x;
             const tdy = this.currentTarget.y - player.y;
+            const dist = Math.hypot(tdx, tdy);
+            const hasLOS = this.hasCachedLineOfSightTo(this.currentTarget);
             const engageDistance = this.getMeleeEngageDistance(this.currentTarget);
-            if (tdx * tdx + tdy * tdy > engageDistance * engageDistance) {
+            const shouldCloseForMelee = this.shouldCloseForMelee(this.currentTarget, dist, hasLOS);
+            if (tdx * tdx + tdy * tdy > engageDistance * engageDistance || shouldCloseForMelee) {
                 this.moveTowards(this.currentTarget);
                 if (!this.currentTarget) return;
+                if (shouldCloseForMelee) return;
             } else {
                 player.targetX = null;
                 player.targetY = null;
@@ -981,8 +1010,7 @@ const AutoBattle = {
 
         // 检查视线
         const hasLOS = this.hasCachedLineOfSightTo(target);
-        const meleeRange = this.getMeleeEngageDistance(target);
-        const canMelee = (hasLOS || dist < 50) && dist <= meleeRange;
+        const canMelee = this.canMeleeTarget(target, dist, hasLOS);
 
         if (canMelee) {
             if (player.attackCooldown <= 0) {

@@ -37,7 +37,7 @@ Assert-Contains -Text $game -Pattern 'const f = getCurrentCombatFloor\(\);' -Mes
 Assert-NotContains -Text $game -Pattern 'document\.hasFocus' -Message 'FAIL: visible auto battle should keep respawning even when the browser window is not focused.'
 Assert-NotContains -Text $game -Pattern 'if \(!spawnPos\) break;' -Message 'FAIL: spawn position failure still aborts the whole respawn batch.'
 Assert-Contains -Text $game -Pattern 'Math\.min\(1,\s*0\.65\s*\+\s*f\s*\*\s*0\.05\)' -Message 'FAIL: initial floor population scale should start higher.'
-Assert-Contains -Text $index -Pattern 'constants\.js\?v=202605080040' -Message 'FAIL: index.html did not bump constants.js cache version.'
-Assert-Contains -Text $index -Pattern 'game\.js\?v=202605080025' -Message 'FAIL: index.html did not bump game.js cache version.'
+Assert-Contains -Text $index -Pattern 'constants\.js\?v=202605080230' -Message 'FAIL: index.html did not bump constants.js cache version.'
+Assert-Contains -Text $index -Pattern 'game\.js\?v=202605080230' -Message 'FAIL: index.html did not bump game.js cache version.'
 
 Write-Host 'PASS: monster density contract'

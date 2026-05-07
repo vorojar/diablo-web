@@ -1530,6 +1530,41 @@ function processScheduledMonsterAttacks(dt) {
     }
 }
 
+function startRangedEnemyAttack(attacker) {
+    if (!attacker || attacker.dead || attacker.cooldown > 0) return false;
+    startMonsterAttack(attacker, {
+        duration: 0.42,
+        impactDelay: 0.18,
+        telegraph: 'projectile',
+        telegraphVfx: CAST_SOURCE_VFX.enemyArrow,
+        targetX: player.x,
+        targetY: player.y,
+        resolve: (source, aim) => {
+            const angle = aim.angle;
+            spawnCastSourceVfx(CAST_SOURCE_VFX.enemyArrow, source.x, source.y, angle, 0.7, 18, 34);
+            const arrowCount = source.multiShot || 1;
+            const spread = arrowCount > 1 ? 0.18 : 0;
+            for (let shotIndex = 0; shotIndex < arrowCount; shotIndex++) {
+                const shotAngle = angle + (shotIndex - (arrowCount - 1) / 2) * spread;
+                projectiles.push(ProjectilePool.acquire({
+                    x: source.x + Math.cos(angle) * 18,
+                    y: source.y - 36 + Math.sin(angle) * 10,
+                    angle: shotAngle,
+                    speed: 250,
+                    life: 2,
+                    damage: source.dmg,
+                    color: '#ffaa00',
+                    owner: source,
+                    sourceName: source.name
+                }));
+            }
+            AudioSys.play('enemy_arrow_cast');
+        }
+    });
+    attacker.cooldown = 2.0;
+    return true;
+}
+
 function getPlayerDamageFeedbackType(damageType, source) {
     if (damageType && damageType !== 'physical') return damageType;
 
@@ -8150,45 +8185,20 @@ function updateEnemies(dt) {
                 const dist = Math.sqrt(distSq);
                 if (dist > 0) {
                     setMonsterFacingToward(e, player.x, player.y, 0.12);
+                    const beforeRetreatX = e.x;
+                    const beforeRetreatY = e.y;
                     const moveX = e.x - (dx / dist) * currentSpeed * dt;
                     const moveY = e.y - (dy / dist) * currentSpeed * dt;
                     if (!isWall(moveX, e.y)) e.x = moveX; if (!isWall(e.x, moveY)) e.y = moveY;
+                    const retreated = Math.hypot(e.x - beforeRetreatX, e.y - beforeRetreatY) > 0.5;
+                    if (!retreated && hasLOS && e.cooldown <= 0) {
+                        startRangedEnemyAttack(e);
+                    }
                 }
             } else if (distSq < 160000 && hasLOS) {
                 // 有视线才能射击 (400^2 = 160000)
                 // 有视线才能射击
-                if (e.cooldown <= 0) {
-                    startMonsterAttack(e, {
-                        duration: 0.42,
-                        impactDelay: 0.18,
-                        telegraph: 'projectile',
-                        telegraphVfx: CAST_SOURCE_VFX.enemyArrow,
-                        targetX: player.x,
-                        targetY: player.y,
-                        resolve: (attacker, aim) => {
-                            const angle = aim.angle;
-                            spawnCastSourceVfx(CAST_SOURCE_VFX.enemyArrow, attacker.x, attacker.y, angle, 0.7, 18, 34);
-                            const arrowCount = attacker.multiShot || 1;
-                            const spread = arrowCount > 1 ? 0.18 : 0;
-                            for (let shotIndex = 0; shotIndex < arrowCount; shotIndex++) {
-                                const shotAngle = angle + (shotIndex - (arrowCount - 1) / 2) * spread;
-                                projectiles.push(ProjectilePool.acquire({
-                                    x: attacker.x + Math.cos(angle) * 18,
-                                    y: attacker.y - 36 + Math.sin(angle) * 10,
-                                    angle: shotAngle,
-                                    speed: 250,
-                                    life: 2,
-                                    damage: attacker.dmg,
-                                    color: '#ffaa00',
-                                    owner: attacker,
-                                    sourceName: attacker.name
-                                }));
-                            }
-                            AudioSys.play('enemy_arrow_cast');
-                        }
-                    });
-                    e.cooldown = 2.0;
-                }
+                startRangedEnemyAttack(e);
             } else if (distSq < 160000 && !hasLOS) { // 400^2 = 160000
                 // 没有视线，尝试靠近
                 const dist = Math.sqrt(distSq);
@@ -13223,9 +13233,9 @@ function performAttack(t) {
     if (player.attackCooldown > 0) return;
 
     // 检查视线 - 如果玩家和目标之间有墙，则不能攻击
-    // 但近距离(<50像素)跳过视线检测，允许攻击贴墙角的怪物
+    // 但近距离跳过视线检测，允许攻击贴墙角的怪物
     const dist = Math.hypot(t.x - player.x, t.y - player.y);
-    if (player.floor > 0 && dist >= 50 && !hasLineOfSight(player.x, player.y, t.x, t.y)) {
+    if (player.floor > 0 && dist >= GAME_CONFIG.PLAYER_MELEE_NO_LOS_RANGE && !hasLineOfSight(player.x, player.y, t.x, t.y)) {
         return;
     }
     player.direction = directionFromDelta(t.x - player.x, t.y - player.y);

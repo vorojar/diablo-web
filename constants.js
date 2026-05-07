@@ -491,6 +491,7 @@ const GAME_CONFIG = {
     MONSTER_DISENGAGE_RANGE_SQ: 1225,   // 脱战距离平方
     MONSTER_RANGED_RETREAT: 150,        // 远程后退距离
     MONSTER_RANGED_MAX: 400,            // 远程最大攻击距离
+    PLAYER_MELEE_NO_LOS_RANGE: 50,      // 无视线时允许贴墙角普攻的距离
 
     // 交互距离
     INTERACTION_RANGE: 60,              // 通用交互距离

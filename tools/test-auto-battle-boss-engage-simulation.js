@@ -20,7 +20,8 @@ const context = {
         AUTO_KEEP_DISTANCE: 150,
         AUTO_POTION_HP_THRESHOLD: 0.3,
         AUTO_POTION_MP_THRESHOLD: 0.2,
-        AUTO_EMERGENCY_HP: 0.15
+        AUTO_EMERGENCY_HP: 0.15,
+        PLAYER_MELEE_NO_LOS_RANGE: 50
     },
     player: {
         x: 0,
