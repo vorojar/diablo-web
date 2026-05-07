@@ -3185,6 +3185,164 @@ function drawOutlinedText(ctx, text, x, y, fillStyle, font, strokeStyle = 'rgba(
     ctx.restore();
 }
 
+function drawBossDangerTelegraphs(ctx) {
+    for (let i = 0, len = enemies.length; i < len; i++) {
+        const boss = enemies[i];
+        if (!boss?.isBoss || boss.dead || !boss.pendingSkill?.data?.telegraph) continue;
+
+        const pending = boss.pendingSkill;
+        const data = pending.data;
+        const duration = pending.duration || data.windup || 0.45;
+        const progress = Math.max(0, Math.min(1, 1 - pending.timer / duration));
+        const pulse = 0.55 + 0.45 * Math.sin(progress * Math.PI * 8);
+        const warningAlpha = 0.10 + progress * 0.12;
+        const edgeAlpha = 0.45 + progress * 0.40;
+        const finalFlash = progress > 0.78 ? (progress - 0.78) / 0.22 : 0;
+
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.fillStyle = `rgba(255, 32, 20, ${warningAlpha})`;
+        ctx.strokeStyle = `rgba(255, 95, 55, ${edgeAlpha})`;
+        ctx.lineWidth = 2 + finalFlash * 2;
+        setGlow(ctx, 18 + finalFlash * 18, '#ff3322', true);
+
+        if (data.telegraph === 'circle') {
+            const radius = data.radius || boss.slamRadius || 150;
+            ctx.beginPath();
+            ctx.arc(boss.x, boss.y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.strokeStyle = `rgba(255, 210, 120, ${0.35 + finalFlash * 0.45})`;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(boss.x, boss.y, radius * (0.35 + progress * 0.65), 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (data.telegraph === 'cone') {
+            const range = data.range || 200;
+            const halfAngle = ((boss.breathAngle || 60) * Math.PI / 180) / 2;
+            const angle = data.angle || 0;
+            ctx.beginPath();
+            ctx.moveTo(boss.x, boss.y);
+            ctx.arc(boss.x, boss.y, range, angle - halfAngle, angle + halfAngle);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.strokeStyle = `rgba(255, 230, 150, ${0.32 + finalFlash * 0.55})`;
+            ctx.lineWidth = 1.2 + finalFlash;
+            for (let r = range * 0.35; r <= range; r += range * 0.22) {
+                ctx.beginPath();
+                ctx.arc(boss.x, boss.y, r * (0.92 + pulse * 0.04), angle - halfAngle, angle + halfAngle);
+                ctx.stroke();
+            }
+        } else if (data.telegraph === 'line') {
+            const range = data.range || 240;
+            const width = data.width || 42;
+            const angle = data.angle || 0;
+            const nx = Math.cos(angle);
+            const ny = Math.sin(angle);
+            const px = -ny * width / 2;
+            const py = nx * width / 2;
+            const sx = boss.x;
+            const sy = boss.y;
+            const ex = boss.x + nx * range;
+            const ey = boss.y + ny * range;
+
+            ctx.beginPath();
+            ctx.moveTo(sx + px, sy + py);
+            ctx.lineTo(ex + px, ey + py);
+            ctx.lineTo(ex - px, ey - py);
+            ctx.lineTo(sx - px, sy - py);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.strokeStyle = `rgba(255, 230, 150, ${0.35 + finalFlash * 0.50})`;
+            ctx.lineWidth = 1.2 + finalFlash;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(sx + nx * range * progress, sy + ny * range * progress);
+            ctx.stroke();
+        }
+
+        clearGlow(ctx);
+        ctx.restore();
+    }
+}
+
+function getActiveBossForHud() {
+    let selected = null;
+    let selectedDist = Infinity;
+    for (let i = 0, len = enemies.length; i < len; i++) {
+        const e = enemies[i];
+        if (!e?.isBoss || e.dead || e.hp <= 0) continue;
+        const dist = Math.hypot(e.x - player.x, e.y - player.y);
+        if (dist < selectedDist) {
+            selected = e;
+            selectedDist = dist;
+        }
+    }
+    return selected;
+}
+
+function drawBossHealthHud() {
+    const boss = getActiveBossForHud();
+    if (!boss || isInTown()) return;
+
+    const w = Math.min(620, Math.max(340, canvas.width * 0.52));
+    const h = 24;
+    const x = (canvas.width - w) / 2;
+    const y = 18;
+    const hpRatio = Math.max(0, Math.min(1, boss.hp / boss.maxHp));
+    const enraged = boss.enraged || hpRatio <= 0.3;
+    const phaseText = hpRatio <= 0.3 ? '狂暴阶段' : (hpRatio <= 0.7 ? '压制阶段' : '首领阶段');
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.shadowColor = enraged ? '#ff2200' : '#660000';
+    ctx.shadowBlur = enraged ? 18 : 10;
+
+    ctx.fillStyle = 'rgba(8, 6, 5, 0.82)';
+    ctx.fillRect(x - 14, y - 2, w + 28, h + 30);
+    ctx.strokeStyle = enraged ? 'rgba(255, 95, 50, 0.85)' : 'rgba(190, 52, 36, 0.75)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x - 14, y - 2, w + 28, h + 30);
+
+    ctx.fillStyle = 'rgba(45, 10, 8, 0.95)';
+    ctx.fillRect(x, y, w, h);
+    const fill = ctx.createLinearGradient(x, y, x + w, y);
+    fill.addColorStop(0, enraged ? '#ff2a16' : '#b81512');
+    fill.addColorStop(0.55, enraged ? '#ff6a22' : '#e22b1d');
+    fill.addColorStop(1, '#5c0504');
+    ctx.fillStyle = fill;
+    ctx.fillRect(x, y, w * hpRatio, h);
+
+    ctx.fillStyle = 'rgba(255, 230, 180, 0.22)';
+    ctx.fillRect(x, y, w * hpRatio, Math.max(3, h * 0.28));
+
+    ctx.strokeStyle = 'rgba(255, 210, 120, 0.65)';
+    ctx.lineWidth = 1;
+    [0.7, 0.3].forEach(mark => {
+        const mx = x + w * mark;
+        ctx.beginPath();
+        ctx.moveTo(mx, y - 4);
+        ctx.lineTo(mx, y + h + 4);
+        ctx.stroke();
+    });
+
+    clearGlow(ctx);
+    ctx.fillStyle = '#f1d8a4';
+    ctx.font = 'bold 15px Cinzel';
+    ctx.fillText(boss.name, canvas.width / 2, y + h + 16);
+    ctx.font = '11px Cinzel';
+    ctx.fillStyle = enraged ? '#ffb088' : '#c9a66a';
+    ctx.fillText(`${phaseText}  ${Math.ceil(boss.hp)} / ${boss.maxHp}`, canvas.width / 2, y + 16);
+    ctx.restore();
+}
+
 function drawEnemyActor(ctx, e) {
     if (!e || (e.dead && !(e.deathVisualTimer > 0))) return;
     if (e.x < camera.x - 100 || e.x > camera.x + canvas.width + 100 ||
@@ -3425,6 +3583,42 @@ function emitSkillImpactBurst(type, x, y, angle = 0, power = 1) {
             life: 0.22 + Math.random() * 0.22,
             size: (type === 'multishot' ? 1.4 : 2.2) + Math.random() * 2.2,
             gravity: type === 'fireball' ? 60 : 0
+        }));
+    }
+}
+
+function emitPhysicalHitAccent(e, angle, isCrit) {
+    const maxP = getParticleConfig().maxParticles;
+    if (particles.length < maxP) {
+        particles.push(ParticlePool.acquire({
+            x: e.x,
+            y: e.y + 2,
+            type: 'skill_impact_ring',
+            color: isCrit ? '#ffdd55' : 'rgba(235, 220, 185, 0.85)',
+            life: isCrit ? 0.22 : 0.16,
+            maxLife: isCrit ? 0.22 : 0.16,
+            radius: isCrit ? 12 : 8,
+            grow: isCrit ? 28 : 18,
+            width: isCrit ? 3 : 2,
+            rotation: angle
+        }));
+    }
+
+    const sparkCount = isCrit ? 7 : 3;
+    for (let i = 0; i < sparkCount; i++) {
+        if (particles.length >= maxP) break;
+        const spread = 0.95;
+        const a = angle + Math.PI + (Math.random() - 0.5) * spread;
+        const speed = (isCrit ? 145 : 95) * (0.7 + Math.random() * 0.45);
+        particles.push(ParticlePool.acquire({
+            x: e.x + (Math.random() - 0.5) * 8,
+            y: e.y - 10 + (Math.random() - 0.5) * 8,
+            vx: Math.cos(a) * speed,
+            vy: Math.sin(a) * speed - 18,
+            color: isCrit && Math.random() < 0.35 ? '#ffffff' : (isCrit ? '#ffcc44' : '#d8c8a0'),
+            life: 0.16 + Math.random() * 0.14,
+            size: (isCrit ? 2.4 : 1.6) + Math.random() * 1.6,
+            gravity: 90
         }));
     }
 }
@@ -7986,6 +8180,7 @@ function draw() {
     }
 
     drawDungeonLightSources(ctx, activeBiome);
+    drawBossDangerTelegraphs(ctx);
 
     // 性能优化：使用 for 循环渲染 NPC
     for (let ni = 0, nLen = npcs.length; ni < nLen; ni++) {
@@ -8580,6 +8775,7 @@ function draw() {
     const g = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, 200, canvas.width / 2, canvas.height / 2, canvas.width / 1.2);
     g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.85)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawBossHealthHud();
 
     // 回城仪式视觉效果
     if (portalRitual.active) {
@@ -10129,13 +10325,14 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     } else {
         spawnVfxEffect(COMBAT_FEEDBACK_VFX.meleeSlash, e.x, e.y - 10, isCrit ? 1.02 : 0.88, angle);
         createMonsterImpactParticles(e, isCrit);
+        emitPhysicalHitAccent(e, angle, isCrit);
     }
     if (isCrit) {
         spawnVfxEffect(COMBAT_FEEDBACK_VFX.criticalHit, e.x, e.y - 12, 0.95, angle);
     }
 
     // 触发打击感
-    Juice.hit(e, isCrit, false);
+    Juice.hit(e, isCrit, e.hp <= 0);
 
     // 检测近战可能波及的可破坏物体
     DestructibleSystem.checkMeleeCollision(e.x, e.y, 40);

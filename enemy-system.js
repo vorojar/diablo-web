@@ -47,7 +47,7 @@ function spawnBossTelegraph(effectId, x, y, scale = 1, rotation = 0) {
 
 function startBossSkillWindup(boss, skillId, cooldown, data = {}) {
   const windup = data.windup || 0.45;
-  boss.pendingSkill = { id: skillId, timer: windup, data };
+  boss.pendingSkill = { id: skillId, timer: windup, duration: windup, data };
   boss.skillCd = cooldown;
   syncBossSkillVisual(boss, 'cast', windup);
   spawnBossTelegraph('bossCastBurst', boss.x, boss.y, 1, 0);
