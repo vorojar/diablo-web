@@ -3296,7 +3296,7 @@ function drawBossHealthHud() {
     const w = Math.min(620, Math.max(340, canvas.width * 0.52));
     const h = 24;
     const x = (canvas.width - w) / 2;
-    const y = 18;
+    const y = 78;
     const hpRatio = Math.max(0, Math.min(1, boss.hp / boss.maxHp));
     const enraged = boss.enraged || hpRatio <= 0.3;
     const phaseText = hpRatio <= 0.3 ? '狂暴阶段' : (hpRatio <= 0.7 ? '压制阶段' : '首领阶段');
