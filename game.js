@@ -1478,7 +1478,7 @@ function spawnMonsterAttackTelegraph(enemy, options) {
 
     const targetX = options.targetX ?? player.x;
     const targetY = options.targetY ?? player.y;
-    const angle = Math.atan2(targetY - enemy.y, targetX - enemy.x);
+    const angle = typeof options.angle === 'number' ? options.angle : Math.atan2(targetY - enemy.y, targetX - enemy.x);
 
     if (options.telegraph === 'projectile') {
         const effectId = options.telegraphVfx || (enemy.elementalDmg?.lightning ? CAST_SOURCE_VFX.enemyLightning : CAST_SOURCE_VFX.enemyArrow);
@@ -1491,14 +1491,27 @@ function spawnMonsterAttackTelegraph(enemy, options) {
     }
 }
 
+function createMonsterAttackAim(enemy, targetX, targetY) {
+    if (typeof targetX !== 'number' || typeof targetY !== 'number') {
+        throw new Error('怪物攻击缺少目标坐标');
+    }
+    return {
+        targetX,
+        targetY,
+        angle: Math.atan2(targetY - enemy.y, targetX - enemy.x)
+    };
+}
+
 function startMonsterAttack(enemy, options) {
     if (!enemy || enemy.dead || !options || typeof options.resolve !== 'function') return;
 
-    setMonsterFacingToward(enemy, options.targetX, options.targetY, options.duration);
+    const aim = createMonsterAttackAim(enemy, options.targetX, options.targetY);
+    setMonsterFacingToward(enemy, aim.targetX, aim.targetY, options.duration);
     triggerMonsterAction(enemy, 'attack', options.duration);
-    spawnMonsterAttackTelegraph(enemy, options);
+    spawnMonsterAttackTelegraph(enemy, { ...options, targetX: aim.targetX, targetY: aim.targetY, angle: aim.angle });
     scheduledMonsterAttacks.push({
         enemy,
+        aim,
         timer: options.impactDelay,
         resolve: options.resolve
     });
@@ -1513,7 +1526,7 @@ function processScheduledMonsterAttacks(dt) {
         scheduledMonsterAttacks.splice(i, 1);
         const enemy = attack.enemy;
         if (!enemy || enemy.dead || player.isDead || !enemies.includes(enemy)) continue;
-        attack.resolve(enemy);
+        attack.resolve(enemy, attack.aim);
     }
 }
 
@@ -8152,8 +8165,8 @@ function updateEnemies(dt) {
                         telegraphVfx: CAST_SOURCE_VFX.enemyArrow,
                         targetX: player.x,
                         targetY: player.y,
-                        resolve: (attacker) => {
-                            const angle = Math.atan2(player.y - attacker.y, player.x - attacker.x);
+                        resolve: (attacker, aim) => {
+                            const angle = aim.angle;
                             spawnCastSourceVfx(CAST_SOURCE_VFX.enemyArrow, attacker.x, attacker.y, angle, 0.7, 18, 34);
                             const arrowCount = attacker.multiShot || 1;
                             const spread = arrowCount > 1 ? 0.18 : 0;
@@ -8384,8 +8397,8 @@ function updateEnemies(dt) {
                         telegraphScale: 0.58,
                         targetX: player.x,
                         targetY: player.y,
-                        resolve: (attacker) => {
-                            const angle = Math.atan2(player.y - attacker.y, player.x - attacker.x);
+                        resolve: (attacker, aim) => {
+                            const angle = aim.angle;
                             spawnCastSourceVfx(CAST_SOURCE_VFX.enemyLightning, attacker.x, attacker.y, angle, 0.78, 16, 30);
                             const boltCount = attacker.multiShot || 1;
                             const spread = boltCount > 1 ? 0.2 : 0;
