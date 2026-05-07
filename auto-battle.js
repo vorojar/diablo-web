@@ -60,6 +60,7 @@ const AutoBattle = {
 
     shouldSwitchTarget(candidate, reason) {
         if (!candidate || candidate.dead) return false;
+        if (this.isTargetBlacklisted(candidate)) return false;
         if (!this.currentTarget || !this.isTargetStillValid(this.currentTarget)) return true;
         if (candidate === this.currentTarget) return false;
 
@@ -73,6 +74,58 @@ const AutoBattle = {
         }
 
         return candidateDistSq < currentDistSq * 0.65;
+    },
+
+    isTargetBlacklisted(target) {
+        const now = Date.now();
+        let writeIndex = 0;
+        let blocked = false;
+        for (let i = 0; i < this.blacklistedTargets.length; i++) {
+            const entry = this.blacklistedTargets[i];
+            if (entry.until <= now) continue;
+            this.blacklistedTargets[writeIndex++] = entry;
+            if (entry.target === target) blocked = true;
+        }
+        this.blacklistedTargets.length = writeIndex;
+        return blocked;
+    },
+
+    canUseThunderOnTarget(target) {
+        if (!target || target.dead) return false;
+        if (!this.settings.useSkill) return false;
+        if (!(player.skills.thunder > 0)) return false;
+        if (player.skillCooldowns.thunder > 0) return false;
+        const thunderCost = getSkillManaCost('thunder', player.skills.thunder);
+        if (player.mp < thunderCost) return false;
+        return this.getTargetDistanceSq(target) <= 200 * 200;
+    },
+
+    abandonCurrentTarget(target, durationMs = 6000) {
+        if (!target) return;
+        this.blacklistedTargets.push({ target, until: Date.now() + durationMs });
+        if (this.currentTarget === target) this.currentTarget = null;
+        this.targetFailCount = 0;
+        this.lastTargetId = null;
+        this.astarCache.path = null;
+        this.astarCache.targetX = null;
+        this.astarCache.targetY = null;
+        this.astarCache.currentIndex = 0;
+        player.targetX = null;
+        player.targetY = null;
+    },
+
+    recordTargetPathFailure(target) {
+        if (!target || this.canUseThunderOnTarget(target)) return false;
+        if (this.lastTargetId !== target) {
+            this.lastTargetId = target;
+            this.targetFailCount = 0;
+        }
+        this.targetFailCount++;
+        if (this.targetFailCount >= 2 && !this.hasCachedLineOfSightTo(target)) {
+            this.abandonCurrentTarget(target);
+            return true;
+        }
+        return false;
     },
 
     resetRuntimeState(reason) {
@@ -463,6 +516,7 @@ const AutoBattle = {
         for (let i = 0, len = aliveList.length; i < len; i++) {
             const e = aliveList[i];
             if (e.dead) continue; // 兼容未使用缓存的情况
+            if (this.isTargetBlacklisted(e)) continue;
 
             const dx = e.x - px, dy = e.y - py;
             const distSq = dx * dx + dy * dy;
@@ -622,6 +676,7 @@ const AutoBattle = {
             const engageDistance = this.getMeleeEngageDistance(this.currentTarget);
             if (tdx * tdx + tdy * tdy > engageDistance * engageDistance) {
                 this.moveTowards(this.currentTarget);
+                if (!this.currentTarget) return;
             } else {
                 player.targetX = null;
                 player.targetY = null;
@@ -761,14 +816,18 @@ const AutoBattle = {
             const pathDist = Math.hypot(pathPos.x - player.x, pathPos.y - player.y);
             if (pathDist > 20) {
                 // 寻路成功，移动到新位置
+                this.targetFailCount = 0;
+                this.lastTargetId = target;
                 player.targetX = pathPos.x;
                 player.targetY = pathPos.y;
             } else {
                 // 寻路失败，返回原地，尝试强制脱困
+                if (this.recordTargetPathFailure(target)) return;
                 this.escapeFromStuck();
             }
         } else {
             // 无法寻路，清除目标
+            if (this.recordTargetPathFailure(target)) return;
             player.targetX = null;
             player.targetY = null;
         }
