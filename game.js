@@ -5232,8 +5232,8 @@ function enterFloor(f, spawnAt = 'start') {
         // 获取当前难度系数（在地狱中始终使用hell难度）
         const difficulty = isInHell ? DIFFICULTY_MODIFIERS.hell : DIFFICULTY_MODIFIERS.normal;
 
-        // 怪物数量随层数增长：1层少，10层后固定
-        const enemyScale = Math.min(1, 0.4 + f * 0.06);
+        // 怪物数量随层数增长：低层也要有足够密度，支持自动战斗刷怪刷宝
+        const enemyScale = Math.min(1, 0.65 + f * 0.05);
         const enemyCount = Math.floor(GAME_CONFIG.INITIAL_ENEMIES * enemyScale);
         for (let i = 0; i < enemyCount; i++) {
             let x, y, v = false; while (!v) { x = Math.random() * MAP_WIDTH * TILE_SIZE; y = Math.random() * MAP_HEIGHT * TILE_SIZE; if (!isWall(x, y) && Math.hypot(x - dungeonEntrance.x, y - dungeonEntrance.y) > 300) v = true; }
@@ -10316,6 +10316,22 @@ function migrateSetCollection() {
     }
 }
 
+function findEnemySpawnPosition(minDistance = GAME_CONFIG.ENEMY_SPAWN_MIN_DISTANCE, maxAttempts = 24) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const x = Math.random() * MAP_WIDTH * TILE_SIZE;
+        const y = Math.random() * MAP_HEIGHT * TILE_SIZE;
+        if (isWall(x, y)) continue;
+        if (Math.hypot(x - player.x, y - player.y) < minDistance) continue;
+        return { x, y };
+    }
+    return null;
+}
+
+function getDynamicEnemyTargetCount() {
+    if (typeof AutoBattle !== 'undefined' && AutoBattle.enabled) return Math.min(GAME_CONFIG.MAX_ENEMIES, GAME_CONFIG.AUTO_BATTLE_ENEMY_TARGET);
+    return Math.min(GAME_CONFIG.MAX_ENEMIES, Math.max(GAME_CONFIG.INITIAL_ENEMIES, Math.floor(GAME_CONFIG.MAX_ENEMIES * 0.65)));
+}
+
 function spawnEnemyTimer() {
     if (enemySpawnIntervalId !== null) return;
 
@@ -10326,8 +10342,10 @@ function spawnEnemyTimer() {
         // 只有在罗格营地才停止刷新怪物（地狱中继续刷新）
         if (!gameActive || aliveEnemies >= GAME_CONFIG.MAX_ENEMIES || isInTown()) return;
 
-        let x, y, v = false; while (!v) { x = Math.random() * MAP_WIDTH * TILE_SIZE; y = Math.random() * MAP_HEIGHT * TILE_SIZE; if (!isWall(x, y)) v = true; }
-        if (Math.hypot(x - player.x, y - player.y) < GAME_CONFIG.ENEMY_SPAWN_MIN_DISTANCE) return;
+        const targetEnemies = getDynamicEnemyTargetCount();
+        if (aliveEnemies >= targetEnemies) return;
+        const batchSize = (typeof AutoBattle !== 'undefined' && AutoBattle.enabled) ? GAME_CONFIG.AUTO_BATTLE_SPAWN_BATCH_SIZE : GAME_CONFIG.ENEMY_SPAWN_BATCH_SIZE;
+        const spawnCount = Math.min(batchSize, targetEnemies - aliveEnemies, GAME_CONFIG.MAX_ENEMIES - aliveEnemies);
 
         const f = player.floor;
         const hp = 30 + Math.floor(f * f * 5);
@@ -10369,54 +10387,59 @@ function spawnEnemyTimer() {
             monsterPool.push({ type: 'vampire', name: '吸血鬼', ai: 'vampire', speed: 60, hpMult: 1.2, dmgMult: 1.3, weight: 10 });
         }
 
-        // 按权重随机选择怪物
-        const totalWeight = monsterPool.reduce((sum, m) => sum + m.weight, 0);
-        let rand = Math.random() * totalWeight;
-        let selected = monsterPool[0];
-        for (const monster of monsterPool) {
-            rand -= monster.weight;
-            if (rand <= 0) {
-                selected = monster;
-                break;
+        for (let spawnIndex = 0; spawnIndex < spawnCount; spawnIndex++) {
+            const spawnPos = findEnemySpawnPosition();
+            if (!spawnPos) break;
+
+            // 按权重随机选择怪物
+            const totalWeight = monsterPool.reduce((sum, m) => sum + m.weight, 0);
+            let rand = Math.random() * totalWeight;
+            let selected = monsterPool[0];
+            for (const monster of monsterPool) {
+                rand -= monster.weight;
+                if (rand <= 0) {
+                    selected = monster;
+                    break;
+                }
             }
+
+            let type = selected.type;
+            let name = selected.name;
+            let ai = selected.ai;
+            let speed = selected.speed;
+            let hpMult = selected.hpMult;
+            let dmgMult = selected.dmgMult;
+
+            let frameIndex = MONSTER_FRAMES[type];
+            const isElite = Math.random() < GAME_CONFIG.ELITE_SPAWN_RATE;
+
+            if (isElite) {
+                // 精英怪保持原来的外观，只是名字加前缀
+                name = `精英${name}`;
+
+            }
+
+            // 应用怪物类型的属性倍率
+            const finalHp = Math.floor(hp * hpMult);
+            const finalDmg = Math.floor(dmg * dmgMult);
+
+            const enemy = EnemyPool.acquire({
+                x: spawnPos.x, y: spawnPos.y, hp: finalHp, maxHp: finalHp, dmg: finalDmg, speed, radius: 12,
+                dead: false, cooldown: 0, hitFlashTimer: 0, name, rarity: isElite ? 1 : 0, xpValue: xp,
+                ai: ai, frameIndex: frameIndex,
+                monsterType: type,              // 怪物类型标识
+                eliteAffixes: [],               // 精英词缀列表
+                isElite: isElite                // 精英怪标记
+            });
+
+            applyMonsterBaseTraits(enemy, type, finalDmg);
+            if (isElite) enemy.eliteAffixes = rollEliteAffixesForEnemy(enemy);
+
+            // 应用精英词缀效果
+            applyEliteAffixesToEnemy(enemy);
+
+            enemies.push(enemy);
         }
-
-        let type = selected.type;
-        let name = selected.name;
-        let ai = selected.ai;
-        let speed = selected.speed;
-        let hpMult = selected.hpMult;
-        let dmgMult = selected.dmgMult;
-
-        let frameIndex = MONSTER_FRAMES[type];
-        const isElite = Math.random() < GAME_CONFIG.ELITE_SPAWN_RATE;
-
-        if (isElite) {
-            // 精英怪保持原来的外观，只是名字加前缀
-            name = `精英${name}`;
-
-        }
-
-        // 应用怪物类型的属性倍率
-        const finalHp = Math.floor(hp * hpMult);
-        const finalDmg = Math.floor(dmg * dmgMult);
-
-        const enemy = EnemyPool.acquire({
-            x, y, hp: finalHp, maxHp: finalHp, dmg: finalDmg, speed, radius: 12,
-            dead: false, cooldown: 0, hitFlashTimer: 0, name, rarity: isElite ? 1 : 0, xpValue: xp,
-            ai: ai, frameIndex: frameIndex,
-            monsterType: type,              // 怪物类型标识
-            eliteAffixes: [],               // 精英词缀列表
-            isElite: isElite                // 精英怪标记
-        });
-
-        applyMonsterBaseTraits(enemy, type, finalDmg);
-        if (isElite) enemy.eliteAffixes = rollEliteAffixesForEnemy(enemy);
-
-        // 应用精英词缀效果
-        applyEliteAffixesToEnemy(enemy);
-
-        enemies.push(enemy);
     }, GAME_CONFIG.ENEMY_SPAWN_INTERVAL);
 }
 
