@@ -477,6 +477,15 @@ const EnemyCache = {
     }
 };
 let gameFrameId = 0; // 全局帧计数器
+let enemySpawnIntervalId = null;
+
+function countAliveEnemiesDirect() {
+    let count = 0;
+    for (let i = 0, len = enemies.length; i < len; i++) {
+        if (!enemies[i].dead) count++;
+    }
+    return count;
+}
 
 let mapData = [];
 let visitedMap = [];
@@ -9809,11 +9818,14 @@ function migrateSetCollection() {
 }
 
 function spawnEnemyTimer() {
-    setInterval(() => {
-        // 使用缓存的存活敌人数量（性能优化）
-        const aliveEnemies = EnemyCache.aliveCount;
+    if (enemySpawnIntervalId !== null) return;
+
+    enemySpawnIntervalId = setInterval(() => {
+        if (document.hidden || (typeof document.hasFocus === 'function' && !document.hasFocus())) return;
+
+        const aliveEnemies = countAliveEnemiesDirect();
         // 只有在罗格营地才停止刷新怪物（地狱中继续刷新）
-        if (!gameActive || aliveEnemies > GAME_CONFIG.MAX_ENEMIES || isInTown()) return;
+        if (!gameActive || aliveEnemies >= GAME_CONFIG.MAX_ENEMIES || isInTown()) return;
 
         let x, y, v = false; while (!v) { x = Math.random() * MAP_WIDTH * TILE_SIZE; y = Math.random() * MAP_HEIGHT * TILE_SIZE; if (!isWall(x, y)) v = true; }
         if (Math.hypot(x - player.x, y - player.y) < GAME_CONFIG.ENEMY_SPAWN_MIN_DISTANCE) return;
