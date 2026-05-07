@@ -41,8 +41,8 @@ function isProtectedItem(item) {
 }
 
 const TILE_SIZE = 40;
-const MAP_WIDTH = 80;
-const MAP_HEIGHT = 80;
+const MAP_WIDTH = 60;
+const MAP_HEIGHT = 60;
 
 const COLORS = {
     // 基础颜色
@@ -464,13 +464,13 @@ const GAME_CONFIG = {
     // 怪物生成
     ELITE_SPAWN_RATE: 0.1,              // 精英怪生成概率 10%
     DOUBLE_AFFIX_RATE: 0.3,             // 双词缀概率 30%
-    MAX_ENEMIES: 120,                   // 最大怪物数量（80x80地图）
-    INITIAL_ENEMIES: 60,                // 进入楼层时初始生成数量（80x80地图）
+    MAX_ENEMIES: 80,                    // 最大怪物数量（60x60地图）
+    INITIAL_ENEMIES: 36,                // 进入楼层时初始生成数量（60x60地图）
     ENEMY_SPAWN_INTERVAL: 1000,         // 怪物生成间隔(ms)
     ENEMY_SPAWN_MIN_DISTANCE: 260,      // 怪物生成最小距离
     ENEMY_SPAWN_BATCH_SIZE: 3,          // 普通动态刷新每轮补怪数量
     AUTO_BATTLE_SPAWN_BATCH_SIZE: 6,    // 自动战斗动态刷新每轮补怪数量
-    AUTO_BATTLE_ENEMY_TARGET: 100,      // 自动战斗维持的目标怪物数量
+    AUTO_BATTLE_ENEMY_TARGET: 70,       // 自动战斗维持的目标怪物数量
 
     // 赌博概率
     GAMBLE_RARE_RATE: 0.3,              // 赌博稀有概率 30%

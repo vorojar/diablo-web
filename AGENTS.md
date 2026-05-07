@@ -71,8 +71,8 @@ const SKILL_CONFIG = {
 // 游戏配置 (constants.js) - 包含40+个常量
 const GAME_CONFIG = {
     ELITE_SPAWN_RATE: 0.1,          // 精英怪概率
-    MAX_ENEMIES: 80,                // 最大怪物数（80x80地图）
-    INITIAL_ENEMIES: 40,            // 初始生成数量
+    MAX_ENEMIES: 80,                // 最大怪物数（60x60地图）
+    INITIAL_ENEMIES: 36,            // 初始生成数量
     INTERACTION_RANGE: 60,          // 交互距离
     AUTO_SAVE_INTERVAL: 30,         // 自动存档间隔(秒)
     LOW_HP_THRESHOLD: 0.2,          // 低血量警告阈值
