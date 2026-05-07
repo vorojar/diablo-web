@@ -48,6 +48,33 @@ const AutoBattle = {
         return Math.max(70, targetRadius + playerRadius + 35);
     },
 
+    isTargetStillValid(target) {
+        return !!target && !target.dead && enemies.includes(target);
+    },
+
+    getTargetDistanceSq(target) {
+        const dx = target.x - player.x;
+        const dy = target.y - player.y;
+        return dx * dx + dy * dy;
+    },
+
+    shouldSwitchTarget(candidate, reason) {
+        if (!candidate || candidate.dead) return false;
+        if (!this.currentTarget || !this.isTargetStillValid(this.currentTarget)) return true;
+        if (candidate === this.currentTarget) return false;
+
+        const currentDistSq = this.getTargetDistanceSq(this.currentTarget);
+        const candidateDistSq = this.getTargetDistanceSq(candidate);
+        const meleeRange = this.getMeleeEngageDistance(this.currentTarget);
+        if (currentDistSq <= meleeRange * meleeRange) return false;
+
+        if (reason === 'damage') {
+            return candidateDistSq < currentDistSq * 0.45 || candidateDistSq < 10000;
+        }
+
+        return candidateDistSq < currentDistSq * 0.65;
+    },
+
     // ====== A*寻路系统 ======
     astarCache: {
         path: null,              // 当前缓存的路径 [{x, y}, ...]
@@ -525,17 +552,29 @@ const AutoBattle = {
         // 4. 选目标：扫描降到约8Hz；目标死亡/消失/刚受击时立即重选
         this.targetDecisionTimer += dt;
         const targetDecisionDue = this.targetDecisionTimer >= this.targetDecisionInterval;
-        const currentTargetRemoved = this.currentTarget && targetDecisionDue && !enemies.includes(this.currentTarget);
-        const currentTargetInvalid = (this.currentTarget && this.currentTarget.dead) ||
-            currentTargetRemoved;
+        const currentTargetInvalid = this.currentTarget && !this.isTargetStillValid(this.currentTarget);
         const damageTriggeredDecision = this.lastDamagedBy && !this.lastDamagedBy.dead &&
             this.lastDamagedTime > this.lastTargetDamageDecisionTime;
-        if (currentTargetInvalid || damageTriggeredDecision || targetDecisionDue) {
+        if (currentTargetInvalid) {
+            this.currentTarget = null;
+        }
+        if (!this.currentTarget) {
             this.currentTarget = this.findTarget();
             this.targetDecisionTimer = 0;
             if (damageTriggeredDecision) {
                 this.lastTargetDamageDecisionTime = this.lastDamagedTime;
             }
+        } else if (damageTriggeredDecision) {
+            if (this.shouldSwitchTarget(this.lastDamagedBy, 'damage')) {
+                this.currentTarget = this.lastDamagedBy;
+            }
+            this.lastTargetDamageDecisionTime = this.lastDamagedTime;
+        } else if (targetDecisionDue) {
+            const candidate = this.findTarget();
+            if (this.shouldSwitchTarget(candidate, 'scan')) {
+                this.currentTarget = candidate;
+            }
+            this.targetDecisionTimer = 0;
         }
 
         if (!this.currentTarget) {
