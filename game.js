@@ -309,7 +309,17 @@ const DamageNumberPool = {
         return Object.assign(d, props);
     },
     release(d) {
-        if (this._pool.length < 100) this._pool.push(d);
+        if (this._pool.length < 100) {
+            d.el = undefined;
+            d.isHTML = false;
+            d.isImportantText = false;
+            d.isCrit = false;
+            d.isGold = false;
+            d.isLightning = false;
+            d.isPoison = false;
+            d.isIce = false;
+            this._pool.push(d);
+        }
     }
 };
 
@@ -8490,6 +8500,7 @@ function draw() {
     // 性能优化：使用 for 循环渲染伤害数字
     for (let di = 0, dLen = damageNumbers.length; di < dLen; di++) {
         const d = damageNumbers[di];
+        if (d.isHTML) continue;
         // 动态字体大小
         const size = d.fontSize || 16;
         ctx.font = `bold ${size}px Arial`;
@@ -11196,14 +11207,28 @@ function createNovaEffect(x, y, color) {
     }
 }
 
+function isPlainDamageNumberValue(val) {
+    if (typeof val === 'number') return true;
+    if (typeof val !== 'string') return false;
+    return /^[+-]?\d+(\.\d+)?$/.test(val.trim());
+}
+
+function shouldUseDomDamageNumber(val, isCrit, isGold) {
+    if (isCrit || isGold) return true;
+    return typeof val === 'string' && !isPlainDamageNumberValue(val);
+}
+
 // 创建伤害数字（高性能版本：支持对象池与中央物理驱动）
 function createDamageNumber(x, y, val, color, angle = null) {
     // 数字类型自动取整，避免浮点数显示问题
     if (typeof val === 'number') {
         val = Math.floor(val);
     }
-    const isCrit = color === COLORS.critical || val === "暴击!" || (typeof val === 'string' && (val.includes('!') || val.includes('Crit')));
+    const isCrit = val === "暴击!" || (typeof val === 'string' && val.includes('Crit'));
     const isGold = color === 'gold' || (typeof val === 'string' && val.includes(' G'));
+    const useDomDamageNumber = player.graphicsQuality === 'high'
+        && cachedUI.floatingTexts
+        && shouldUseDomDamageNumber(val, isCrit, isGold);
 
     // 物理参数预计算
     let vx = 0, vy = 0, gravity = 400, life = 1.0;
@@ -11229,8 +11254,8 @@ function createDamageNumber(x, y, val, color, angle = null) {
         gravity = isCrit ? 600 : 400;
     }
 
-    // 高级排版渲染 (DOM Mode)
-    if (player.graphicsQuality === 'high' && cachedUI.floatingTexts) {
+    // 高级排版渲染只保留给暴击、金币和重要文字，普通高频数字走 Canvas。
+    if (useDomDamageNumber) {
         const div = document.createElement('div');
         const className = isCrit ? 'dmg-crit' : (isGold ? 'dmg-gold' : 'dmg-normal');
         div.className = `damage-number ${className}`;
@@ -11251,15 +11276,17 @@ function createDamageNumber(x, y, val, color, angle = null) {
             x, y, val, color, isHTML: true, el: div,
             vx, vy, gravity, life, maxLife: life,
             sx: screenX, sy: screenY,
-            isLightning, isPoison, isIce, isCrit, flickerTimer: 0
+            isLightning, isPoison, isIce, isCrit, isGold, isImportantText: !isCrit && !isGold,
+            flickerTimer: 0
         }));
     } else {
         // 基础渲染 (Canvas Mode)
         damageNumbers.push(DamageNumberPool.acquire({
-            x, y, val, color,
+            x, y, val, color, isHTML: false, el: null,
             life: isCrit ? 1.0 : 0.8,
             vx, vy, gravity,
-            fontSize: isCrit ? 24 : 16
+            fontSize: isCrit ? 24 : 16,
+            isLightning, isPoison, isIce, isCrit, isGold: false, isImportantText: false
         }));
     }
 }
