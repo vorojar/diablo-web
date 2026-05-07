@@ -12,7 +12,10 @@ const DEFAULTS = {
     floor: 5,
     quality: 'high',
     auto: true,
-    runs: 3
+    runs: 3,
+    width: 1280,
+    height: 720,
+    cdpPort: 9222
 };
 
 function parseBoolean(value, name) {
@@ -53,6 +56,9 @@ function parseArgs(argv) {
         else if (key === 'quality') args.quality = value;
         else if (key === 'auto') args.auto = parseBoolean(value, '--auto');
         else if (key === 'runs') args.runs = Number(value);
+        else if (key === 'width') args.width = Number(value);
+        else if (key === 'height') args.height = Number(value);
+        else if (key === 'cdp-port') args.cdpPort = Number(value);
         else throw new Error(`未知参数: --${key}`);
     }
 
@@ -60,16 +66,22 @@ function parseArgs(argv) {
     if (!Number.isInteger(args.floor) || args.floor < 0) throw new Error('--floor 必须是非负整数');
     if (!['high', 'low'].includes(args.quality)) throw new Error('--quality 只支持 high 或 low');
     if (!Number.isInteger(args.runs) || args.runs <= 0) throw new Error('--runs 必须是正整数');
+    if (!Number.isInteger(args.width) || args.width < 320) throw new Error('--width 必须是大于等于 320 的整数');
+    if (!Number.isInteger(args.height) || args.height < 240) throw new Error('--height 必须是大于等于 240 的整数');
+    if (!Number.isInteger(args.cdpPort) || args.cdpPort < 1024 || args.cdpPort > 65535) throw new Error('--cdp-port 必须是 1024-65535 的整数');
 
     return args;
 }
 
-function probeArgs(args) {
+function probeArgs(args, index) {
     const out = [
         PROBE_PATH,
         '--seconds', String(args.seconds),
         '--floor', String(args.floor),
-        '--quality', args.quality
+        '--quality', args.quality,
+        '--width', String(args.width),
+        '--height', String(args.height),
+        '--cdp-port', String(args.cdpPort + index - 1)
     ];
     if (args.auto) out.push('--auto');
     return out;
@@ -77,7 +89,7 @@ function probeArgs(args) {
 
 function runProbe(args, index) {
     return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, probeArgs(args), {
+        const child = spawn(process.execPath, probeArgs(args, index), {
             cwd: path.resolve(__dirname, '..'),
             stdio: ['ignore', 'pipe', 'pipe']
         });

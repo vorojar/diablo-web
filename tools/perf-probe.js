@@ -14,6 +14,8 @@ const DEFAULT_SECONDS = 10;
 const DEFAULT_FLOOR = 1;
 const DEFAULT_QUALITY = 'low';
 const DEFAULT_CDP_PORT = 9222;
+const DEFAULT_WIDTH = 1280;
+const DEFAULT_HEIGHT = 720;
 
 function parseArgs(argv) {
     const args = {
@@ -21,7 +23,10 @@ function parseArgs(argv) {
         seconds: DEFAULT_SECONDS,
         floor: DEFAULT_FLOOR,
         quality: DEFAULT_QUALITY,
-        auto: false
+        auto: false,
+        width: DEFAULT_WIDTH,
+        height: DEFAULT_HEIGHT,
+        cdpPort: DEFAULT_CDP_PORT
     };
 
     for (let i = 0; i < argv.length; i++) {
@@ -39,12 +44,18 @@ function parseArgs(argv) {
         else if (key === 'seconds') args.seconds = Number(value);
         else if (key === 'floor') args.floor = Number(value);
         else if (key === 'quality') args.quality = value;
+        else if (key === 'width') args.width = Number(value);
+        else if (key === 'height') args.height = Number(value);
+        else if (key === 'cdp-port') args.cdpPort = Number(value);
         else throw new Error(`未知参数: ${arg}`);
     }
 
     if (!Number.isFinite(args.seconds) || args.seconds <= 0) throw new Error('--seconds 必须是正数');
     if (!Number.isInteger(args.floor) || args.floor < 0) throw new Error('--floor 必须是非负整数');
     if (!['high', 'low'].includes(args.quality)) throw new Error('--quality 只支持 high 或 low');
+    if (!Number.isInteger(args.width) || args.width < 320) throw new Error('--width 必须是大于等于 320 的整数');
+    if (!Number.isInteger(args.height) || args.height < 240) throw new Error('--height 必须是大于等于 240 的整数');
+    if (!Number.isInteger(args.cdpPort) || args.cdpPort < 1024 || args.cdpPort > 65535) throw new Error('--cdp-port 必须是 1024-65535 的整数');
     return args;
 }
 
@@ -195,15 +206,15 @@ async function getBrowserVersion(port) {
     return requestJson(`http://127.0.0.1:${port}/json/version`);
 }
 
-async function ensureBrowser(targetUrl) {
+async function ensureBrowser(targetUrl, viewport, cdpPort) {
     try {
-        const version = await getBrowserVersion(DEFAULT_CDP_PORT);
-        return { port: DEFAULT_CDP_PORT, launched: null, version };
+        const version = await getBrowserVersion(cdpPort);
+        return { port: cdpPort, launched: null, version };
     } catch (_) {
         // 没有现成的 CDP 浏览器时启动临时实例。
     }
 
-    const port = await findFreePort(DEFAULT_CDP_PORT);
+    const port = await findFreePort(cdpPort);
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'diablo-perf-cdp-'));
     const chrome = findChromeExecutable();
     const child = spawn(chrome, [
@@ -214,7 +225,7 @@ async function ensureBrowser(targetUrl) {
         '--disable-background-networking',
         '--disable-extensions',
         '--mute-audio',
-        '--window-size=1280,720',
+        `--window-size=${viewport.width},${viewport.height}`,
         'about:blank'
     ], {
         stdio: 'ignore',
@@ -422,7 +433,11 @@ function injectionSource(options) {
                         alive: list.filter(e => e && !e.dead).length,
                         particles: typeof particles === 'undefined' ? null : particles.length,
                         projectiles: typeof projectiles === 'undefined' ? null : projectiles.length,
-                        groundItems: typeof groundItems === 'undefined' ? null : groundItems.length
+                        groundItems: typeof groundItems === 'undefined' ? null : groundItems.length,
+                        canvasWidth: typeof canvas === 'undefined' ? null : canvas.width,
+                        canvasHeight: typeof canvas === 'undefined' ? null : canvas.height,
+                        windowWidth: window.innerWidth,
+                        windowHeight: window.innerHeight
                     };
                 },
                 stats() {
@@ -476,12 +491,18 @@ function injectionSource(options) {
 
 async function runProbe(args) {
     const staticServer = await startStaticServerIfNeeded(args.url);
-    const browser = await ensureBrowser(args.url);
+    const browser = await ensureBrowser(args.url, { width: args.width, height: args.height }, args.cdpPort);
     const target = await newPage(browser.port, args.url);
     const cdp = new CdpClient(target.webSocketDebuggerUrl);
 
     try {
         await cdp.connect();
+        await cdp.send('Emulation.setDeviceMetricsOverride', {
+            width: args.width,
+            height: args.height,
+            deviceScaleFactor: 1,
+            mobile: false
+        });
         await cdp.waitForLoad();
         await cdp.evaluateWhenStable(`new Promise(resolve => {
             const done = () => resolve(true);

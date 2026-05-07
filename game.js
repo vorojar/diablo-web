@@ -48,6 +48,49 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const miniCanvas = document.getElementById('minimap');
 const miniCtx = miniCanvas.getContext('2d');
+const MAX_CANVAS_RENDER_PIXELS = 1600 * 900;
+const renderViewport = {
+    cssWidth: 0,
+    cssHeight: 0,
+    scaleX: 1,
+    scaleY: 1
+};
+
+function updateRenderViewport() {
+    const cssWidth = Math.max(1, window.innerWidth);
+    const cssHeight = Math.max(1, window.innerHeight);
+    const scale = Math.min(1, Math.sqrt(MAX_CANVAS_RENDER_PIXELS / (cssWidth * cssHeight)));
+    const renderWidth = Math.max(1, Math.round(cssWidth * scale));
+    const renderHeight = Math.max(1, Math.round(cssHeight * scale));
+
+    renderViewport.cssWidth = cssWidth;
+    renderViewport.cssHeight = cssHeight;
+    renderViewport.scaleX = cssWidth / renderWidth;
+    renderViewport.scaleY = cssHeight / renderHeight;
+
+    canvas.width = renderWidth;
+    canvas.height = renderHeight;
+    canvas.style.width = cssWidth + 'px';
+    canvas.style.height = cssHeight + 'px';
+}
+
+function clientToCanvasX(clientX) {
+    const rect = canvas.getBoundingClientRect();
+    return (clientX - rect.left) * canvas.width / rect.width;
+}
+
+function clientToCanvasY(clientY) {
+    const rect = canvas.getBoundingClientRect();
+    return (clientY - rect.top) * canvas.height / rect.height;
+}
+
+function canvasToCssX(x) {
+    return x * renderViewport.scaleX;
+}
+
+function canvasToCssY(y) {
+    return y * renderViewport.scaleY;
+}
 
 // DOM 缓存对象
 const cachedUI = {
@@ -4652,7 +4695,7 @@ function init() {
         }
     });
 }
-function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+function resize() { updateRenderViewport(); }
 
 async function confirmResetSave() {
     // 检查是否有存档
@@ -7837,7 +7880,7 @@ function update(dt) {
             }
 
             // 应用位移 (相对于初始放置位置的偏移)
-            d.el.style.transform = `translate(${drawX - d.sx}px, ${drawY - d.sy}px)`;
+            d.el.style.transform = `translate(${canvasToCssX(drawX - d.sx)}px, ${canvasToCssY(drawY - d.sy)}px)`;
 
             // 应用缩放效果
             let scale = 1;
@@ -9086,7 +9129,7 @@ function updateLabelsPosition() {
         if (i.el) {
             const sx = i.x - camera.x, sy = i.y - camera.y - (i.z || 0) - 25;
             if (sx > 0 && sx < canvas.width && sy > 0 && sy < canvas.height) {
-                i.el.style.display = 'block'; i.el.style.left = sx + 'px'; i.el.style.top = sy + 'px';
+                i.el.style.display = 'block'; i.el.style.left = canvasToCssX(sx) + 'px'; i.el.style.top = canvasToCssY(sy) + 'px';
             } else i.el.style.display = 'none';
         }
     }
@@ -11777,8 +11820,8 @@ function createDamageNumber(x, y, val, color, angle = null) {
         // 记录初始屏幕坐标
         const screenX = x - camera.x;
         const screenY = y - camera.y;
-        div.style.left = screenX + 'px';
-        div.style.top = screenY + 'px';
+        div.style.left = canvasToCssX(screenX) + 'px';
+        div.style.top = canvasToCssY(screenY) + 'px';
         cachedUI.floatingTexts.appendChild(div);
 
         // 如果是暴击，触发 GSAP 特效弹出
@@ -11842,8 +11885,8 @@ function createFloatingText(x, y, text, color = '#ffff00', duration = 2) {
     el.className = 'floating-text';
     el.textContent = text;
     el.style.color = color;
-    el.style.left = (x - camera.x) + 'px';
-    el.style.top = (y - camera.y - 20) + 'px';
+    el.style.left = canvasToCssX(x - camera.x) + 'px';
+    el.style.top = canvasToCssY(y - camera.y - 20) + 'px';
     el.style.opacity = '1';
 
     cachedUI.floatingTexts.appendChild(el);
@@ -11864,7 +11907,7 @@ function createFloatingText(x, y, text, color = '#ffff00', duration = 2) {
 
         // 向上移动并淡出
         const currentY = y - camera.y - 20 - (life * speed);
-        el.style.top = currentY + 'px';
+        el.style.top = canvasToCssY(currentY) + 'px';
         el.style.opacity = (1 - progress).toString();
 
         setTimeout(animate, interval);
@@ -15423,7 +15466,7 @@ document.addEventListener('touchstart', (e) => {
 }, { passive: true });
 
 // Input
-window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+window.addEventListener('mousemove', e => { mouse.x = clientToCanvasX(e.clientX); mouse.y = clientToCanvasY(e.clientY); });
 window.addEventListener('mousedown', e => {
     // 任何鼠标交互时尝试自动启动BGM
     AudioSys.tryAutoStartBGM();
@@ -15460,13 +15503,12 @@ const touchState = {
 
 // 获取canvas相对于视口的位置
 function getTouchPosition(touch) {
-    const rect = canvas.getBoundingClientRect();
     return {
-        x: touch.clientX,
-        y: touch.clientY,
+        x: clientToCanvasX(touch.clientX),
+        y: clientToCanvasY(touch.clientY),
         // 相对于canvas的位置（如果需要）
-        canvasX: touch.clientX - rect.left,
-        canvasY: touch.clientY - rect.top
+        canvasX: clientToCanvasX(touch.clientX),
+        canvasY: clientToCanvasY(touch.clientY)
     };
 }
 
@@ -16722,8 +16764,8 @@ function updateTutorialBubble() {
     const screenY = targetPos.y - camera.y + yOffset;
 
     bubble.querySelector('.bubble-text').textContent = step.text;
-    bubble.style.left = screenX + 'px';
-    bubble.style.top = screenY + 'px';
+    bubble.style.left = canvasToCssX(screenX) + 'px';
+    bubble.style.top = canvasToCssY(screenY) + 'px';
     bubble.style.display = 'block';
     bubble.classList.remove('arrow-right', 'arrow-down');  // 默认箭头朝下指向NPC
 }

@@ -25,6 +25,6 @@ Assert-Contains -Text $game -Pattern 'getDynamicEnemyTargetCount\(' -Message 'FA
 Assert-Contains -Text $game -Pattern 'for \(let spawnIndex = 0; spawnIndex < spawnCount; spawnIndex\+\+\)' -Message 'FAIL: dynamic spawner should refill in batches.'
 Assert-Contains -Text $game -Pattern 'Math\.min\(1,\s*0\.65\s*\+\s*f\s*\*\s*0\.05\)' -Message 'FAIL: initial floor population scale should start higher.'
 Assert-Contains -Text $index -Pattern 'constants\.js\?v=202605072110' -Message 'FAIL: index.html did not bump constants.js cache version.'
-Assert-Contains -Text $index -Pattern 'game\.js\?v=202605072130' -Message 'FAIL: index.html did not bump game.js cache version.'
+Assert-Contains -Text $index -Pattern 'game\.js\?v=202605072230' -Message 'FAIL: index.html did not bump game.js cache version.'
 
 Write-Host 'PASS: monster density contract'
