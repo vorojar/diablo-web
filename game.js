@@ -3344,6 +3344,67 @@ function drawBossHealthHud() {
     ctx.restore();
 }
 
+function getPlayerVisualProfile() {
+    const activeSkill = player.activeSkill && player.activeSkill !== 'attack' ? player.activeSkill : 'attack';
+    const skillProfiles = {
+        attack: { color: 'rgba(235, 220, 185, 0.34)', stroke: '#f1dfb8', trail: '#ffffff' },
+        fireball: { color: 'rgba(255, 92, 24, 0.30)', stroke: '#ff7a28', trail: '#ff8a2a' },
+        thunder: { color: 'rgba(92, 205, 255, 0.28)', stroke: '#8ee8ff', trail: '#9be8ff' },
+        multishot: { color: 'rgba(185, 255, 72, 0.24)', stroke: '#caff62', trail: '#d7ff66' },
+        holy_shield: { color: 'rgba(255, 220, 92, 0.26)', stroke: '#ffe17a', trail: '#ffe17a' }
+    };
+    const profile = skillProfiles[activeSkill] || skillProfiles.attack;
+    const mainhand = player.equipment?.mainhand;
+    const hasSetPower = Object.values(player.equippedSets || {}).some(count => count >= 4);
+
+    if (mainhand?.rarity === RARITY.SET || hasSetPower) {
+        return { ...profile, setColor: 'rgba(32, 255, 96, 0.34)', trail: '#41ff78' };
+    }
+    if (mainhand?.rarity >= RARITY.UNIQUE) {
+        return { ...profile, trail: '#ffd76a', setColor: 'rgba(255, 210, 86, 0.28)' };
+    }
+    return profile;
+}
+
+function drawPlayerDisciplineAura(ctx, x, y) {
+    const profile = getPlayerVisualProfile();
+    const time = Date.now() / 1000;
+    const pulse = 0.75 + Math.sin(time * 2.8) * 0.16;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.translate(x, y + 2);
+    ctx.scale(1, 0.42);
+
+    const radius = 31 + pulse * 5;
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+    glow.addColorStop(0, profile.color);
+    glow.addColorStop(0.55, profile.color);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = 0.62;
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = 0.38;
+    ctx.strokeStyle = profile.stroke;
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.arc(0, 0, 23 + pulse * 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    if (profile.setColor) {
+        ctx.globalAlpha = 0.30;
+        ctx.strokeStyle = profile.setColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 34 + pulse * 4, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+
 function drawEnemyActor(ctx, e) {
     if (!e || (e.dead && !(e.deathVisualTimer > 0))) return;
     if (e.x < camera.x - 100 || e.x > camera.x + canvas.width + 100 ||
@@ -8543,6 +8604,7 @@ function draw() {
 
         const isPlayerStalling = typeof MarketSystem !== 'undefined' && MarketSystem.isStalling;
         drawContactShadow(ctx, px, py - 2, useHeroSheet ? 44 : 30, useHeroSheet ? 12 : 8, isPlayerStalling ? 0.22 : 0.3);
+        if (!isPlayerStalling) drawPlayerDisciplineAura(ctx, px, py);
 
         if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) {
             drawHeroSprite(ctx, source, frame, px, py - renderHeight / 2 + (frame.offsetY || 0), renderWidth, renderHeight);
@@ -8885,12 +8947,8 @@ function draw() {
             setGlow(ctx, 15, '#ffdd00');
         }
 
-        // 根据颜色解析RGB用于alpha渐变
-        if (color === '#ffdd00') {
-            ctx.strokeStyle = `rgba(255, 221, 0, ${alpha})`;
-        } else {
-            ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
-        }
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = color;
 
         ctx.lineWidth = (s.isCrit ? 5 : 3) * alpha;
         ctx.beginPath();
@@ -8899,6 +8957,7 @@ function draw() {
 
         // 清除发光效果
         clearGlow(ctx);
+        ctx.globalAlpha = 1;
     }
 
     // 渲染墙壁遮挡修复 (Occlusion Fix) - 性能优化：复用 Set + 数字编码
@@ -11724,6 +11783,7 @@ function createDamageNumber(x, y, val, color, angle = null) {
 // 触发震屏
 function createSlashEffect(fromX, fromY, toX, toY, damage = 50, isCrit = false) {
     const angle = Math.atan2(toY - fromY, toX - fromX);
+    const profile = getPlayerVisualProfile();
 
     // 暴击时更多斩击弧、更大半径
     let count = damage < 50 ? 1 : damage < 150 ? 2 : 3;
@@ -11746,7 +11806,7 @@ function createSlashEffect(fromX, fromY, toX, toY, damage = 50, isCrit = false) 
             radius: isCrit ? 45 : 30,  // 暴击更大半径
             life: 1.0,
             isCrit: isCrit,  // 标记暴击，用于渲染
-            color: isCrit ? '#ffdd00' : '#ffffff'  // 暴击金色，普通白色
+            color: isCrit ? '#ffdd00' : profile.trail
         });
     });
 }
