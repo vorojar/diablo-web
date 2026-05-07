@@ -802,6 +802,21 @@ const OnlineSystem = {
     recordId: null,
     heartbeatTimer: null,
 
+    bootstrapLocalIdentity() {
+        this.userId = localStorage.getItem('pb_user_id');
+        this.nickname = localStorage.getItem('pb_nickname');
+
+        if (this.nickname) {
+            const welcomeEl = document.getElementById('welcome-back');
+            if (welcomeEl) welcomeEl.textContent = `欢迎回来，${this.nickname}`;
+        }
+
+        return {
+            userId: this.userId,
+            nickname: this.nickname
+        };
+    },
+
     // 初始化
     /**
      * @param {boolean} showDialog - 是否立即显示昵称对话框（默认为true）
@@ -810,8 +825,7 @@ const OnlineSystem = {
      * 在线状态在进入游戏时（selectSlot）才建立
      */
     async init(showDialog = true) {
-        this.userId = localStorage.getItem('pb_user_id');
-        this.nickname = localStorage.getItem('pb_nickname');
+        this.bootstrapLocalIdentity();
 
         // 初始化云同步
         CloudSync.init();
@@ -935,6 +949,10 @@ const OnlineSystem = {
 
     // 设置昵称
     async setNickname(name) {
+        if (typeof ChatSystem !== 'undefined' && ChatSystem.ensureBlockedWordsLoaded) {
+            await ChatSystem.ensureBlockedWordsLoaded();
+        }
+
         // 检查是否包含敏感词
         const filteredName = ChatSystem.filterSensitiveWords(name);
         if (filteredName !== name) {
@@ -2073,6 +2091,8 @@ const OnlineSystem = {
     }
 };
 
+OnlineSystem.bootstrapLocalIdentity();
+
 // ========== 世界聊天系统 ==========
 const ChatSystem = {
     isCollapsed: false,
@@ -2085,6 +2105,9 @@ const ChatSystem = {
     unreadCount: 0,       // 未读消息数
     isSending: false,     // 发送锁，防止重复发送
     isReady: false,       // 聊天系统是否就绪（敏感词库+Realtime订阅完成）
+    initStarted: false,
+    blockedWordsReady: false,
+    blockedWordsLoading: null,
 
     // 获取当前应显示的称号（最新优先）
     getDisplayTitle() {
@@ -2122,7 +2145,19 @@ const ChatSystem = {
             }
         } catch (e) {
             console.warn('[聊天系统] 加载敏感词库失败，使用默认列表');
+        } finally {
+            this.blockedWordsReady = true;
         }
+    },
+
+    ensureBlockedWordsLoaded() {
+        if (this.blockedWordsReady) return Promise.resolve();
+        if (!this.blockedWordsLoading) {
+            this.blockedWordsLoading = this.loadBlockedWords().finally(() => {
+                this.blockedWordsLoading = null;
+            });
+        }
+        return this.blockedWordsLoading;
     },
 
     // 敏感词过滤（全局通用，用*替代敏感词）
@@ -2138,12 +2173,15 @@ const ChatSystem = {
 
     // 初始化聊天系统
     async init() {
+        if (this.initStarted) return;
+        this.initStarted = true;
+
         // 初始时禁用聊天框（灰色、折叠、不可交互）
         this.setDisabled(true);
 
         // 并行加载敏感词库和订阅消息
         await Promise.all([
-            this.loadBlockedWords(),
+            this.ensureBlockedWordsLoaded(),
             this.subscribeMessages()
         ]);
 
@@ -2764,19 +2802,24 @@ function initEmotePanel() {
 
 // 页面加载后初始化
 window.addEventListener('load', () => {
-    setTimeout(() => {
-        ChatSystem.init(); // 先初始化聊天系统（包含敏感词库）
-        initEmotePanel();  // 初始化表情面板
+    OnlineSystem.bootstrapLocalIdentity();
+    initEmotePanel();
 
-        // 检查是否有未读的更新公告
-        const lastReadVersion = localStorage.getItem('changelog_read_version');
-        const currentVersion = typeof CURRENT_VERSION !== 'undefined' ? CURRENT_VERSION : null;
-        const hasUnreadChangelog = !lastReadVersion || lastReadVersion !== currentVersion;
+    // 检查是否有未读的更新公告
+    const lastReadVersion = localStorage.getItem('changelog_read_version');
+    const currentVersion = typeof CURRENT_VERSION !== 'undefined' ? CURRENT_VERSION : null;
+    const hasUnreadChangelog = !lastReadVersion || lastReadVersion !== currentVersion;
 
-        // 如果有未读公告，先不显示注册框，等关闭公告后再显示
-        OnlineSystem.init(!hasUnreadChangelog);
-        OnlineSystem.initAnnouncements();
-    }, 1000);
+    // 身份和云同步状态必须优先初始化，聊天词库放到后台空闲加载。
+    OnlineSystem.init(!hasUnreadChangelog);
+    OnlineSystem.initAnnouncements();
+
+    const startChat = () => ChatSystem.init();
+    if ('requestIdleCallback' in window) {
+        requestIdleCallback(startChat, { timeout: 3000 });
+    } else {
+        setTimeout(startChat, 0);
+    }
 });
 
 // ========== 深渊排行榜 Mock (Patch) ==========

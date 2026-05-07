@@ -4401,9 +4401,14 @@ async function showSlotSelection() {
     }
 
     // 新用户检测：必须先选择开始方式
-    if (typeof OnlineSystem !== 'undefined' && !OnlineSystem.nickname) {
-        CloudSync.showNewUserDialog();
-        return;
+    if (typeof OnlineSystem !== 'undefined') {
+        if (!OnlineSystem.nickname && typeof OnlineSystem.bootstrapLocalIdentity === 'function') {
+            OnlineSystem.bootstrapLocalIdentity();
+        }
+        if (!OnlineSystem.nickname) {
+            CloudSync.showNewUserDialog();
+            return;
+        }
     }
 
     // 多设备检测（已绑定云同步的用户）
