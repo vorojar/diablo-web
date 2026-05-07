@@ -24,6 +24,7 @@ function parseArgs(argv) {
         floor: DEFAULT_FLOOR,
         quality: DEFAULT_QUALITY,
         auto: false,
+        killAll: false,
         width: DEFAULT_WIDTH,
         height: DEFAULT_HEIGHT,
         cdpPort: DEFAULT_CDP_PORT
@@ -33,6 +34,10 @@ function parseArgs(argv) {
         const arg = argv[i];
         if (arg === '--auto') {
             args.auto = true;
+            continue;
+        }
+        if (arg === '--kill-all') {
+            args.killAll = true;
             continue;
         }
         if (!arg.startsWith('--')) throw new Error(`未知参数: ${arg}`);
@@ -481,6 +486,14 @@ function injectionSource(options) {
                     AutoBattle.sessionGold = 0;
                     AutoBattle.sessionFee = 0;
                 } catch (_) {}
+            }
+            if (options.killAll && typeof enemies !== 'undefined') {
+                for (const enemy of enemies) {
+                    if (!enemy) continue;
+                    enemy.hp = 0;
+                    enemy.dead = true;
+                    enemy.deadAt = Date.now();
+                }
             }
             return window.__perfProbe.snapshot();
         }

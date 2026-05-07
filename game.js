@@ -6,6 +6,10 @@ function isInTown() {
     return player.floor === 0 && !player.isInHell;
 }
 
+function getCurrentCombatFloor() {
+    return player.isInHell ? player.hellFloor : player.floor;
+}
+
 // 统计追踪：添加金币并更新统计
 function addGold(amount) {
     player.gold += amount;
@@ -532,6 +536,7 @@ const EnemyCache = {
 };
 let gameFrameId = 0; // 全局帧计数器
 let enemySpawnIntervalId = null;
+let enemySpawnCandidates = [];
 
 // ====== 敌人空间索引（玩家投射物/范围伤害窄查询）======
 const EnemySpatialGrid = {
@@ -5185,6 +5190,7 @@ function enterFloor(f, spawnAt = 'start') {
     projectiles.forEach(p => ProjectilePool.release(p));
     flyingPickups.forEach(f => FlyingPickupPool.release(f));
     enemies = []; groundItems = []; projectiles = []; npcs = []; flyingPickups = [];
+    enemySpawnCandidates = [];
     vfxEffects = [];
     destructibles = []; // 清空可破坏物体
     dungeonRoomFeatures = [];
@@ -7200,12 +7206,14 @@ function update(dt) {
     cleanupTimer += dt;
     if (cleanupTimer > 3) {
         cleanupTimer = 0;
+        const nowForCleanup = Date.now();
         // 使用原地过滤算法，避免创建新数组
         let writeIdx = 0;
         for (let readIdx = 0; readIdx < enemies.length; readIdx++) {
             const e = enemies[readIdx];
             // 保留活着的敌人，以及200像素内的尸体（用于复活者AI）
-            if (!e.dead || Math.hypot(e.x - player.x, e.y - player.y) < 200) {
+            const corpseAge = e.deadAt ? nowForCleanup - e.deadAt : Infinity;
+            if (!e.dead || (corpseAge < 12000 && Math.hypot(e.x - player.x, e.y - player.y) < 200)) {
                 enemies[writeIdx++] = e;
             } else {
                 // 回收到对象池
@@ -10359,14 +10367,41 @@ function migrateSetCollection() {
     }
 }
 
-function findEnemySpawnPosition(minDistance = GAME_CONFIG.ENEMY_SPAWN_MIN_DISTANCE, maxAttempts = 24) {
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const x = Math.random() * MAP_WIDTH * TILE_SIZE;
-        const y = Math.random() * MAP_HEIGHT * TILE_SIZE;
-        if (isWall(x, y)) continue;
-        if (Math.hypot(x - player.x, y - player.y) < minDistance) continue;
-        return { x, y };
+function rebuildEnemySpawnCandidates() {
+    enemySpawnCandidates = [];
+    for (let y = 1; y < MAP_HEIGHT - 1; y++) {
+        for (let x = 1; x < MAP_WIDTH - 1; x++) {
+            if (!hasFloorAtTile(x, y)) continue;
+            enemySpawnCandidates.push({
+                x: x * TILE_SIZE + TILE_SIZE / 2,
+                y: y * TILE_SIZE + TILE_SIZE / 2
+            });
+        }
     }
+}
+
+function findEnemySpawnPosition(minDistance = GAME_CONFIG.ENEMY_SPAWN_MIN_DISTANCE, maxAttempts = 64) {
+    if (enemySpawnCandidates.length === 0) rebuildEnemySpawnCandidates();
+    if (enemySpawnCandidates.length === 0) return null;
+
+    const distanceSteps = [minDistance, Math.min(minDistance, 180), Math.min(minDistance, 100), Math.min(minDistance, 40), 0]
+        .filter((value, index, values) => value >= 0 && values.indexOf(value) === index);
+
+    for (const requiredDistance of distanceSteps) {
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const candidate = enemySpawnCandidates[Math.floor(Math.random() * enemySpawnCandidates.length)];
+            if (Math.hypot(candidate.x - player.x, candidate.y - player.y) < requiredDistance) continue;
+            return { x: candidate.x, y: candidate.y };
+        }
+
+        const startIndex = Math.floor(Math.random() * enemySpawnCandidates.length);
+        for (let offset = 0; offset < enemySpawnCandidates.length; offset++) {
+            const candidate = enemySpawnCandidates[(startIndex + offset) % enemySpawnCandidates.length];
+            if (Math.hypot(candidate.x - player.x, candidate.y - player.y) < requiredDistance) continue;
+            return { x: candidate.x, y: candidate.y };
+        }
+    }
+
     return null;
 }
 
@@ -10379,7 +10414,7 @@ function spawnEnemyTimer() {
     if (enemySpawnIntervalId !== null) return;
 
     enemySpawnIntervalId = setInterval(() => {
-        if (document.hidden || (typeof document.hasFocus === 'function' && !document.hasFocus())) return;
+        if (document.hidden) return;
 
         const aliveEnemies = countAliveEnemiesDirect();
         // 只有在罗格营地才停止刷新怪物（地狱中继续刷新）
@@ -10390,7 +10425,7 @@ function spawnEnemyTimer() {
         const batchSize = (typeof AutoBattle !== 'undefined' && AutoBattle.enabled) ? GAME_CONFIG.AUTO_BATTLE_SPAWN_BATCH_SIZE : GAME_CONFIG.ENEMY_SPAWN_BATCH_SIZE;
         const spawnCount = Math.min(batchSize, targetEnemies - aliveEnemies, GAME_CONFIG.MAX_ENEMIES - aliveEnemies);
 
-        const f = player.floor;
+        const f = getCurrentCombatFloor();
         const hp = 30 + Math.floor(f * f * 5);
         const dmg = 5 + f * 2;
         const xp = 20 + f * 5;
@@ -10432,7 +10467,7 @@ function spawnEnemyTimer() {
 
         for (let spawnIndex = 0; spawnIndex < spawnCount; spawnIndex++) {
             const spawnPos = findEnemySpawnPosition();
-            if (!spawnPos) break;
+            if (!spawnPos) continue;
 
             // 按权重随机选择怪物
             const totalWeight = monsterPool.reduce((sum, m) => sum + m.weight, 0);
@@ -12511,6 +12546,7 @@ function finalizeEnemyDeath(e, totalDamage) {
     // 怪物死亡 - 强烈的果汁感
     e.hp = 0;
     e.dead = true;
+    e.deadAt = Date.now();
     e.deathVisualDuration = e.isBoss ? 0.38 : (e.isElite ? 0.30 : 0.24);
     e.deathVisualTimer = e.deathVisualDuration;
     Juice.hit(e, false, true); // 击杀反馈
