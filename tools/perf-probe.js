@@ -473,6 +473,7 @@ function injectionSource(options) {
             if (document.body) document.body.classList.toggle('high-quality', options.quality === 'high');
             const select = document.getElementById('select-graphics-quality');
             if (select) select.value = options.quality;
+            if (typeof resize === 'function') resize();
 
             if (typeof gameActive !== 'undefined' && !gameActive && typeof startGame === 'function') {
                 startGame();

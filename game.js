@@ -60,10 +60,15 @@ const renderViewport = {
     renderScaleY: 1
 };
 
+function getCanvasRenderPixelLimit() {
+    return player.graphicsQuality === 'low' ? MAX_CANVAS_RENDER_PIXELS : Infinity;
+}
+
 function updateRenderViewport() {
     const cssWidth = Math.max(1, window.innerWidth);
     const cssHeight = Math.max(1, window.innerHeight);
-    const scale = Math.min(1, Math.sqrt(MAX_CANVAS_RENDER_PIXELS / (cssWidth * cssHeight)));
+    const pixelLimit = getCanvasRenderPixelLimit();
+    const scale = Math.min(1, Math.sqrt(pixelLimit / (cssWidth * cssHeight)));
     const renderWidth = Math.max(1, Math.round(cssWidth * scale));
     const renderHeight = Math.max(1, Math.round(cssHeight * scale));
 
@@ -4143,6 +4148,7 @@ function toggleGraphicsQuality() {
     const val = cachedUI.selectGraphicsQuality.value;
     player.graphicsQuality = val;
     document.body.classList.toggle('high-quality', val === 'high');
+    resize();
     SaveSystem.save();
     showNotification(`特效质量：${val === 'high' ? '华丽特效' : '性能优先'}`);
 }
