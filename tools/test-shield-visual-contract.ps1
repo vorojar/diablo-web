@@ -24,6 +24,6 @@ Assert-Contains -Text $game -Pattern 'ctx\.arc\(0, -24, 34, Math\.PI \* 0\.10, M
 Assert-Contains -Text $game -Pattern 'backGradient\.addColorStop\(0, ''rgba\(255,255,255,0\)''\);' -Message 'FAIL: shield center should remain transparent.'
 Assert-NotContains -Text $game -Pattern 'const scaleX = 0\.6;' -Message 'FAIL: old flattened oval shield scale is still present.'
 Assert-NotContains -Text $game -Pattern 'innerGlow\.addColorStop\(1, shieldColor \+ pulseAlpha\.toFixed\(2\) \+ ''\)''\);' -Message 'FAIL: old solid shield fill is still present.'
-Assert-Contains -Text $index -Pattern 'game\.js\?v=202605080025' -Message 'FAIL: index.html did not bump the game.js cache version.'
+Assert-Contains -Text $index -Pattern 'game\.js\?v=202605080245' -Message 'FAIL: index.html did not bump the game.js cache version.'
 
 Write-Host 'PASS: shield visual contract'

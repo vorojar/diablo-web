@@ -493,6 +493,28 @@ const GAME_CONFIG = {
     MONSTER_RANGED_MAX: 400,            // 远程最大攻击距离
     PLAYER_MELEE_NO_LOS_RANGE: 50,      // 无视线时允许贴墙角普攻的距离
 
+    // 物理横扫：普攻成长后的围攻清怪能力
+    PHYSICAL_SWEEP_TIER1_LEVEL: 6,       // 顺劈解锁等级
+    PHYSICAL_SWEEP_TIER1_STR: 35,        // 顺劈力量门槛
+    PHYSICAL_SWEEP_TIER2_LEVEL: 12,      // 半月斩解锁等级
+    PHYSICAL_SWEEP_TIER2_STR: 60,        // 半月斩力量门槛
+    PHYSICAL_SWEEP_TIER3_LEVEL: 20,      // 横扫刀锋解锁等级
+    PHYSICAL_SWEEP_TIER3_STR: 90,        // 横扫刀锋力量门槛
+    PHYSICAL_SWEEP_PRESSURE_RADIUS: 170, // 判定被围攻的附近半径
+    PHYSICAL_SWEEP_TRIGGER_ENEMIES: 3,   // 附近至少3个敌人才触发横扫
+    PHYSICAL_SWEEP_TIER1_RANGE: 118,     // 顺劈范围
+    PHYSICAL_SWEEP_TIER2_RANGE: 142,     // 半月斩范围
+    PHYSICAL_SWEEP_TIER3_RANGE: 168,     // 横扫刀锋范围
+    PHYSICAL_SWEEP_TIER1_ARC: 2.35,      // 顺劈弧度
+    PHYSICAL_SWEEP_TIER2_ARC: 3.35,      // 半月斩弧度
+    PHYSICAL_SWEEP_TIER3_ARC: 4.7,       // 横扫刀锋弧度
+    PHYSICAL_SWEEP_TIER1_MAX_TARGETS: 2, // 顺劈额外目标上限
+    PHYSICAL_SWEEP_TIER2_MAX_TARGETS: 4, // 半月斩额外目标上限
+    PHYSICAL_SWEEP_TIER3_MAX_TARGETS: 6, // 横扫刀锋额外目标上限
+    PHYSICAL_SWEEP_TIER1_DAMAGE_RATIO: 0.45,
+    PHYSICAL_SWEEP_TIER2_DAMAGE_RATIO: 0.6,
+    PHYSICAL_SWEEP_TIER3_DAMAGE_RATIO: 0.75,
+
     // 交互距离
     INTERACTION_RANGE: 60,              // 通用交互距离
     NPC_INTERACTION_RANGE: 80,          // NPC交互距离

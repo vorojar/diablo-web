@@ -9075,17 +9075,18 @@ function draw() {
         const alpha = s.life;
         const color = s.color || '#ffffff';
 
-        // 暴击时添加外发光
-        if (s.isCrit) {
-            setGlow(ctx, 15, '#ffdd00');
+        // 暴击和横扫时添加外发光
+        if (s.isCrit || s.isSweep) {
+            setGlow(ctx, s.isSweep ? 22 : 15, s.glowColor || '#ffdd00');
         }
 
         ctx.globalAlpha = alpha;
         ctx.strokeStyle = color;
 
-        ctx.lineWidth = (s.isCrit ? 5 : 3) * alpha;
+        ctx.lineWidth = (s.lineWidth || (s.isCrit ? 5 : 3)) * alpha;
         ctx.beginPath();
-        ctx.arc(s.x, s.y, s.radius, s.angle - 0.8, s.angle + 0.8);
+        const arcWidth = s.arcWidth || 0.8;
+        ctx.arc(s.x, s.y, s.radius, s.angle - arcWidth, s.angle + arcWidth);
         ctx.stroke();
 
         // 清除发光效果
@@ -11994,6 +11995,145 @@ function createSlashEffect(fromX, fromY, toX, toY, damage = 50, isCrit = false) 
     });
 }
 
+function getPhysicalSweepTier() {
+    if (player.lvl >= GAME_CONFIG.PHYSICAL_SWEEP_TIER3_LEVEL || player.str >= GAME_CONFIG.PHYSICAL_SWEEP_TIER3_STR) return 3;
+    if (player.lvl >= GAME_CONFIG.PHYSICAL_SWEEP_TIER2_LEVEL || player.str >= GAME_CONFIG.PHYSICAL_SWEEP_TIER2_STR) return 2;
+    if (player.lvl >= GAME_CONFIG.PHYSICAL_SWEEP_TIER1_LEVEL || player.str >= GAME_CONFIG.PHYSICAL_SWEEP_TIER1_STR) return 1;
+    return 0;
+}
+
+function getPhysicalSweepConfig(tier) {
+    if (tier >= 3) {
+        return {
+            name: '横扫刀锋',
+            range: GAME_CONFIG.PHYSICAL_SWEEP_TIER3_RANGE,
+            arc: GAME_CONFIG.PHYSICAL_SWEEP_TIER3_ARC,
+            maxTargets: GAME_CONFIG.PHYSICAL_SWEEP_TIER3_MAX_TARGETS,
+            damageRatio: GAME_CONFIG.PHYSICAL_SWEEP_TIER3_DAMAGE_RATIO,
+            slashCount: 5
+        };
+    }
+    if (tier === 2) {
+        return {
+            name: '半月斩',
+            range: GAME_CONFIG.PHYSICAL_SWEEP_TIER2_RANGE,
+            arc: GAME_CONFIG.PHYSICAL_SWEEP_TIER2_ARC,
+            maxTargets: GAME_CONFIG.PHYSICAL_SWEEP_TIER2_MAX_TARGETS,
+            damageRatio: GAME_CONFIG.PHYSICAL_SWEEP_TIER2_DAMAGE_RATIO,
+            slashCount: 4
+        };
+    }
+    if (tier === 1) {
+        return {
+            name: '顺劈',
+            range: GAME_CONFIG.PHYSICAL_SWEEP_TIER1_RANGE,
+            arc: GAME_CONFIG.PHYSICAL_SWEEP_TIER1_ARC,
+            maxTargets: GAME_CONFIG.PHYSICAL_SWEEP_TIER1_MAX_TARGETS,
+            damageRatio: GAME_CONFIG.PHYSICAL_SWEEP_TIER1_DAMAGE_RATIO,
+            slashCount: 3
+        };
+    }
+    return null;
+}
+
+function getAngleDelta(a, b) {
+    let delta = a - b;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    return delta;
+}
+
+function canPhysicalSweepReachEnemy(enemy, dist) {
+    if (!enemy || enemy.dead) return false;
+    if (player.floor <= 0) return true;
+    if (dist < GAME_CONFIG.PLAYER_MELEE_NO_LOS_RANGE) return true;
+    return hasLineOfSight(player.x, player.y, enemy.x, enemy.y);
+}
+
+function getPhysicalSweepTargets(primaryTarget, attackAngle, tier) {
+    const config = getPhysicalSweepConfig(tier);
+    if (!config || !primaryTarget) return [];
+
+    let pressureCount = 0;
+    const candidates = [];
+    for (let i = 0; i < enemies.length; i++) {
+        const enemy = enemies[i];
+        if (!enemy || enemy.dead) continue;
+
+        const dx = enemy.x - player.x;
+        const dy = enemy.y - player.y;
+        const distSq = dx * dx + dy * dy;
+        const dist = Math.sqrt(distSq);
+        if (dist <= GAME_CONFIG.PHYSICAL_SWEEP_PRESSURE_RADIUS && canPhysicalSweepReachEnemy(enemy, dist)) {
+            pressureCount++;
+        }
+
+        if (enemy === primaryTarget || dist > config.range || !canPhysicalSweepReachEnemy(enemy, dist)) continue;
+        const angle = Math.atan2(dy, dx);
+        if (Math.abs(getAngleDelta(angle, attackAngle)) > config.arc / 2) continue;
+
+        candidates.push({ enemy, distSq });
+    }
+
+    if (pressureCount < GAME_CONFIG.PHYSICAL_SWEEP_TRIGGER_ENEMIES) return [];
+    candidates.sort((a, b) => a.distSq - b.distSq);
+    return candidates.slice(0, config.maxTargets).map(item => item.enemy);
+}
+
+function createPhysicalSweepEffect(fromX, fromY, attackAngle, tier, hitCount, isCrit) {
+    const config = getPhysicalSweepConfig(tier);
+    if (!config || hitCount <= 0) return;
+
+    const profile = getPlayerVisualProfile();
+    const color = isCrit ? '#ffdd00' : profile.trail;
+    const glowColor = isCrit ? '#ffdd00' : '#ffe08a';
+    const centerOffset = Math.cos(config.arc * 0.5) * 0.15;
+
+    for (let i = 0; i < config.slashCount; i++) {
+        const spread = config.slashCount === 1 ? 0 : (i / (config.slashCount - 1) - 0.5);
+        slashEffects.push({
+            x: fromX + Math.cos(attackAngle) * (18 + i * 2),
+            y: fromY + Math.sin(attackAngle) * (18 + i * 2),
+            angle: attackAngle + spread * config.arc * 0.32 + centerOffset,
+            radius: 46 + i * 15 + tier * 6,
+            life: 1.0,
+            isCrit,
+            isSweep: true,
+            color,
+            glowColor,
+            arcWidth: config.arc * 0.42,
+            lineWidth: 4 + tier + (isCrit ? 1.5 : 0)
+        });
+    }
+}
+
+function triggerPhysicalSweep(primaryTarget, basePhysicalDamage, isCrit, attackAngle) {
+    const tier = getPhysicalSweepTier();
+    const config = getPhysicalSweepConfig(tier);
+    if (!config) return 0;
+
+    const targets = getPhysicalSweepTargets(primaryTarget, attackAngle, tier);
+    if (targets.length === 0) return 0;
+
+    const physicalDamage = Math.max(1, Math.floor(basePhysicalDamage * config.damageRatio));
+    const sweepDamageObj = {
+        physical: physicalDamage,
+        fire: Math.floor(player.elementalDamage.fire * config.damageRatio),
+        lightning: Math.floor(player.elementalDamage.lightning * config.damageRatio),
+        poison: Math.floor(player.elementalDamage.poison * config.damageRatio),
+        isCrit: isCrit,
+        isSweep: true
+    };
+
+    for (let i = 0; i < targets.length; i++) {
+        takeDamage(targets[i], sweepDamageObj, false);
+    }
+
+    createPhysicalSweepEffect(player.x, player.y, attackAngle, tier, targets.length, isCrit);
+    createDamageNumber(player.x, player.y - 58, `${config.name} x${targets.length}`, isCrit ? COLORS.critical : '#ffd36a');
+    return targets.length;
+}
+
 function createFloatingText(x, y, text, color = '#ffff00', duration = 2) {
     // 创建DOM元素显示浮动文字
     if (!cachedUI.floatingTexts) return;
@@ -13238,6 +13378,7 @@ function performAttack(t) {
     if (player.floor > 0 && dist >= GAME_CONFIG.PLAYER_MELEE_NO_LOS_RANGE && !hasLineOfSight(player.x, player.y, t.x, t.y)) {
         return;
     }
+    const attackAngle = Math.atan2(t.y - player.y, t.x - player.x);
     player.direction = directionFromDelta(t.x - player.x, t.y - player.y);
 
     // 增加连击
@@ -13301,6 +13442,7 @@ function performAttack(t) {
     AudioSys.play('melee_swing');
     takeDamage(t, damageObj, false);
     createSlashEffect(player.x, player.y, t.x, t.y, dmg, isCrit);  // 传递isCrit给斩击效果
+    triggerPhysicalSweep(t, dmg, isCrit, attackAngle);
     player.attackAnim = 1;
     triggerHeroAction('attack', 0.35);
 

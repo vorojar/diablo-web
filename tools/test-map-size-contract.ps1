@@ -14,6 +14,6 @@ Assert-Contains -Text $constants -Pattern 'const MAP_HEIGHT = 60;' -Message 'FAI
 Assert-Contains -Text $constants -Pattern 'MAX_ENEMIES:\s*80' -Message 'FAIL: smaller maps need a lower monster cap.'
 Assert-Contains -Text $constants -Pattern 'INITIAL_ENEMIES:\s*36' -Message 'FAIL: smaller maps need a scaled initial population.'
 Assert-Contains -Text $constants -Pattern 'AUTO_BATTLE_ENEMY_TARGET:\s*70' -Message 'FAIL: auto battle target should be scaled for smaller maps.'
-Assert-Contains -Text $index -Pattern 'constants\.js\?v=202605080230' -Message 'FAIL: index.html did not bump the constants.js cache version.'
+Assert-Contains -Text $index -Pattern 'constants\.js\?v=202605080245' -Message 'FAIL: index.html did not bump the constants.js cache version.'
 
 Write-Host 'PASS: map size contract'

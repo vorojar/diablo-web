@@ -28,11 +28,11 @@ Assert-Contains -Text $game -Pattern 'function toggleMobileMenu\(' -Message 'FAI
 Assert-Contains -Text $game -Pattern 'function initMobileHudShell\(' -Message 'FAIL: missing mobile HUD shell initialization.'
 
 Assert-Contains -Text $game -Pattern 'function spawnMonsterAttackTelegraph\(' -Message 'FAIL: missing shared monster attack telegraph.'
-Assert-Contains -Text $game -Pattern 'spawnMonsterAttackTelegraph\(enemy, options\);' -Message 'FAIL: startMonsterAttack should emit the shared telegraph.'
+Assert-Contains -Text $game -Pattern 'spawnMonsterAttackTelegraph\(enemy, \{ \.\.\.options, targetX: aim\.targetX, targetY: aim\.targetY, angle: aim\.angle \}\);' -Message 'FAIL: startMonsterAttack should emit the shared telegraph with locked aim.'
 Assert-Contains -Text $game -Pattern "telegraph:\s*'projectile'" -Message 'FAIL: ranged monster attacks should mark projectile telegraphs.'
 Assert-Contains -Text $game -Pattern "telegraph:\s*'melee'" -Message 'FAIL: melee monster attacks should mark melee telegraphs.'
 
 Assert-Contains -Text $index -Pattern 'style\.css\?v=202605061220' -Message 'FAIL: index.html did not bump the style.css cache version.'
-Assert-Contains -Text $index -Pattern 'game\.js\?v=202605080025' -Message 'FAIL: index.html did not bump the game.js cache version.'
+Assert-Contains -Text $index -Pattern 'game\.js\?v=202605080245' -Message 'FAIL: index.html did not bump the game.js cache version.'
 
 Write-Host 'PASS: mobile UI and warning contract'
