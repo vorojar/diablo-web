@@ -40,6 +40,12 @@ const AutoBattle = {
     losCacheAreaKey: null,
     losCacheMaxEntries: 600,
 
+    getMeleeEngageDistance(target) {
+        const targetRadius = target?.radius || 12;
+        const playerRadius = player.radius || 15;
+        return Math.max(70, targetRadius + playerRadius + 35);
+    },
+
     // ====== A*寻路系统 ======
     astarCache: {
         path: null,              // 当前缓存的路径 [{x, y}, ...]
@@ -545,7 +551,8 @@ const AutoBattle = {
         if (player.targetItem === null) {
             const tdx = this.currentTarget.x - player.x;
             const tdy = this.currentTarget.y - player.y;
-            if (tdx * tdx + tdy * tdy > 3600) { // 60^2 = 3600
+            const engageDistance = this.getMeleeEngageDistance(this.currentTarget);
+            if (tdx * tdx + tdy * tdy > engageDistance * engageDistance) {
                 this.moveTowards(this.currentTarget);
             } else {
                 player.targetX = null;
@@ -874,7 +881,8 @@ const AutoBattle = {
         }
 
         // 普攻：近战范围内，有视线或距离很近（墙角）
-        const canMelee = (hasLOS || dist < 80) && dist < 70;
+        const meleeRange = this.getMeleeEngageDistance(target);
+        const canMelee = (hasLOS || dist < meleeRange + 10) && dist < meleeRange;
         if (canMelee && player.attackCooldown <= 0) {
             const baseDmg = player.damage[0] + Math.random() * (player.damage[1] - player.damage[0]);
             const strBonus = player.str * 0.1;
