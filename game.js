@@ -155,6 +155,7 @@ let pendingNpcInteraction = null;
 // bloodSplats 已废弃，血迹现在直接绘制到离屏Canvas (bloodCanvas)
 let destructibles = []; // 场景可破坏物体
 let dungeonRoomFeatures = []; // 只影响视觉的房间结构标记
+let bossArena = null; // Boss 层出口区的视觉竞技场信息
 let scenicProps = []; // 静态环境前景物，按 y 排序参与遮挡
 let dungeonLightSources = []; // 地牢静态光源，按帧绘制轻量氛围
 const renderEnemies = [];
@@ -5224,8 +5225,11 @@ function enterFloor(f, spawnAt = 'start') {
 
             // 如果是任务目标，或者单纯是该层对应的BOSS
             let x = dungeonExit.x, y = dungeonExit.y;
-            // 不在出口生成，随机找个空地，除非是第5/10层这种守关BOSS
-            if ((f % 5) !== 0) {
+            if (bossArena) {
+                x = bossArena.bossSpawnX;
+                y = bossArena.bossSpawnY;
+            } else if ((f % 5) !== 0) {
+                // 没有竞技场信息时才退回随机空地
                 let v = false;
                 while (!v) {
                     x = Math.random() * MAP_WIDTH * TILE_SIZE;
@@ -5312,6 +5316,7 @@ function enterFloor(f, spawnAt = 'start') {
 function generateTown() {
     mapData = []; visitedMap = [];
     dungeonRoomFeatures = [];
+    bossArena = null;
     scenicProps = [];
     dungeonLightSources = [];
     _minimapDirty = true; _minimapCache = null;  // 重置小地图缓存
@@ -5636,6 +5641,34 @@ function seedDungeonRoomFeatures(rooms, currentFloor) {
     }
 }
 
+function hasBossArenaForFloor(currentFloor) {
+    return currentFloor > 0 && typeof getBossSpawnInfo === 'function' && !!getBossSpawnInfo(currentFloor);
+}
+
+function seedBossArenaFeature(currentFloor, tileX, tileY) {
+    if (!hasBossArenaForFloor(currentFloor)) return;
+    const bossInfo = getBossSpawnInfo(currentFloor);
+    const spawnTileY = Math.max(2, Math.min(MAP_HEIGHT - 3, tileY - 2));
+    bossArena = {
+        x: tileX,
+        y: tileY,
+        radius: currentFloor >= 10 ? 6 : 5,
+        bossName: bossInfo.originalName || bossInfo.name,
+        bossSpawnX: tileX * TILE_SIZE + TILE_SIZE / 2,
+        bossSpawnY: spawnTileY * TILE_SIZE + TILE_SIZE / 2
+    };
+    dungeonRoomFeatures.push({
+        x: tileX,
+        y: tileY,
+        w: bossArena.radius * 2 + 1,
+        h: bossArena.radius * 2 + 1,
+        type: 'boss_arena',
+        theme: getBiomeStyle(currentFloor).type,
+        seed: currentFloor * 9733 + tileX * 193 + tileY * 257,
+        bossName: bossArena.bossName
+    });
+}
+
 function seedDungeonScenicProps(rooms, currentFloor) {
     scenicProps = [];
     dungeonLightSources = [];
@@ -5644,8 +5677,10 @@ function seedDungeonScenicProps(rooms, currentFloor) {
     const biome = getBiomeStyle(currentFloor);
     const occupied = new Set();
     const key = (x, y) => `${x},${y}`;
-    const canUse = (x, y) => {
-        if (!isValidMapPropTile(x, y, 1)) return false;
+    const canUse = (x, y, allowAnchor = false) => {
+        if (allowAnchor) {
+            if (!isClearFloorFootprint(x, y, 1)) return false;
+        } else if (!isValidMapPropTile(x, y, 1)) return false;
         for (let yy = y - 1; yy <= y + 1; yy++) {
             for (let xx = x - 1; xx <= x + 1; xx++) {
                 if (occupied.has(key(xx, yy))) return false;
@@ -5653,8 +5688,8 @@ function seedDungeonScenicProps(rooms, currentFloor) {
         }
         return true;
     };
-    const addProp = (x, y, def, seed, forceLight = false) => {
-        if (!def || !canUse(x, y)) return false;
+    const addProp = (x, y, def, seed, forceLight = false, allowAnchor = false) => {
+        if (!def || !canUse(x, y, allowAnchor)) return false;
         const px = x * TILE_SIZE + TILE_SIZE / 2 + (mapTileNoise(seed + 3) - 0.5) * 8;
         const py = y * TILE_SIZE + TILE_SIZE / 2 + 6;
         const drawH = def.tall ? 76 : 50;
@@ -5677,7 +5712,24 @@ function seedDungeonScenicProps(rooms, currentFloor) {
         return true;
     };
 
-    for (let i = 1; i < rooms.length && scenicProps.length < 18; i++) {
+    if (bossArena) {
+        const arenaSeed = currentFloor * 12347 + bossArena.x * 271 + bossArena.y * 331;
+        const positions = [
+            { x: bossArena.x - 3, y: bossArena.y - 3, light: true },
+            { x: bossArena.x + 3, y: bossArena.y - 3, light: true },
+            { x: bossArena.x - 4, y: bossArena.y + 2, light: false },
+            { x: bossArena.x + 4, y: bossArena.y + 2, light: false },
+            { x: bossArena.x, y: bossArena.y + 4, light: true }
+        ];
+        for (let i = 0; i < positions.length; i++) {
+            const pos = positions[i];
+            const def = pickScenicPropDef(biome.type, arenaSeed + i * 41, pos.light);
+            addProp(pos.x, pos.y, def, arenaSeed + i * 41, pos.light, true);
+        }
+    }
+
+    const scenicTarget = bossArena ? 26 : 20;
+    for (let i = 1; i < rooms.length && scenicProps.length < scenicTarget; i++) {
         const room = rooms[i];
         if (room.w < 7 || room.h < 7) continue;
         if (isNearDungeonAnchor(room.cx, room.cy, 210)) continue;
@@ -5691,14 +5743,14 @@ function seedDungeonScenicProps(rooms, currentFloor) {
             { x: room.x + room.w - 3, y: room.y + room.h - 3 }
         ];
         const start = Math.floor(mapTileNoise(seed + 2) * cornerDefs.length);
-        for (let j = 0; j < cornerDefs.length && scenicProps.length < 18; j++) {
+        for (let j = 0; j < cornerDefs.length && scenicProps.length < scenicTarget; j++) {
             const pos = cornerDefs[(start + j) % cornerDefs.length];
             const wantsLight = j === 0 && mapTileNoise(seed + 11) > 0.42;
             const def = wantsLight ? pickScenicPropDef(biome.type, seed + j * 17, true) : primary;
             if (addProp(pos.x, pos.y, def, seed + j * 17, wantsLight)) break;
         }
 
-        if (mapTileNoise(seed + 33) > 0.62 && scenicProps.length < 18) {
+        if (mapTileNoise(seed + 33) > 0.62 && scenicProps.length < scenicTarget) {
             const edgeX = room.x + 2 + Math.floor(mapTileNoise(seed + 44) * Math.max(1, room.w - 4));
             const edgeY = mapTileNoise(seed + 45) > 0.5 ? room.y + 2 : room.y + room.h - 3;
             addProp(edgeX, edgeY, pickScenicPropDef(biome.type, seed + 55, false), seed + 55);
@@ -5748,7 +5800,43 @@ function drawDungeonRoomFeatures(ctx, biome) {
         ctx.strokeStyle = accent;
         ctx.fillStyle = shadow;
 
-        if (feature.type === 'ritual' || feature.type === 'frost_sigils' || feature.type === 'root_shrine' || feature.type === 'bone_nest') {
+        if (feature.type === 'boss_arena') {
+            const arenaR = Math.min(w, h) * 0.42;
+            const ringColor = feature.theme === 'ice'
+                ? 'rgba(120, 215, 255, 0.34)'
+                : feature.theme === 'forest'
+                    ? 'rgba(160, 65, 45, 0.30)'
+                    : 'rgba(255, 75, 30, 0.34)';
+            ctx.globalAlpha = 0.24;
+            const arenaGrad = ctx.createRadialGradient(cx, cy, 8, cx, cy, arenaR);
+            arenaGrad.addColorStop(0, 'rgba(0,0,0,0.30)');
+            arenaGrad.addColorStop(0.62, feature.theme === 'ice' ? 'rgba(38, 80, 96, 0.22)' : 'rgba(90, 18, 10, 0.24)');
+            arenaGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = arenaGrad;
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, arenaR, arenaR * 0.66, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.globalAlpha = 0.46;
+            ctx.strokeStyle = ringColor;
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 3; i++) {
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, arenaR * (0.38 + i * 0.21), arenaR * (0.24 + i * 0.13), 0, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            ctx.globalAlpha = 0.30;
+            ctx.strokeStyle = feature.theme === 'ice' ? 'rgba(210, 245, 255, 0.38)' : 'rgba(255, 184, 86, 0.34)';
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 8; i++) {
+                const a = i * Math.PI / 4 + mapTileNoise(feature.seed) * 0.2;
+                ctx.beginPath();
+                ctx.moveTo(cx + Math.cos(a) * arenaR * 0.18, cy + Math.sin(a) * arenaR * 0.12);
+                ctx.lineTo(cx + Math.cos(a) * arenaR * 0.86, cy + Math.sin(a) * arenaR * 0.56);
+                ctx.stroke();
+            }
+        } else if (feature.type === 'ritual' || feature.type === 'frost_sigils' || feature.type === 'root_shrine' || feature.type === 'bone_nest') {
             if (feature.type === 'frost_sigils') ctx.strokeStyle = 'rgba(170, 235, 255, 0.34)';
             if (feature.type === 'root_shrine') ctx.strokeStyle = 'rgba(112, 190, 90, 0.28)';
             if (feature.type === 'bone_nest') ctx.strokeStyle = 'rgba(210, 170, 110, 0.24)';
@@ -5799,6 +5887,7 @@ function drawDungeonRoomFeatures(ctx, biome) {
 function generateDungeon() {
     mapData = []; visitedMap = [];
     dungeonRoomFeatures = [];
+    bossArena = null;
     scenicProps = [];
     dungeonLightSources = [];
     _minimapDirty = true; _minimapCache = null;  // 重置小地图缓存
@@ -6087,12 +6176,33 @@ function generateDungeon() {
         }
     }
 
+    if (hasBossArenaForFloor(currentFloor)) {
+        const arenaRadius = currentFloor >= 10 ? 6 : 5;
+        for (let y = farthest.y - arenaRadius; y <= farthest.y + arenaRadius; y++) {
+            for (let x = farthest.x - arenaRadius; x <= farthest.x + arenaRadius; x++) {
+                if (!isInside(x, y)) continue;
+                const dx = (x - farthest.x) / arenaRadius;
+                const dy = (y - farthest.y) / (arenaRadius * 0.78);
+                if (dx * dx + dy * dy <= 1.08) carveTile(x, y);
+            }
+        }
+        for (let x = farthest.x - arenaRadius + 1; x <= farthest.x + arenaRadius - 1; x++) {
+            carveTile(x, farthest.y - arenaRadius);
+            carveTile(x, farthest.y + arenaRadius);
+        }
+        for (let y = farthest.y - arenaRadius + 1; y <= farthest.y + arenaRadius - 1; y++) {
+            carveTile(farthest.x - arenaRadius, y);
+            carveTile(farthest.x + arenaRadius, y);
+        }
+    }
+
     dungeonExit = {
         x: farthest.x * TILE_SIZE + TILE_SIZE / 2,
         y: farthest.y * TILE_SIZE + TILE_SIZE / 2
     };
 
     seedDungeonRoomFeatures(rooms, currentFloor);
+    seedBossArenaFeature(currentFloor, farthest.x, farthest.y);
     seedDungeonScenicProps(rooms, currentFloor);
 
     // 放置可破坏物体 (确保在地图生成完成后调用)
@@ -6255,6 +6365,31 @@ function drawDungeonFloorDetails(ctx, x, y, c, r, biome) {
         grad.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = grad;
         ctx.fillRect(x + TILE_SIZE * 0.65, y, TILE_SIZE * 0.35, TILE_SIZE);
+    }
+    if (southWall) {
+        const grad = ctx.createLinearGradient(0, y + TILE_SIZE * 0.62, 0, y + TILE_SIZE);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.24)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y + TILE_SIZE * 0.55, TILE_SIZE, TILE_SIZE * 0.45);
+    }
+    if (northWall || southWall || westWall || eastWall) {
+        ctx.save();
+        ctx.globalAlpha = 0.20 + mapTileNoise(seed + 12) * 0.10;
+        ctx.fillStyle = biome.type === 'ice'
+            ? 'rgba(178, 224, 235, 0.34)'
+            : biome.type === 'forest'
+                ? 'rgba(58, 92, 45, 0.36)'
+                : 'rgba(70, 50, 38, 0.36)';
+        const rubbleCount = northWall || southWall ? 3 : 2;
+        for (let i = 0; i < rubbleCount; i++) {
+            const edgeY = northWall ? y + 4 + mapTileNoise(seed + 31 + i) * 7 : y + TILE_SIZE - 10 + mapTileNoise(seed + 41 + i) * 5;
+            const edgeX = x + 5 + mapTileNoise(seed + 51 + i) * (TILE_SIZE - 10);
+            ctx.beginPath();
+            ctx.ellipse(edgeX, edgeY, 1.6 + mapTileNoise(seed + 61 + i) * 2.4, 0.9 + mapTileNoise(seed + 71 + i) * 1.4, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
     }
 
     ctx.save();
