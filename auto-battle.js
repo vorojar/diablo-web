@@ -856,6 +856,15 @@ const AutoBattle = {
 
         // 检查视线
         const hasLOS = this.hasCachedLineOfSightTo(target);
+        const meleeRange = this.getMeleeEngageDistance(target);
+        const canMelee = (hasLOS || dist < 50) && dist <= meleeRange;
+
+        if (canMelee) {
+            if (player.attackCooldown <= 0) {
+                performAttack(target);
+            }
+            return;
+        }
 
         // 使用技能
         if (this.settings.useSkill) {
@@ -882,24 +891,7 @@ const AutoBattle = {
             }
         }
 
-        // 普攻：近战范围内，有视线或距离很近（墙角）
-        const meleeRange = this.getMeleeEngageDistance(target);
-        const canMelee = (hasLOS || dist <= meleeRange + 10) && dist <= meleeRange;
-        if (canMelee && player.attackCooldown <= 0) {
-            const baseDmg = player.damage[0] + Math.random() * (player.damage[1] - player.damage[0]);
-            const strBonus = player.str * 0.1;
-            const totalDmg = Math.floor((baseDmg + strBonus) * (1 + player.attackSpeed / 100));
-            takeDamage(target, totalDmg);
-            player.attackCooldown = 0.8 / (1 + player.attackSpeed / 100);
-            AudioSys.play('hit');
-            createSlashEffect(player.x, player.y, target.x, target.y, totalDmg);
-            player.attackAnim = 1;
-
-            if (player.lifeSteal > 0) {
-                const heal = Math.floor(totalDmg * player.lifeSteal / 100);
-                player.hp = Math.min(player.maxHp, player.hp + heal);
-            }
-        }
+        // 普攻统一走 performAttack，避免自动战斗和手动攻击出现两套伤害/动作事实源。
     },
 
     // 自动拾取物品（带优先级）

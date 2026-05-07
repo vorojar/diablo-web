@@ -27,6 +27,6 @@ Assert-NotContains -Text $autoBattle -Pattern 'dist < 70;' -Message 'FAIL: hard-
 Assert-NotContains -Text $autoBattle -Pattern 'target\?\.radius \|\| 12' -Message 'FAIL: target radius fallback hides corrupted enemy data.'
 Assert-NotContains -Text $autoBattle -Pattern 'player\.radius \|\| 15' -Message 'FAIL: player radius fallback hides corrupted player data.'
 Assert-Contains -Text $autoBattle -Pattern 'dist <= meleeRange' -Message 'FAIL: exact melee boundary should still attack instead of stalling.'
-Assert-Contains -Text $index -Pattern 'auto-battle\.js\?v=202605072205' -Message 'FAIL: index.html did not bump the auto-battle.js cache version.'
+Assert-Contains -Text $index -Pattern 'auto-battle\.js\?v=202605072345' -Message 'FAIL: index.html did not bump the auto-battle.js cache version.'
 
 Write-Host 'PASS: auto battle boss engage distance contract'

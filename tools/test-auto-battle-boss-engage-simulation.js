@@ -50,6 +50,7 @@ const context = {
     isInTown: () => false,
     getSkillManaCost: () => 9999,
     castSkill: () => { throw new Error('simulation should not cast skills'); },
+    performAttack: () => { damageCalls += 1; },
     takeDamage: () => { damageCalls += 1; },
     AudioSys: { play: () => {} },
     createSlashEffect: () => {},
