@@ -23,10 +23,12 @@ function extractFunction(source, name) {
 const functionNames = [
     'getPhysicalSweepTier',
     'getPhysicalSweepConfig',
+    'getPhysicalGrowthVisualProfile',
     'getAngleDelta',
     'canPhysicalSweepReachEnemy',
     'getPhysicalSweepTargets',
     'createPhysicalSweepEffect',
+    'emitPhysicalGrowthVisuals',
     'triggerPhysicalSweep'
 ];
 
@@ -68,9 +70,12 @@ const context = {
     },
     enemies: [],
     slashEffects: [],
+    particles: [],
     COLORS: { critical: '#ffff00', damage: '#ff0000' },
     getPlayerVisualProfile: () => ({ trail: '#ffffff' }),
     hasLineOfSight: () => true,
+    getParticleConfig: () => ({ maxParticles: 500 }),
+    ParticlePool: { acquire: props => ({ ...props }) },
     takeDamage: (target, damage, isSkillDamage) => {
         calls.push({ target: target.name, damage, isSkillDamage });
     },
@@ -125,6 +130,9 @@ if (!context.slashEffects.every(s => s.isSweep && s.arcWidth >= 0.46 && s.arcWid
 if (!context.slashEffects.some(s => s.alphaScale < 0.9)) {
     throw new Error('FAIL: sweep should layer semi-transparent blade arcs instead of drawing a thick solid fan.');
 }
+if (!context.slashEffects.some(s => s.growthStyle === 'whirlwind')) {
+    throw new Error('FAIL: tier 2 physical growth should add whirlwind blade layers.');
+}
 
 calls.length = 0;
 primary.dead = true;
@@ -139,6 +147,21 @@ context.enemies.splice(0, context.enemies.length, primary, frontA);
 context.triggerPhysicalSweep(primary, 100, false, 0);
 if (calls.length !== 0) {
     throw new Error('FAIL: sweep should not trigger unless the player is under multi-enemy pressure.');
+}
+
+calls.length = 0;
+context.player.lvl = 20;
+context.player.str = 92;
+const tier3A = { name: 'tier3A', x: 92, y: 28, radius: 12, dead: false };
+const tier3B = { name: 'tier3B', x: 96, y: -34, radius: 12, dead: false };
+const tier3C = { name: 'tier3C', x: 132, y: 4, radius: 12, dead: false };
+context.enemies.splice(0, context.enemies.length, primary, tier3A, tier3B, tier3C);
+context.triggerPhysicalSweep(primary, 120, true, 0);
+if (!context.particles.some(p => p.growthStyle === 'earthsplit' && p.type === 'skill_impact_ray')) {
+    throw new Error('FAIL: tier 3 physical growth should emit earthsplit ground rays.');
+}
+if (!context.slashEffects.some(s => s.growthStyle === 'halfmoon') || !context.slashEffects.some(s => s.growthStyle === 'whirlwind')) {
+    throw new Error('FAIL: physical growth should preserve halfmoon and whirlwind layers before earthsplit.');
 }
 
 console.log('PASS: physical sweep behavior');

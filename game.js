@@ -399,6 +399,7 @@ const ProjectilePool = {
         if (this._pool.length < 200) {
             // 清理属性防止复用污染
             p.type = undefined; p.freeze = undefined; p.owner = undefined; p.sourceName = undefined; p.age = undefined;
+            p.visualTier = undefined;
             this._pool.push(p);
         }
     }
@@ -3524,21 +3525,104 @@ function getPlayerShieldVisualProfile() {
         return {
             edge: 'rgba(190, 132, 255, ',
             rim: '#c084fc',
-            core: 'rgba(232, 213, 255, '
+            core: 'rgba(232, 213, 255, ',
+            rune: '#f0e8ff',
+            facet: 'rgba(235, 220, 255, '
         };
     }
     if (player.shield?.type === 'guard') {
         return {
             edge: 'rgba(92, 232, 140, ',
             rim: '#72f0a2',
-            core: 'rgba(210, 255, 226, '
+            core: 'rgba(210, 255, 226, ',
+            rune: '#caffd8',
+            facet: 'rgba(214, 255, 228, '
         };
     }
     return {
         edge: 'rgba(255, 224, 96, ',
         rim: '#ffe680',
-        core: 'rgba(255, 246, 188, '
+        core: 'rgba(255, 246, 188, ',
+        rune: '#fff1a8',
+        facet: 'rgba(255, 244, 190, '
     };
+}
+
+function getShieldVisualGrowthTier() {
+    const tree = player.skillTree?.holy_shield;
+    const stage1 = tree?.stage1 || 0;
+    const stage2 = tree?.stage2?.level || 0;
+    const stage3 = tree?.stage3?.level || 0;
+    if (stage1 >= 10 || stage3 > 0) return 2;
+    if (stage1 >= 5 || stage2 > 0) return 1;
+    return 0;
+}
+
+function drawShieldSacredWallRunes(ctx, profile, visualTier, shieldPercent, pulse) {
+    if (visualTier <= 0 && player.shield?.type !== 'guard') return;
+
+    ctx.save();
+    ctx.globalAlpha = (0.22 + shieldPercent * 0.22 + pulse * 0.08) * (visualTier >= 2 ? 1 : 0.72);
+    ctx.strokeStyle = profile.rune;
+    ctx.lineWidth = visualTier >= 2 ? 1.5 : 1.1;
+    ctx.shadowColor = profile.rim;
+    ctx.shadowBlur = 7 + visualTier * 3;
+    ctx.lineCap = 'round';
+
+    for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(side * (24 + visualTier * 3), -2);
+        ctx.lineTo(side * (34 + visualTier * 5), -62);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(side * (18 + visualTier * 2), -38);
+        ctx.lineTo(side * (29 + visualTier * 4), -46);
+        ctx.lineTo(side * (22 + visualTier * 3), -54);
+        ctx.stroke();
+    }
+
+    ctx.globalAlpha *= 0.62;
+    ctx.setLineDash([4, 8]);
+    ctx.beginPath();
+    ctx.arc(0, -24, 30 + visualTier * 4, Math.PI * 0.16, Math.PI * 0.84);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+}
+
+function drawShieldMirrorFacets(ctx, profile, visualTier, shieldPercent, pulse) {
+    if (player.shield?.type !== 'reflect' && visualTier < 2) return;
+
+    ctx.save();
+    ctx.globalAlpha = 0.20 + shieldPercent * 0.22 + pulse * 0.08;
+    ctx.strokeStyle = profile.facet + (0.48 + shieldPercent * 0.28).toFixed(2) + ')';
+    ctx.lineWidth = visualTier >= 2 ? 1.45 : 1.05;
+    ctx.shadowColor = profile.rim;
+    ctx.shadowBlur = 8;
+    ctx.lineCap = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(-18, -54);
+    ctx.lineTo(18, -54);
+    ctx.lineTo(30, -28);
+    ctx.lineTo(12, -2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(18, -54);
+    ctx.lineTo(-18, -54);
+    ctx.lineTo(-30, -28);
+    ctx.lineTo(-12, -2);
+    ctx.stroke();
+
+    ctx.globalAlpha *= 0.6;
+    ctx.beginPath();
+    ctx.moveTo(-26, -34);
+    ctx.lineTo(0, -18);
+    ctx.lineTo(26, -34);
+    ctx.stroke();
+    ctx.restore();
 }
 
 function drawPlayerShieldBack(ctx, x, y) {
@@ -3546,6 +3630,7 @@ function drawPlayerShieldBack(ctx, x, y) {
 
     const shieldPercent = Math.max(0, Math.min(1, player.shield.value / player.shield.maxValue));
     const profile = getPlayerShieldVisualProfile();
+    const visualTier = getShieldVisualGrowthTier();
     const pulse = 0.5 + Math.sin(Date.now() / 260) * 0.5;
     const edgeAlpha = 0.16 + shieldPercent * 0.14 + pulse * 0.04;
 
@@ -3561,6 +3646,15 @@ function drawPlayerShieldBack(ctx, x, y) {
     ctx.beginPath();
     ctx.ellipse(0, -24, 34, 42, 0, 0, Math.PI * 2);
     ctx.fill();
+
+    if (visualTier >= 1) {
+        ctx.globalAlpha = 0.12 + shieldPercent * 0.08;
+        ctx.strokeStyle = profile.rim;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(0, -24, 39 + visualTier * 4, 47 + visualTier * 3, 0, Math.PI * 1.04, Math.PI * 1.96);
+        ctx.stroke();
+    }
 
     ctx.globalAlpha = 0.18 + shieldPercent * 0.12;
     ctx.strokeStyle = profile.rim;
@@ -3579,6 +3673,7 @@ function drawPlayerShieldFront(ctx, x, y) {
 
     const shieldPercent = Math.max(0, Math.min(1, player.shield.value / player.shield.maxValue));
     const profile = getPlayerShieldVisualProfile();
+    const visualTier = getShieldVisualGrowthTier();
     const pulse = 0.5 + Math.sin(Date.now() / 220) * 0.5;
     const alpha = 0.36 + shieldPercent * 0.22 + pulse * 0.08;
 
@@ -3602,6 +3697,9 @@ function drawPlayerShieldFront(ctx, x, y) {
     ctx.beginPath();
     ctx.arc(0, -24, 28, Math.PI * 0.68, Math.PI * 0.96);
     ctx.stroke();
+
+    drawShieldSacredWallRunes(ctx, profile, visualTier, shieldPercent, pulse);
+    drawShieldMirrorFacets(ctx, profile, visualTier, shieldPercent, pulse);
 
     ctx.globalAlpha = 0.28 + shieldPercent * 0.16;
     ctx.shadowBlur = 0;
@@ -3854,6 +3952,172 @@ function emitSkillImpactBurst(type, x, y, angle = 0, power = 1) {
             life: 0.22 + Math.random() * 0.22,
             size: (type === 'multishot' ? 1.4 : 2.2) + Math.random() * 2.2,
             gravity: type === 'fireball' ? 60 : 0
+        }));
+    }
+}
+
+function getSkillVisualGrowthTier(skillName) {
+    const level = player.skills?.[skillName];
+    if (!Number.isFinite(level)) return 0;
+    if (level >= 10) return 2;
+    if (level >= 5) return 1;
+    return 0;
+}
+
+function getSkillVisualNearbyEnemies(x, y, range, limit, excludeSet = new Set()) {
+    const candidates = [];
+    const rSq = range * range;
+    for (let i = 0; i < enemies.length; i++) {
+        const e = enemies[i];
+        if (e.dead || excludeSet.has(e)) continue;
+        const dx = e.x - x;
+        const dy = e.y - y;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > rSq) continue;
+        candidates.push({ enemy: e, distSq });
+    }
+    candidates.sort((a, b) => a.distSq - b.distSq);
+    return candidates.slice(0, limit).map(item => item.enemy);
+}
+
+function emitFireballVisualGrowth(x, y, angle, tier) {
+    if (tier <= 0) return;
+
+    const maxP = getParticleConfig().maxParticles;
+    const palette = SKILL_IMPACT_PALETTES.fireball;
+    const meteorCount = tier >= 2 ? 5 : 3;
+    const fanStep = tier >= 2 ? 22 : 19;
+    const forward = tier >= 2 ? 28 : 18;
+
+    for (let i = 0; i < meteorCount; i++) {
+        const lane = i - (meteorCount - 1) / 2;
+        const sideAngle = angle + Math.PI / 2;
+        const mx = x + Math.cos(angle) * (forward + Math.random() * 12) + Math.cos(sideAngle) * lane * fanStep + (Math.random() - 0.5) * 8;
+        const my = y + Math.sin(angle) * (forward + Math.random() * 12) + Math.sin(sideAngle) * lane * fanStep + (Math.random() - 0.5) * 8;
+
+        spawnVfxEffect('fireballImpact', mx, my, tier >= 2 ? 0.72 : 0.58, angle + (Math.random() - 0.5) * 0.4);
+
+        if (particles.length < maxP) {
+            particles.push(ParticlePool.acquire({
+                x: mx,
+                y: my + 3,
+                type: 'skill_ground_glow',
+                color: palette.glow,
+                color2: palette.main,
+                life: 0.24,
+                maxLife: 0.24,
+                radius: tier >= 2 ? 26 : 20,
+                size: 1
+            }));
+        }
+
+        for (let j = 0; j < (tier >= 2 ? 4 : 3); j++) {
+            if (particles.length >= maxP) break;
+            particles.push(ParticlePool.acquire({
+                x: mx + (Math.random() - 0.5) * 18,
+                y: my - 62 - Math.random() * 28,
+                vx: (Math.random() - 0.5) * 34,
+                vy: 130 + Math.random() * 70,
+                color: Math.random() < 0.35 ? palette.core : (Math.random() < 0.65 ? palette.ember : palette.main),
+                life: 0.30 + Math.random() * 0.16,
+                size: 2.4 + Math.random() * 2.8,
+                gravity: 130
+            }));
+        }
+    }
+}
+
+function emitThunderVisualGrowth(target, linkedTargets, tier) {
+    if (!target || tier <= 0) return;
+
+    const maxP = getParticleConfig().maxParticles;
+    const palette = SKILL_IMPACT_PALETTES.thunder;
+    const excludeSet = new Set([target]);
+    const visibleTargets = [];
+
+    for (let i = 0; i < linkedTargets.length; i++) {
+        const t = linkedTargets[i];
+        if (!t || t === target || t.dead || excludeSet.has(t)) continue;
+        visibleTargets.push(t);
+        excludeSet.add(t);
+    }
+
+    const range = tier >= 2 ? 210 : 155;
+    const limit = tier >= 2 ? 5 : 3;
+    const nearby = getSkillVisualNearbyEnemies(target.x, target.y, range, limit, excludeSet);
+    const webTargets = visibleTargets.concat(nearby).slice(0, limit);
+
+    if (particles.length < maxP) {
+        particles.push(ParticlePool.acquire({
+            x: target.x,
+            y: target.y,
+            type: 'skill_impact_ring',
+            color: palette.ring,
+            life: 0.24,
+            maxLife: 0.24,
+            radius: 18,
+            grow: tier >= 2 ? 68 : 46,
+            width: tier >= 2 ? 3 : 2,
+            rotation: Math.random() * Math.PI
+        }));
+    }
+
+    for (let i = 0; i < webTargets.length; i++) {
+        const t = webTargets[i];
+        createLightningChain(target.x, target.y, t.x, t.y);
+        if (tier >= 2 && i > 0) {
+            const prev = webTargets[i - 1];
+            createLightningChain(prev.x, prev.y, t.x, t.y);
+        }
+    }
+}
+
+function createArrowCurtainTrail(p, pConfig) {
+    if (p.type !== 'multishot' || !p.visualTier) return;
+    const maxP = getParticleConfig().maxParticles;
+    if (particles.length >= maxP) return;
+    const chance = pConfig.multishotTrail * (p.visualTier >= 2 ? 0.55 : 0.32);
+    if (Math.random() > chance) return;
+
+    const sideAngle = p.angle + Math.PI / 2;
+    const offset = (Math.random() - 0.5) * (p.visualTier >= 2 ? 18 : 12);
+    particles.push(ParticlePool.acquire({
+        x: p.x - Math.cos(p.angle) * 10 + Math.cos(sideAngle) * offset,
+        y: p.y - Math.sin(p.angle) * 10 + Math.sin(sideAngle) * offset,
+        type: 'skill_impact_ray',
+        color: Math.random() < 0.35 ? '#ffffcc' : '#d8ff5a',
+        life: 0.12,
+        maxLife: 0.12,
+        angle: p.angle + Math.PI + (Math.random() - 0.5) * 0.12,
+        length: p.visualTier >= 2 ? 34 : 22,
+        width: p.visualTier >= 2 ? 1.8 : 1.2
+    }));
+}
+
+function emitMultishotVisualGrowth(x, y, angle, tier) {
+    if (tier <= 0) return;
+
+    emitSkillImpactBurst('multishot', x, y, angle, tier >= 2 ? 1.18 : 0.92);
+
+    const maxP = getParticleConfig().maxParticles;
+    const palette = SKILL_IMPACT_PALETTES.multishot;
+    const rayCount = tier >= 2 ? 9 : 5;
+    const spread = tier >= 2 ? 0.9 : 0.56;
+
+    for (let i = 0; i < rayCount; i++) {
+        if (particles.length >= maxP) break;
+        const t = rayCount === 1 ? 0 : i / (rayCount - 1);
+        const rayAngle = angle + (t - 0.5) * spread;
+        particles.push(ParticlePool.acquire({
+            x: x - Math.cos(rayAngle) * 4 + (Math.random() - 0.5) * 5,
+            y: y - Math.sin(rayAngle) * 4 + (Math.random() - 0.5) * 5,
+            type: 'skill_impact_ray',
+            color: i === Math.floor(rayCount / 2) ? palette.core : palette.ring,
+            life: 0.16,
+            maxLife: 0.16,
+            angle: rayAngle,
+            length: tier >= 2 ? 48 : 34,
+            width: i === Math.floor(rayCount / 2) ? 2.2 : 1.5
         }));
     }
 }
@@ -7835,10 +8099,13 @@ function update(dt) {
                 gravity: 0
             });
         }
+        createArrowCurtainTrail(p, pConfig);
 
         if (isWall(p.x, p.y)) {
             if (p.type === 'fireball' || p.type === 'multishot') {
                 emitSkillImpactBurst(p.type, p.x, p.y, p.angle, p.type === 'fireball' ? 0.75 : 0.55);
+                if (p.type === 'fireball') emitFireballVisualGrowth(p.x, p.y, p.angle, p.visualTier || getSkillVisualGrowthTier('fireball'));
+                if (p.type === 'multishot') emitMultishotVisualGrowth(p.x, p.y, p.angle, p.visualTier || getSkillVisualGrowthTier('multishot'));
             }
             p.life = 0;
             for (let j = 0; j < 3; j++)createParticle(p.x, p.y, '#aaa', 2);
@@ -7870,6 +8137,8 @@ function update(dt) {
                         if (p.type === 'fireball' || p.type === 'multishot') {
                             const power = p.type === 'fireball' && player.skills.fireball >= 5 ? 1.45 : 1;
                             emitSkillImpactBurst(p.type, p.x, p.y, p.angle, power);
+                            if (p.type === 'fireball') emitFireballVisualGrowth(p.x, p.y, p.angle, p.visualTier || getSkillVisualGrowthTier('fireball'));
+                            if (p.type === 'multishot') emitMultishotVisualGrowth(p.x, p.y, p.angle, p.visualTier || getSkillVisualGrowthTier('multishot'));
                         }
                         if (p.freeze) { e.frozenTimer = p.freeze; createDamageNumber(e.x, e.y - 40, "冻结!", COLORS.ice); }
                         for (let j = 0; j < 5; j++) createParticle(p.x, p.y, p.color || '#ff4400');
@@ -7888,6 +8157,8 @@ function update(dt) {
                             if (p.type === 'fireball' || p.type === 'multishot') {
                                 const power = p.type === 'fireball' && player.skills.fireball >= 5 ? 1.35 : 0.85;
                                 emitSkillImpactBurst(p.type, p.x, p.y, p.angle, power);
+                                if (p.type === 'fireball') emitFireballVisualGrowth(p.x, p.y, p.angle, p.visualTier || getSkillVisualGrowthTier('fireball'));
+                                if (p.type === 'multishot') emitMultishotVisualGrowth(p.x, p.y, p.angle, p.visualTier || getSkillVisualGrowthTier('multishot'));
                             }
                             p.life = 0;
                             hitTarget = d; // 标记为已击中物体
@@ -11768,6 +12039,7 @@ function createLightningChain(fromX, fromY, toX, toY) {
     const dx = toX - fromX;
     const dy = toY - fromY;
     const dist = Math.hypot(dx, dy);
+    if (dist < 1) return;
 
     const points = [{ x: fromX, y: fromY }];
 
@@ -12037,6 +12309,37 @@ function getPhysicalSweepConfig(tier) {
     return null;
 }
 
+function getPhysicalGrowthVisualProfile(tier) {
+    if (tier >= 3) {
+        return {
+            name: '裂地斩',
+            style: 'earthsplit',
+            blade: '#fff0b8',
+            glow: '#ffb84a',
+            crack: '#d8b06a'
+        };
+    }
+    if (tier === 2) {
+        return {
+            name: '旋风斩',
+            style: 'whirlwind',
+            blade: '#f6e8c4',
+            glow: '#e8d39a',
+            crack: '#c9b884'
+        };
+    }
+    if (tier === 1) {
+        return {
+            name: '半月斩',
+            style: 'halfmoon',
+            blade: '#f1dfb8',
+            glow: '#d7c18a',
+            crack: '#b9a16c'
+        };
+    }
+    return null;
+}
+
 function getAngleDelta(a, b) {
     let delta = a - b;
     while (delta > Math.PI) delta -= Math.PI * 2;
@@ -12111,6 +12414,79 @@ function createPhysicalSweepEffect(fromX, fromY, attackAngle, tier, hitCount, is
             lineWidth: 2.3 + tier * 0.25 + (isCrit ? 0.65 : 0)
         });
     }
+
+    emitPhysicalGrowthVisuals(fromX, fromY, attackAngle, tier, hitCount, isCrit);
+}
+
+function emitPhysicalGrowthVisuals(fromX, fromY, attackAngle, tier, hitCount, isCrit) {
+    const growth = getPhysicalGrowthVisualProfile(tier);
+    if (!growth || hitCount <= 0) return;
+
+    const color = isCrit ? '#ffdd00' : growth.blade;
+    const glowColor = isCrit ? '#ffdd00' : growth.glow;
+
+    slashEffects.push({
+        x: fromX + Math.cos(attackAngle) * 24,
+        y: fromY + Math.sin(attackAngle) * 24,
+        angle: attackAngle,
+        radius: 56 + tier * 8,
+        life: 1.0,
+        isCrit,
+        isSweep: true,
+        growthStyle: 'halfmoon',
+        color,
+        glowColor,
+        glowBlur: isCrit ? 16 : 10,
+        alphaScale: 0.48,
+        arcWidth: tier >= 3 ? 0.86 : 0.78,
+        lineWidth: 2.1 + tier * 0.25
+    });
+
+    if (tier >= 2) {
+        const swirlCount = tier >= 3 ? 6 : 4;
+        for (let i = 0; i < swirlCount; i++) {
+            const swirlAngle = attackAngle + (Math.PI * 2 * i) / swirlCount + (i % 2) * 0.18;
+            slashEffects.push({
+                x: fromX,
+                y: fromY,
+                angle: swirlAngle,
+                radius: 38 + i * 6,
+                life: 0.9,
+                isCrit,
+                isSweep: true,
+                growthStyle: 'whirlwind',
+                color,
+                glowColor,
+                glowBlur: isCrit ? 14 : 8,
+                alphaScale: 0.32 + i * 0.055,
+                arcWidth: 0.46 + tier * 0.03,
+                lineWidth: 2.0 + tier * 0.14
+            });
+        }
+    }
+
+    if (tier >= 3) {
+        const maxP = getParticleConfig().maxParticles;
+        const crackCount = Math.min(7, 3 + hitCount);
+        for (let i = 0; i < crackCount; i++) {
+            if (particles.length >= maxP) break;
+            const spread = crackCount === 1 ? 0 : (i / (crackCount - 1) - 0.5) * 0.9;
+            const rayAngle = attackAngle + spread;
+            const startDist = 24 + i * 4;
+            particles.push(ParticlePool.acquire({
+                x: fromX + Math.cos(rayAngle) * startDist,
+                y: fromY + Math.sin(rayAngle) * startDist,
+                type: 'skill_impact_ray',
+                growthStyle: 'earthsplit',
+                color: isCrit ? '#ffe66a' : growth.crack,
+                life: 0.26,
+                maxLife: 0.26,
+                angle: rayAngle,
+                length: 58 + i * 8,
+                width: isCrit ? 3 : 2.1
+            }));
+        }
+    }
 }
 
 function triggerPhysicalSweep(primaryTarget, basePhysicalDamage, isCrit, attackAngle) {
@@ -12136,7 +12512,8 @@ function triggerPhysicalSweep(primaryTarget, basePhysicalDamage, isCrit, attackA
     }
 
     createPhysicalSweepEffect(player.x, player.y, attackAngle, tier, targets.length, isCrit);
-    createDamageNumber(player.x, player.y - 58, `${config.name} x${targets.length}`, isCrit ? COLORS.critical : '#ffd36a');
+    const visualProfile = getPhysicalGrowthVisualProfile(tier);
+    createDamageNumber(player.x, player.y - 58, `${visualProfile?.name || config.name} x${targets.length}`, isCrit ? COLORS.critical : '#ffd36a');
     return targets.length;
 }
 
@@ -13509,7 +13886,8 @@ function castSkill(skillName) {
             damage: 10 * player.skills.fireball + player.ene,
             owner: player,
             type: 'fireball',
-            color: '#ff4400'
+            color: '#ff4400',
+            visualTier: getSkillVisualGrowthTier('fireball')
         }));
         AudioSys.play('fireball_cast');
         // 每日任务和成就：使用技能
@@ -13553,6 +13931,7 @@ function castSkill(skillName) {
             DestructibleSystem.break(target);
             createLightningEffect(target.x, target.y);
             emitSkillImpactBurst('thunder', target.x, target.y, thunderAngle, 0.9);
+            emitThunderVisualGrowth(target, [target], getSkillVisualGrowthTier('thunder'));
             AudioSys.play('thunder_impact');
             if (typeof DailyQuestSystem !== 'undefined') DailyQuestSystem.updateProgress('use_skill', 1);
             return;
@@ -13607,6 +13986,7 @@ function castSkill(skillName) {
                 }
             }, delay);
         }
+        emitThunderVisualGrowth(target, nearbyTargets, getSkillVisualGrowthTier('thunder'));
 
         // 每日任务和成就：使用技能
         if (typeof DailyQuestSystem !== 'undefined') {
@@ -13715,7 +14095,8 @@ function castSkill(skillName) {
             projectiles.push(ProjectilePool.acquire({
                 x: player.x, y: player.y, angle: a, speed: 500, life: 1,
                 damage: player.damage[0] * 0.8, color: '#aaff00', owner: player,
-                type: 'multishot'  // 标记类型用于拖尾粒子
+                type: 'multishot',  // 标记类型用于拖尾粒子
+                visualTier: getSkillVisualGrowthTier('multishot')
             }));
         }
         AudioSys.play('multishot_cast');
