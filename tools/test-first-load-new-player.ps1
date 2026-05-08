@@ -10,7 +10,7 @@ if ($game -notmatch 'function createDefaultSkillTree\(') {
 
 $newPlayerBranch = [regex]::Match(
     $game,
-    "(?<body>const starterClub = createItem\([\s\S]*?)\n\s*document\.getElementById\('chk-auto-gold'\)"
+    "(?<body>const starterSword = createItem\([\s\S]*?)\n\s*document\.getElementById\('chk-auto-gold'\)"
 )
 
 if (-not $newPlayerBranch.Success) {
