@@ -479,24 +479,68 @@ const AudioSys = {
             gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
 
             osc.start(); osc.stop(t + 0.2);
-        } else if (type === 'attack' || type === 'swing' || type === 'melee_swing') {
+        } else if (type === 'attack' || type === 'swing' || type === 'melee_swing' || type === 'melee_sword_swing') {
             if (this.playSfxAsset('swordSwing')) return;
             this.playNoiseLayer(t, 0.045, 0.045, 'highpass', 950, 0.5);
             this.playToneLayer('sawtooth', t, 0.075, 660, 210, 0.045);
             this.playToneLayer('triangle', t + 0.018, 0.055, 260, 150, 0.025);
-        } else if (type === 'melee_hit') {
+        } else if (type === 'melee_club_swing') {
+            this.playNoiseLayer(t, 0.032, 0.11, 'lowpass', 720 + Math.random() * 180, 0.65);
+            this.playNoiseLayer(t + 0.018, 0.075, 0.06, 'bandpass', 420 + Math.random() * 140, 0.9);
+            this.playToneLayer('triangle', t, 0.11, 210, 88, 0.085);
+            this.playToneLayer('sine', t + 0.045, 0.09, 120, 74, 0.055);
+        } else if (type === 'melee_unarmed_swing') {
+            this.playNoiseLayer(t, 0.018, 0.048, 'lowpass', 950 + Math.random() * 250, 0.5);
+            this.playNoiseLayer(t + 0.016, 0.045, 0.036, 'bandpass', 520 + Math.random() * 160, 0.8);
+            this.playToneLayer('triangle', t, 0.06, 160, 92, 0.045);
+        } else if (type === 'melee_axe_swing') {
+            this.playNoiseLayer(t, 0.038, 0.075, 'highpass', 1650 + Math.random() * 450, 0.7);
+            this.playNoiseLayer(t + 0.018, 0.11, 0.075, 'bandpass', 760 + Math.random() * 220, 1.1);
+            this.playToneLayer('sawtooth', t, 0.12, 460, 130, 0.08);
+            this.playToneLayer('triangle', t + 0.04, 0.11, 180, 72, 0.07);
+        } else if (type === 'melee_hit' || type === 'melee_sword_hit') {
             // 普通攻击保留短促的金属边缘和身体冲击。
             this.playCombatImpact('hit');
+        } else if (type === 'melee_club_hit') {
+            this.playNoiseLayer(t, 0.035, 0.15, 'lowpass', 560 + Math.random() * 120, 0.75);
+            this.playToneLayer('triangle', t, 0.14, 150, 62, 0.11);
+            this.playToneLayer('sine', t + 0.035, 0.12, 92, 54, 0.07);
+        } else if (type === 'melee_unarmed_hit') {
+            this.playNoiseLayer(t, 0.018, 0.07, 'lowpass', 880 + Math.random() * 180, 0.45);
+            this.playToneLayer('triangle', t, 0.07, 132, 78, 0.045);
+        } else if (type === 'melee_axe_hit') {
+            this.playNoiseLayer(t, 0.045, 0.12, 'highpass', 3100 + Math.random() * 700, 0.8);
+            this.playToneLayer('sawtooth', t, 0.14, 340, 96, 0.09);
         } else if (type === 'hit') {
             this.playSkillImpact('hit');
-        } else if (type === 'melee_crit') {
+        } else if (type === 'melee_crit' || type === 'melee_sword_crit') {
             // 暴击击中：更亮的撕裂感 + 金属高频点缀
             this.playCombatImpact('crit');
+        } else if (type === 'melee_club_crit') {
+            this.playNoiseLayer(t, 0.04, 0.18, 'lowpass', 680 + Math.random() * 160, 0.8);
+            this.playToneLayer('triangle', t, 0.18, 220, 68, 0.13);
+            this.playToneLayer('sine', t + 0.035, 0.16, 128, 50, 0.09);
+        } else if (type === 'melee_unarmed_crit') {
+            this.playNoiseLayer(t, 0.026, 0.095, 'lowpass', 1080 + Math.random() * 220, 0.55);
+            this.playToneLayer('triangle', t, 0.1, 180, 82, 0.06);
+        } else if (type === 'melee_axe_crit') {
+            this.playNoiseLayer(t, 0.055, 0.16, 'highpass', 3800 + Math.random() * 800, 0.8);
+            this.playToneLayer('sawtooth', t, 0.18, 430, 90, 0.12);
         } else if (type === 'hit_crit') {
             this.playSkillImpact('crit');
-        } else if (type === 'melee_kill') {
+        } else if (type === 'melee_kill' || type === 'melee_sword_kill') {
             // 击杀：重击下沉 + 碎裂尾音
             this.playCombatImpact('kill');
+        } else if (type === 'melee_club_kill') {
+            this.playNoiseLayer(t, 0.055, 0.24, 'lowpass', 620 + Math.random() * 130, 0.85);
+            this.playToneLayer('triangle', t, 0.24, 190, 48, 0.15);
+            this.playToneLayer('sine', t + 0.07, 0.2, 96, 42, 0.1);
+        } else if (type === 'melee_unarmed_kill') {
+            this.playNoiseLayer(t, 0.03, 0.12, 'lowpass', 980 + Math.random() * 180, 0.55);
+            this.playToneLayer('triangle', t, 0.13, 150, 66, 0.07);
+        } else if (type === 'melee_axe_kill') {
+            this.playNoiseLayer(t, 0.065, 0.2, 'highpass', 3300 + Math.random() * 900, 0.85);
+            this.playToneLayer('sawtooth', t, 0.24, 390, 70, 0.14);
         } else if (type === 'hit_kill') {
             this.playSkillImpact('kill');
         } else if (type === 'pickup') {

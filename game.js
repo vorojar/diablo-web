@@ -209,6 +209,8 @@ let gameActive = false;
 let lastTime = 0;
 let particles = [];
 let vfxEffects = [];
+let heroSpriteRenderCanvas = null;
+let heroSpriteRenderCtx = null;
 let damageNumbers = [];
 let slashEffects = [];
 let enemies = [];
@@ -3092,7 +3094,9 @@ function getHeroFrame(direction) {
             width: HERO_SPRITE_CONFIG.frameWidth,
             height: HERO_SPRITE_CONFIG.frameHeight,
             flipX: !!frameInfo.flipX,
-            animated: true
+            animated: true,
+            action,
+            direction: safeDirection
         };
     }
 
@@ -3104,7 +3108,9 @@ function getHeroFrame(direction) {
             x: frameX,
             y: frameY,
             width: SPRITE_CONFIG.frameWidth,
-            height: SPRITE_CONFIG.frameHeight
+            height: SPRITE_CONFIG.frameHeight,
+            action: 'sit',
+            direction: 'front'
         };
     }
 
@@ -3120,11 +3126,200 @@ function getHeroFrame(direction) {
         x: frameX,
         y: frameY,
         width: SPRITE_CONFIG.frameWidth,
-        height: SPRITE_CONFIG.frameHeight
+        height: SPRITE_CONFIG.frameHeight,
+        action: 'idle',
+        direction
     };
 }
 
-function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH) {
+function getHeroSpriteRenderBuffer(width, height) {
+    const w = Math.max(1, Math.ceil(width));
+    const h = Math.max(1, Math.ceil(height));
+    if (!heroSpriteRenderCanvas) {
+        heroSpriteRenderCanvas = document.createElement('canvas');
+        heroSpriteRenderCtx = heroSpriteRenderCanvas.getContext('2d');
+    }
+    if (heroSpriteRenderCanvas.width !== w || heroSpriteRenderCanvas.height !== h) {
+        heroSpriteRenderCanvas.width = w;
+        heroSpriteRenderCanvas.height = h;
+    }
+    heroSpriteRenderCtx.clearRect(0, 0, w, h);
+    return { canvas: heroSpriteRenderCanvas, ctx: heroSpriteRenderCtx, width: w, height: h };
+}
+
+function normalizeHeroVisualDirection(frame) {
+    const direction = frame.direction || 'front';
+    if (direction === 'frontLeft' || direction === 'frontRight') return 'front';
+    if (direction === 'backLeft' || direction === 'backRight') return 'back';
+    return direction;
+}
+
+function getHeroWeaponLine(width, height, frame) {
+    const direction = normalizeHeroVisualDirection(frame);
+    const action = frame.action || 'idle';
+    const attackReach = action === 'attack' ? 1.22 : 1;
+    if (direction === 'back') {
+        return { x1: width * 0.63, y1: height * 0.58, x2: width * (0.78 + 0.06 * attackReach), y2: height * 0.80 };
+    }
+    if (direction === 'left') {
+        return { x1: width * 0.42, y1: height * 0.60, x2: width * Math.max(0.04, 0.15 - 0.08 * attackReach), y2: height * 0.78 };
+    }
+    if (direction === 'right') {
+        return { x1: width * 0.58, y1: height * 0.60, x2: width * Math.min(0.96, 0.85 + 0.08 * attackReach), y2: height * 0.78 };
+    }
+    return { x1: width * 0.36, y1: height * 0.60, x2: width * Math.max(0.06, 0.18 - 0.05 * attackReach), y2: height * 0.82 };
+}
+
+function applyHeroNoviceCloth(bufferCtx, width, height, frame, visualState) {
+    if (visualState?.armorState !== 'novice') return;
+
+    const direction = normalizeHeroVisualDirection(frame);
+    bufferCtx.save();
+    bufferCtx.globalCompositeOperation = 'source-atop';
+    bufferCtx.imageSmoothingEnabled = false;
+
+    const skin = 'rgba(198, 132, 88, 0.88)';
+    const cloth = 'rgba(87, 54, 34, 0.92)';
+    const trim = 'rgba(39, 27, 22, 0.72)';
+
+    if (direction === 'back') {
+        bufferCtx.fillStyle = cloth;
+        bufferCtx.fillRect(width * 0.34, height * 0.32, width * 0.32, height * 0.36);
+        bufferCtx.fillStyle = skin;
+        bufferCtx.fillRect(width * 0.24, height * 0.38, width * 0.12, height * 0.26);
+        bufferCtx.fillRect(width * 0.64, height * 0.38, width * 0.12, height * 0.26);
+    } else if (direction === 'left' || direction === 'right') {
+        const side = direction === 'left' ? -1 : 1;
+        bufferCtx.fillStyle = cloth;
+        bufferCtx.fillRect(width * 0.38, height * 0.34, width * 0.24, height * 0.34);
+        bufferCtx.fillStyle = skin;
+        bufferCtx.fillRect(width * (side < 0 ? 0.27 : 0.61), height * 0.39, width * 0.12, height * 0.24);
+    } else {
+        bufferCtx.fillStyle = skin;
+        bufferCtx.fillRect(width * 0.28, height * 0.36, width * 0.12, height * 0.26);
+        bufferCtx.fillRect(width * 0.60, height * 0.36, width * 0.12, height * 0.26);
+        bufferCtx.fillStyle = cloth;
+        bufferCtx.beginPath();
+        bufferCtx.moveTo(width * 0.36, height * 0.34);
+        bufferCtx.lineTo(width * 0.64, height * 0.34);
+        bufferCtx.lineTo(width * 0.60, height * 0.68);
+        bufferCtx.lineTo(width * 0.40, height * 0.68);
+        bufferCtx.closePath();
+        bufferCtx.fill();
+    }
+
+    bufferCtx.strokeStyle = trim;
+    bufferCtx.lineWidth = Math.max(1, width * 0.025);
+    bufferCtx.beginPath();
+    bufferCtx.moveTo(width * 0.37, height * 0.48);
+    bufferCtx.lineTo(width * 0.63, height * 0.48);
+    bufferCtx.stroke();
+    bufferCtx.restore();
+}
+
+function eraseHeroBakedWeapon(bufferCtx, width, height, frame, visualState) {
+    if (!visualState?.hideBakedSword) return;
+
+    const line = getHeroWeaponLine(width, height, frame);
+    bufferCtx.save();
+    bufferCtx.globalCompositeOperation = 'destination-out';
+    bufferCtx.lineCap = 'round';
+    bufferCtx.lineWidth = Math.max(6, width * 0.15);
+    bufferCtx.beginPath();
+    bufferCtx.moveTo(line.x1, line.y1);
+    bufferCtx.lineTo(line.x2, line.y2);
+    bufferCtx.stroke();
+    bufferCtx.beginPath();
+    bufferCtx.arc(line.x2, line.y2, Math.max(3, width * 0.07), 0, Math.PI * 2);
+    bufferCtx.fill();
+    bufferCtx.restore();
+}
+
+function drawHeroHeldClub(bufferCtx, width, height, frame, visualState) {
+    if (!visualState?.drawClub) return;
+
+    const line = getHeroWeaponLine(width, height, frame);
+    bufferCtx.save();
+    bufferCtx.globalCompositeOperation = 'source-over';
+    bufferCtx.lineCap = 'round';
+    bufferCtx.strokeStyle = '#3b2315';
+    bufferCtx.lineWidth = Math.max(5, width * 0.11);
+    bufferCtx.beginPath();
+    bufferCtx.moveTo(line.x1, line.y1);
+    bufferCtx.lineTo(line.x2, line.y2);
+    bufferCtx.stroke();
+    bufferCtx.strokeStyle = '#8a552a';
+    bufferCtx.lineWidth = Math.max(3, width * 0.065);
+    bufferCtx.beginPath();
+    bufferCtx.moveTo(line.x1, line.y1);
+    bufferCtx.lineTo(line.x2, line.y2);
+    bufferCtx.stroke();
+    bufferCtx.fillStyle = '#5f381d';
+    bufferCtx.beginPath();
+    bufferCtx.arc(line.x2, line.y2, Math.max(3, width * 0.07), 0, Math.PI * 2);
+    bufferCtx.fill();
+    bufferCtx.restore();
+}
+
+function eraseHeroBakedShield(bufferCtx, width, height, frame, visualState) {
+    if (!visualState?.hideBakedShield) return;
+
+    const direction = normalizeHeroVisualDirection(frame);
+    let cx = width * 0.64;
+    let cy = height * 0.52;
+    let rx = width * 0.17;
+    let ry = height * 0.24;
+
+    if (direction === 'back') {
+        cx = width * 0.36;
+        cy = height * 0.56;
+        rx = width * 0.18;
+        ry = height * 0.23;
+    } else if (direction === 'left') {
+        cx = width * 0.60;
+        cy = height * 0.56;
+        rx = width * 0.18;
+        ry = height * 0.25;
+    } else if (direction === 'right') {
+        cx = width * 0.40;
+        cy = height * 0.56;
+        rx = width * 0.18;
+        ry = height * 0.25;
+    }
+
+    bufferCtx.save();
+    bufferCtx.globalCompositeOperation = 'destination-out';
+    bufferCtx.beginPath();
+    bufferCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    bufferCtx.fill();
+    bufferCtx.restore();
+}
+
+function shouldUseHeroEquipmentRenderPass(visualState) {
+    return !!visualState && (visualState.armorState === 'novice' || visualState.hideBakedSword || visualState.hideBakedShield || visualState.drawClub);
+}
+
+function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH, visualState = null) {
+    if (shouldUseHeroEquipmentRenderPass(visualState)) {
+        const buffer = getHeroSpriteRenderBuffer(drawW, drawH);
+        if (frame.flipX) {
+            buffer.ctx.save();
+            buffer.ctx.translate(buffer.width, 0);
+            buffer.ctx.scale(-1, 1);
+            buffer.ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height, 0, 0, buffer.width, buffer.height);
+            buffer.ctx.restore();
+        } else {
+            buffer.ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height, 0, 0, buffer.width, buffer.height);
+        }
+
+        applyHeroNoviceCloth(buffer.ctx, buffer.width, buffer.height, frame, visualState);
+        eraseHeroBakedWeapon(buffer.ctx, buffer.width, buffer.height, frame, visualState);
+        eraseHeroBakedShield(buffer.ctx, buffer.width, buffer.height, frame, visualState);
+        drawHeroHeldClub(buffer.ctx, buffer.width, buffer.height, frame, visualState);
+        ctx.drawImage(buffer.canvas, centerX - drawW / 2, topY, drawW, drawH);
+        return;
+    }
+
     if (frame.flipX) {
         ctx.save();
         ctx.translate(centerX, topY);
@@ -3479,6 +3674,65 @@ function getPlayerVisualProfile() {
         return { ...profile, trail: '#ffd76a', setColor: 'rgba(255, 210, 86, 0.28)' };
     }
     return profile;
+}
+
+function getItemWeaponClass(item) {
+    if (!item) return 'unarmed';
+    if (item.weaponClass) return item.weaponClass;
+    if (item.name === '木棒') return 'club';
+    if (item.name === '巨斧' || item.name?.includes('斧')) return 'axe';
+    if (item.name === '短剑' || item.name?.includes('剑')) return 'sword';
+    return item.type === 'weapon' ? 'sword' : 'unarmed';
+}
+
+function getEquippedWeaponClass() {
+    return getItemWeaponClass(player.equipment?.mainhand);
+}
+
+function getMeleeSwingSoundId() {
+    const weaponClass = getEquippedWeaponClass();
+    if (weaponClass === 'club') return 'melee_club_swing';
+    if (weaponClass === 'axe') return 'melee_axe_swing';
+    if (weaponClass === 'unarmed') return 'melee_unarmed_swing';
+    return 'melee_sword_swing';
+}
+
+function getMeleeHitSoundId(feedback = 'hit') {
+    const weaponClass = getEquippedWeaponClass();
+    const safeFeedback = ['hit', 'crit', 'kill'].includes(feedback) ? feedback : 'hit';
+    if (weaponClass === 'club') return `melee_club_${safeFeedback}`;
+    if (weaponClass === 'axe') return `melee_axe_${safeFeedback}`;
+    if (weaponClass === 'unarmed') return `melee_unarmed_${safeFeedback}`;
+    return `melee_sword_${safeFeedback}`;
+}
+
+function hasVisibleArmorEquipped() {
+    return ['body', 'helm', 'gloves', 'boots', 'belt'].some(slot => !!player.equipment?.[slot]);
+}
+
+function getHeroEquipmentVisualState() {
+    const weaponClass = getEquippedWeaponClass();
+    const armorState = hasVisibleArmorEquipped() ? 'armored' : 'novice';
+    return {
+        weaponClass,
+        armorState,
+        hideBakedSword: weaponClass === 'unarmed' || weaponClass === 'club',
+        hideBakedShield: !player.equipment?.offhand,
+        drawClub: weaponClass === 'club'
+    };
+}
+
+function getMeleeAttackVisualProfile(weaponClass = getEquippedWeaponClass()) {
+    if (weaponClass === 'unarmed') {
+        return { style: 'unarmed', color: '#d6a477', radius: 12, arcWidth: 0, lineWidth: 0 };
+    }
+    if (weaponClass === 'club') {
+        return { style: 'club', color: '#b8793d', radius: 25, arcWidth: 0.46, lineWidth: 4.2 };
+    }
+    if (weaponClass === 'axe') {
+        return { style: 'axe', color: '#d9d2c2', radius: 36, arcWidth: 0.72, lineWidth: 4.4 };
+    }
+    return { style: 'sword', color: getPlayerVisualProfile().trail, radius: 30, arcWidth: 0.8, lineWidth: 3 };
 }
 
 function drawPlayerDisciplineAura(ctx, x, y) {
@@ -5531,10 +5785,10 @@ function startGame() {
     }
     else {
         // 新玩家初始装备
-        const starterSword = createItem('短剑', 0);
-        starterSword.rarity = 1;  // 强制白色
-        starterSword.requirements = null;  // 移除需求限制
-        addItemToInventory(starterSword);  // 1. 武器
+        const starterClub = createItem('木棒', 0);
+        starterClub.rarity = 1;  // 强制白色
+        starterClub.requirements = null;  // 移除需求限制
+        addItemToInventory(starterClub);  // 1. 武器
         addItemToInventory(createItem('治疗药剂', 0));  // 2. 1红
         addItemToInventory(createItem('法力药剂', 0));  // 3. 蓝1
         addItemToInventory(createItem('法力药剂', 0));  // 4. 蓝2
@@ -8992,6 +9246,7 @@ function draw() {
     drawPlayerShieldBack(ctx, px, py);
     if ((heroSpritesLoaded && processedHeroSprites) || (spritesLoaded && processedSpriteSheet)) {
         const frame = getHeroFrame(player.direction);
+        const heroVisualState = getHeroEquipmentVisualState();
         const useHeroSheet = heroSpritesLoaded && processedHeroSprites && frame.animated;
         const renderHeight = useHeroSheet ? HERO_SPRITE_CONFIG.renderSize : 48;
         const renderWidth = renderHeight * frame.width / frame.height;
@@ -9009,14 +9264,14 @@ function draw() {
         if (!isPlayerStalling) drawPlayerDisciplineAura(ctx, px, py);
 
         if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) {
-            drawHeroSprite(ctx, source, frame, px, py - renderHeight / 2 + (frame.offsetY || 0), renderWidth, renderHeight);
+            drawHeroSprite(ctx, source, frame, px, py - renderHeight / 2 + (frame.offsetY || 0), renderWidth, renderHeight, heroVisualState);
         } else if (scale === 1) {
-            drawHeroSprite(ctx, source, frame, px, py - renderHeight + (frame.offsetY || 0), renderWidth, renderHeight);
+            drawHeroSprite(ctx, source, frame, px, py - renderHeight + (frame.offsetY || 0), renderWidth, renderHeight, heroVisualState);
         } else {
             ctx.save();
             ctx.translate(px, py - renderHeight / 2 + (frame.offsetY || 0));
             ctx.scale(scale, scale);
-            drawHeroSprite(ctx, source, frame, 0, -renderHeight / 2, renderWidth, renderHeight);
+            drawHeroSprite(ctx, source, frame, 0, -renderHeight / 2, renderWidth, renderHeight, heroVisualState);
             ctx.restore();
         }
         drawPlayerShieldFront(ctx, px, py);
@@ -10890,7 +11145,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         Juice.hit(e, false, false);
         spawnVfxEffect(COMBAT_FEEDBACK_VFX.guardFlash, e.x, e.y - 8, 0.8, feedbackAngle);
         createDamageNumber(e.x, e.y - 20, "格挡!", '#dddddd');
-        AudioSys.play('melee_hit');
+        AudioSys.play(getMeleeHitSoundId('hit'));
         return;
     }
 
@@ -11062,12 +11317,12 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     // 层次感打击音效触发
     if (e.hp <= 0) {
         if (!e.isBoss && !e.isElite) {
-            AudioSys.play(isSkillDamage ? 'hit_kill' : 'melee_kill');
+            AudioSys.play(isSkillDamage ? 'hit_kill' : getMeleeHitSoundId('kill'));
         }
     } else if (isCrit) {
-        AudioSys.play(isSkillDamage ? 'hit_crit' : 'melee_crit');
+        AudioSys.play(isSkillDamage ? 'hit_crit' : getMeleeHitSoundId('crit'));
     } else {
-        AudioSys.play(isSkillDamage ? 'hit' : 'melee_hit');
+        AudioSys.play(isSkillDamage ? 'hit' : getMeleeHitSoundId('hit'));
     }
 
     if (e.hp <= 0) finalizeEnemyDeath(e, totalDamage);
@@ -12238,12 +12493,32 @@ function createDamageNumber(x, y, val, color, angle = null) {
 }
 
 // 触发震屏
-function createSlashEffect(fromX, fromY, toX, toY, damage = 50, isCrit = false) {
+function createSlashEffect(fromX, fromY, toX, toY, damage = 50, isCrit = false, weaponClass = getEquippedWeaponClass()) {
     const angle = Math.atan2(toY - fromY, toX - fromX);
     const profile = getPlayerVisualProfile();
+    const attackVisual = getMeleeAttackVisualProfile(weaponClass);
+
+    if (attackVisual.style === 'unarmed') {
+        const maxP = getParticleConfig().maxParticles;
+        if (particles.length < maxP) {
+            particles.push(ParticlePool.acquire({
+                x: toX,
+                y: toY - 6,
+                type: 'skill_impact_ring',
+                color: 'rgba(215, 164, 118, 0.78)',
+                life: 0.13,
+                maxLife: 0.13,
+                radius: 6,
+                grow: 14,
+                width: 2,
+                rotation: angle
+            }));
+        }
+        return;
+    }
 
     // 暴击时更多斩击弧、更大半径
-    let count = damage < 50 ? 1 : damage < 150 ? 2 : 3;
+    let count = attackVisual.style === 'club' ? 1 : (damage < 50 ? 1 : damage < 150 ? 2 : 3);
     if (isCrit) count = Math.min(count + 2, 5);  // 暴击增加2条，最多5条
 
     const getOffsets = (n) => {
@@ -12260,10 +12535,13 @@ function createSlashEffect(fromX, fromY, toX, toY, damage = 50, isCrit = false) 
             x: fromX + Math.cos(angle) * 10,
             y: fromY + Math.sin(angle) * 10,
             angle: angle + off,
-            radius: isCrit ? 45 : 30,  // 暴击更大半径
+            radius: isCrit ? Math.max(attackVisual.radius + 15, 45) : attackVisual.radius,
             life: 1.0,
             isCrit: isCrit,  // 标记暴击，用于渲染
-            color: isCrit ? '#ffdd00' : profile.trail
+            isBlunt: attackVisual.style === 'club',
+            color: isCrit ? '#ffdd00' : (attackVisual.color || profile.trail),
+            arcWidth: attackVisual.arcWidth || 0.8,
+            lineWidth: attackVisual.lineWidth || (isCrit ? 5 : 3)
         });
     });
 }
@@ -13822,9 +14100,10 @@ function performAttack(t) {
         isCrit: isCrit
     };
 
-    AudioSys.play('melee_swing');
+    const weaponClass = getEquippedWeaponClass();
+    AudioSys.play(getMeleeSwingSoundId());
     takeDamage(t, damageObj, false);
-    createSlashEffect(player.x, player.y, t.x, t.y, dmg, isCrit);  // 传递isCrit给斩击效果
+    createSlashEffect(player.x, player.y, t.x, t.y, dmg, isCrit, weaponClass);  // 传递isCrit给斩击效果
     triggerPhysicalSweep(t, dmg, isCrit, attackAngle);
     player.attackAnim = 1;
     triggerHeroAction('attack', 0.35);

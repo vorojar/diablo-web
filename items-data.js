@@ -24,8 +24,9 @@ const DIFFICULTY_MODIFIERS = {
 };
 
 const BASE_ITEMS = [
-    { name: '短剑', type: 'weapon', minDmg: 2, maxDmg: 5, rarity: 1, icon: '🗡️' },
-    { name: '巨斧', type: 'weapon', minDmg: 6, maxDmg: 14, rarity: 1, icon: '🪓' },
+    { name: '木棒', type: 'weapon', minDmg: 1, maxDmg: 3, rarity: 1, icon: '🪵', weaponClass: 'club' },
+    { name: '短剑', type: 'weapon', minDmg: 2, maxDmg: 5, rarity: 1, icon: '🗡️', weaponClass: 'sword' },
+    { name: '巨斧', type: 'weapon', minDmg: 6, maxDmg: 14, rarity: 1, icon: '🪓', weaponClass: 'axe' },
     { name: '布甲', type: 'armor', def: 5, rarity: 1, icon: '👕' },
     { name: '皮甲', type: 'armor', def: 12, rarity: 1, icon: '🦺' },
     { name: '板甲', type: 'armor', def: 25, rarity: 1, icon: '🛡️' },
