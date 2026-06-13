@@ -15212,11 +15212,11 @@ function selectSkill(k) {
     if (k === 'holy_shield') {
         // 护盾技能在skillTree中检查
         if (!player.skillTree || !player.skillTree.holy_shield || player.skillTree.holy_shield.stage1 <= 0) {
-            showNotification(`技能还未学习！打开技能面板(T)升级`);
+            showNotification(`技能还未学习！打开技能面板升级`);
             return;
         }
     } else if (player.skills[k] === 0) {
-        showNotification(`技能还未学习！打开技能面板(T)升级`);
+        showNotification(`技能还未学习！打开技能面板升级`);
         return;
     }
     player.activeSkill = k;
@@ -15288,7 +15288,7 @@ function renderSkillTree() {
         skillId,
         stage: 1,
         nodeId: skillId,
-        name: `${config.name} [${config.key}]`,
+        name: config.name,
         desc: config.desc,
         level: s1Level,
         maxLevel: SKILL_TREE_MAX_LEVEL,
@@ -16316,15 +16316,6 @@ window.addEventListener('keydown', e => {
         updateWorldLabels();
     }
 
-    if (e.key === 'c' || e.key === 'C') togglePanel('stats');
-    if (e.key === 'i' || e.key === 'I' || e.key === 'b' || e.key === 'B') { togglePanel('inventory'); advanceTutorial(0); }
-    if (e.key === 't' || e.key === 'T') togglePanel('skills');
-    if (e.key === 'q' || e.key === 'Q') selectSkill('fireball');
-    if (e.key === 'w' || e.key === 'W') selectSkill('thunder');
-    if (e.key === 'e' || e.key === 'E') selectSkill('multishot');
-    if (e.key === 'j' || e.key === 'J') togglePanel('quest');
-    if (e.key === 'a' || e.key === 'A') togglePanel('achievements');
-    if (e.key === 'g' || e.key === 'G') togglePanel('set-collection');
     if (e.key === 'f' || e.key === 'F') toggleAutoBattle();
 
     if (e.key === '1') useQuickItem('health');

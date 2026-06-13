@@ -219,7 +219,6 @@ function getSkillManaCost(skillName, level) {
 const SKILL_TREE = {
     fireball: {
         name: '火球术',
-        key: 'Q',
         desc: '发射火球攻击敌人',
         stage2: {
             explosion: {
@@ -262,7 +261,6 @@ const SKILL_TREE = {
     },
     thunder: {
         name: '雷电术',
-        key: 'W',
         desc: '召唤雷电打击敌人',
         stage2: {
             chain: {
@@ -305,7 +303,6 @@ const SKILL_TREE = {
     },
     multishot: {
         name: '多重射击',
-        key: 'E',
         desc: '扇形发射多支箭矢',
         stage2: {
             pierce: {
@@ -348,7 +345,6 @@ const SKILL_TREE = {
     },
     holy_shield: {
         name: '神圣护盾',
-        key: 'R',
         desc: '召唤神圣护盾吸收伤害',
         stage1: {
             manaCost: 15,

@@ -5,6 +5,7 @@ $game = Get-Content -LiteralPath (Join-Path $root 'game.js') -Raw
 $style = Get-Content -LiteralPath (Join-Path $root 'style.css') -Raw
 $index = Get-Content -LiteralPath (Join-Path $root 'index.html') -Raw
 $online = Get-Content -LiteralPath (Join-Path $root 'online.js') -Raw
+$constants = Get-Content -LiteralPath (Join-Path $root 'constants.js') -Raw
 
 function Assert-Contains {
     param([string]$Text, [string]$Pattern, [string]$Message)
@@ -14,6 +15,11 @@ function Assert-Contains {
 function Assert-NotContains {
     param([string]$Text, [string]$Pattern, [string]$Message)
     if ($Text -match $Pattern) { throw $Message }
+}
+
+function Assert-NotContainsLiteral {
+    param([string]$Text, [string]$Needle, [string]$Message)
+    if ($Text.Contains($Needle)) { throw $Message }
 }
 
 Assert-Contains -Text $game -Pattern "if \(!lastReadVersion\)\s*\{\s*localStorage\.setItem\('changelog_read_version', currentVersion\);\s*return;\s*\}" -Message 'FAIL: first-time users should not see the changelog popup.'
@@ -37,14 +43,22 @@ Assert-Contains -Text $game -Pattern 'function updateMobileMenuDot\(' -Message '
 Assert-Contains -Text $game -Pattern 'function updateMobileChatUnreadDot\(' -Message 'FAIL: missing mobile chat unread red dot sync behavior.'
 Assert-Contains -Text $game -Pattern 'updateMobileMenuDot\(\);' -Message 'FAIL: menu indicators should refresh the mobile menu red dot.'
 Assert-Contains -Text $online -Pattern 'updateMobileChatUnreadDot\(this\.unreadCount\);' -Message 'FAIL: chat unread updates should directly refresh the mobile chat red dot.'
+Assert-NotContains -Text $index -Pattern '<span class="key">[QWER]</span>' -Message 'FAIL: skill bar should not render keyboard shortcut labels.'
+Assert-NotContains -Text $style -Pattern '\.skill-btn\s+\.key' -Message 'FAIL: removed skill shortcut labels should not keep dedicated styling.'
+Assert-NotContains -Text $index -Pattern '角色 \(C\)|物品 \(I\)|技能 \(T\)|任务 \(J\)|成就 \(A\)|图鉴 \(G\)' -Message 'FAIL: menu buttons should not display keyboard shortcuts.'
+Assert-NotContains -Text $game -Pattern "e\.key === '[cCiIbBtTqQwWeEjJaAgG]'" -Message 'FAIL: removed menu and skill shortcuts should not remain active in keydown handling.'
+Assert-NotContains -Text $game -Pattern '\$\{config\.name\} \[\$\{config\.key\}\]' -Message 'FAIL: skill tree should not append removed keyboard shortcut labels.'
+Assert-NotContainsLiteral -Text $game -Needle '(T)' -Message 'FAIL: notifications should not mention removed skill panel shortcut.'
+Assert-NotContains -Text $constants -Pattern "key:\s*'[QWER]'" -Message 'FAIL: removed skill shortcut keys should not remain in skill config.'
 
 Assert-Contains -Text $game -Pattern 'function spawnMonsterAttackTelegraph\(' -Message 'FAIL: missing shared monster attack telegraph.'
 Assert-Contains -Text $game -Pattern 'spawnMonsterAttackTelegraph\(enemy, \{ \.\.\.options, targetX: aim\.targetX, targetY: aim\.targetY, angle: aim\.angle \}\);' -Message 'FAIL: startMonsterAttack should emit the shared telegraph with locked aim.'
 Assert-Contains -Text $game -Pattern "telegraph:\s*'projectile'" -Message 'FAIL: ranged monster attacks should mark projectile telegraphs.'
 Assert-Contains -Text $game -Pattern "telegraph:\s*'melee'" -Message 'FAIL: melee monster attacks should mark melee telegraphs.'
 
-Assert-Contains -Text $index -Pattern 'style\.css\?v=202606130930' -Message 'FAIL: index.html did not bump the style.css cache version.'
-Assert-Contains -Text $index -Pattern 'game\.js\?v=202606130910' -Message 'FAIL: index.html did not bump the game.js cache version.'
+Assert-Contains -Text $index -Pattern 'style\.css\?v=202606131010' -Message 'FAIL: index.html did not bump the style.css cache version.'
+Assert-Contains -Text $index -Pattern 'constants\.js\?v=202606131010' -Message 'FAIL: index.html did not bump the constants.js cache version.'
+Assert-Contains -Text $index -Pattern 'game\.js\?v=202606131010' -Message 'FAIL: index.html did not bump the game.js cache version.'
 Assert-Contains -Text $index -Pattern 'online\.js\?v=202606130910' -Message 'FAIL: index.html did not bump the online.js cache version.'
 
 Write-Host 'PASS: mobile UI and warning contract'
