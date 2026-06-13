@@ -5714,6 +5714,7 @@
                 width: 80px;
                 height: 80px;
                 flex-basis: 80px;
+                margin-bottom: 14px;
             }
 
             .orb-text {

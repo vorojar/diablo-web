@@ -27,6 +27,7 @@ Assert-Contains -Text $style -Pattern '#mobile-menu-toggle' -Message 'FAIL: miss
 Assert-Contains -Text $style -Pattern '#mobile-chat-toggle' -Message 'FAIL: missing mobile chat toggle styles.'
 Assert-Contains -Text $style -Pattern '(?s)\.orb-container\s*\{.*?flex:\s*0\s+0\s+130px;.*?aspect-ratio:\s*1\s*/\s*1;' -Message 'FAIL: HUD orbs should not shrink horizontally under flex layout.'
 Assert-Contains -Text $style -Pattern '(?s)@media \(max-width: 768px\),\s*\r?\n\s*\(pointer: coarse\).*?\.orb-container\s*\{.*?flex-basis:\s*80px;' -Message 'FAIL: mobile HUD orbs should keep a fixed circular flex basis.'
+Assert-Contains -Text $style -Pattern '(?s)@media \(max-width: 768px\),\s*\r?\n\s*\(pointer: coarse\).*?\.orb-container\s*\{.*?margin-bottom:\s*14px;' -Message 'FAIL: mobile HUD orbs should be lifted above the bottom edge.'
 Assert-Contains -Text $style -Pattern '\.mobile-fab-dot' -Message 'FAIL: mobile FAB red dot should use shared styles.'
 Assert-Contains -Text $style -Pattern 'body\.mobile-menu-open\s+\.menu-btns' -Message 'FAIL: mobile menu should only expand while the shell is open.'
 Assert-Contains -Text $style -Pattern '\.chat-box:not\(\.collapsed\)' -Message 'FAIL: mobile chat panel should expand from a compact launcher.'
@@ -42,7 +43,7 @@ Assert-Contains -Text $game -Pattern 'spawnMonsterAttackTelegraph\(enemy, \{ \.\
 Assert-Contains -Text $game -Pattern "telegraph:\s*'projectile'" -Message 'FAIL: ranged monster attacks should mark projectile telegraphs.'
 Assert-Contains -Text $game -Pattern "telegraph:\s*'melee'" -Message 'FAIL: melee monster attacks should mark melee telegraphs.'
 
-Assert-Contains -Text $index -Pattern 'style\.css\?v=202606130910' -Message 'FAIL: index.html did not bump the style.css cache version.'
+Assert-Contains -Text $index -Pattern 'style\.css\?v=202606130930' -Message 'FAIL: index.html did not bump the style.css cache version.'
 Assert-Contains -Text $index -Pattern 'game\.js\?v=202606130910' -Message 'FAIL: index.html did not bump the game.js cache version.'
 Assert-Contains -Text $index -Pattern 'online\.js\?v=202606130910' -Message 'FAIL: index.html did not bump the online.js cache version.'
 
