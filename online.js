@@ -2660,6 +2660,9 @@ const ChatSystem = {
         } else {
             el.textContent = '';
         }
+        if (typeof updateMobileChatUnreadDot === 'function') {
+            updateMobileChatUnreadDot(this.unreadCount);
+        }
     },
 
     // 开始私聊（在输入框填入 @玩家名）

@@ -11459,6 +11459,7 @@ function updateDivineBlessingHUD() {
             badge.style.display = 'none';
         }
     }
+    updateMobileMenuDot();
 }
 
 // 生成3张随机赐福卡牌
@@ -16515,6 +16516,29 @@ function initDragging() {
     document.addEventListener('touchcancel', endDrag);
 }
 
+function setMobileFabDot(dotId, active) {
+    const dot = document.getElementById(dotId);
+    if (dot) dot.style.display = active ? 'block' : 'none';
+}
+
+function updateMobileChatUnreadDot(unreadCount) {
+    const unread = document.getElementById('chat-unread');
+    const numericCount = Number(unreadCount);
+    const hasUnread = (Number.isFinite(numericCount) && numericCount > 0)
+        || !!unread?.textContent.trim();
+    setMobileFabDot('mobile-chat-dot', hasUnread);
+}
+
+function updateMobileMenuDot() {
+    const badgeIds = ['badge-stats', 'badge-skills', 'badge-quest'];
+    const hasPanelBadge = badgeIds.some(id => {
+        const badge = document.getElementById(id);
+        return !!badge && badge.style.display !== 'none' && getComputedStyle(badge).display !== 'none';
+    });
+    const hasBlessingReward = (player.divineBlessing?.pending || 0) > 0;
+    setMobileFabDot('mobile-menu-dot', hasPanelBadge || hasBlessingReward);
+}
+
 function updateMenuIndicators() {
     if (cachedUI.badges.stats) cachedUI.badges.stats.style.display = player.points > 0 ? 'block' : 'none';
     if (cachedUI.badges.skills) cachedUI.badges.skills.style.display = player.skillPoints > 0 ? 'block' : 'none';
@@ -16522,6 +16546,7 @@ function updateMenuIndicators() {
     const hasMainQuestReward = player.questState === 2;
     const hasDailyQuestReward = typeof DailyQuestSystem !== 'undefined' && DailyQuestSystem.hasClaimableReward();
     if (cachedUI.badges.quest) cachedUI.badges.quest.style.display = (hasMainQuestReward || hasDailyQuestReward) ? 'block' : 'none';
+    updateMobileMenuDot();
 }
 
 function isMobileLayout() {
@@ -16574,6 +16599,7 @@ function initMobileHudShell() {
     if (isMobileLayout() && chatBox) {
         chatBox.classList.add('collapsed');
         localStorage.setItem('chat_collapsed', 'true');
+        if (typeof ChatSystem !== 'undefined') ChatSystem.isCollapsed = true;
     }
     syncMobileChatState();
 
@@ -16583,9 +16609,8 @@ function initMobileHudShell() {
     }
 
     const unread = document.getElementById('chat-unread');
-    const dot = document.getElementById('mobile-chat-dot');
     const syncUnreadDot = () => {
-        if (dot && unread) dot.style.display = unread.textContent.trim() ? 'block' : 'none';
+        updateMobileChatUnreadDot();
     };
     syncUnreadDot();
     if (unread && typeof MutationObserver !== 'undefined') {

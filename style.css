@@ -283,6 +283,8 @@
         .orb-container {
             width: 130px;
             height: 130px;
+            flex: 0 0 130px;
+            aspect-ratio: 1 / 1;
             position: relative;
             background: #000;
             border-radius: 50%;
@@ -2603,7 +2605,7 @@
             bottom: 138px;
         }
 
-        .mobile-chat-dot {
+        .mobile-fab-dot {
             position: absolute;
             top: 6px;
             right: 6px;
@@ -5711,6 +5713,7 @@
             .orb-container {
                 width: 80px;
                 height: 80px;
+                flex-basis: 80px;
             }
 
             .orb-text {
@@ -5721,6 +5724,14 @@
             .skill-bar {
                 gap: 8px;
                 padding: 6px;
+            }
+
+            #center-hud {
+                flex: 1 1 auto;
+                min-width: 0;
+                max-width: min(420px, calc(100vw - 196px));
+                margin: 0 6px;
+                padding: 6px 4px 5px;
             }
 
 
@@ -5967,6 +5978,7 @@
             .orb-container {
                 width: 65px;
                 height: 65px;
+                flex-basis: 65px;
             }
 
             .skill-btn {
@@ -6002,7 +6014,7 @@
             }
 
             #center-hud {
-                max-width: 200px;
+                max-width: calc(100vw - 164px);
             }
         }
 
@@ -6015,6 +6027,7 @@
             .orb-container {
                 width: 70px;
                 height: 70px;
+                flex-basis: 70px;
             }
 
             .skill-btn {
