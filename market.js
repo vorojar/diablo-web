@@ -50,6 +50,7 @@ const MarketSystem = {
       this.startExpirationCheck(); // 定时检查摊位过期
       this.initialized = true;
     }
+    this.recoverPendingTransactions();
     this.checkPendingSales(); // 检查未领取的销售收益
     console.log('[摆摊系统] 初始化完成');
   },
@@ -91,108 +92,127 @@ const MarketSystem = {
     return error?.data?.message || error?.response?.message || error?.message || fallbackMessage;
   },
 
-  async tryServerPurchase(stall, slotData, itemIndex, totalPrice, emptySlot) {
-    if (typeof pb?.send !== 'function') return 'missing';
+  transactionBusy: false,
 
-    const targetEmptySlot = player.inventory[emptySlot] === null
-      ? emptySlot
-      : player.inventory.findIndex(i => i === null);
-    if (targetEmptySlot === -1) {
-      showNotification('背包已满', 'warning');
-      return 'handled';
+  async requireReceiptProtocol() {
+    if (typeof pb === 'undefined' || typeof pb.send !== 'function') {
+      throw new Error('市场升级中，暂时无法交易');
     }
+    const protocol = await pb.send('/api/market/protocol', { method: 'GET' });
+    if (protocol?.version !== 2) throw new Error('市场升级中，暂时无法交易');
+  },
 
-    try {
-      const response = await pb.send('/api/market/purchase', {
-        method: 'POST',
-        body: {
-          stallId: stall.id,
-          itemIndex,
-          itemId: slotData.item?.id || '',
-          expectedPrice: slotData.price,
-          expectedTotal: totalPrice,
-          buyerId: OnlineSystem?.userId || 'anonymous',
-          buyerName: OnlineSystem?.nickname || '匿名玩家',
-          requestId: this.createRequestId('buy')
-        }
-      });
-
-      const purchasedItem = response?.item || slotData.item;
-      const chargedGold = Number(response?.totalPrice ?? totalPrice);
-      const itemName = purchasedItem?.name || slotData.item?.name || '商品';
-
-      if (player.gold < chargedGold) {
-        showNotification(`金币不足，需要 ${chargedGold}G`, 'warning');
-        return 'handled';
-      }
-
-      player.gold -= chargedGold;
-      player.inventory[targetEmptySlot] = purchasedItem;
-
-      showNotification(`购买成功: ${itemName} (-${chargedGold}G)`, 'success');
-      if (typeof AudioSys !== 'undefined') AudioSys.play('gold');
-      updateStats();
-      renderInventory();
-      this.closeViewPanel();
-      SaveSystem?.save();
-      this.loadStalls();
-      return 'handled';
-    } catch (e) {
-      if (this.isHookNotInstalled(e)) {
-        console.warn('[摆摊系统] PocketBase 原子购买接口未安装，降级使用旧购买流程');
-        return 'missing';
-      }
-
-      console.error('[摆摊系统] 原子购买失败:', e);
-      showNotification(this.getPbErrorMessage(e, '购买失败'), 'error');
-      this.closeViewPanel();
-      this.loadStalls();
-      return 'handled';
-    }
+  async tryServerPurchase(stall, slotData, itemIndex, totalPrice) {
+    return this.runMarketTransaction('purchase', {
+      stallId: stall.id, itemIndex, itemId: slotData.item.id,
+      expectedPrice: slotData.price, expectedTotal: totalPrice,
+      buyerId: OnlineSystem.userId, buyerName: OnlineSystem.nickname
+    }, totalPrice);
   },
 
   async tryServerClaimSales(sales) {
-    if (typeof pb?.send !== 'function') return 'missing';
-
-    try {
-      const response = await pb.send('/api/market/claim-sales', {
-        method: 'POST',
-        body: {
-          saleIds: sales.map(sale => sale.id),
-          sellerId: OnlineSystem?.userId || 'anonymous',
-          requestId: this.createRequestId('claim')
-        }
-      });
-
-      const claimedGold = Number(response?.totalGold || 0);
-      const claimedCount = Number(response?.claimedCount || 0);
-      this.applyClaimedSales(claimedGold, claimedCount);
-      return 'handled';
-    } catch (e) {
-      if (this.isHookNotInstalled(e)) {
-        console.warn('[摆摊系统] PocketBase 原子领取接口未安装，降级使用旧领取流程');
-        return 'missing';
-      }
-
-      console.error('[摆摊系统] 原子领取失败:', e);
-      showNotification(this.getPbErrorMessage(e, '领取失败'), 'error');
-      return 'handled';
-    }
+    return this.runMarketTransaction('claim-sales', {
+      saleIds: sales.map(sale => sale.id), sellerId: OnlineSystem.userId
+    }, 0);
   },
 
-  applyClaimedSales(claimedGold, claimedCount) {
-    if (claimedCount <= 0 || claimedGold <= 0) return;
+  // 请求与预扣款和角色存档一同提交，网络错误只能重放原请求。
+  async runMarketTransaction(kind, body, reservedGold) {
+    if (this.transactionBusy) {
+      showNotification('市场交易处理中，请稍候', 'warning');
+      return 'handled';
+    }
+    this.transactionBusy = true;
+    try {
+      await this.requireReceiptProtocol();
+      if (player.marketPending) {
+        await this.deliverPendingTransaction();
+        showNotification('已处理上次交易，请重新确认本次操作', 'info');
+        return 'handled';
+      }
+      if (kind === 'purchase' && (!Number.isSafeInteger(reservedGold) || reservedGold <= 0 || player.gold < reservedGold)) {
+        throw new Error('金币不足或价格无效');
+      }
+      if (kind === 'purchase' && !player.inventory.includes(null)) throw new Error('背包已满');
+      const pending = { kind, body: { ...body, requestId: this.createRequestId(kind) }, reservedGold, applied: false };
+      player.marketPending = pending;
+      player.gold -= reservedGold;
+      // 存档未成功前绝不请求服务端成交。
+      let saved = false;
+      try { saved = await SaveSystem.save(); }
+      finally {
+        if (!saved) {
+          player.gold += reservedGold;
+          delete player.marketPending;
+        }
+      }
+      if (!saved) throw new Error('存档失败，交易未发起');
+      await this.deliverPendingTransaction();
+    } catch (error) {
+      console.error('[摆摊系统] 交易尚未完成:', error);
+      showNotification(this.isHookNotInstalled(error) ? '市场升级中，暂时无法交易' :
+        this.getPbErrorMessage(error, '交易待恢复，请稍后重新打开市场'), 'warning');
+    } finally {
+      this.transactionBusy = false;
+      updateStats();
+      renderInventory();
+    }
+    return 'handled';
+  },
 
-    player.gold += claimedGold;
+  async deliverPendingTransaction() {
+    const pending = player.marketPending;
+    if (!pending) return;
+    const owner = pending.body.buyerId || pending.body.sellerId;
+    if (owner !== OnlineSystem.userId) throw new Error('请使用发起交易的在线身份恢复交易');
+    if (!pending.applied) {
+      let response;
+      try {
+        response = await pb.send(`/api/market/${pending.kind}`, { method: 'POST', body: pending.body });
+      } catch (error) {
+        // 只有服务端明确拒绝且没有成交的错误才能退款；断网和 5xx 保留请求。
+        const code = error?.data?.code || error?.response?.code;
+        if (['sold_out', 'price_changed', 'invalid_stall', 'own_stall', 'forbidden', 'invalid_request'].includes(code)) {
+          player.gold += pending.reservedGold;
+          pending.applied = true;
+          pending.rejected = true;
+          if (!await SaveSystem.save()) throw new Error('退款尚未保存，请重试恢复');
+          delete player.marketPending;
+        }
+        throw error;
+      }
+      if (response?.ok !== true || response.requestId !== pending.body.requestId) throw new Error('交易收据无效，请稍后恢复');
+      if (pending.kind === 'purchase') {
+        if (!response.item || response.totalPrice !== pending.reservedGold) throw new Error('购买收据数据异常');
+        // 交付时重新寻找空位，绝不使用请求发送前的背包索引。
+        const index = player.inventory.findIndex(item => item === null);
+        if (index === -1) throw new Error('已购买，背包已满；腾出空位后重新打开市场领取');
+        player.inventory[index] = response.item;
+      } else {
+        if (!Number.isSafeInteger(response.totalGold) || response.totalGold < 0) throw new Error('收益收据数据异常');
+        player.gold += response.totalGold;
+      }
+      pending.applied = true;
+    }
+    // applied 与金币/物品同一存档事务，重启或存档重试都不会重复交付。
+    if (!await SaveSystem.save()) throw new Error('交易已到账但尚未保存，请重试恢复');
+    delete player.marketPending;
+    if (pending.kind === 'claim-sales' && !pending.rejected) {
+      const claimedIds = new Set(pending.body.saleIds);
+      this.pendingSales = (this.pendingSales || []).filter(sale => !claimedIds.has(sale.id));
+      this.pendingGold = this.pendingSales.reduce((total, sale) => total + Number(sale.price), 0);
+      const button = document.getElementById('claim-sales-btn');
+      if (button) button.remove();
+      if (this.pendingSales.length > 0) this.showClaimSalesButton(this.pendingGold);
+    }
+    showNotification(pending.rejected ? '交易未成交，预扣金币已退回' : '市场交易已完成并保存', 'success');
+    this.closeViewPanel();
+    this.loadStalls();
+  },
 
-    const btn = document.getElementById('claim-sales-btn');
-    if (btn) btn.remove();
-
-    showNotification(`✅ 领取成功: +${claimedGold}G`, 'success');
-    if (typeof AudioSys !== 'undefined') AudioSys.play('gold');
-    updateStats();
-    renderInventory();
-    SaveSystem?.save();
+  async recoverPendingTransactions() {
+    if (!player.marketPending || this.transactionBusy) return;
+    return this.runMarketTransaction(null, null, 0);
   },
 
   createUI() {
@@ -768,6 +788,7 @@ const MarketSystem = {
 
   // 打开销售明细面板
   openSalesPanel() {
+    this.recoverPendingTransactions();
     // 创建面板（如果不存在）
     let panel = document.getElementById('sales-panel');
     if (!panel) {
@@ -832,35 +853,7 @@ const MarketSystem = {
   async claimSales(sales) {
     if (typeof pb === 'undefined' || typeof player === 'undefined') return;
 
-    const serverResult = await this.tryServerClaimSales(sales);
-    if (serverResult === 'handled') return;
-
-    let claimedCount = 0;
-    let claimedGold = 0;
-
-    for (const sale of sales) {
-      try {
-        // 直接删除记录，不再保留 claimed = true 的数据
-        await pb.collection('market_sales').delete(sale.id);
-        claimedCount++;
-        claimedGold += Number(sale.price || 0);
-      } catch (e) {
-        console.warn('[摆摊系统] 领取失败:', sale.id, e);
-      }
-    }
-
-    // 隐藏按钮
-    const btn = document.getElementById('claim-sales-btn');
-    if (btn) btn.remove();
-
-    if (claimedCount > 0) {
-      player.gold += claimedGold;
-      showNotification(`✅ 领取成功: +${claimedGold}G`, 'success');
-      if (typeof AudioSys !== 'undefined') AudioSys.play('gold');
-      updateStats();
-      renderInventory();
-      SaveSystem?.save();
-    }
+    return this.tryServerClaimSales(sales);
   },
 
   // ========== 获取摊位交互点 ==========
@@ -903,6 +896,7 @@ const MarketSystem = {
 
   // ========== 打开摆摊设置面板 ==========
   openSetupPanel(stallIndex = -1) {
+    this.recoverPendingTransactions();
     if (this.isStalling) {
       showNotification('你已经在摆摊了', 'warning');
       return;
@@ -1389,6 +1383,7 @@ const MarketSystem = {
 
   // ========== 打开查看摊位面板 ==========
   openViewPanel(stallPoint) {
+    this.recoverPendingTransactions();
     const stall = stallPoint.stall;
     if (!stall) return;
 
@@ -1576,134 +1571,7 @@ const MarketSystem = {
 
   // 执行购买
   async executeBuy(stall, slotData, itemIndex, totalPrice, emptySlot) {
-    const serverResult = await this.tryServerPurchase(stall, slotData, itemIndex, totalPrice, emptySlot);
-    if (serverResult === 'handled') return;
-    return this.executeLegacyBuy(stall, slotData, itemIndex, totalPrice, emptySlot);
-  },
-
-  async executeLegacyBuy(stall, slotData, itemIndex, totalPrice, emptySlot) {
-    const lockKey = `${stall.id}:${slotData.item?.id || itemIndex}`;
-    if (this.buyLocks.has(lockKey)) {
-      showNotification('购买处理中，请稍候', 'warning');
-      return;
-    }
-    this.buyLocks.add(lockKey);
-    let lockAcquired = false;
-    let purchaseCompleted = false;
-    let lockToken = null;
-
-    try {
-      // 重新获取最新数据防止商品已售
-      const latestStall = await pb.collection('market_stalls').getOne(stall.id);
-      const items = this.parseItems(latestStall.items);
-      const latestSlot = items[itemIndex];
-
-      if (!latestSlot || latestSlot.item?.id !== slotData.item.id) {
-        showNotification('商品已售出', 'warning');
-        this.closeViewPanel();
-        return;
-      }
-
-      const taxAmount = Math.ceil(latestSlot.price * MARKET_CONFIG.TAX_RATE);
-      const latestTotalPrice = latestSlot.price + taxAmount;
-      if (latestTotalPrice !== totalPrice) {
-        showNotification('商品价格已变化，请重新确认', 'warning');
-        this.closeViewPanel();
-        return;
-      }
-      if (player.gold < latestTotalPrice) {
-        showNotification(`金币不足，需要 ${latestTotalPrice}G`, 'warning');
-        return;
-      }
-
-      const buyerId = OnlineSystem?.userId || 'anonymous';
-      lockToken = `${buyerId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const lockedItems = items.map((entry, idx) => {
-        if (idx !== itemIndex || !entry) return entry;
-        return { ...entry, lockedBy: buyerId, lockToken, lockedAt: Date.now() };
-      });
-
-      await pb.collection('market_stalls').update(stall.id, { items: lockedItems });
-
-      const lockedStall = await pb.collection('market_stalls').getOne(stall.id);
-      const lockedLatestItems = this.parseItems(lockedStall.items);
-      const lockedSlot = lockedLatestItems[itemIndex];
-      if (!lockedSlot || lockedSlot.item?.id !== slotData.item.id || lockedSlot.lockToken !== lockToken) {
-        showNotification('商品正在被其他玩家购买，请稍后重试', 'warning');
-        this.closeViewPanel();
-        return;
-      }
-      lockAcquired = true;
-
-      const targetEmptySlot = player.inventory[emptySlot] === null
-        ? emptySlot
-        : player.inventory.findIndex(i => i === null);
-      if (targetEmptySlot === -1) {
-        showNotification('背包已满', 'warning');
-        return;
-      }
-
-      const finalItems = lockedLatestItems.filter((_, idx) => idx !== itemIndex);
-
-      if (finalItems.length === 0) {
-        await pb.collection('market_stalls').delete(stall.id);
-        this.closeViewPanel();
-      } else {
-        await pb.collection('market_stalls').update(stall.id, { items: finalItems });
-      }
-      purchaseCompleted = true;
-
-      // 扣除金币
-      player.gold -= totalPrice;
-
-      // 添加到背包
-      player.inventory[targetEmptySlot] = lockedSlot.item;
-
-      // 创建销售记录（给卖家的收益）
-      try {
-        await pb.collection('market_sales').create({
-          seller_id: stall.user_id,
-          buyer_id: buyerId,
-          buyer_name: OnlineSystem?.nickname || '匿名玩家',
-          item_name: lockedSlot.item.name,
-          price: latestSlot.price,
-          claimed: false
-        });
-      } catch (saleErr) {
-        console.warn('[摆摊系统] 创建销售记录失败:', saleErr);
-      }
-
-      showNotification(`购买成功: ${lockedSlot.item.name} (-${totalPrice}G)`, 'success');
-      if (typeof AudioSys !== 'undefined') AudioSys.play('gold');
-
-      updateStats();
-      renderInventory();
-      this.closeViewPanel();
-      SaveSystem?.save();
-
-    } catch (e) {
-      console.error('[摆摊系统] 购买失败:', e);
-      showNotification('购买失败: ' + e.message, 'error');
-    } finally {
-      if (lockAcquired && !purchaseCompleted && lockToken) {
-        try {
-          const lockedStall = await pb.collection('market_stalls').getOne(stall.id);
-          const lockedItems = this.parseItems(lockedStall.items);
-          const lockedSlot = lockedItems[itemIndex];
-          if (lockedSlot?.lockToken === lockToken) {
-            const restoredItems = lockedItems.map((entry, idx) => {
-              if (idx !== itemIndex || !entry) return entry;
-              const { lockedBy, lockToken: _lockToken, lockedAt, ...restored } = entry;
-              return restored;
-            });
-            await pb.collection('market_stalls').update(stall.id, { items: restoredItems });
-          }
-        } catch (unlockErr) {
-          console.warn('[摆摊系统] 释放购买锁失败:', unlockErr);
-        }
-      }
-      this.buyLocks.delete(lockKey);
-    }
+    return this.tryServerPurchase(stall, slotData, itemIndex, totalPrice);
   },
 
   // ========== 渲染摊位到游戏世界 ==========
