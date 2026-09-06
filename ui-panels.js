@@ -11,7 +11,7 @@ const panelManager = {
     'set-collection': { id: 'set-collection-panel', group: 'left', top: 10, baseTop: 10, opened: false, zIndex: 0 },
     'inventory': { id: 'inventory-panel', group: 'right', top: 10, baseTop: 10, opened: false, zIndex: 0 },
     'stash': { id: 'stash-panel', group: 'right', top: 15, baseTop: 15, opened: false, zIndex: 0 },
-    'skills': { id: 'skills-panel', group: 'center', top: 15, baseTop: 15, opened: false, zIndex: 0, left: 340 },
+    'skills': { id: 'skills-panel', group: 'center', top: 15, baseTop: 15, opened: false, zIndex: 0 },
     'shop': { id: 'shop-panel', group: 'center', top: 10, baseTop: 10, opened: false, zIndex: 0 },
     'blacksmith': { id: 'blacksmith-panel', group: 'center', top: 15, baseTop: 15, opened: false, zIndex: 0 },
     'auto-battle': { id: 'auto-battle-panel', group: 'right', top: 10, baseTop: 10, opened: false, zIndex: 0 }
@@ -58,10 +58,11 @@ const panelManager = {
         element.style.left = Math.max(padding, window.innerWidth - rect.width - padding) + 'px';
         element.style.right = 'auto';
       }
-      // 底部超出
-      if (rect.bottom > window.innerHeight - padding) {
-        element.style.top = Math.max(padding, window.innerHeight - rect.height - padding) + 'px';
-      }
+      // 入场动画会临时缩放、下移；使用最终布局高度，避免动画结束后底部越界。
+      element.style.top = Math.max(padding, Math.min(
+        window.innerHeight * newTop / 100,
+        window.innerHeight - element.offsetHeight - padding
+      )) + 'px';
       // 左边超出
       if (rect.left < padding) {
         element.style.left = padding + 'px';
@@ -97,6 +98,13 @@ const panelManager = {
     panel.zIndex = 0;
   }
 };
+
+// 改变窗口大小后，已打开面板也必须重新约束到新的可视区域。
+window.addEventListener('resize', () => {
+  for (const [id, panel] of Object.entries(panelManager.panels)) {
+    if (panel.opened) panelManager.calculatePosition(id);
+  }
+});
 
 // ========== 辅助函数 ==========
 

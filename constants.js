@@ -431,7 +431,7 @@ function getSkillTreeBonus(skillName) {
         const s2Config = config.stage2[tree.stage2.chosen];
         if (s2Config && s2Config.effect) {
             for (const key in s2Config.effect) {
-                bonus[key] = s2Config.effect[key] * tree.stage2.level;
+                bonus[key] = key.endsWith('Base') ? s2Config.effect[key] : s2Config.effect[key] * tree.stage2.level;
             }
         }
     }
@@ -446,7 +446,7 @@ function getSkillTreeBonus(skillName) {
                 if (typeof s3Config.effect[key] === 'boolean') {
                     bonus[key] = s3Config.effect[key];
                 } else {
-                    bonus[key] = (bonus[key] || 0) + s3Config.effect[key] * tree.stage3.level;
+                    bonus[key] = (bonus[key] || 0) + s3Config.effect[key];
                 }
             }
         }

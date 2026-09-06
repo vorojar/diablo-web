@@ -1,0 +1,3 @@
+{
+  "verify": ["& ./tools/verify.ps1"]
+}

@@ -400,6 +400,7 @@ const ProjectilePool = {
             // 清理属性防止复用污染
             p.type = undefined; p.freeze = undefined; p.owner = undefined; p.sourceName = undefined; p.age = undefined;
             p.visualTier = undefined;
+            p.branch = undefined; p.hitEnemies = undefined; p.pierces = undefined; p.transformed = undefined; p.skillLevel = undefined; p.meteorTarget = undefined;
             this._pool.push(p);
         }
     }
@@ -485,6 +486,7 @@ const EnemyPool = {
 
     // 回收敌人对象到池中
     release(enemy) {
+        SkillBranchSystem.states.delete(enemy);
         if (this.pool.length < this.maxPoolSize) {
             // 清理引用防止内存泄漏
             enemy.eliteAffixes = null;
@@ -1191,12 +1193,7 @@ const heroSpriteSheet = new Image();
 heroSpriteSheet.src = 'hero_sprites.png?v=202605052245';
 let heroSpritesLoaded = false;
 let processedHeroSprites = null;
-const HeroTintCache = {
-    white: null,
-    ice: null,
-    poison: null,
-    lightning: null
-};
+const HeroTintCache = SpriteRenderer.createTintCache();
 
 const HERO_SPRITE_CONFIG = {
     cols: 4,
@@ -1676,7 +1673,8 @@ function applyEnemyProjectileOnHit(enemy, dealt) {
 
     if (enemy.freezeOnHit && !(player.freezeImmuneTimer > 0) && !(player.slowedTimer > 0)) {
         player.frozen = true;
-        player.frozenTimer = 0.45;
+        player.frozenTimer = 0.45 * SkillBranchSystem.controlMultiplier();
+        player.frozen = player.frozenTimer > 0;
         createDamageNumber(player.x, player.y - 40, '冰冻!', COLORS.ice);
     }
 
@@ -1790,7 +1788,8 @@ function resolveEnemyMeleeImpact(enemy, options = {}) {
 
     if (enemy.freezeOnHit && !(player.freezeImmuneTimer > 0) && !(player.slowedTimer > 0)) {
         player.frozen = true;
-        player.frozenTimer = 0.5;
+        player.frozenTimer = 0.5 * SkillBranchSystem.controlMultiplier();
+        player.frozen = player.frozenTimer > 0;
         createDamageNumber(player.x, player.y - 40, "冰冻!", COLORS.ice);
     }
 
@@ -1836,33 +1835,10 @@ function emitMummyDeathCloud(enemy) {
 }
 
 heroSpriteSheet.onload = () => {
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = heroSpriteSheet.width;
-    tempCanvas.height = heroSpriteSheet.height;
-    tempCtx.drawImage(heroSpriteSheet, 0, 0);
-
-    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-    const data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i + 1], b = data[i + 2];
-        if (r > 200 && g < 90 && b > 170) data[i + 3] = 0;
-    }
-    tempCtx.putImageData(imageData, 0, 0);
-
-    processedHeroSprites = document.createElement('canvas');
-    processedHeroSprites.width = tempCanvas.width;
-    processedHeroSprites.height = tempCanvas.height;
-    processedHeroSprites.getContext('2d').drawImage(tempCanvas, 0, 0);
-
+    // 原图已经带透明通道，保留白色高光、紫色细节和半透明边缘。
+    processedHeroSprites = heroSpriteSheet;
     HERO_SPRITE_CONFIG.frameWidth = Math.floor(processedHeroSprites.width / HERO_SPRITE_CONFIG.cols);
     HERO_SPRITE_CONFIG.frameHeight = Math.floor(processedHeroSprites.height / HERO_SPRITE_CONFIG.rows);
-
-    HeroTintCache.white = createTintedSpriteSheet(processedHeroSprites, 'brightness(500%) sepia(100%) saturate(0%)');
-    HeroTintCache.ice = createTintedSpriteSheet(processedHeroSprites, 'sepia(100%) saturate(150%) hue-rotate(180deg) brightness(120%)');
-    HeroTintCache.poison = createTintedSpriteSheet(processedHeroSprites, 'sepia(100%) saturate(300%) hue-rotate(80deg) brightness(80%)');
-    HeroTintCache.lightning = createTintedSpriteSheet(processedHeroSprites, 'brightness(300%) saturate(50%)');
-
     heroSpritesLoaded = true;
 };
 
@@ -1871,12 +1847,7 @@ const monsterSpriteSheet = new Image();
 monsterSpriteSheet.src = 'monster_sprites.png?v=202605010130';
 let monsterSpritesLoaded = false;
 let processedMonsterSprites = null;
-const MonsterTintCache = {
-    white: null,
-    ice: null,
-    poison: null,
-    lightning: null
-};
+const MonsterTintCache = SpriteRenderer.createTintCache();
 
 const MONSTER_SPRITE_CONFIG = {
     cols: 4,
@@ -1982,33 +1953,10 @@ const MONSTER_SPRITE_CONFIG = {
 const BOSS_SPRITE_TYPES_BY_FRAME = ['bloodRaven', 'countess', 'butcher', 'duriel', 'diablo', 'baal'];
 
 monsterSpriteSheet.onload = () => {
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCanvas.width = monsterSpriteSheet.width;
-    tempCanvas.height = monsterSpriteSheet.height;
-    tempCtx.drawImage(monsterSpriteSheet, 0, 0);
-
-    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-    const data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i + 1], b = data[i + 2];
-        if (r > 200 && g < 90 && b > 170) data[i + 3] = 0;
-    }
-    tempCtx.putImageData(imageData, 0, 0);
-
-    processedMonsterSprites = document.createElement('canvas');
-    processedMonsterSprites.width = tempCanvas.width;
-    processedMonsterSprites.height = tempCanvas.height;
-    processedMonsterSprites.getContext('2d').drawImage(tempCanvas, 0, 0);
-
+    // 原图已经带透明通道，保留白色高光、紫色细节和半透明边缘。
+    processedMonsterSprites = monsterSpriteSheet;
     MONSTER_SPRITE_CONFIG.frameWidth = Math.floor(processedMonsterSprites.width / MONSTER_SPRITE_CONFIG.cols);
     MONSTER_SPRITE_CONFIG.frameHeight = Math.floor(processedMonsterSprites.height / MONSTER_SPRITE_CONFIG.rows);
-
-    MonsterTintCache.white = createTintedSpriteSheet(processedMonsterSprites, 'brightness(500%) sepia(100%) saturate(0%)');
-    MonsterTintCache.ice = createTintedSpriteSheet(processedMonsterSprites, 'sepia(100%) saturate(150%) hue-rotate(180deg) brightness(120%)');
-    MonsterTintCache.poison = createTintedSpriteSheet(processedMonsterSprites, 'sepia(100%) saturate(300%) hue-rotate(80deg) brightness(80%)');
-    MonsterTintCache.lightning = createTintedSpriteSheet(processedMonsterSprites, 'brightness(300%) saturate(50%)');
-
     monsterSpritesLoaded = true;
 };
 
@@ -2137,51 +2085,22 @@ let envCellWidth = 0;
 let envCellHeight = 0;
 let envSpriteBounds = [];
 
-function shouldClearGeneratedAssetBackground(r, g, b) {
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const isNearWhite = max > 248 && max - min < 12;
-    const isMagentaKey = r > 220 && g < 80 && b > 220;
-    return isNearWhite || isMagentaKey;
-}
+
 
 envSpriteSheet.onload = () => {
+    processedEnvSprites = envSpriteSheet;
     const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
     tempCanvas.width = envSpriteSheet.width;
     tempCanvas.height = envSpriteSheet.height;
-
+    const tempCtx = tempCanvas.getContext('2d');
     tempCtx.drawImage(envSpriteSheet, 0, 0);
-
     const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-    const data = imageData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-
-        // 去除白色背景 (适应新生成的 Sprite Sheet)
-        // 同时也去除了白色的网格线
-        if (shouldClearGeneratedAssetBackground(r, g, b)) {
-            data[i + 3] = 0;
-        }
-    }
-
-    tempCtx.putImageData(imageData, 0, 0);
-
-    processedEnvSprites = new Image();
-    processedEnvSprites.onload = () => {
-        envSpritesLoaded = true;
-        // 计算单个格子的尺寸 (8列 x 8行)
-        // 之前是 4 行，现在 V3 是 8 行，必须除以 8，否则会一次切到两行图
-        envCellWidth = processedEnvSprites.width / 8;
-        envCellHeight = processedEnvSprites.height / 8;
-        envSpriteBounds = calculateSpriteCellBounds(imageData, 8, 8, 12);
-        // 资源加载完成后重新生成地图缓存
-        if (gameActive && mapData.length > 0) generateMapCache();
-    };
-    processedEnvSprites.src = tempCanvas.toDataURL();
+    envCellWidth = processedEnvSprites.width / 8;
+    envCellHeight = processedEnvSprites.height / 8;
+    envSpriteBounds = calculateSpriteCellBounds(imageData, 8, 8, 12);
+    tempCanvas.width = tempCanvas.height = 0;
+    envSpritesLoaded = true;
+    if (gameActive && mapData.length > 0) generateMapCache();
 };
 
 // --- Destructible Sprites ---
@@ -2242,24 +2161,17 @@ function calculateSpriteCellBounds(imageData, cols, rows, alphaThreshold = 16) {
 }
 
 destructibleSpriteSheet.onload = () => {
+    processedDestructibleSprites = destructibleSpriteSheet;
     const tempCanvas = document.createElement('canvas');
     tempCanvas.width = destructibleSpriteSheet.width;
     tempCanvas.height = destructibleSpriteSheet.height;
     const tempCtx = tempCanvas.getContext('2d');
     tempCtx.drawImage(destructibleSpriteSheet, 0, 0);
-
     const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-    const data = imageData.data;
-    // 去除白色背景 (阈值220)
-    for (let i = 0; i < data.length; i += 4) {
-        if (shouldClearGeneratedAssetBackground(data[i], data[i + 1], data[i + 2])) data[i + 3] = 0;
-    }
-    tempCtx.putImageData(imageData, 0, 0);
-    processedDestructibleSprites = tempCanvas;
-    // 计算格尺寸 (3行 x 2列)
     DESTRUCTIBLE_CONFIG.cellWidth = processedDestructibleSprites.width / 2;
     DESTRUCTIBLE_CONFIG.cellHeight = processedDestructibleSprites.height / 3;
     destructibleSpriteBounds = calculateSpriteCellBounds(imageData, 2, 3);
+    tempCanvas.width = tempCanvas.height = 0;
     destructiblesLoaded = true;
 };
 
@@ -2442,7 +2354,10 @@ function drawScenicPropOne(ctx, prop) {
     if (prop.x < camera.x - 140 || prop.x > camera.x + getViewportWidth() + 140 ||
         prop.y < camera.y - 180 || prop.y > camera.y + getViewportHeight() + 140) return;
 
-    const bounds = getEnvSpriteBounds(prop.row, prop.col);
+    const samplePosition = {moss_rock:[0,0],stump:[0,1],lantern:[1,0],gravestone:[1,1],shrub:[2,0],bones:[2,1]}[prop.name];
+    const sample = getCurrentCombatFloor() === 1 && !player.isInHell && samplePosition
+        ? ArtSamples.frame('ruins', ...samplePosition) : null;
+    const bounds = sample ? sample.contentBounds : getEnvSpriteBounds(prop.row, prop.col);
     const ratio = bounds.sw / bounds.sh;
     const drawH = Math.round((prop.drawH || 70) * (prop.scale || 1));
     const drawW = Math.round(drawH * ratio);
@@ -2456,7 +2371,7 @@ function drawScenicPropOne(ctx, prop) {
     ctx.globalAlpha = playerInside ? 0.62 : (prop.alpha || 0.94);
     ctx.filter = prop.filter || 'brightness(0.96) saturate(1.04) contrast(1.04)';
     ctx.drawImage(
-        processedEnvSprites,
+        sample ? sample.source : processedEnvSprites,
         bounds.sx, bounds.sy, bounds.sw, bounds.sh,
         drawX, drawY, drawW, drawH
     );
@@ -3068,6 +2983,7 @@ function normalizeHeroDirection(direction) {
 function triggerHeroAction(action, duration) {
     player.heroAction = action;
     player.heroActionTimer = Math.max(player.heroActionTimer || 0, duration);
+    player.heroActionDuration = duration;
     player.animTime = 0;
 }
 
@@ -3082,6 +2998,13 @@ function getHeroFrame(direction) {
     if (heroSpritesLoaded && processedHeroSprites) {
         const action = getCurrentHeroAction();
         const safeDirection = action === 'sit' ? 'front' : normalizeHeroDirection(direction);
+        if (action === 'hurt' && typeof ArtSamples !== 'undefined') {
+            const row = safeDirection.startsWith('back') ? 1 : safeDirection === 'left' ? 2 : safeDirection === 'right' ? 3 : 0;
+            const progress = player.heroActionDuration > 0
+                ? Math.max(0, Math.min(0.999, 1 - player.heroActionTimer / player.heroActionDuration)) : 0;
+            const sample = ArtSamples.frame('heroHurt', row, Math.floor(progress * 4));
+            if (sample) return sample;
+        }
         const actionRows = HERO_SPRITE_CONFIG.rowsByAction[action] || HERO_SPRITE_CONFIG.rowsByAction.idle;
         const frameInfo = actionRows[safeDirection] || actionRows.front;
         const fps = HERO_SPRITE_CONFIG.fps[action] || HERO_SPRITE_CONFIG.fps.idle;
@@ -3124,19 +3047,18 @@ function getHeroFrame(direction) {
     };
 }
 
-function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH) {
+function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH, tint = null) {
+    source = frame.source || source;
     if (frame.flipX) {
         ctx.save();
         ctx.translate(centerX, topY);
         ctx.scale(-1, 1);
-        ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
-            -drawW / 2, 0, drawW, drawH);
+        SpriteRenderer.drawFrame(ctx, source, frame, -drawW / 2, 0, drawW, drawH, tint, HeroTintCache);
         ctx.restore();
         return;
     }
 
-    ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
-        centerX - drawW / 2, topY, drawW, drawH);
+    SpriteRenderer.drawFrame(ctx, source, frame, centerX - drawW / 2, topY, drawW, drawH, tint, HeroTintCache);
 }
 
 function getEnemyMonsterType(enemy) {
@@ -3234,6 +3156,12 @@ function getMonsterSpriteFrame(enemy) {
     } else {
         frameIndex = Math.floor((enemy.monsterAnimTime || 0) * fps) % MONSTER_SPRITE_CONFIG.cols;
     }
+    if (typeof ArtSamples !== 'undefined') {
+        const side = direction === 'left' || direction === 'right' || direction === 'back';
+        const sample = ArtSamples.frame(getEnemyMonsterType(enemy), { idle: 0, walk: 1, attack: 2, hurt: 3 }[action],
+            frameIndex + (side ? 4 : 0), !!frameInfo.flipX);
+        if (sample) return sample;
+    }
     return {
         x: frameIndex * MONSTER_SPRITE_CONFIG.frameWidth,
         y: frameInfo.row * MONSTER_SPRITE_CONFIG.frameHeight,
@@ -3244,19 +3172,18 @@ function getMonsterSpriteFrame(enemy) {
     };
 }
 
-function drawMonsterSprite(ctx, source, frame, centerX, bottomY, drawW, drawH) {
+function drawMonsterSprite(ctx, source, frame, centerX, bottomY, drawW, drawH, tint = null) {
+    source = frame.source || source;
     if (frame.flipX) {
         ctx.save();
         ctx.translate(centerX, bottomY - drawH);
         ctx.scale(-1, 1);
-        ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
-            -drawW / 2, 0, drawW, drawH);
+        SpriteRenderer.drawFrame(ctx, source, frame, -drawW / 2, 0, drawW, drawH, tint, MonsterTintCache);
         ctx.restore();
         return;
     }
 
-    ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
-        centerX - drawW / 2, bottomY - drawH, drawW, drawH);
+    SpriteRenderer.drawFrame(ctx, source, frame, centerX - drawW / 2, bottomY - drawH, drawW, drawH, tint, MonsterTintCache);
 }
 
 const ContactShadowCache = new Map();
@@ -3745,11 +3672,11 @@ function drawEnemyActor(ctx, e) {
         const renderHeight = MONSTER_SPRITE_CONFIG.renderSize;
         const renderWidth = renderHeight * animatedMonsterFrame.width / animatedMonsterFrame.height;
 
-        let source = processedMonsterSprites;
-        if (e.hitFlashTimer > 0) source = MonsterTintCache.white;
-        else if (e.frozenTimer > 0 || e.slowedTimer > 0) source = MonsterTintCache.ice;
-        else if (e.poisonTimer > 0) source = MonsterTintCache.poison;
-        else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = MonsterTintCache.lightning;
+        let tint = null;
+        if (e.hitFlashTimer > 0) tint = 'white';
+        else if (e.frozenTimer > 0 || e.slowedTimer > 0) tint = 'ice';
+        else if (e.poisonTimer > 0) tint = 'poison';
+        else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) tint = 'lightning';
 
         ctx.save();
         ctx.globalAlpha *= deathAlpha;
@@ -3757,7 +3684,7 @@ function drawEnemyActor(ctx, e) {
         if (reactAlpha > 0) ctx.rotate((e.hitTilt || 0) * reactAlpha);
         const juiceScale = e.juiceScale || 1.0;
         ctx.scale(juiceScale * (1 + deathProgress * 0.08), (1.0 / juiceScale) * (1 - deathProgress * 0.22));
-        drawMonsterSprite(ctx, source, animatedMonsterFrame, 0, 0, renderWidth, renderHeight);
+        drawMonsterSprite(ctx, processedMonsterSprites, animatedMonsterFrame, 0, 0, renderWidth, renderHeight, tint);
         ctx.restore();
     } else if (spritesLoaded && processedSpriteSheet && e.frameIndex !== undefined) {
         const frame = e.isBoss ? getBossFrame(e.frameIndex) : getMonsterFrame(e.frameIndex);
@@ -5586,6 +5513,7 @@ function startGame() {
 
 // Revised enterFloor with spawn point logic
 function enterFloor(f, spawnAt = 'start') {
+    SkillBranchSystem.reset();
     // 根据是否在地狱中更新不同的层数
     if (player.isInHell) {
         player.hellFloor = f;
@@ -7521,51 +7449,8 @@ function update(dt) {
     if (player.invincibleTimer > 0) player.invincibleTimer -= dt;  // 无敌帧倒计时
     for (let k in player.skillCooldowns) if (player.skillCooldowns[k] > 0) player.skillCooldowns[k] -= dt;
 
-    // 护盾系统更新
-    if (player.shield.cooldown > 0) player.shield.cooldown -= dt;
-    if (player.shield.active) {
-        player.shield.timer -= dt;
-
-        // 护盾时间到或值归零
-        if (player.shield.timer <= 0 || player.shield.value <= 0) {
-            // 触发守护护盾的治疗效果
-            if (player.shield.type === 'guard' && player.skillTree && player.skillTree.holy_shield) {
-                const level = player.skillTree.holy_shield.stage2 ? player.skillTree.holy_shield.stage2.level : 0;
-                if (level > 0) {
-                    const config = SKILL_TREE.holy_shield.stage2.guard;
-                    const healAmount = player.maxHp * (config.effect.healRatio + (level - 1) * config.effect.healPerLevel);
-                    player.hp = Math.min(player.maxHp, player.hp + healAmount);
-                    createDamageNumber(player.x, player.y - 40, '+' + Math.floor(healAmount), COLORS.green);
-                }
-            }
-
-            // 触发守护天使的无敌
-            if (player.shield.stage3 === 'angel' && player.shield.value > 0) {
-                player.shield.invincibleTimer = SKILL_TREE.holy_shield.stage3.guard.angel.effect.invincibleDuration;
-            }
-
-            // 触发生命链接的次级护盾
-            if (player.shield.stage3 === 'link' && player.shield.value > 0) {
-                const secondaryValue = Math.floor(player.shield.maxValue * SKILL_TREE.holy_shield.stage3.guard.link.effect.secondaryShieldRatio);
-                player.shield.value = secondaryValue;
-                player.shield.maxValue = secondaryValue;
-                player.shield.timer = SKILL_TREE.holy_shield.stage3.guard.link.effect.secondaryDuration;
-                player.shield.stage3 = null; // 只触发一次
-            } else {
-                // 正常关闭护盾
-                player.shield.active = false;
-                player.shield.value = 0;
-                player.shield.timer = 0;
-                player.shield.type = null;
-                player.shield.stage3 = null;
-            }
-        }
-
-        // 更新守护天使的无敌计时
-        if (player.shield.invincibleTimer > 0) {
-            player.shield.invincibleTimer -= dt;
-        }
-    }
+    // 护盾结束、次级护盾和天使无敌计时共用同一入口。
+    SkillBranchSystem.updateHolyShield(dt);
 
     // 处理死亡状态（现在由弹窗控制复活/回城，不再自动倒计时）
     if (player.isDead) {
@@ -7956,7 +7841,7 @@ function update(dt) {
             const intendedDirection = heroDirectionFromMoveDelta(dx, dy);
             player.direction = intendedDirection;
             const speedMultiplier = player.frozen ? 0 : (player.slowedTimer > 0 ? 0.4 : 1.0);  // 冰冻时完全不能动，减速期40%速度
-            const move = player.speed * dt * speedMultiplier;
+            const move = player.speed * dt * speedMultiplier * SkillBranchSystem.playerMovementMultiplier();
             const actualMove = Math.min(move, dist);
             const nx = player.x + (dx / dist) * actualMove;
             const ny = player.y + (dy / dist) * actualMove;
@@ -8061,6 +7946,7 @@ function update(dt) {
     camera.x = Math.round(player.x) - getViewportWidth() / 2;
     camera.y = Math.round(player.y) - getViewportHeight() / 2;
 
+    SkillBranchSystem.update(dt);
     updateEnemies(dt);
     EnemySpatialGrid.rebuild(gameFrameId);
 
@@ -8068,6 +7954,7 @@ function update(dt) {
         const p = projectiles[i];
         p.age = (p.age || 0) + dt;
         p.life -= dt; p.x += Math.cos(p.angle) * p.speed * dt; p.y += Math.sin(p.angle) * p.speed * dt;
+        if (p.branch) SkillBranchSystem.projectile(p, dt);
 
         // 火球拖尾粒子（概率根据画质动态调整）
         const pConfig = getParticleConfig();
@@ -8101,7 +7988,7 @@ function update(dt) {
         }
         createArrowCurtainTrail(p, pConfig);
 
-        if (isWall(p.x, p.y)) {
+        if (!p.meteorTarget && isWall(p.x, p.y)) {
             if (p.type === 'fireball' || p.type === 'multishot') {
                 emitSkillImpactBurst(p.type, p.x, p.y, p.angle, p.type === 'fireball' ? 0.75 : 0.55);
                 if (p.type === 'fireball') emitFireballVisualGrowth(p.x, p.y, p.angle, p.visualTier || getSkillVisualGrowthTier('fireball'));
@@ -8127,11 +8014,11 @@ function update(dt) {
             let hitTarget = null;
             const enemyCandidates = EnemySpatialGrid.queryRadius(p.x, p.y, 10);
             for (let e of enemyCandidates) {
-                if (!e.dead && e !== p.owner) {
+                if (!e.dead && e !== p.owner && p.life > 0 && !p.meteorTarget && !p.hitEnemies?.has(e)) {
                     const dx = p.x - e.x, dy = p.y - e.y;
                     if (dx * dx + dy * dy < (e.radius + 10) ** 2) {
-                        takeDamage(e, p.damage, true);
-                        p.life = 0;
+                        if (p.branch) SkillBranchSystem.hit(p, e);
+                        else { takeDamage(e, p.damage, true); p.life = 0; }
                         hitTarget = e;
                         addCombo(1);
                         if (p.type === 'fireball' || p.type === 'multishot') {
@@ -8148,12 +8035,13 @@ function update(dt) {
             }
 
             // 检测可破坏物体碰撞
-            if (!hitTarget) {
+            if (!hitTarget && p.life > 0 && !p.meteorTarget) {
                 for (let d of destructibles) {
                     if (!d.broken) {
                         const dx = p.x - d.x, dy = p.y - d.y;
                         if (dx * dx + dy * dy < (d.radius + 10) ** 2) {
                             DestructibleSystem.break(d);
+                            if (p.branch && p.type === 'fireball') SkillBranchSystem.explosion(p, d);
                             if (p.type === 'fireball' || p.type === 'multishot') {
                                 const power = p.type === 'fireball' && player.skills.fireball >= 5 ? 1.35 : 0.85;
                                 emitSkillImpactBurst(p.type, p.x, p.y, p.angle, power);
@@ -8169,7 +8057,7 @@ function update(dt) {
             }
 
             // 火球爆炸效果（5级以上）
-            if (hitTarget && p.type === 'fireball' && player.skills.fireball >= 5) {
+            if (hitTarget && p.type === 'fireball' && player.skills.fireball >= 5 && !p.branch) {
                 // 播放爆炸音效
                 AudioSys.playFireballExplosion(player.skills.fireball);
 
@@ -8443,7 +8331,7 @@ function updateEnemies(dt) {
             updateBossSkills(e, dt);
         }
 
-        const speedMultiplier = (e.slowedTimer > 0 ? 0.4 : 1.0) * (e.moraleTimer > 0 ? 1.25 : 1.0);
+        const speedMultiplier = (e.slowedTimer > 0 ? 0.4 : 1.0) * (e.moraleTimer > 0 ? 1.25 : 1.0) * SkillBranchSystem.speedMultiplier(e, dt);
         const currentSpeed = e.speed * speedMultiplier;
 
         const dx = player.x - e.x, dy = player.y - e.y;
@@ -8998,25 +8886,29 @@ function draw() {
         const scale = useHeroSheet ? 1 : 1 + player.attackAnim * 0.2;
 
         let source = useHeroSheet ? processedHeroSprites : processedSpriteSheet;
-        const tintCache = useHeroSheet ? HeroTintCache : TintCache;
-        if (player.heroAction === 'hurt' && player.heroActionTimer > 0) source = tintCache.white;
-        else if (player.frozen || player.slowedTimer > 0) source = tintCache.ice;
-        else if (player.poisoned) source = tintCache.poison;
-        else if (player.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) source = tintCache.lightning;
+        let tint = null;
+        if (player.heroAction === 'hurt' && player.heroActionTimer > 0) tint = 'white';
+        else if (player.frozen || player.slowedTimer > 0) tint = 'ice';
+        else if (player.poisoned) tint = 'poison';
+        else if (player.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) tint = 'lightning';
+        if (!useHeroSheet && tint) {
+            source = TintCache[tint];
+            tint = null;
+        }
 
         const isPlayerStalling = typeof MarketSystem !== 'undefined' && MarketSystem.isStalling;
         drawContactShadow(ctx, px, py - 2, useHeroSheet ? 44 : 30, useHeroSheet ? 12 : 8, isPlayerStalling ? 0.22 : 0.3);
         if (!isPlayerStalling) drawPlayerDisciplineAura(ctx, px, py);
 
         if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) {
-            drawHeroSprite(ctx, source, frame, px, py - renderHeight / 2 + (frame.offsetY || 0), renderWidth, renderHeight);
+            drawHeroSprite(ctx, source, frame, px, py - renderHeight / 2 + (frame.offsetY || 0), renderWidth, renderHeight, tint);
         } else if (scale === 1) {
-            drawHeroSprite(ctx, source, frame, px, py - renderHeight + (frame.offsetY || 0), renderWidth, renderHeight);
+            drawHeroSprite(ctx, source, frame, px, py - renderHeight + (frame.offsetY || 0), renderWidth, renderHeight, tint);
         } else {
             ctx.save();
             ctx.translate(px, py - renderHeight / 2 + (frame.offsetY || 0));
             ctx.scale(scale, scale);
-            drawHeroSprite(ctx, source, frame, 0, -renderHeight / 2, renderWidth, renderHeight);
+            drawHeroSprite(ctx, source, frame, 0, -renderHeight / 2, renderWidth, renderHeight, tint);
             ctx.restore();
         }
         drawPlayerShieldFront(ctx, px, py);
@@ -10877,6 +10769,7 @@ function spawnEnemyTimer() {
 }
 
 function takeDamage(e, dmg, isSkillDamage = false) {
+    dmg = SkillBranchSystem.amplify(e, dmg);
     const feedbackAngle = Math.atan2(e.y - player.y, e.x - player.x);
 
     // 幽灵闪避检测
@@ -11254,8 +11147,10 @@ function proceedToNextFloor(floor, isHell) {
     } else {
         enterFloor(floor, 'start');
     }
-    // 新手引导：进入第1层时，显示战斗提示（如果已完成城镇教程）
-    if (floor === 1 && !isHell && !player.tutorial.completed && player.tutorial.step >= TUTORIAL_TOWN_STEPS.length) {
+    // 玩家可以直接出门；进入第1层后切换到战斗引导，避免卡在城镇步骤。
+    if (floor === 1 && !isHell && !player.tutorial.completed) {
+        player.tutorial.step = Math.max(player.tutorial.step, TUTORIAL_TOWN_STEPS.length);
+        hideTutorialBubble();
         setTimeout(() => showTutorialTip(player.tutorial.step), 800);
     }
 }
@@ -11693,6 +11588,15 @@ function getTodayDateString() {
 }
 
 // 检查并更新登录状态
+let pendingDailyLoginPanel = false;
+
+// 自动签到等待新手引导结束并回到安全的城镇；手动入口始终可用。
+function maybeShowDailyLoginPanel() {
+    if (!pendingDailyLoginPanel || !player.tutorial.completed || player.floor !== 0) return;
+    pendingDailyLoginPanel = false;
+    if (!player.dailyLogin.claimedToday) showDailyLoginPanel();
+}
+
 function checkDailyLogin() {
     const today = getTodayDateString();
     const login = player.dailyLogin;
@@ -11720,11 +11624,15 @@ function checkDailyLogin() {
     SaveSystem.save();
 
     // 延迟弹出面板，等游戏加载完成
-    setTimeout(() => showDailyLoginPanel(), 500);
+    setTimeout(() => {
+        pendingDailyLoginPanel = true;
+        maybeShowDailyLoginPanel();
+    }, 500);
 }
 
 // 显示每日登录面板
 function showDailyLoginPanel() {
+    pendingDailyLoginPanel = false;
     const panel = document.getElementById('daily-login-panel');
     const infoEl = document.getElementById('daily-login-info');
     const gridEl = document.getElementById('daily-login-grid');
@@ -13148,6 +13056,7 @@ function createBloodSplat(x, y, size) {
 
 function finalizeEnemyDeath(e, totalDamage) {
     if (!e || e.dead) return;
+    SkillBranchSystem.killed();
 
     // 怪物死亡 - 强烈的果汁感
     e.hp = 0;
@@ -13331,7 +13240,7 @@ function playerTakeDamage(rawDamage, source, options = {}) {
     // 2. 护盾无敌检查（守护天使技能）
     if (player.shield?.invincibleTimer > 0) return 0;
 
-    let damage = rawDamage;
+    let damage = rawDamage * SkillBranchSystem.enemyCriticalMultiplier(options.isCrit, options.critMultiplier);
 
     // 3. 狂战士天赋：受到伤害+20%
     const damageTakenPct = getTalentEffect('damageTakenPct', 0);
@@ -13359,6 +13268,7 @@ function playerTakeDamage(rawDamage, source, options = {}) {
     if (damage <= 0) return 0;
 
     // 6. 护盾吸收
+    if (!ignoreShield) damage = SkillBranchSystem.absorb(damage);
     let shieldAbsorbed = 0;
     if (!ignoreShield && player.shield?.active && player.shield?.value > 0) {
         shieldAbsorbed = Math.min(player.shield.value, damage);
@@ -13370,7 +13280,7 @@ function playerTakeDamage(rawDamage, source, options = {}) {
             const tree = player.skillTree?.holy_shield;
             const reflectRatio = tree?.stage2?.level > 0 ?
                 (SKILL_TREE.holy_shield.stage2.reflect.effect.reflectRatio +
-                 SKILL_TREE.holy_shield.stage2.reflect.effect.reflectPerLevel * tree.stage2.level) : 0;
+                 SKILL_TREE.holy_shield.stage2.reflect.effect.reflectPerLevel * (tree.stage2.level - 1)) : 0;
             if (reflectRatio > 0) {
                 const reflectDmg = Math.floor(shieldAbsorbed * reflectRatio);
                 if (reflectDmg > 0) {
@@ -13388,6 +13298,9 @@ function playerTakeDamage(rawDamage, source, options = {}) {
             createDamageNumber(player.x, player.y - 50, `护盾-${shieldAbsorbed}`, '#66ccff');
         }
     }
+
+    // 击破效果即时生效，保证同帧下一次伤害看到治疗、无敌或次级护盾。
+    if (shieldAbsorbed > 0 && player.shield.value <= 0) SkillBranchSystem.updateHolyShield(0);
 
     // 7. 扣除生命值（边界检查）
     if (damage > 0) {
@@ -13460,6 +13373,7 @@ function checkPlayerDeath() {
 
         // 设置死亡状态（不再使用倒计时，改为弹窗选择）
         player.isDead = true;
+        SkillBranchSystem.reset();
         player.deathTimer = 0;
 
         // 添加死亡全屏灰度滤镜
@@ -13754,6 +13668,7 @@ function getDestructibleAtCursor() {
 }
 
 function performAttack(t) {
+    if (!SkillBranchSystem.canAttack()) return;
     if (player.attackCooldown > 0) return;
 
     // 检查视线 - 如果玩家和目标之间有墙，则不能攻击
@@ -13846,6 +13761,7 @@ function performAttack(t) {
 }
 
 function castSkill(skillName) {
+    if (!SkillBranchSystem.canAttack()) return;
     // 只有在罗格营地才禁用技能（地狱中可以使用）
     if (isInTown()) return;
 
@@ -13864,6 +13780,8 @@ function castSkill(skillName) {
         AudioSys.play('ui_error');
         return;
     }
+
+    if (SkillBranchSystem.cast(skillName)) return;
 
     if (skillName === 'fireball') {
         if (player.mp < 5) {
@@ -14136,8 +14054,8 @@ function castSkill(skillName) {
             maxValue: shieldValue,
             timer: duration,
             cooldown: config.cooldown,
-            type: null,
-            stage3: null,
+            type: player.skillTree.holy_shield.stage2.level > 0 ? player.skillTree.holy_shield.stage2.chosen : null,
+            stage3: player.skillTree.holy_shield.stage3.level > 0 ? player.skillTree.holy_shield.stage3.chosen : null,
             invincibleTimer: 0
         };
 
@@ -14235,6 +14153,11 @@ function meetsRequirements(item) {
     return true;
 }
 
+const EQUIPMENT_SLOT_LABELS = {
+    mainhand: '武器', body: '护甲', ring: '戒指', helm: '头盔',
+    gloves: '手套', boots: '靴子', belt: '腰带', amulet: '项链'
+};
+
 function renderInventory() {
     const c = document.getElementById('bag-grid'); c.innerHTML = '';
     player.inventory.forEach((i, idx) => {
@@ -14316,7 +14239,8 @@ function renderInventory() {
     });
     ['mainhand', 'body', 'ring'].forEach(sn => {
         const el = document.getElementById('slot-' + sn), i = player.equipment[sn];
-        el.innerHTML = `<span style="color:#333;font-size:10px;position:absolute;bottom:2px;">${sn}</span>`;
+        el.innerHTML = `<span class="equipment-slot-label">${EQUIPMENT_SLOT_LABELS[sn]}</span>`;
+        el.setAttribute('aria-label', `${EQUIPMENT_SLOT_LABELS[sn]}：${i ? i.name : '未装备'}`);
         // 清除之前的稀有度 class
         el.classList.remove('rarity-unique', 'rarity-set', 'rarity-rare');
         if (i) {
@@ -14343,7 +14267,8 @@ function renderInventory() {
         const el = document.getElementById('slot-' + sn);
         if (!el) return;
         const i = player.equipment[sn];
-        el.innerHTML = `<span style="color:#333;font-size:8px;position:absolute;bottom:2px;">${sn.substring(0, 3)}</span>`;
+        el.innerHTML = `<span class="equipment-slot-label">${EQUIPMENT_SLOT_LABELS[sn]}</span>`;
+        el.setAttribute('aria-label', `${EQUIPMENT_SLOT_LABELS[sn]}：${i ? i.name : '未装备'}`);
         // 清除之前的稀有度 class
         el.classList.remove('rarity-unique', 'rarity-set', 'rarity-rare');
         if (i) {
@@ -15125,9 +15050,7 @@ function updateSkillsUI() {
 
     // 禁用未学习的技能
     const skills = ['fireball', 'thunder', 'multishot', 'holy_shield'];
-    const qKeys = ['Q', 'W', 'E', 'R'];
-
-    skills.forEach((skill, index) => {
+    skills.forEach(skill => {
         const skillBtn = document.getElementById(`skill-${skill}`);
         if (skillBtn) {
             let isUnlocked = false;
@@ -15140,7 +15063,7 @@ function updateSkillsUI() {
             if (!isUnlocked) {
                 // 未学习的技能
                 skillBtn.classList.add('disabled');
-                skillBtn.title = `按 ${qKeys[index]} 学习此技能`;
+                skillBtn.title = '点击“技能”菜单学习此技能';
             } else {
                 // 已学习的技能
                 skillBtn.classList.remove('disabled');
@@ -15403,17 +15326,15 @@ function renderSkillTree() {
             });
         }
     } else {
-        // 阶段2未选择时，显示占位
-        html += `<div class="skill-tree-node locked" style="opacity:0.3">`;
-        html += `<div class="skill-node-icon"><div class="skill-sprite skill-${skillId}"></div></div>`;
-        html += `<div class="skill-node-name">???</div>`;
-        html += `<div class="skill-node-level">需阶段2选择</div>`;
-        html += `</div>`;
-        html += `<div class="skill-tree-node locked" style="opacity:0.3">`;
-        html += `<div class="skill-node-icon"><div class="skill-sprite skill-${skillId}"></div></div>`;
-        html += `<div class="skill-node-name">???</div>`;
-        html += `<div class="skill-node-level">需阶段2选择</div>`;
-        html += `</div>`;
+        // 提前展示每条路线的终点，选择前也能比较实际机制。
+        for (const [branchId, options] of Object.entries(config.stage3)) {
+            html += `<div class="skill-route-preview">`;
+            html += `<div class="skill-node-name">${config.stage2[branchId].name}路线</div>`;
+            for (const option of Object.values(options)) {
+                html += `<div class="skill-route-option"><strong>${option.name}</strong><p>${option.desc}</p></div>`;
+            }
+            html += `<div class="skill-node-level">阶段2满级后择一</div></div>`;
+        }
     }
     html += `</div>`;
 
@@ -15441,6 +15362,7 @@ function renderSkillNode(opts) {
 
     html += `<div class="skill-node-icon"><div class="skill-sprite ${spriteClass}"></div></div>`;
     html += `<div class="skill-node-name">${name}</div>`;
+    html += `<div class="skill-node-desc">${desc}</div>`;
     html += `<div class="skill-node-level">${levelText}</div>`;
 
     if (!locked && !otherLocked) {
@@ -17333,7 +17255,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ========== 新手引导系统 ==========
 // 城镇气泡引导（步骤0-4）
 const TUTORIAL_TOWN_STEPS = [
-    { id: 0, target: 'inventory-btn', text: '按 I 打开背包，装备武器', isUI: true },
+    { id: 0, target: 'inventory-btn', text: '点击“物品”打开背包，装备武器', isUI: true },
     { id: 1, target: 'merchant', text: '在这里买卖装备和药水' },
     { id: 2, target: 'healer', text: '找她接取任务' },
     { id: 3, target: 'stash', text: '存放你的装备' },
@@ -17367,9 +17289,19 @@ function getTutorialTargetPos(targetType) {
 
 // 更新城镇气泡位置（每帧调用）
 function updateTutorialBubble() {
-    if (player.tutorial.completed) return;
-    if (player.tutorial.step >= TUTORIAL_TOWN_STEPS.length) return;
-    if (player.floor !== 0) return; // 只在城镇显示
+    maybeShowDailyLoginPanel();
+    if (player.tutorial.completed || player.tutorial.step >= TUTORIAL_TOWN_STEPS.length || player.floor !== 0) {
+        const existingBubble = document.getElementById('tutorial-bubble');
+        if (existingBubble && (player.tutorial.completed || existingBubble.dataset.tutorialKind !== 'battle')) hideTutorialBubble();
+        return;
+    }
+
+    // 装备行为本身完成第一步；打开面板时让出交互区域，保留后续引导进度。
+    if (player.tutorial.step === 0 && player.equipment?.mainhand) advanceTutorial(0);
+    if (Object.values(panelManager.panels).some(panel => panel.opened)) {
+        hideTutorialBubble();
+        return;
+    }
 
     const step = TUTORIAL_TOWN_STEPS[player.tutorial.step];
     if (!step) return;
@@ -17395,6 +17327,8 @@ function updateTutorialBubble() {
     }
 
     if (!bubble) return;
+
+    bubble.dataset.tutorialKind = 'town';
 
     // UI元素定位（如物品按钮）
     if (step.isUI) {
@@ -17489,6 +17423,7 @@ function showAutoBattleTutorialBubble(text) {
         document.querySelector('.ui-layer').appendChild(bubble);
     }
 
+    bubble.dataset.tutorialKind = 'battle';
     const btn = document.querySelector('.auto-battle-btn');
     if (!btn) return;
 

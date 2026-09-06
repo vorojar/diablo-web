@@ -1,4 +1,5 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'assert-versioned-asset.ps1')
 
 $root = Split-Path -Parent $PSScriptRoot
 $game = Get-Content -LiteralPath (Join-Path $root 'game.js') -Raw
@@ -21,6 +22,6 @@ Assert-Contains -Text $game -Pattern 'x: clientToCanvasX\(touch\.clientX\),' -Me
 Assert-Contains -Text $game -Pattern 'i\.el\.style\.left = canvasToCssX\(sx\) \+ ''px'';' -Message 'FAIL: item labels should be positioned in CSS pixels.'
 Assert-Contains -Text $game -Pattern 'div\.style\.left = canvasToCssX\(screenX\) \+ ''px'';' -Message 'FAIL: DOM damage numbers should be positioned in CSS pixels.'
 Assert-Contains -Text $game -Pattern 'd\.el\.style\.transform = `translate\(\$\{canvasToCssX\(drawX - d\.sx\)\}px, \$\{canvasToCssY\(drawY - d\.sy\)\}px\)`;' -Message 'FAIL: DOM damage number movement should use CSS pixels.'
-Assert-Contains -Text $index -Pattern 'game\.js\?v=202605080345' -Message 'FAIL: index.html did not bump the game.js cache version.'
+Assert-VersionedAsset -Index $index -Root $root -Asset 'game.js'
 
 Write-Host 'PASS: large viewport render cap contract'

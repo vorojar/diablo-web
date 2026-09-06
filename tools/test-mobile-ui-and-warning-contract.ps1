@@ -1,4 +1,5 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'assert-versioned-asset.ps1')
 
 $root = Split-Path -Parent $PSScriptRoot
 $game = Get-Content -LiteralPath (Join-Path $root 'game.js') -Raw
@@ -56,9 +57,9 @@ Assert-Contains -Text $game -Pattern 'spawnMonsterAttackTelegraph\(enemy, \{ \.\
 Assert-Contains -Text $game -Pattern "telegraph:\s*'projectile'" -Message 'FAIL: ranged monster attacks should mark projectile telegraphs.'
 Assert-Contains -Text $game -Pattern "telegraph:\s*'melee'" -Message 'FAIL: melee monster attacks should mark melee telegraphs.'
 
-Assert-Contains -Text $index -Pattern 'style\.css\?v=202606131010' -Message 'FAIL: index.html did not bump the style.css cache version.'
-Assert-Contains -Text $index -Pattern 'constants\.js\?v=202606131010' -Message 'FAIL: index.html did not bump the constants.js cache version.'
-Assert-Contains -Text $index -Pattern 'game\.js\?v=202606131010' -Message 'FAIL: index.html did not bump the game.js cache version.'
-Assert-Contains -Text $index -Pattern 'online\.js\?v=202606130910' -Message 'FAIL: index.html did not bump the online.js cache version.'
+Assert-VersionedAsset -Index $index -Root $root -Asset 'style.css'
+Assert-VersionedAsset -Index $index -Root $root -Asset 'constants.js'
+Assert-VersionedAsset -Index $index -Root $root -Asset 'game.js'
+Assert-VersionedAsset -Index $index -Root $root -Asset 'online.js'
 
 Write-Host 'PASS: mobile UI and warning contract'

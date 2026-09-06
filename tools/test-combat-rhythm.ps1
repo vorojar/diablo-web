@@ -1,8 +1,9 @@
-param(
+﻿param(
     [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'assert-versioned-asset.ps1')
 
 function Assert-Contains {
     param(
@@ -62,6 +63,6 @@ Assert-Contains -Text $specterBlock -Pattern "type: 'lightning_ball'" -Message '
 Assert-Contains -Text $specterBlock -Pattern 'if (distSq < 14400) {' -Message 'FAIL: specter should back away whenever it is too close.'
 Assert-NotContains -Text $specterBlock -Pattern 'if (distSq < 14400 && hasLOS)' -Message 'FAIL: specter only backs away when line of sight is open.'
 Assert-NotContains -Text $specterBlock -Pattern 'if (!hasLineOfSight(attacker.x, attacker.y, player.x, player.y)) return;' -Message 'FAIL: specter delayed impact cancels the lightning shot after windup.'
-Assert-Contains -Text $index -Pattern 'game.js?v=202605080345' -Message 'FAIL: index.html did not bump the game.js cache version.'
+Assert-VersionedAsset -Index $index -Root $root -Asset 'game.js'
 
 Write-Host 'PASS: combat rhythm contract'

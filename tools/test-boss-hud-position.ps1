@@ -1,4 +1,5 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'assert-versioned-asset.ps1')
 
 $root = Split-Path -Parent $PSScriptRoot
 $gamePath = Join-Path $root 'game.js'
@@ -16,6 +17,6 @@ function Assert-Contains {
 
 Assert-Contains -Text $style -Pattern '#notification-area\s*\{[\s\S]*?top:\s*60px;' -Message 'FAIL: notification area top anchor changed; review Boss HUD safe offset.'
 Assert-Contains -Text $game -Pattern 'function drawBossHealthHud\(\)[\s\S]*?const y = 78;' -Message 'FAIL: Boss HUD should be below the top notification area.'
-Assert-Contains -Text $index -Pattern 'game\.js\?v=202605080345' -Message 'FAIL: index.html did not bump the game.js cache version.'
+Assert-VersionedAsset -Index $index -Root $root -Asset 'game.js'
 
 Write-Host 'PASS: boss HUD position contract'

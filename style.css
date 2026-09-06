@@ -938,6 +938,9 @@
             top: 10%;
             right: 20px;
             width: 320px;
+            /* 为边框、内边距和上下安全距离预留空间，长背包在面板内滚动。 */
+            max-height: calc(100dvh - 52px);
+            overflow-y: auto;
         }
 
         .equipment-grid {
@@ -1464,12 +1467,12 @@
         .skill-sprite {
             width: 32px;
             height: 32px;
-            background-image: url('skills.png?v=202605011610');
-            background-size: 400% 100%;
+            background-image: url('skills-painted.png?v=2026090601');
+            background-size: 200% 200%;
             background-repeat: no-repeat;
             display: inline-block;
             vertical-align: middle;
-            image-rendering: pixelated;
+            image-rendering: auto;
         }
 
         .skill-attack {
@@ -1477,28 +1480,28 @@
         }
 
         .skill-fireball {
-            background-position: 33.333% 0%;
+            background-position: 100% 0%;
         }
 
         .skill-thunder {
-            background-position: 66.666% 0%;
+            background-position: 0% 100%;
         }
 
         .skill-multishot {
-            background-position: 100% 0%;
+            background-position: 100% 100%;
         }
 
         /* 阶段2/3节点使用父技能图标 */
         .skill-tree-node[data-parent="fireball"] .skill-sprite {
-            background-position: 33.333% 0%;
+            background-position: 100% 0%;
         }
 
         .skill-tree-node[data-parent="thunder"] .skill-sprite {
-            background-position: 66.666% 0%;
+            background-position: 0% 100%;
         }
 
         .skill-tree-node[data-parent="multishot"] .skill-sprite {
-            background-position: 100% 0%;
+            background-position: 100% 100%;
         }
 
         /* 旧版兼容样式保留 */
@@ -5713,8 +5716,15 @@
 
             /* 技能按钮放大 - 更易点击 */
             .skill-bar {
-                gap: 8px;
-                padding: 6px;
+                gap: 4px;
+                padding: 4px;
+            }
+
+            .skill-btn {
+                min-width: 44px;
+                min-height: 44px;
+                box-sizing: border-box;
+                flex-shrink: 0;
             }
 
             #center-hud {
@@ -5785,7 +5795,7 @@
             .menu-btns .sys-btn {
                 font-size: 10px;
                 padding: 7px 10px;
-                min-height: 34px !important;
+                min-height: 44px !important;
                 min-width: 88px !important;
                 text-align: center;
             }
@@ -5795,6 +5805,15 @@
                 max-width: calc(100vw - 20px);
                 max-height: calc(100vh - 150px);
                 overflow-y: auto;
+            }
+
+            #inventory-panel {
+                top: 5% !important;
+                right: 10px;
+                box-sizing: border-box;
+                width: calc(100vw - 20px);
+                max-width: 352px;
+                max-height: calc(100dvh - 150px);
             }
 
             /* 成就面板移动端适配 */
@@ -5966,6 +5985,21 @@
 
         /* 超小屏幕 (iPhone SE等) */
         @media (max-width: 375px) {
+            #inventory-panel {
+                padding: 8px;
+            }
+
+            #inventory-panel .bag-grid {
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+                gap: 3px;
+            }
+
+            #inventory-panel .bag-slot {
+                box-sizing: border-box;
+                width: 44px;
+                height: 44px;
+            }
+
             .orb-container {
                 width: 65px;
                 height: 65px;
@@ -8471,3 +8505,35 @@
             color: #666;
             margin-top: 30px;
         }
+
+        /* 文字承担说明，图标承担识别；锁定节点也保持可读。 */
+        .equipment-slot-label {
+            position: absolute;
+            bottom: 3px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 11px;
+            color: #b9aa8e;
+            pointer-events: none;
+            text-shadow: 0 1px 2px #000;
+        }
+        .skill-node-desc {
+            margin: 5px 0;
+            color: #c8bca5;
+            font: 12px/1.5 "Microsoft YaHei", sans-serif;
+            overflow-wrap: anywhere;
+        }
+        .skill-tree-node.locked { opacity: 0.78; }
+        .skill-route-preview {
+            flex: 1;
+            min-width: 0;
+            padding: 10px;
+            border: 1px solid #66543a;
+            border-radius: 6px;
+            background: #191710;
+        }
+        .skill-route-option { margin: 10px 0; text-align: left; }
+        .skill-route-option strong { color: #deca9b; font-size: 12px; }
+        .skill-route-option p { color: #bfb5a3; font: 12px/1.5 sans-serif; margin: 4px 0; }
+        .skill-holy_shield { background-position: 0% 0%; }

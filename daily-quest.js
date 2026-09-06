@@ -10,6 +10,12 @@ const DailyQuestSystem = {
     startCountdown() {
         this.stopCountdown();
         this._countdownTimer = setInterval(() => {
+            if (this.checkAndReset()) {
+                this.updateUI();
+                this.updateTracker();
+                if (typeof updateMenuIndicators === 'function') updateMenuIndicators();
+                return;
+            }
             const el = document.getElementById('daily-quest-countdown');
             if (el) {
                 el.textContent = this.getResetTime();
@@ -65,7 +71,7 @@ const DailyQuestSystem = {
 
     // 获取今日日期字符串
     getTodayStr() {
-        return new Date().toISOString().slice(0, 10);
+        return getTodayDateString();
     },
 
     // 初始化/检查重置
@@ -81,7 +87,9 @@ const DailyQuestSystem = {
                 quests: this.generateQuests(lvl)
             };
             console.log('[每日任务] 已重置:', player.dailyQuests);
+            return true;
         }
+        return false;
     },
 
     // 生成每日任务
@@ -119,18 +127,21 @@ const DailyQuestSystem = {
 
     // 获取当前活跃的任务
     getCurrentQuest() {
+        this.checkAndReset();
         if (!player.dailyQuests || !player.dailyQuests.quests) return null;
         return player.dailyQuests.quests.find(q => q.unlocked && !q.claimed);
     },
 
     // 检查是否有可领取的奖励
     hasClaimableReward() {
+        this.checkAndReset();
         if (!player.dailyQuests || !player.dailyQuests.quests) return false;
         return player.dailyQuests.quests.some(q => q.completed && !q.claimed);
     },
 
     // 更新任务进度
     updateProgress(type, amount = 1) {
+        this.checkAndReset();
         if (!player.dailyQuests || !player.dailyQuests.quests) return;
 
         const currentQuest = this.getCurrentQuest();
@@ -151,6 +162,12 @@ const DailyQuestSystem = {
 
     // 领取任务奖励并解锁下一个
     claimReward(questId) {
+        if (this.checkAndReset()) {
+            this.updateUI();
+            this.updateTracker();
+            if (typeof updateMenuIndicators === 'function') updateMenuIndicators();
+            return;
+        }
         if (!player.dailyQuests || !player.dailyQuests.quests) return;
 
         const quest = player.dailyQuests.quests.find(q => q.id === questId);
