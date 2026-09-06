@@ -1,4 +1,4 @@
-// 原生透明美术样板：只切帧和对齐，不按颜色抠除任何像素。
+// 游戏原生透明图集：只切帧和对齐，不按颜色抠除任何像素。
 const ArtSamples = (() => {
     const atlases = new Map();
     const definitions = {
@@ -8,6 +8,22 @@ const ArtSamples = (() => {
         ranged: { file: 'monster-archer-painted.png', cols: 8, rows: 4 },
         ruins: { file: 'ruins-props-painted.png', cols: 2, rows: 3 }
     };
+    for (const action of ['idle', 'walk', 'attack', 'cast', 'sit', 'walkDiagonal']) {
+        definitions[`hero${action}`] = { file: `hero-${action}-painted.png`, cols: 4, rows: 4 };
+    }
+    for (const type of ['skeleton', 'shaman', 'mummy', 'ghost', 'specter', 'vampire', 'bloodRaven', 'countess', 'butcher', 'duriel', 'diablo', 'baal']) {
+        definitions[type] = { file: `monster-${type}-painted.png`, cols: 8, rows: 4 };
+    }
+
+    function heroFrame(action, direction, frameIndex) {
+        const diagonals = ['frontLeft', 'frontRight', 'backLeft', 'backRight'];
+        if (action === 'walk' && diagonals.includes(direction)) {
+            return frame('herowalkDiagonal', diagonals.indexOf(direction), frameIndex);
+        }
+        const row = direction.startsWith('back') ? 1 : direction.endsWith('Left') || direction === 'left' ? 2
+            : direction.endsWith('Right') || direction === 'right' ? 3 : 0;
+        return frame(action === 'hurt' ? 'heroHurt' : `hero${action}`, row, frameIndex);
+    }
 
     function normalizeAtlas(source, cols, rows) {
         const scan = document.createElement('canvas');
@@ -68,14 +84,29 @@ const ArtSamples = (() => {
     }
 
     function load(key, definition) {
+        return new Promise((resolve, reject) => {
         const image = new Image();
         image.onload = () => {
             // 素材输入边界：不合格图片拒绝接入，原有图集仍可绘制。
-            try { atlases.set(key, normalizeAtlas(image, definition.cols, definition.rows)); }
-            catch (error) { console.error(`[美术样板] ${key} 验收失败`, error); }
+            try { atlases.set(key, prepareSource(image, definition)); resolve(key); }
+            catch (error) { reject(error); }
         };
-        image.onerror = () => console.error(`[美术样板] ${definition.file} 加载失败`);
-        image.src = `${definition.file}?v=2026090601`;
+        image.onerror = () => reject(new Error(`${definition.file} 加载失败`));
+        image.src = `${assetPath(definition.file)}?v=2026090602`;
+        });
+    }
+
+    function assetPath(file) {
+        return typeof ArtAtlasManifest === 'undefined' ? file : ArtAtlasManifest[file].file;
+    }
+    function prepareSource(image, definition) {
+        if (typeof ArtAtlasManifest === 'undefined') return normalizeAtlas(image, definition.cols, definition.rows);
+        const entry = ArtAtlasManifest[definition.file];
+        if (image.width !== entry.width || image.height !== entry.height || entry.contentBounds.length !== definition.cols * definition.rows) {
+            throw new Error(`预处理图集与清单不匹配：${definition.file}`);
+        }
+        image.contentBounds = entry.contentBounds;
+        return image;
     }
 
     function frame(key, row, col, flipX = false) {
@@ -84,6 +115,7 @@ const ArtSamples = (() => {
         return { source, x:col*128, y:row*128, width:128, height:128, flipX, animated:true,
             contentBounds:source.contentBounds[row*definitions[key].cols+col] };
     }
-    for (const [key, definition] of Object.entries(definitions)) load(key, definition);
-    return { frame, normalizeAtlas, definitions };
+    const ready = Promise.all(Object.entries(definitions).map(([key, definition]) => load(key, definition)));
+    ready.catch(error => console.error('[美术图集] 验收失败', error));
+    return { frame, heroFrame, normalizeAtlas, prepareSource, assetPath, definitions, ready };
 })();

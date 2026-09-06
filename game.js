@@ -2000,36 +2000,17 @@ const SPRITE_CONFIG = {
 
 // --- Item Sprites ---
 const itemSpriteSheet = new Image();
-itemSpriteSheet.src = 'items.png?v=5.2';
+itemSpriteSheet.src = 'items-painted.png?v=2026090602';
 let itemSpritesLoaded = false;
-let processedItemSprites = null; // 去除黑底后的精灵图
+let processedItemSprites = null; // 保留原生透明和深色装备细节
 
 itemSpriteSheet.onload = () => {
-    // 预处理：去除黑色背景
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = itemSpriteSheet.width;
-    tempCanvas.height = itemSpriteSheet.height;
-    const tempCtx = tempCanvas.getContext('2d');
-    tempCtx.drawImage(itemSpriteSheet, 0, 0);
-
-    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
-    const data = imageData.data;
-
-    // 将黑色/近黑色像素变透明（阈值30）
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i + 1], b = data[i + 2];
-        if (r < 30 && g < 30 && b < 30) {
-            data[i + 3] = 0; // 设置 alpha 为 0（透明）
-        }
-    }
-
-    tempCtx.putImageData(imageData, 0, 0);
-    processedItemSprites = tempCanvas;
+    processedItemSprites = itemSpriteSheet;
     itemSpritesLoaded = true;
+    if (gameActive) { renderInventory(); updateBeltUI(); }
 };
 
 function drawBiomeFloorDecoration(ctx, x, y, size, type, seed, density = 1) {
-    if (!envSpritesLoaded || !processedEnvSprites) return false;
     const tileC = Math.floor(x / TILE_SIZE);
     const tileR = Math.floor(y / TILE_SIZE);
     if (!isClearFloorFootprint(tileC, tileR, 1)) return false;
@@ -2039,19 +2020,9 @@ function drawBiomeFloorDecoration(ctx, x, y, size, type, seed, density = 1) {
     const chance = Math.min(0.10, 0.024 * Math.max(1, density));
     if (rand > chance) return false;
 
-    let startRow = 6;
-    if (type === 'forest') startRow = 0;
-    else if (type === 'ice') startRow = 2;
-    else if (type === 'fire') startRow = 4;
-
-    const row = startRow + (Math.floor(rand * 1000) % 2);
-    const col = Math.floor(rand * 100) % 8;
-    const paddingX = envCellWidth * 0.05;
-    const paddingY = envCellHeight * 0.05;
-    const sx = col * envCellWidth + paddingX;
-    const sy = row * envCellHeight + paddingY;
-    const sw = envCellWidth - 2 * paddingX;
-    const sh = envCellHeight - 2 * paddingY;
+    const painted = EnvironmentArt.floor(type, seed);
+    if (!painted) return false;
+    const { sx, sy, sw, sh } = painted.contentBounds;
     const ratio = sw / sh;
     const scale = 0.46 + rand * 0.20;
     let drawH = size * scale;
@@ -2070,7 +2041,7 @@ function drawBiomeFloorDecoration(ctx, x, y, size, type, seed, density = 1) {
 
     ctx.save();
     ctx.globalAlpha = 0.88;
-    ctx.drawImage(processedEnvSprites, sx, sy, sw, sh, x + offsetX, y + offsetY, drawW, drawH);
+    ctx.drawImage(painted.source, sx, sy, sw, sh, x + offsetX, y + offsetY, drawW, drawH);
     ctx.restore();
     return true;
 }
@@ -2198,12 +2169,13 @@ const DestructibleSystem = {
     },
 
     drawOne: function (ctx, d) {
-        if (!destructiblesLoaded || !processedDestructibleSprites) return;
         if (d.x < camera.x - 100 || d.x > camera.x + getViewportWidth() + 100 ||
             d.y < camera.y - 120 || d.y > camera.y + getViewportHeight() + 100) return;
 
         const spriteIndex = d.type.row * 2 + (d.broken ? 1 : 0);
-        const spriteBounds = destructibleSpriteBounds[spriteIndex] || {
+        const painted = EnvironmentArt.destructible(d.type.name, d.broken);
+        if (!painted && (!destructiblesLoaded || !processedDestructibleSprites)) return;
+        const spriteBounds = painted ? painted.contentBounds : destructibleSpriteBounds[spriteIndex] || {
             sx: d.broken ? DESTRUCTIBLE_CONFIG.cellWidth : 0,
             sy: d.type.row * DESTRUCTIBLE_CONFIG.cellHeight,
             sw: DESTRUCTIBLE_CONFIG.cellWidth,
@@ -2218,7 +2190,7 @@ const DestructibleSystem = {
         ctx.save();
         ctx.filter = 'brightness(1.08) saturate(1.04) contrast(1.03)';
         ctx.drawImage(
-            processedDestructibleSprites,
+            painted ? painted.source : processedDestructibleSprites,
             spriteBounds.sx, spriteBounds.sy, spriteBounds.sw, spriteBounds.sh,
             rx, ry, drawW, drawH
         );
@@ -2226,8 +2198,6 @@ const DestructibleSystem = {
     },
 
     draw: function (ctx, mode = 'all') {
-        if (!destructiblesLoaded || !processedDestructibleSprites) return;
-
         destructibles.forEach(d => {
             if (mode === 'behindPlayer' && d.y > player.y + 4) return;
             if (mode === 'foreground' && d.y <= player.y + 4) return;
@@ -2350,13 +2320,11 @@ function getEnvSpriteBounds(row, col) {
 }
 
 function drawScenicPropOne(ctx, prop) {
-    if (!envSpritesLoaded || !processedEnvSprites) return;
     if (prop.x < camera.x - 140 || prop.x > camera.x + getViewportWidth() + 140 ||
         prop.y < camera.y - 180 || prop.y > camera.y + getViewportHeight() + 140) return;
 
-    const samplePosition = {moss_rock:[0,0],stump:[0,1],lantern:[1,0],gravestone:[1,1],shrub:[2,0],bones:[2,1]}[prop.name];
-    const sample = getCurrentCombatFloor() === 1 && !player.isInHell && samplePosition
-        ? ArtSamples.frame('ruins', ...samplePosition) : null;
+    const sample = EnvironmentArt.scenic(prop.name);
+    if (!sample && (!envSpritesLoaded || !processedEnvSprites)) return;
     const bounds = sample ? sample.contentBounds : getEnvSpriteBounds(prop.row, prop.col);
     const ratio = bounds.sw / bounds.sh;
     const drawH = Math.round((prop.drawH || 70) * (prop.scale || 1));
@@ -2995,16 +2963,17 @@ function getCurrentHeroAction() {
 }
 
 function getHeroFrame(direction) {
+    const action = getCurrentHeroAction();
+    const safeDirection = action === 'sit' ? 'front' : normalizeHeroDirection(direction);
+    if (typeof ArtSamples !== 'undefined') {
+        const progress = player.heroActionDuration > 0
+            ? Math.max(0, Math.min(0.999, 1 - player.heroActionTimer / player.heroActionDuration)) : 0;
+        const transient = ['hurt', 'attack', 'cast'].includes(action);
+        const sample = ArtSamples.heroFrame(action, safeDirection, transient ? Math.floor(progress * 4)
+            : Math.floor((player.animTime || 0) * HERO_SPRITE_CONFIG.fps[action]) % 4);
+        if (sample) return sample;
+    }
     if (heroSpritesLoaded && processedHeroSprites) {
-        const action = getCurrentHeroAction();
-        const safeDirection = action === 'sit' ? 'front' : normalizeHeroDirection(direction);
-        if (action === 'hurt' && typeof ArtSamples !== 'undefined') {
-            const row = safeDirection.startsWith('back') ? 1 : safeDirection === 'left' ? 2 : safeDirection === 'right' ? 3 : 0;
-            const progress = player.heroActionDuration > 0
-                ? Math.max(0, Math.min(0.999, 1 - player.heroActionTimer / player.heroActionDuration)) : 0;
-            const sample = ArtSamples.frame('heroHurt', row, Math.floor(progress * 4));
-            if (sample) return sample;
-        }
         const actionRows = HERO_SPRITE_CONFIG.rowsByAction[action] || HERO_SPRITE_CONFIG.rowsByAction.idle;
         const frameInfo = actionRows[safeDirection] || actionRows.front;
         const fps = HERO_SPRITE_CONFIG.fps[action] || HERO_SPRITE_CONFIG.fps.idle;
@@ -3125,8 +3094,6 @@ function getMonsterSpriteDirection(enemy) {
 }
 
 function getMonsterSpriteFrame(enemy) {
-    if (!monsterSpritesLoaded || !processedMonsterSprites) return null;
-
     const typeConfig = MONSTER_SPRITE_CONFIG.types[getEnemyMonsterType(enemy)];
     if (!typeConfig) return null;
 
@@ -3162,6 +3129,7 @@ function getMonsterSpriteFrame(enemy) {
             frameIndex + (side ? 4 : 0), !!frameInfo.flipX);
         if (sample) return sample;
     }
+    if (!monsterSpritesLoaded || !processedMonsterSprites) return null;
     return {
         x: frameIndex * MONSTER_SPRITE_CONFIG.frameWidth,
         y: frameInfo.row * MONSTER_SPRITE_CONFIG.frameHeight,
@@ -3669,7 +3637,7 @@ function drawEnemyActor(ctx, e) {
     }
 
     if (animatedMonsterFrame) {
-        const renderHeight = MONSTER_SPRITE_CONFIG.renderSize;
+        const renderHeight = MONSTER_SPRITE_CONFIG.renderSize * (e.isBoss ? 1.6 : e.isElite ? 1.12 : 1);
         const renderWidth = renderHeight * animatedMonsterFrame.width / animatedMonsterFrame.height;
 
         let tint = null;
@@ -8763,7 +8731,12 @@ function draw() {
         const nx = Math.round(n.x);
         const ny = Math.round(n.y);
         drawContactShadow(ctx, nx, ny - 2, 32, 8, 0.24);
-        if (spritesLoaded && processedSpriteSheet && n.frameIndex !== undefined) {
+        const paintedNpc = EnvironmentArt.npc(n.type);
+        if (paintedNpc) {
+            const b = paintedNpc.contentBounds;
+            const h = 52, w = h * b.sw / b.sh;
+            ctx.drawImage(paintedNpc.source, b.sx, b.sy, b.sw, b.sh, nx - w / 2, ny - h, w, h);
+        } else if (spritesLoaded && processedSpriteSheet && n.frameIndex !== undefined) {
             const frame = getNPCFrame(n.frameIndex);
             const renderHeight = 52;
             const renderWidth = renderHeight * frame.width / frame.height;
@@ -8878,9 +8851,10 @@ function draw() {
     const py = Math.round(player.y);
 
     drawPlayerShieldBack(ctx, px, py);
-    if ((heroSpritesLoaded && processedHeroSprites) || (spritesLoaded && processedSpriteSheet)) {
-        const frame = getHeroFrame(player.direction);
-        const useHeroSheet = heroSpritesLoaded && processedHeroSprites && frame.animated;
+    const heroFrame = getHeroFrame(player.direction);
+    if (heroFrame.source || (heroSpritesLoaded && processedHeroSprites) || (spritesLoaded && processedSpriteSheet)) {
+        const frame = heroFrame;
+        const useHeroSheet = !!frame.source || (heroSpritesLoaded && processedHeroSprites && frame.animated);
         const renderHeight = useHeroSheet ? HERO_SPRITE_CONFIG.renderSize : 48;
         const renderWidth = renderHeight * frame.width / frame.height;
         const scale = useHeroSheet ? 1 : 1 + player.attackAnim * 0.2;
@@ -8901,7 +8875,7 @@ function draw() {
         if (!isPlayerStalling) drawPlayerDisciplineAura(ctx, px, py);
 
         if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) {
-            drawHeroSprite(ctx, source, frame, px, py - renderHeight / 2 + (frame.offsetY || 0), renderWidth, renderHeight, tint);
+            drawHeroSprite(ctx, source, frame, px, py - renderHeight / (frame.source ? 1 : 2) + (frame.offsetY || 0), renderWidth, renderHeight, tint);
         } else if (scale === 1) {
             drawHeroSprite(ctx, source, frame, px, py - renderHeight + (frame.offsetY || 0), renderWidth, renderHeight, tint);
         } else {
@@ -10484,7 +10458,6 @@ function renderMonsterCard(monster, isBoss, discovered, kills) {
 
 // 渲染怪物图标（使用sprite绘制）
 function renderMonsterIcons() {
-    if (!spriteSheet.complete) return;
 
     document.querySelectorAll('.monster-icon canvas').forEach(canvas => {
         const parent = canvas.parentElement;
@@ -10494,17 +10467,9 @@ function renderMonsterIcons() {
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, 48, 48);
 
-        // 计算sprite位置
-        const row = isBoss ? SPRITE_CONFIG.bossRow : SPRITE_CONFIG.monsterRow;
-        const sx = frameIndex * SPRITE_CONFIG.frameWidth;
-        const sy = row * SPRITE_CONFIG.frameHeight;
-
-        // 绘制时缩放到48x48
-        ctx.drawImage(
-            spriteSheet,
-            sx, sy, SPRITE_CONFIG.frameWidth, SPRITE_CONFIG.frameHeight,
-            0, 0, 48, 48
-        );
+        const monsterType = canvas.closest('.monster-card').dataset.type;
+        const frame = getMonsterSpriteFrame({ monsterType, frameIndex, isBoss, facingDirection: 'front', monsterAnimTime: 0 });
+        if (frame) drawMonsterSprite(ctx, processedMonsterSprites, frame, 24, 48, 60, 60);
     });
 }
 
@@ -17720,3 +17685,9 @@ function sortStash() {
     showNotification('仓库已整理');
     AudioSys.play('gold');
 }
+
+// 各图集完成后刷新缓存；失败已由各加载边界报告，不能阻止成功素材显示。
+Promise.allSettled([ArtSamples.ready, EnvironmentArt.ready]).then(() => {
+    if (gameActive && mapData.length > 0) generateMapCache();
+    renderMonsterIcons();
+});

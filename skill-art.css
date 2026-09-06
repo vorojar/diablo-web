@@ -1,0 +1,18 @@
+/* 独立128px透明图标，按整张图显示；不再按父技能图集的网格偏移切片。 */
+.skill-sprite[data-skill-art],
+.skill-route-art {
+    background-repeat: no-repeat;
+    image-rendering: auto;
+}
+
+.skill-route-art {
+    display: block;
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 6px;
+    flex-shrink: 0;
+}
+
+.skill-tree-node.other-locked .skill-sprite[data-skill-art] {
+    filter: saturate(0.55);
+}

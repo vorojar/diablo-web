@@ -1,0 +1,116 @@
+{
+  "generator": "built-in image_gen",
+  "transparency": "native RGBA; no chroma-key or background removal",
+  "assets": [
+    {
+      "key": "skeleton",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 8 columns and 4 rows, 32 isolated full-body poses of the SAME ivory skeleton warrior with rusty short sword and round iron shield. Dark fantasy compact pixel-inspired painted game art, warm upper-left lighting, strong readable silhouette. 2048x1024 canvas. Each 256x256 cell has the character at most 135px tall, centered on x=128 and feet at y=200, leaving HUGE transparent empty gutters all around. Absolutely no weapon or body crosses any cell edge. Row1 idle breathing, row2 walking stride, row3 attack windup strike recovery, row4 hurt recoil recovery. For each row, columns1-4 front-facing four frames; columns5-8 screen-left facing four frames. All left-facing frames KEEP HEAD AND BODY FACING LEFT. No grounds, no halos, no shadows, no labels, no frame borders. All 32 bodies share exact same scale, deliberately small within cells. Completely transparent outside every sprite. Native transparency.",
+      "file": "monster-skeleton-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-4e61fb9f-66ff-4663-9066-32777e4ed7e5.png"
+    },
+    {
+      "key": "shaman",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 8 columns and 4 rows, 32 isolated full-body poses of the SAME small red imp shaman with bone staff and ochre ritual robe. Dark fantasy compact pixel-inspired painted game art, warm upper-left lighting, strong readable silhouette. 2048x1024 canvas. Each 256x256 cell has the character at most 135px tall, centered on x=128 and feet at y=200, leaving HUGE transparent empty gutters all around. Absolutely no weapon or body crosses any cell edge. Row1 idle breathing, row2 walking stride, row3 attack windup strike recovery, row4 hurt recoil recovery. For each row, columns1-4 front-facing four frames; columns5-8 screen-left facing four frames. All left-facing frames KEEP HEAD AND BODY FACING LEFT. No grounds, no halos, no shadows, no labels, no frame borders. All 32 bodies share exact same scale, deliberately small within cells. Completely transparent outside every sprite. Native transparency.",
+      "file": "monster-shaman-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-86adf223-c1ac-4bed-b8e7-ef468142b3b4.png"
+    },
+    {
+      "key": "mummy",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 8 columns and 4 rows, 32 isolated full-body poses of the SAME ancient mummy wrapped in aged cream linen with teal funerary jewels. Dark fantasy compact pixel-inspired painted game art, warm upper-left lighting, strong readable silhouette. 2048x1024 canvas. Each 256x256 cell has the character at most 135px tall, centered on x=128 and feet at y=200, leaving HUGE transparent empty gutters all around. Absolutely no weapon or body crosses any cell edge. Row1 idle breathing, row2 walking stride, row3 attack windup strike recovery, row4 hurt recoil recovery. For each row, columns1-4 front-facing four frames; columns5-8 screen-left facing four frames. All left-facing frames KEEP HEAD AND BODY FACING LEFT. No grounds, no halos, no shadows, no labels, no frame borders. All 32 bodies share exact same scale, deliberately small within cells. Completely transparent outside every sprite. Native transparency.",
+      "file": "monster-mummy-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-b72685dc-7355-4d30-bdb7-b05f2d1703b0.png"
+    },
+    {
+      "key": "ghost",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 8 columns and 4 rows, 32 isolated full-body poses of the SAME pale cyan translucent ghost with ragged shroud, spectral lower body. Dark fantasy compact pixel-inspired painted game art, warm upper-left lighting, strong readable silhouette. 2048x1024 canvas. Each 256x256 cell has the character at most 135px tall, centered on x=128 and feet at y=200, leaving HUGE transparent empty gutters all around. Absolutely no weapon or body crosses any cell edge. Row1 idle breathing, row2 walking stride, row3 attack windup strike recovery, row4 hurt recoil recovery. For each row, columns1-4 front-facing four frames; columns5-8 screen-left facing four frames. All left-facing frames KEEP HEAD AND BODY FACING LEFT. No grounds, no halos, no shadows, no labels, no frame borders. All 32 bodies share exact same scale, deliberately small within cells. Completely transparent outside every sprite. Native transparency.",
+      "file": "monster-ghost-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-31bf5f40-0178-4721-b176-8cfb3991d3b4.png"
+    },
+    {
+      "key": "vampire",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 8 columns and 4 rows, 32 isolated full-body poses of the SAME pale aristocratic vampire with swept black hair and crimson black cloak. Dark fantasy compact pixel-inspired painted game art, warm upper-left lighting, strong readable silhouette. 2048x1024 canvas. Each 256x256 cell has the character at most 135px tall, centered on x=128 and feet at y=200, leaving HUGE transparent empty gutters all around. Absolutely no weapon or body crosses any cell edge. Row1 idle breathing, row2 walking stride, row3 attack windup strike recovery, row4 hurt recoil recovery. For each row, columns1-4 front-facing four frames; columns5-8 screen-left facing four frames. All left-facing frames KEEP HEAD AND BODY FACING LEFT. No grounds, no halos, no shadows, no labels, no frame borders. All 32 bodies share exact same scale, deliberately small within cells. Completely transparent outside every sprite. Native transparency.",
+      "file": "monster-vampire-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-4ac6c2da-f380-4d86-907e-5d6f1c59520b.png"
+    },
+    {
+      "key": "bloodRaven",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 8 columns and 4 rows, 32 isolated full-body poses of the SAME female undead archer boss with crimson hood, black feather mantle and dark longbow. Dark fantasy compact pixel-inspired painted game art, warm upper-left lighting, strong readable silhouette. 2048x1024 canvas. Each 256x256 cell has the character at most 135px tall, centered on x=128 and feet at y=200, leaving HUGE transparent empty gutters all around. Absolutely no weapon or body crosses any cell edge. Row1 idle breathing, row2 walking stride, row3 attack windup strike recovery, row4 hurt recoil recovery. For each row, columns1-4 front-facing four frames; columns5-8 screen-left facing four frames. All left-facing frames KEEP HEAD AND BODY FACING LEFT. No grounds, no halos, no shadows, no labels, no frame borders. All 32 bodies share exact same scale, deliberately small within cells. Completely transparent outside every sprite. Native transparency.",
+      "file": "monster-bloodRaven-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-7e4dc53b-4d24-4348-83a1-05f0fcd086d1.png"
+    },
+    {
+      "key": "countess",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 8 columns and 4 rows, 32 isolated full-body poses of the SAME vampiric countess boss with pale face, ornate burgundy gown, gold crown and blood magic scepter. Dark fantasy compact pixel-inspired painted game art, warm upper-left lighting, strong readable silhouette. 2048x1024 canvas. Each 256x256 cell has the character at most 135px tall, centered on x=128 and feet at y=200, leaving HUGE transparent empty gutters all around. Absolutely no weapon or body crosses any cell edge. Row1 idle breathing, row2 walking stride, row3 attack windup strike recovery, row4 hurt recoil recovery. For each row, columns1-4 front-facing four frames; columns5-8 screen-left facing four frames. All left-facing frames KEEP HEAD AND BODY FACING LEFT. No grounds, no halos, no shadows, no labels, no frame borders. All 32 bodies share exact same scale, deliberately small within cells. Completely transparent outside every sprite. Native transparency.",
+      "file": "monster-countess-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-4b1680c0-70b9-4bbe-bbf4-1d7616e785cb.png"
+    },
+    {
+      "key": "butcher",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 8 columns and 4 rows, 32 isolated full-body poses of the SAME hulking ogre butcher boss with horned head, leather apron and broad cleaver. Dark fantasy compact pixel-inspired painted game art, warm upper-left lighting, strong readable silhouette. 2048x1024 canvas. Each 256x256 cell has the character at most 135px tall, centered on x=128 and feet at y=200, leaving HUGE transparent empty gutters all around. Absolutely no weapon or body crosses any cell edge. Row1 idle breathing, row2 walking stride, row3 attack windup strike recovery, row4 hurt recoil recovery. For each row, columns1-4 front-facing four frames; columns5-8 screen-left facing four frames. All left-facing frames KEEP HEAD AND BODY FACING LEFT. No grounds, no halos, no shadows, no labels, no frame borders. All 32 bodies share exact same scale, deliberately small within cells. Completely transparent outside every sprite. Native transparency.",
+      "file": "monster-butcher-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-4bbaa631-bdcc-4a60-af61-086d2b05dbfb.png"
+    },
+    {
+      "key": "diablo",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 8 columns and 4 rows, 32 isolated full-body poses of the SAME massive red demon lord boss with black horns, dorsal spikes, powerful claws and thick tail. Dark fantasy compact pixel-inspired painted game art, warm upper-left lighting, strong readable silhouette. 2048x1024 canvas. Each 256x256 cell has the character at most 135px tall, centered on x=128 and feet at y=200, leaving HUGE transparent empty gutters all around. Absolutely no weapon or body crosses any cell edge. Row1 idle breathing, row2 walking stride, row3 attack windup strike recovery, row4 hurt recoil recovery. For each row, columns1-4 front-facing four frames; columns5-8 screen-left facing four frames. All left-facing frames KEEP HEAD AND BODY FACING LEFT. No grounds, no halos, no shadows, no labels, no frame borders. All 32 bodies share exact same scale, deliberately small within cells. Completely transparent outside every sprite. Native transparency.",
+      "file": "monster-diablo-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-64ef6636-0599-4718-bf0a-bd61e034bdb2.png"
+    },
+    {
+      "key": "baal",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 8 columns and 4 rows, 32 isolated full-body poses of the SAME ancient gold and purple demon sorcerer boss with crownlike horns, tentacle limbs and elaborate chest armor. Dark fantasy compact pixel-inspired painted game art, warm upper-left lighting, strong readable silhouette. 2048x1024 canvas. Each 256x256 cell has the character at most 135px tall, centered on x=128 and feet at y=200, leaving HUGE transparent empty gutters all around. Absolutely no weapon or body crosses any cell edge. Row1 idle breathing, row2 walking stride, row3 attack windup strike recovery, row4 hurt recoil recovery. For each row, columns1-4 front-facing four frames; columns5-8 screen-left facing four frames. All left-facing frames KEEP HEAD AND BODY FACING LEFT. No grounds, no halos, no shadows, no labels, no frame borders. All 32 bodies share exact same scale, deliberately small within cells. Completely transparent outside every sprite. Native transparency.",
+      "file": "monster-baal-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-d97925b1-cb57-4bc2-87d2-0250843eac52.png"
+    },
+    {
+      "key": "heroidle",
+      "prompt": "Create a NEW game-ready animation sheet using the image just shown as the visual identity reference. Preserve this SAME brown-haired young hero, blue scarf, silver pauldrons, dark leather armor, short steel sword and wooden round shield, compact proportions and pixel-inspired painted dark-fantasy style. EXACT 4 columns x 4 rows, sixteen full-body isolated frames of subtle idle breathing. Row1 facing front, row2 facing back, row3 facing screen-left, row4 facing screen-right. Each row four sequential animation phases. Native RGBA transparent background, absolutely NO painted checkerboard or solid background. Square canvas, regular grid. Each character only occupies middle 55% of cell width and height, HUGE transparent gutters between all frames. Entire weapon body hair feet inside each cell. Consistent hero size, feet baseline, costume and lighting. No ground, no cast shadow, no text, no labels, no borders. Real transparency.",
+      "file": "hero-idle-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-da1184ab-4d82-4531-8d5c-f4bb227fab38.png"
+    },
+    {
+      "key": "herowalk",
+      "prompt": "Create a NEW game-ready animation sheet using the image just shown as the visual identity reference. Preserve this SAME brown-haired young hero, blue scarf, silver pauldrons, dark leather armor, short steel sword and wooden round shield, compact proportions and pixel-inspired painted dark-fantasy style. EXACT 4 columns x 4 rows, sixteen full-body isolated frames of walking cycle with alternating feet. Row1 facing front, row2 facing back, row3 facing screen-left, row4 facing screen-right. Each row four sequential animation phases. Native RGBA transparent background, absolutely NO painted checkerboard or solid background. Square canvas, regular grid. Each character only occupies middle 55% of cell width and height, HUGE transparent gutters between all frames. Entire weapon body hair feet inside each cell. Consistent hero size, feet baseline, costume and lighting. No ground, no cast shadow, no text, no labels, no borders. Real transparency.",
+      "file": "hero-walk-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-436907c6-b457-4cc3-85d3-c876a8865715.png"
+    },
+    {
+      "key": "heroattack",
+      "prompt": "Create a NEW game-ready animation sheet using the image just shown as the visual identity reference. Preserve this SAME brown-haired young hero, blue scarf, silver pauldrons, dark leather armor, short steel sword and wooden round shield, compact proportions and pixel-inspired painted dark-fantasy style. EXACT 4 columns x 4 rows, sixteen full-body isolated frames of sword slash: ready, windup, strike, recover. Row1 facing front, row2 facing back, row3 facing screen-left, row4 facing screen-right. Each row four sequential animation phases. Native RGBA transparent background, absolutely NO painted checkerboard or solid background. Square canvas, regular grid. Each character only occupies middle 55% of cell width and height, HUGE transparent gutters between all frames. Entire weapon body hair feet inside each cell. Consistent hero size, feet baseline, costume and lighting. No ground, no cast shadow, no text, no labels, no borders. Real transparency.",
+      "file": "hero-attack-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-20ac2fb2-907b-43d2-b313-dfa878b746bd.png",
+      "transparentRegenerationPrompt": "Regenerate this exact sprite sheet as a genuine TRANSPARENT BACKGROUND PNG. Preserve all sixteen character poses, their appearance, scale and arrangement exactly. Background must be transparent empty alpha, including all checkerboard squares. Keep the character artwork and effects intact. Output a transparent-background asset."
+    },
+    {
+      "key": "herocast",
+      "prompt": "Create a NEW game-ready animation sheet using the image just shown as the visual identity reference. Preserve this SAME brown-haired young hero, blue scarf, silver pauldrons, dark leather armor, short steel sword and wooden round shield, compact proportions and pixel-inspired painted dark-fantasy style. EXACT 4 columns x 4 rows, sixteen full-body isolated frames of spellcasting: ready, raising hand, release, recover. Row1 facing front, row2 facing back, row3 facing screen-left, row4 facing screen-right. Each row four sequential animation phases. Native RGBA transparent background, absolutely NO painted checkerboard or solid background. Square canvas, regular grid. Each character only occupies middle 55% of cell width and height, HUGE transparent gutters between all frames. Entire weapon body hair feet inside each cell. Consistent hero size, feet baseline, costume and lighting. No ground, no cast shadow, no text, no labels, no borders. Real transparency.",
+      "file": "hero-cast-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-6a3724bc-677b-4c31-beab-f6a875785604.png",
+      "transparentRegenerationPrompt": "Regenerate this exact sprite sheet as a genuine TRANSPARENT BACKGROUND PNG. Preserve all sixteen character poses, their appearance, scale and arrangement exactly. Background must be transparent empty alpha, including all checkerboard squares. Keep the character artwork and effects intact. Output a transparent-background asset."
+    },
+    {
+      "key": "herosit",
+      "prompt": "Create a NEW game-ready animation sheet using the image just shown as the visual identity reference. Preserve this SAME brown-haired young hero, blue scarf, silver pauldrons, dark leather armor, short steel sword and wooden round shield, compact proportions and pixel-inspired painted dark-fantasy style. EXACT 4 columns x 4 rows, sixteen full-body isolated frames of sitting resting on ground, slow breathing. Row1 facing front, row2 facing back, row3 facing screen-left, row4 facing screen-right. Each row four sequential animation phases. Native RGBA transparent background, absolutely NO painted checkerboard or solid background. Square canvas, regular grid. Each character only occupies middle 55% of cell width and height, HUGE transparent gutters between all frames. Entire weapon body hair feet inside each cell. Consistent hero size, feet baseline, costume and lighting. No ground, no cast shadow, no text, no labels, no borders. Real transparency.",
+      "file": "hero-sit-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-576e0ff8-f23f-4ee8-a92e-70c02876cd34.png"
+    },
+    {
+      "key": "herowalkDiagonal",
+      "prompt": "Create a NEW game-ready animation sheet using the image just shown as the visual identity reference. Preserve this SAME brown-haired young hero, blue scarf, silver pauldrons, dark leather armor, short steel sword and wooden round shield, compact proportions and pixel-inspired painted dark-fantasy style. EXACT 4 columns x 4 rows, sixteen full-body isolated frames of walking cycle with alternating feet. Row1 diagonal front-left, row2 diagonal front-right, row3 diagonal back-left, row4 diagonal back-right. Each row four sequential animation phases. Native RGBA transparent background, absolutely NO painted checkerboard or solid background. Square canvas, regular grid. Each character only occupies middle 55% of cell width and height, HUGE transparent gutters between all frames. Entire weapon body hair feet inside each cell. Consistent hero size, feet baseline, costume and lighting. No ground, no cast shadow, no text, no labels, no borders. Real transparency.",
+      "file": "hero-walkDiagonal-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-eab0801c-f1c3-4cdf-8067-05d60213e688.png"
+    },
+    {
+      "key": "duriel",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 8 columns and 4 rows, 32 isolated full-body poses of the SAME hulking bark-skinned forest brute Treehead Woodfist, massive wooden fists, moss-covered shoulders, root horns, glowing amber eyes, walking on two legs; attack by slamming both fists. Dark fantasy compact pixel-inspired painted game art, warm upper-left lighting, strong readable silhouette. 2048x1024 canvas. Each cell has character at most 130px tall, centered and feet at 80% cell height, HUGE transparent empty gutters all around. No parts cross cell edges. Row1 idle, row2 walking, row3 attack windup strike recover, row4 hurt recoil recover. In EVERY row first4 frames face front, last4 face screen-left continuously. No grounds, halos, shadows, labels, borders. Same scale every frame. Completely transparent outside each isolated figure.",
+      "file": "monster-duriel-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-78284c62-70a7-4208-b392-50f8be819391.png"
+    },
+    {
+      "key": "specter",
+      "file": "monster-specter-painted.png",
+      "prompt": "Game-ready sprite sheet, TRANSPARENT BACKGROUND, native RGBA PNG. EXACTLY 8 columns x 4 rows =32 isolated SMALL figures. Same LIGHTNING GHOST each cell: dark violet hooded robe, cyan-white glowing hands and eyes, floating tapered lower body. NO electrical arcs, NO aura, NO particles, NO smoke, NO external glow. Cyan hands alone identify lightning magic. Compact dark-fantasy painted pixel-inspired art. EACH figure only occupies middle 40% of its cell width and 55% of cell height, with enormous EMPTY TRANSPARENT gutters on every side. Row1 idle, row2 floating forward, row3 raising hands casting gesture, row4 recoiling hurt. Each row cols1-4 face front, cols5-8 face screen-left. Keep every left-facing figure facing left for entire row. Four sequential poses per direction. All32 same scale. No frame lines or text, no ground, no background color. Native transparent outside silhouette.",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-1f90ab30-d3ee-4ab6-9563-72b613ec67ee.png"
+    }
+  ]
+}

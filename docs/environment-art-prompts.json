@@ -1,0 +1,47 @@
+{
+  "date": "2026-09-06",
+  "tool": "image_gen.imagegen (built-in)",
+  "alphaPolicy": "只接受生成器原生RGBA；拒收RGB假棋盘背景，不抠图。运行时只按透明边界切格归一化。",
+  "sourceDirectory": "C:/Users/voroj/.codex/generated_images/01a076d8-a043-7a30-9e11-017b09ab4517",
+  "assets": [
+    {
+      "file": "ice-props-painted.png",
+      "prompt": "生成一张透明背景 PNG 游戏精灵图集，输出必须带原生 alpha 通道（background=transparent），周围留空直接透明。2列×3行，1024×1536。六个独立冰雪废墟道具：第一行冰晶簇、尖高冰柱；第二行冰霜骸骨与破盾、蓝焰石火盆；第三行蓝色符文石、覆雪残破石柱。精致暗黑幻想手绘游戏美术，俯视四分之三角度，上左光源，清晰材质和轮廓。每个道具完整地放在一个512×512格中心，四周至少50像素透明空白，格子之间完全透明。原生透明素材交付。",
+      "source": "exec-39aa23bc-3585-44e4-a0cd-0c24b28739a4.png"
+    },
+    {
+      "file": "lava-props-painted.png",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 2 columns and 3 rows, 6 isolated dark-fantasy volcanic dungeon props. Top row: a low cracked lava vent with a small glowing orange core, a craggy basalt boulder veined with magma. Middle row: a charred bone pile with skull and broken iron shackles, sharp black obsidian spikes. Bottom row: an ancient iron brazier with orange fire, a blood-red crystal cluster. Painterly ARPG art, detailed worn materials, readable silhouettes, three-quarter overhead view, top-left light. Huge fully transparent gutters and generous empty margin in every cell. No ground plane, no cast shadows, no text or frames. Canvas 1024x1536, each complete prop contained in one 512x512 cell. 原生透明PNG输出。",
+      "source": "exec-85958269-3aa5-48cb-a9d1-abe2b38bc2e2.png"
+    },
+    {
+      "file": "town-npcs-painted.png",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 2 columns x 3 rows. Canvas 1024x1536 divided into six 512x512 cells. Six SMALL FULL-BODY NPC sprites; each is only 320 pixels tall, centered inside its cell with AT LEAST 90 PIXELS OF EMPTY TRANSPARENT SPACE above and below. This wide spacing is essential for cutting the sprite sheet. All six silhouettes including equipment have the SAME compact height; no weapons or props extend above heads. Row1 left: cheerful stout brown-leather travelling merchant with hat and gold pouch. Row1 right: friendly red-hooded female healer holding a potion. Row2 left: moss-green-cloaked caravan keeper with a small chest by his feet. Row2 right: strong female blacksmith in leather apron, hammer held down by her thigh. Row3 left: dark-steel armored abyss guardian holding a short sword point-down. Row3 right: elderly white-bearded blue-robed sage holding a small cyan orb in hand. Painterly dark fantasy ARPG characters, 4-head-tall proportions, three-quarter overhead viewpoint, warm top-left light, clear silhouettes and role-specific materials. No polearms, no tall staffs, no ground, no shadows, no lettering, no scenes. All empty space truly transparent native alpha. Keep each entire character and accessories inside its own 512x512 cell, with broad transparent horizontal gutters across full image.",
+      "source": "exec-ccad3c36-c4ff-4f7e-966d-6c65577e7c46.png"
+    },
+    {
+      "file": "destructibles-painted.png",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 2 columns and 3 rows, SIX isolated item sprites arranged as THREE MATCHED before/after pairs for a painterly dark fantasy ARPG. Row 1 left: a complete old wooden barrel with black iron hoops; row 1 right: THAT SAME barrel smashed into a low pile of broken curved staves and hoops. Row 2 left: a closed sturdy wooden supply crate with iron corners; row 2 right: THAT SAME crate smashed into loose planks. Row 3 left: a squat dark grey ceramic urn with worn bronze ornament; row 3 right: THAT SAME urn shattered into pottery shards. Three-quarter overhead camera, warm top-left light, beautiful realistic hand-painted material detail and readable game silhouettes. Both states in each row use consistent material, colors and scale; fragments fully contained in right cell. Huge transparent gutters, at least 65 pixels empty padding on every side of every 512x512 cell. No ground, no shadows, no labels, no grid borders or background. Canvas 1024x1536. Native alpha transparent PNG.",
+      "source": "exec-b05feff9-5a7a-473c-9306-4ea4e63d4358.png"
+    },
+    {
+      "file": "town-props-painted.png",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 2 columns x 3 rows, six isolated medieval town props for a painterly dark fantasy ARPG. Row1 left: a weathered wooden water bucket with an iron handle; row1 right: a broken wooden wagon wheel leaning at a slight angle. Row2 left: a short stone torch pedestal topped with a warm orange flame; row2 right: a small carved roadside shrine with a candle inside. Row3 left: a short wooden flagpole with a muted red swallowtail cloth banner; row3 right: a low circular stone village well with a bucket and wooden crossbar. Three-quarter overhead camera, painted worn stone/wood/cloth/iron, warm top-left light. Each COMPLETE prop is only 330 pixels tall within its own 512x512 cell, at least 80 pixels transparent margin around every cell, huge transparent gutters. Keep flagpole compact and fully inside bottom-left cell. No ground, no shadows, no scene, no text, no grid borders. Output a native transparent PNG with true alpha, canvas1024x1536.",
+      "source": "exec-88a3428a-118e-45c9-890b-3411986ccefc.png"
+    }
+  ],
+  "rejected": [
+    {
+      "source": "exec-f3609e53-f390-4bfc-9a4d-a9639f9a33f5.png",
+      "reason": "RGB假棋盘透明背景"
+    },
+    {
+      "source": "exec-ce3a332f-698f-476b-a45b-1b2beed957a8.png",
+      "reason": "RGB假棋盘透明背景"
+    },
+    {
+      "source": "exec-2c98417a-b710-4768-8073-777230e9726d.png",
+      "reason": "NPC武器越过行边界，重生成宽留白版本"
+    }
+  ]
+}

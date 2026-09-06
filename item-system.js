@@ -80,7 +80,7 @@ function applyItemSpriteToElement(el, item) {
   if (typeof itemSpritesLoaded !== 'undefined' && itemSpritesLoaded) {
     const coords = getItemSpriteCoords(item);
     el.innerText = '';
-    el.style.backgroundImage = "url('items.png?v=5.2')";
+    el.style.backgroundImage = "url('items-painted.png?v=2026090602')";
     el.style.backgroundSize = '400% 400%';
     el.style.backgroundPosition = `${coords.col * 33.333}% ${coords.row * 33.333}%`;
     el.style.backgroundRepeat = 'no-repeat';

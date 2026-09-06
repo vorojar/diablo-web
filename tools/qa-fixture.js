@@ -8,6 +8,8 @@
     panel.innerHTML='<summary>本地 QA 控制台 · 点击收起</summary><p>线上服务已隔离；测试角色不写入存档。</p><button data-action="start">启动60级安全角色</button><button data-action="floor">进入第一层</button><button data-panel="inventory">打开背包</button><button data-panel="skills">打开技能树</button><button data-action="close">关闭游戏面板</button><br><label>技能 <select id="qa-skill"></select></label><label>分支 <select id="qa-stage2"></select></label><label>终极 <select id="qa-stage3"></select></label><button data-action="branch">应用分支并展示</button><button data-action="cast">朝练习目标施法</button><button data-action="hurt">播放主角受击</button><button data-action="gallery">展示全部新图集</button><output id="qa-status">等待点击启动；原始新手入口：/index.html</output>';
     document.body.appendChild(panel);
     panel.insertAdjacentHTML('beforeend','<button data-action="layout">验收背包布局</button>');
+    panel.insertAdjacentHTML('beforeend','<button data-action="items">全部16种物品图标</button>');
+    panel.insertAdjacentHTML('beforeend','<details><summary>完整美术覆盖验收</summary><label>英雄动作 <select id="qa-hero-action"></select></label><label>方向 <select id="qa-art-direction"></select></label><button data-action="hero">展示英雄动作</button><button data-action="heroes">全部英雄动作×方向</button><br><label>怪物 <select id="qa-monster-type"></select></label><label>怪物动作 <select id="qa-monster-action"></select></label><button data-action="monster">展示所选怪物</button><button data-action="monsters">全部15种怪物/Boss</button><br><label>场景 <select id="qa-scene"></select></label><button data-action="scene">进入真实场景</button><button data-action="coverage">资产来源覆盖清单</button></details>');
     panel.insertAdjacentHTML('beforeend','<p id="qa-environment"></p><output id="qa-errors" style="display:block;white-space:pre-wrap" aria-live="polite"></output><details><summary>实时验收摘要</summary><pre id="qa-snapshot" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px"></pre></details>');
     document.getElementById('qa-environment').textContent=window.qaDiagnostics.simulatedTouch ? '触控路径模拟（非真机），测试 ontouchstart 标志已启用。' : '普通桌面环境；?touch=1 可模拟移动脚本路径。';
     const gallery=document.createElement('section'); gallery.id='qa-gallery';document.body.appendChild(gallery);
@@ -19,6 +21,7 @@
     let lastCast=null;
     let peakProjectiles=0, peakAreas=0;
     let layoutReport=null;
+    let artReport=null, previewCleanup=()=>{};
     function protect() {
         if (!safe) return;
         AutoBattle.enabled=false;
@@ -47,6 +50,118 @@
     function fillSelect(id, values) {
         const select=document.getElementById(id); select.replaceChildren();
         for (const [value,label] of values) { const option=document.createElement('option');option.value=value;option.textContent=label;select.appendChild(option); }
+    }
+    const heroActions=Object.keys(HERO_SPRITE_CONFIG.rowsByAction);
+    const artDirections=['front','back','left','right','frontLeft','frontRight','backLeft','backRight'];
+    const monsterTypes=Object.keys(MONSTER_SPRITE_CONFIG.types);
+    const monsterLabels={melee:'沉沦魔',zombie:'僵尸',ranged:'骷髅弓箭手',skeleton:'骷髅战士',shaman:'沉沦魔巫师',ghost:'幽灵鬼魂',specter:'闪电幽魂',mummy:'木乃伊',vampire:'吸血鬼',bloodRaven:'血鸟',countess:'女伯爵',butcher:'屠夫',duriel:'树头木拳',diablo:'暗黑破坏神',baal:'巴尔'};
+    const sceneDefinitions={town:{name:'罗格营地',floor:0},forest:{name:'迷雾森林',floor:1},ice:{name:'冰封废墟',floor:11},fire:{name:'熔岩裂隙',floor:21}};
+    fillSelect('qa-hero-action',heroActions.map(action=>[action,action]));
+    fillSelect('qa-art-direction',artDirections.map(direction=>[direction,direction]));
+    fillSelect('qa-monster-type',monsterTypes.map(type=>[type,`${monsterLabels[type] || type} (${type})`]));
+    fillSelect('qa-monster-action',Object.keys(MONSTER_SPRITE_CONFIG.types.melee).map(action=>[action,action]));
+    fillSelect('qa-scene',Object.entries(sceneDefinitions).map(([key,scene])=>[key,`${scene.name} · ${scene.floor}层`]));
+    function galleryHeader(title) {
+        previewCleanup();previewCleanup=()=>{};
+        gallery.replaceChildren();gallery.style.display='block';
+        const close=document.createElement('button');close.textContent='关闭预览';
+        close.onclick=()=>{previewCleanup();gallery.style.display='none';};gallery.appendChild(close);
+        const heading=document.createElement('h2');heading.textContent=title;gallery.appendChild(heading);
+    }
+    function artSource(frame, fallback) {
+        if (!frame) return {loaded:false};
+        const source=frame.source || fallback;
+        const keys=Object.keys(ArtSamples.definitions).filter(key=>ArtSamples.frame(key,0,0)?.source===source);
+        return {loaded:!!source,source:keys.length?keys.join(','):(source?.currentSrc || source?.src || '原图集'),
+            frame:{x:frame.x,y:frame.y,width:frame.width,height:frame.height,flipX:!!frame.flipX},
+            sourceSize:{width:source?.width,height:source?.height},
+            inBounds:!!source&&frame.x>=0&&frame.y>=0&&frame.x+frame.width<=source.width&&frame.y+frame.height<=source.height};
+    }
+    function previewSprites(kind, all) {
+        if(!gameActive)start();
+        closePanels();
+        const action=document.getElementById(kind==='hero'?'qa-hero-action':'qa-monster-action').value;
+        const direction=document.getElementById('qa-art-direction').value;
+        const cases=kind==='hero' ? (all?heroActions.flatMap(action=>artDirections.map(direction=>({action,direction}))):[{action,direction}]) :
+            (all?monsterTypes:[document.getElementById('qa-monster-type').value]).map(type=>({type,action,direction}));
+        galleryHeader(kind==='hero'?'英雄：真实选帧、自然尺寸与2倍放大':'怪物与Boss：真实选帧、自然尺寸与2倍放大');
+        const hint=document.createElement('p');hint.textContent='格线是透明背景。每张卡左为游戏自然尺寸、右为2倍。动画循环覆盖全部帧；可在关闭后切换动作/方向/类型。';gallery.appendChild(hint);
+        const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px';gallery.appendChild(grid);
+        const previews=cases.map(item=>{
+            const card=document.createElement('section'),label=document.createElement('h3'),canvas=document.createElement('canvas'),info=document.createElement('pre');
+            label.textContent=`${item.type?monsterLabels[item.type]+' · ':''}${item.action} / ${item.direction}`;
+            canvas.width=300;canvas.height=206;info.style.cssText='white-space:pre-wrap;overflow-wrap:anywhere;font:11px monospace';
+            card.append(label,canvas,info);grid.appendChild(card);
+            const enemy=kind==='monster'?EnemyPool.acquire({x:0,y:0,hp:100,maxHp:100,dmg:0,speed:0,radius:12,dead:false,monsterType:item.type,isBoss:Object.hasOwn(BOSS_FRAMES,item.type),frameIndex:MONSTER_FRAMES[item.type]??BOSS_FRAMES[item.type],facingDirection:item.direction,lastSideDirection:'right'}):null;
+            return {...item,canvas,info,enemy};
+        });
+        artReport={kind,cases:[],total:previews.length};
+        let active=true,lastTick=0;
+        function animate(now) {
+            if(!active)return;
+            if(now-lastTick<100){requestAnimationFrame(animate);return;}
+            lastTick=now;
+            artReport.cases=previews.map(item=>{
+                const index=Math.floor(now/220)%4;let frame,source;
+                if(kind==='hero'){
+                    const saved={heroAction:player.heroAction,heroActionTimer:player.heroActionTimer,heroActionDuration:player.heroActionDuration,animTime:player.animTime,moving:player.moving,direction:player.direction};
+                    try {
+                        Object.assign(player,{heroAction:item.action,heroActionTimer:4-index,heroActionDuration:4,animTime:index/(HERO_SPRITE_CONFIG.fps[item.action]||3),moving:item.action==='walk',direction:item.direction});
+                        frame=getHeroFrame(item.direction);source=frame?.source || processedHeroSprites;
+                    } finally {Object.assign(player,saved);}
+                }else{
+                    const enemy=item.enemy;Object.assign(enemy,{monsterAction:item.action,monsterActionTimer:4-index,monsterActionDuration:4,monsterAnimTime:index/(MONSTER_SPRITE_CONFIG.fps[item.action]||3),wasMoving:item.action==='walk',hitFlashTimer:0});
+                    frame=getMonsterSpriteFrame(enemy);source=frame?.source || processedMonsterSprites;
+                }
+                const inspection=artSource(frame,source),ctx=item.canvas.getContext('2d');ctx.clearRect(0,0,300,206);
+                if(frame&&source){
+                    const height=kind==='hero'?HERO_SPRITE_CONFIG.renderSize:MONSTER_SPRITE_CONFIG.renderSize,width=height*frame.width/frame.height;
+                    for(const [center,scale]of [[58,1],[204,2]]){
+                        if(kind==='monster')drawMonsterSprite(ctx,source,frame,center,194,width*scale,height*scale);
+                        else drawHeroSprite(ctx,source,frame,center,194-height*scale,width*scale,height*scale);
+                    }
+                }
+                item.info.textContent=`${inspection.inBounds?'PASS 帧边界':'FAIL 未加载/越界'} · frame ${index}\n${inspection.source || '无来源'}\n${JSON.stringify(inspection.frame)}`;
+                return {type:item.type,action:item.action,direction:item.direction,...inspection};
+            });
+            requestAnimationFrame(animate);
+        }
+        previewCleanup=()=>{if(!active)return;active=false;for(const preview of previews)if(preview.enemy)EnemyPool.release(preview.enemy);};
+        requestAnimationFrame(animate);
+    }
+    function showScene() {
+        if(!gameActive)start();previewCleanup();gallery.style.display='none';
+        const key=document.getElementById('qa-scene').value,scene=sceneDefinitions[key];
+        player.isInHell=false;enterFloor(scene.floor,'start');protect();closePanels();
+        artReport={kind:'scene',requested:key,floor:player.floor,biome:getBiomeStyle(player.floor)?.type || 'town',npcs:npcs.map(npc=>npc.name),props:typeof scenicProps==='undefined'?null:scenicProps.length};
+        status(`${scene.name}：使用真实 enterFloor(${scene.floor})，地图/装饰/NPC保持真实生成，测试内存不保存。`);panel.open=false;
+    }
+    function showCoverage() {
+        galleryHeader('视觉来源与遗漏清单');
+        const content=document.createElement('pre');content.style.cssText='white-space:pre-wrap;line-height:1.8';
+        const definitions=Object.entries(ArtSamples.definitions).map(([key,item])=>`${ArtSamples.frame(key,0,0)?'已加载':'未加载'} ${key}: ${item.file}`);
+        content.textContent=[`英雄动作 ${heroActions.length} × 方向 ${artDirections.length}；怪物类型 ${monsterTypes.length}（9普通+6Boss）`,...definitions,
+            '仍需人工逐项查看：NPC与图鉴是否接入新图；装备/掉落/药剂 items-painted.png；UI技能 skills-painted.png；HUD球体/菜单/面板为CSS；登录桌面 bg.jpg 与手机 mobile_bg.jpg；PWA图标 icon-192.png。',
+            '场景来源：wall_tiles.png、floor_tiles.png、environment_sprites.png、destructibles_sprites.png、程序绘制道路/草木/灯光/传送门，以及新增场景素材。',
+            '技能覆盖：sprite-vfx图集、程序粒子/投射物/预警圈/护盾/状态染色。原图加载成功不等于每个动作方向已接入，请结合动作卡的实际source检查。'].join('\n');gallery.appendChild(content);
+    }
+    function showItems() {
+        if(!gameActive)start();galleryHeader('16种物品：真实UI接线，40px与80px对照');
+        const grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px';gallery.appendChild(grid);
+        const samples=[];
+        for(const [key,coords]of Object.entries(ITEM_FRAMES)){
+            const item={type:key,name:key,rarity:3};
+            if(key==='potion_health'){item.type='potion';item.heal=1;}
+            if(key==='potion_mana'){item.type='potion';item.mana=1;}
+            const card=document.createElement('section'),name=document.createElement('h3');name.textContent=`${key} (${coords.row},${coords.col})`;card.appendChild(name);
+            for(const size of [40,80]){
+                const icon=document.createElement('div');icon.style.cssText=`width:${size}px;height:${size}px;display:inline-block;background-color:#24262e;margin:5px;vertical-align:bottom`;
+                applyItemSpriteToElement(icon,item);card.appendChild(icon);
+                if(size===40)samples.push({key,...coords,source:icon.style.backgroundImage,position:icon.style.backgroundPosition});
+            }
+            grid.appendChild(card);
+        }
+        artReport={kind:'items',count:samples.length,samples};
     }
     fillSelect('qa-skill',Object.entries(SKILL_TREE).map(([key,skill])=>[key,skill.name]));
     function fillStage3() {
@@ -90,11 +205,12 @@
         panel.open=false;
     }
     function showGallery() {
+        previewCleanup();
         gallery.replaceChildren();gallery.style.display='block';
         const close=document.createElement('button');close.textContent='关闭图集';close.onclick=()=>gallery.style.display='none';gallery.appendChild(close);
-        for (const [key,definition] of Object.entries(ArtSamples.definitions)) {
+        for (const [key,definition] of Object.entries({...ArtSamples.definitions, ...EnvironmentArt.definitions})) {
             const heading=document.createElement('h2');heading.textContent=`${key} · ${definition.file}`;gallery.appendChild(heading);
-            const frame=ArtSamples.frame(key,0,0);
+            const frame=Object.hasOwn(EnvironmentArt.definitions,key) ? EnvironmentArt.frame(key,0,0) : ArtSamples.frame(key,0,0);
             if(!frame){const notice=document.createElement('p');notice.textContent='未加载或透明验收失败，请查看控制台。';gallery.appendChild(notice);continue;}
             const canvas=document.createElement('canvas');canvas.width=frame.source.width;canvas.height=frame.source.height;canvas.getContext('2d').drawImage(frame.source,0,0);gallery.appendChild(canvas);
         }
@@ -119,7 +235,8 @@
     panel.addEventListener('click',event=>{
         event.stopPropagation();const button=event.target.closest('button');if(!button)return;
         if(button.dataset.panel){showPanel(button.dataset.panel);return;}
-        const actions={start,floor:enter,close:closePanels,branch:applyBranch,cast,hurt:()=>{if(!gameActive)start();triggerHeroAction('hurt',2);panel.open=false;},gallery:showGallery,layout:checkLayout};
+        const actions={start,floor:enter,close:closePanels,branch:applyBranch,cast,hurt:()=>{if(!gameActive)start();triggerHeroAction('hurt',2);panel.open=false;},gallery:showGallery,layout:checkLayout,
+            hero:()=>previewSprites('hero',false),heroes:()=>previewSprites('hero',true),monster:()=>previewSprites('monster',false),monsters:()=>previewSprites('monster',true),scene:showScene,coverage:showCoverage,items:showItems};
         actions[button.dataset.action]();
     });
     function report() {
@@ -132,8 +249,9 @@
             projectiles:projectiles.length,branchAreas:SkillBranchSystem.areas.length,branchVolleys:SkillBranchSystem.volleys.length,
             peakProjectiles,peakAreas,chargeSeconds:SkillBranchSystem.charge?.time,arcShield:SkillBranchSystem.arcShield,
             target:practiceTarget ? {name:practiceTarget.name,hp:practiceTarget.hp,maxHp:practiceTarget.maxHp,damageSinceCast:lastCast.hpBefore-practiceTarget.hp}:null,
-            lastCast,shield:player.shield,layoutReport,
+            lastCast,shield:player.shield,layoutReport,artReport,
             artLoaded:Object.keys(ArtSamples.definitions).filter(key=>ArtSamples.frame(key,0,0)),
+            environmentLoaded:Object.keys(EnvironmentArt.definitions).filter(key=>EnvironmentArt.frame(key,0,0)),
             heroCache:HeroTintCache.getStats(),monsterCache:MonsterTintCache.getStats()
         };
         document.getElementById('qa-snapshot').textContent=JSON.stringify(snapshot,null,2);

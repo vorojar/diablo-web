@@ -1,0 +1,306 @@
+{
+  "fireball": {
+    "transparentRatio": 0.552239735921224,
+    "columns": [
+      0,
+      522,
+      1023,
+      1536
+    ],
+    "rows": [
+      0,
+      507,
+      1024
+    ],
+    "icons": [
+      {
+        "node": "explosion",
+        "file": "art/skills/fireball-explosion.png",
+        "source": {
+          "x": 53,
+          "y": 38,
+          "width": 416,
+          "height": 430
+        }
+      },
+      {
+        "node": "burn",
+        "file": "art/skills/fireball-burn.png",
+        "source": {
+          "x": 633,
+          "y": 27,
+          "width": 271,
+          "height": 460
+        }
+      },
+      {
+        "node": "meteor",
+        "file": "art/skills/fireball-meteor.png",
+        "source": {
+          "x": 1069,
+          "y": 29,
+          "width": 422,
+          "height": 446
+        }
+      },
+      {
+        "node": "nova",
+        "file": "art/skills/fireball-nova.png",
+        "source": {
+          "x": 45,
+          "y": 531,
+          "width": 424,
+          "height": 438
+        }
+      },
+      {
+        "node": "spread",
+        "file": "art/skills/fireball-spread.png",
+        "source": {
+          "x": 576,
+          "y": 529,
+          "width": 403,
+          "height": 432
+        }
+      },
+      {
+        "node": "detonate",
+        "file": "art/skills/fireball-detonate.png",
+        "source": {
+          "x": 1068,
+          "y": 529,
+          "width": 415,
+          "height": 445
+        }
+      }
+    ]
+  },
+  "thunder": {
+    "transparentRatio": 0.5240052541097006,
+    "columns": [
+      0,
+      547,
+      1010,
+      1536
+    ],
+    "rows": [
+      0,
+      504,
+      1024
+    ],
+    "icons": [
+      {
+        "node": "chain",
+        "file": "art/skills/thunder-chain.png",
+        "source": {
+          "x": 95,
+          "y": 19,
+          "width": 375,
+          "height": 455
+        }
+      },
+      {
+        "node": "shock",
+        "file": "art/skills/thunder-shock.png",
+        "source": {
+          "x": 627,
+          "y": 39,
+          "width": 294,
+          "height": 440
+        }
+      },
+      {
+        "node": "storm",
+        "file": "art/skills/thunder-storm.png",
+        "source": {
+          "x": 1069,
+          "y": 38,
+          "width": 424,
+          "height": 439
+        }
+      },
+      {
+        "node": "overload",
+        "file": "art/skills/thunder-overload.png",
+        "source": {
+          "x": 48,
+          "y": 537,
+          "width": 436,
+          "height": 431
+        }
+      },
+      {
+        "node": "torture",
+        "file": "art/skills/thunder-torture.png",
+        "source": {
+          "x": 611,
+          "y": 541,
+          "width": 341,
+          "height": 427
+        }
+      },
+      {
+        "node": "shield",
+        "file": "art/skills/thunder-shield.png",
+        "source": {
+          "x": 1108,
+          "y": 531,
+          "width": 362,
+          "height": 439
+        }
+      }
+    ]
+  },
+  "multishot": {
+    "transparentRatio": 0.5009778340657552,
+    "columns": [
+      0,
+      500,
+      1028,
+      1536
+    ],
+    "rows": [
+      0,
+      504,
+      1024
+    ],
+    "icons": [
+      {
+        "node": "pierce",
+        "file": "art/skills/multishot-pierce.png",
+        "source": {
+          "x": 55,
+          "y": 34,
+          "width": 410,
+          "height": 425
+        }
+      },
+      {
+        "node": "spread",
+        "file": "art/skills/multishot-spread.png",
+        "source": {
+          "x": 545,
+          "y": 21,
+          "width": 444,
+          "height": 453
+        }
+      },
+      {
+        "node": "rain",
+        "file": "art/skills/multishot-rain.png",
+        "source": {
+          "x": 1115,
+          "y": 8,
+          "width": 337,
+          "height": 487
+        }
+      },
+      {
+        "node": "snipe",
+        "file": "art/skills/multishot-snipe.png",
+        "source": {
+          "x": 37,
+          "y": 515,
+          "width": 435,
+          "height": 457
+        }
+      },
+      {
+        "node": "barrage",
+        "file": "art/skills/multishot-barrage.png",
+        "source": {
+          "x": 530,
+          "y": 556,
+          "width": 462,
+          "height": 419
+        }
+      },
+      {
+        "node": "split",
+        "file": "art/skills/multishot-split.png",
+        "source": {
+          "x": 1065,
+          "y": 544,
+          "width": 419,
+          "height": 427
+        }
+      }
+    ]
+  },
+  "holy_shield": {
+    "transparentRatio": 0.45760154724121094,
+    "columns": [
+      0,
+      518,
+      1024,
+      1536
+    ],
+    "rows": [
+      0,
+      479,
+      1024
+    ],
+    "icons": [
+      {
+        "node": "reflect",
+        "file": "art/skills/holy_shield-reflect.png",
+        "source": {
+          "x": 19,
+          "y": 8,
+          "width": 495,
+          "height": 450
+        }
+      },
+      {
+        "node": "guard",
+        "file": "art/skills/holy_shield-guard.png",
+        "source": {
+          "x": 560,
+          "y": 17,
+          "width": 416,
+          "height": 451
+        }
+      },
+      {
+        "node": "retribution",
+        "file": "art/skills/holy_shield-retribution.png",
+        "source": {
+          "x": 1049,
+          "y": 4,
+          "width": 456,
+          "height": 467
+        }
+      },
+      {
+        "node": "fortress",
+        "file": "art/skills/holy_shield-fortress.png",
+        "source": {
+          "x": 43,
+          "y": 507,
+          "width": 408,
+          "height": 457
+        }
+      },
+      {
+        "node": "angel",
+        "file": "art/skills/holy_shield-angel.png",
+        "source": {
+          "x": 524,
+          "y": 488,
+          "width": 487,
+          "height": 491
+        }
+      },
+      {
+        "node": "link",
+        "file": "art/skills/holy_shield-link.png",
+        "source": {
+          "x": 1038,
+          "y": 509,
+          "width": 456,
+          "height": 435
+        }
+      }
+    ]
+  }
+}

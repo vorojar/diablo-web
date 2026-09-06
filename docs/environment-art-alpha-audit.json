@@ -1,0 +1,47 @@
+[
+  {
+    "file": "ice-props-painted.png",
+    "width": 1024,
+    "height": 1536,
+    "transparentPixels": 889609,
+    "transparentRatio": 0.5656,
+    "cells": 6,
+    "gutterAndBounds": "PASS"
+  },
+  {
+    "file": "lava-props-painted.png",
+    "width": 1024,
+    "height": 1536,
+    "transparentPixels": 962184,
+    "transparentRatio": 0.6117,
+    "cells": 6,
+    "gutterAndBounds": "PASS"
+  },
+  {
+    "file": "town-props-painted.png",
+    "width": 1024,
+    "height": 1536,
+    "transparentPixels": 1181748,
+    "transparentRatio": 0.7513,
+    "cells": 6,
+    "gutterAndBounds": "PASS"
+  },
+  {
+    "file": "town-npcs-painted.png",
+    "width": 1024,
+    "height": 1536,
+    "transparentPixels": 1171473,
+    "transparentRatio": 0.7448,
+    "cells": 6,
+    "gutterAndBounds": "PASS"
+  },
+  {
+    "file": "destructibles-painted.png",
+    "width": 1024,
+    "height": 1536,
+    "transparentPixels": 901137,
+    "transparentRatio": 0.5729,
+    "cells": 6,
+    "gutterAndBounds": "PASS"
+  }
+]

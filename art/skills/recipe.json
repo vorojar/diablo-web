@@ -1,0 +1,40 @@
+{
+  "columns": 3,
+  "rows": 2,
+  "size": 128,
+  "padding": 8,
+  "icons": {
+    "fireball": [
+      "explosion",
+      "burn",
+      "meteor",
+      "nova",
+      "spread",
+      "detonate"
+    ],
+    "thunder": [
+      "chain",
+      "shock",
+      "storm",
+      "overload",
+      "torture",
+      "shield"
+    ],
+    "multishot": [
+      "pierce",
+      "spread",
+      "rain",
+      "snipe",
+      "barrage",
+      "split"
+    ],
+    "holy_shield": [
+      "reflect",
+      "guard",
+      "retribution",
+      "fortress",
+      "angel",
+      "link"
+    ]
+  }
+}

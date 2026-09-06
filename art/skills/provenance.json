@@ -1,0 +1,9 @@
+{
+  "originalImages": {
+    "fireball": "C:\\Users\\voroj\\.codex\\generated_images\\01a076d8-e402-74a2-862f-44cdd8e2f077\\exec-c55207a3-e79d-41a5-b256-b4e7e1a8d3c3.png",
+    "thunder": "C:\\Users\\voroj\\.codex\\generated_images\\01a076d8-e402-74a2-862f-44cdd8e2f077\\exec-4498af76-98b6-43f4-a4b9-73fb96daefcf.png",
+    "multishot": "C:\\Users\\voroj\\.codex\\generated_images\\01a076d8-e402-74a2-862f-44cdd8e2f077\\exec-47fe1367-9279-43d7-8fbe-1d0afa74db1d.png",
+    "holy_shield": "C:\\Users\\voroj\\.codex\\generated_images\\01a076d8-e402-74a2-862f-44cdd8e2f077\\exec-5e76249e-5e9a-4910-90ca-bdb7ab25d251.png"
+  },
+  "outputs": "每张原生透明3列2行图集按原始alpha切片并缩放到128×128；不移除颜色、不抠图。"
+}
