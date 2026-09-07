@@ -3960,7 +3960,6 @@ function createArrowCurtainTrail(p, pConfig) {
 function emitMultishotVisualGrowth(x, y, angle, tier) {
     if (tier <= 0) return;
 
-    emitSkillImpactBurst('multishot', x, y, angle, tier >= 2 ? 1.18 : 0.92);
 
     const maxP = getParticleConfig().maxParticles;
     const palette = SKILL_IMPACT_PALETTES.multishot;
@@ -7414,17 +7413,17 @@ function update(dt) {
         const spawnX = camera.x + Math.random() * getViewportWidth();
         const spawnY = camera.y + Math.random() * getViewportHeight();
 
-        if (currentBiome.type === 'forest') {
-            // 森林孢子/萤火虫
+        if (currentBiome.type === 'forest' && Math.random() < 0.15) {
+            // 少量低亮萤火，避免环境圆点抢占战斗画面
             particles.push({
                 x: spawnX, y: spawnY,
                 vx: (Math.random() - 0.5) * 20,
                 vy: (Math.random() - 0.5) * 20,
                 life: 3 + Math.random() * 2,
                 color: Math.random() < 0.7 ? '#aaff88' : '#ffffaa',
-                size: 1 + Math.random() * 2,
-                alpha: 0.6,
-                maxAlpha: 0.6
+                size: 0.6 + Math.random() * 0.8,
+                alpha: 0.2,
+                maxAlpha: 0.2
             });
         } else if (currentBiome.type === 'fire') {
             // 熔岩余烬 (向上飘)
@@ -7905,20 +7904,7 @@ function update(dt) {
             });
         }
 
-        // 多重射击拖尾粒子（概率根据画质动态调整）
-        if (p.type === 'multishot' && Math.random() < pConfig.multishotTrail) {
-            const trailColors = ['#aaff00', '#88ff44', '#ffff00', '#ccff88'];
-            particles.push({
-                x: p.x + (Math.random() - 0.5) * 6,
-                y: p.y + (Math.random() - 0.5) * 6,
-                vx: -Math.cos(p.angle) * 20 + (Math.random() - 0.5) * 20,
-                vy: -Math.sin(p.angle) * 20 + (Math.random() - 0.5) * 20,
-                color: trailColors[Math.floor(Math.random() * trailColors.length)],
-                life: 0.15 + Math.random() * 0.1,
-                size: 1.5 + Math.random() * 2,
-                gravity: 0
-            });
-        }
+        // 箭矢已有方向性拖尾，避免再叠绿色圆点。
         createArrowCurtainTrail(p, pConfig);
 
         if (!p.meteorTarget && isWall(p.x, p.y)) {
@@ -7928,7 +7914,7 @@ function update(dt) {
                 if (p.type === 'multishot') emitMultishotVisualGrowth(p.x, p.y, p.angle, p.visualTier || getSkillVisualGrowthTier('multishot'));
             }
             p.life = 0;
-            for (let j = 0; j < 3; j++)createParticle(p.x, p.y, '#aaa', 2);
+            if (p.type !== 'fireball' && p.type !== 'multishot') createImpactParticles(p.x, p.y, '#aaa', 2, p.angle);
         }
 
         if (p.owner && p.owner !== player) {
@@ -7940,7 +7926,7 @@ function update(dt) {
                 const dealt = playerTakeDamage(projectileDamage, p.owner, { damageType: dmgType, ignoreArmor: p.owner?.ignoreArmor, sourceName: p.sourceName });
                 applyEnemyProjectileOnHit(p.owner, dealt);
                 p.life = 0;
-                for (let j = 0; j < 5; j++)createParticle(p.x, p.y, p.color || '#ff4400');
+                createImpactParticles(p.x, p.y, '#bba997', 3, p.angle);
             }
         } else {
             // 玩家发射的投射物，检测是否击中敌人
@@ -7961,7 +7947,7 @@ function update(dt) {
                             if (p.type === 'multishot') emitMultishotVisualGrowth(p.x, p.y, p.angle, p.visualTier || getSkillVisualGrowthTier('multishot'));
                         }
                         if (p.freeze) { e.frozenTimer = p.freeze; createDamageNumber(e.x, e.y - 40, "冻结!", COLORS.ice); }
-                        for (let j = 0; j < 5; j++) createParticle(p.x, p.y, p.color || '#ff4400');
+                        // takeDamage 与技能专属入口已负责命中反馈。
                         break;
                     }
                 }
@@ -9085,7 +9071,7 @@ function draw() {
             ctx.ellipse(p.x, p.y - (p.z || 0), p.size * 1.2, p.size * 0.8, Math.atan2(p.vy, p.vx), 0, Math.PI * 2);
             ctx.fill();
         } else {
-            ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.beginPath(); ctx.arc(p.x, p.y - (p.z || 0), p.size, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = p.color; ctx.globalAlpha = Math.min(1, p.life) * (p.maxAlpha === undefined ? 1 : p.maxAlpha); ctx.beginPath(); ctx.arc(p.x, p.y - (p.z || 0), p.size, 0, Math.PI * 2); ctx.fill();
         }
     }
     ctx.globalAlpha = 1;
@@ -10793,7 +10779,6 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     // 一次命中只发出一组有体积的材质碎片，取消状态染色圆点与重复光圈。
     const impactProfile = getMonsterImpactProfile(e);
     createImpactParticles(e.x, e.y - 8, impactProfile.color, isCrit ? 5 : 3, angle);
-    if (!isSkillDamage) spawnVfxEffect(COMBAT_FEEDBACK_VFX.meleeSlash, e.x, e.y - 10, isCrit ? 1.02 : 0.88, angle);
     // 暴击用更大的立体碎片与金色伤害数字表达，不再叠白色圆形爆闪。
 
     // 触发打击感
@@ -13901,22 +13886,7 @@ function castSkill(skillName) {
         trackAchievement('skill_use');
         const cnt = 2 + player.skills.multishot;
 
-        // 发射特效：光芒扩散
-        for (let i = 0; i < 12; i++) {
-            const angle = base + (Math.random() - 0.5) * 0.8;
-            const speed = 100 + Math.random() * 100;
-            particles.push({
-                x: player.x,
-                y: player.y,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed,
-                color: ['#ffff00', '#aaff00', '#88ff44'][Math.floor(Math.random() * 3)],
-                life: 0.2 + Math.random() * 0.15,
-                size: 2 + Math.random() * 2,
-                gravity: 0
-            });
-        }
-
+        // 施法图集已提供出手反馈，不再叠十二个绿色圆点。
         for (let i = 0; i < cnt; i++) {
             const a = base - 0.3 + (0.6 / (cnt - 1)) * i;
             projectiles.push(ProjectilePool.acquire({

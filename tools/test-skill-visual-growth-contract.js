@@ -57,7 +57,6 @@ assertContains(arrowTrail, 'p.visualTier', 'FAIL: arrow curtain trail should be 
 assertContains(arrowTrail, 'skill_impact_ray', 'FAIL: arrow curtain trail should be blade-like ray streaks, not soft dust.');
 
 const multishot = extractFunction('emitMultishotVisualGrowth');
-assertContains(multishot, "emitSkillImpactBurst('multishot'", 'FAIL: multishot growth should keep the current impact language.');
 assertContains(multishot, 'skill_impact_ray', 'FAIL: multishot growth should create arrow curtain linework.');
 assertNoGameplayMutation(multishot, 'emitMultishotVisualGrowth');
 
@@ -157,8 +156,8 @@ if (!runtimeContext.particles.some(p => p.type === 'skill_impact_ray')) {
 
 runtimeContext.particles.length = 0;
 runtimeContext.emitMultishotVisualGrowth(150, 100, 0, 2);
-if (!runtimeContext.particles.some(p => p.type === 'burst_probe' && p.skill === 'multishot')) {
-    throw new Error('FAIL: multishot growth should reuse impact burst language.');
+if (runtimeContext.particles.some(p => p.type === 'burst_probe' && p.skill === 'multishot')) {
+    throw new Error('FAIL: multishot growth must not duplicate the primary impact burst.');
 }
 if (runtimeContext.particles.filter(p => p.type === 'skill_impact_ray').length < 9) {
     throw new Error('FAIL: tier 2 multishot should emit a wide arrow curtain.');

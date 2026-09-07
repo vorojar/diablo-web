@@ -20,3 +20,7 @@ const wallCharge=enemy({ai:'vampire'});scope.player.x=150;scope.player.y=0;t.beg
 console.log('PASS: Boss预警/真实范围伤害/打断取消/破绽过期、复活打断、压制免疫、正面护甲与锁向突进');
 
 const fallen=enemy({ai:'revive'});scope.startMonsterAttack(fallen,{duration:.85,impactDelay:.85,tactic:'revive',targetX:0,targetY:0,resolve:()=>{throw new Error('死亡后不能复活队友');}});fallen.dead=true;scope.processScheduledMonsterAttacks(1);assert.equal(fallen.combatCue,null,'死亡队列移除时必须清理读条，防止被复活后永久停步');
+
+const labels=[];const drawing=new Proxy({}, {get:(_,k)=>k==='fillText'?(v)=>labels.push(v):k==='measureText'?()=>({width:100}):()=>{}});
+for(const ai of ['revive','ranged','specter']){const idle=enemy({ai});scope.AutoBattle={currentTarget:idle};t.draw(drawing,[idle],{x:0,y:0},800,600);}
+assert.deepEqual(labels,[],'普通名称旁不应有常驻战术说明');

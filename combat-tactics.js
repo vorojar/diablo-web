@@ -96,12 +96,8 @@ const CombatTactics = (() => {
                 label(ctx,e,p.label || (p.tactic==='charge'?'突进 · 侧向躲避':p.tactic==='revive'?'复活 · 技能打断':'重击 · 拉开距离'),'#ffbe91',progress);
                 if(e.pendingSkill && p.damageTaken > 0)label(ctx,{x:e.x,y:e.y-27},'打断 '+Math.min(100,Math.floor(p.damageTaken/(e.maxHp*rules.bossBreak)*100))+'%','#b1d7ff');
             }else if(e.recoveryTimer>0)label(ctx,e,'破绽 +25%','#78ebcd',e.recoveryTimer/e.recoveryDuration);
-            else if(e === (typeof AutoBattle !== 'undefined' ? AutoBattle.currentTarget : null)){
-                if(e.ai==='revive')label(ctx,e,'复活者 · 优先击杀','#cbb3ff');
-                else if(e.monsterType==='skeleton'){
-                    ctx.beginPath();ctx.arc(e.x,e.y,25,facingAngle(e)-Math.PI/3,facingAngle(e)+Math.PI/3);ctx.strokeStyle='#c5d5e1';ctx.lineWidth=3;ctx.stroke();
-                    label(ctx,e,'正面护甲 · 绕侧','#c5d5e1');
-                }else if(e.ai==='ranged'||e.ai==='specter')label(ctx,e,'远程 · 近战可压制','#b9cee2');
+            else if(e.monsterType==='skeleton' && e === (typeof AutoBattle !== 'undefined' ? AutoBattle.currentTarget : null)){
+                ctx.beginPath();ctx.arc(e.x,e.y,25,facingAngle(e)-Math.PI/3,facingAngle(e)+Math.PI/3);ctx.strokeStyle='#c5d5e1';ctx.lineWidth=3;ctx.stroke();
             }
         }ctx.restore();
     }
