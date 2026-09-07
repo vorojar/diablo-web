@@ -128,3 +128,17 @@ test('立体雷暴开关不改变半秒伤害、范围和持续时间',()=>{
 });
 }
 if (failures) process.exitCode=1;
+
+vm.runInContext(fs.readFileSync(path.join(root,'combat-tactics.js'),'utf8')+'\nglobalThis.tactics=CombatTactics;',ctx);
+vm.runInContext(extract('takeDamage'),ctx);
+test('真实受伤入口计算破绽增伤与正面护甲',()=>{
+ setup('fireball','explosion');const e=enemy();e.monsterType='skeleton';e.facingDirection='left';e.blockChance=1;
+ ctx.takeDamage(e,100,false);assert.equal(10000-e.hp,65);
+ e.hp=10000;e.x=100;e.facingDirection='right';ctx.takeDamage(e,100,false);assert.equal(10000-e.hp,100);
+ e.hp=10000;e.x=100;e.recoveryTimer=1;ctx.takeDamage(e,100,true);assert.equal(10000-e.hp,125);
+});
+test('真实命中打断Boss需要累计技能伤害且无闪避伪打断',()=>{
+ setup('fireball','explosion');const e=enemy();e.isBoss=true;e.pendingSkill={damageTaken:0};e.dodgeChance=1;
+ ctx.takeDamage(e,400,true);assert(e.pendingSkill);assert.equal(e.pendingSkill.damageTaken,0);
+ e.dodgeChance=0;ctx.takeDamage(e,400,true);assert.equal(e.pendingSkill,null);assert(e.recoveryTimer>0);
+});

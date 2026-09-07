@@ -17,6 +17,8 @@
     panel.insertAdjacentHTML('beforeend','<button data-action="combat-audit">记录所选怪物真实战斗帧</button>');
     panel.insertAdjacentHTML('beforeend','<button data-action="network-audit">统计全部加载资源</button><pre id="qa-network" style="white-space:pre-wrap"></pre>');
     panel.insertAdjacentHTML('beforeend','<button data-action="wall-audit">实测向墙内移动</button>');
+    panel.insertAdjacentHTML('beforeend','<button data-action="tactics">预警战术验收</button><button data-action="tactics-break">真实技能打断验收</button><output id="qa-tactics"></output>');
+    let tacticsBoss=null;
     const status=text=>document.getElementById('qa-status').textContent=text;
     panel.insertAdjacentHTML('beforeend','<button data-action="meteor-depth">实测立体陨石</button><button data-action="storm-depth">实测立体雷暴</button><output id="qa-elemental" style="display:block;white-space:pre-wrap"></output>');
     panel.insertAdjacentHTML('beforeend','<button data-action="shield-compare">护盾并排对比</button>');
@@ -308,6 +310,21 @@
     panel.addEventListener('click',event=>{
         event.stopPropagation();const button=event.target.closest('button');if(!button)return;
         if(button.dataset.panel){showPanel(button.dataset.panel);return;}
+        if(button.dataset.action==='tactics'){
+            if(!gameActive)start();if(isInTown())enter();closePanels();
+            const x=player.x+(isWall(player.x+80,player.y)?-80:80),y=player.y;
+            tacticsBoss=EnemyPool.acquire({x,y,name:'战术验收木拳',monsterType:'duriel',frameIndex:3,isBoss:true,hp:10000,maxHp:10000,dmg:20,speed:0,ai:'chase',radius:25,bossCooldowns:{},bossTraits:{},slamRadius:120,skillCd:100,cooldown:100});
+            enemies.push(tacticsBoss);startBossSkillWindup(tacticsBoss,'groundSlam',100,{telegraph:'circle',radius:120,windup:3});
+            panel.open=false;return;
+        }
+        if(button.dataset.action==='tactics-break'){
+            if(!tacticsBoss||tacticsBoss.dead)return;
+            tacticsBoss.recoveryTimer=0;tacticsBoss.pendingSkill=null;tacticsBoss.hp=10000;tacticsBoss.x=player.x+60;tacticsBoss.y=player.y;
+            startBossSkillWindup(tacticsBoss,'groundSlam',100,{telegraph:'circle',radius:120,windup:3});
+            takeDamage(tacticsBoss,450,true);
+            document.getElementById('qa-tactics').textContent=JSON.stringify({hp:tacticsBoss.hp,pending:!!tacticsBoss.pendingSkill,recovery:tacticsBoss.recoveryTimer,multiplier:CombatTactics.multiplier(tacticsBoss,true)});
+            panel.open=false;return;
+        }
         if(button.dataset.action==='meteor-depth'||button.dataset.action==='storm-depth'){
             if(!gameActive)start();if(isInTown())enter();previewCleanup();gallery.style.display='none';
             const meteor=button.dataset.action==='meteor-depth',skill=meteor?'fireball':'thunder';

@@ -461,6 +461,7 @@ const EnemyPool = {
             isBoss: false, isQuestTarget: false, isElite: false,
             bossTraits: null, bossCooldowns: null, enraged: false,
             canTeleport: false, skillCd: 0, pendingSkill: null, bossSkillVisual: null,
+            combatCue: null, recoveryTimer: 0, recoveryDuration: 0, pressureImmuneTimer: 0,
             teleportCdMax: 0, summonCdMax: 0, slamCdMax: 0, breathCdMax: 0, tentacleCdMax: 0,
             slamRadius: 0, dashDistance: 0, breathAngle: 0, breathRange: 0, tentacleCount: 0,
             summonCount: 0,
@@ -1502,28 +1503,35 @@ function createMonsterAttackAim(enemy, targetX, targetY) {
 function startMonsterAttack(enemy, options) {
     if (!enemy || enemy.dead || !options || typeof options.resolve !== 'function') return;
 
+    if (enemy.pendingSkill || enemy.combatCue || enemy.recoveryTimer > 0) return;
     const aim = createMonsterAttackAim(enemy, options.targetX, options.targetY);
     setMonsterFacingToward(enemy, aim.targetX, aim.targetY, options.duration);
     triggerMonsterAction(enemy, 'attack', options.duration);
     spawnMonsterAttackTelegraph(enemy, { ...options, targetX: aim.targetX, targetY: aim.targetY, angle: aim.angle });
-    scheduledMonsterAttacks.push({
+    const attack = {
         enemy,
         aim,
         timer: options.impactDelay,
         resolve: options.resolve
-    });
+    };
+    scheduledMonsterAttacks.push(attack);
+    if (typeof CombatTactics !== 'undefined') CombatTactics.attackStarted(enemy, options, attack);
 }
 
 function processScheduledMonsterAttacks(dt) {
     for (let i = scheduledMonsterAttacks.length - 1; i >= 0; i--) {
         const attack = scheduledMonsterAttacks[i];
+        if (attack.cancelled) { scheduledMonsterAttacks.splice(i, 1); continue; }
         attack.timer -= dt;
         if (attack.timer > 0) continue;
 
         scheduledMonsterAttacks.splice(i, 1);
         const enemy = attack.enemy;
+        if (enemy?.combatCue === attack) enemy.combatCue = null;
         if (!enemy || enemy.dead || player.isDead || !enemies.includes(enemy)) continue;
+        if (enemy.pendingSkill || enemy.recoveryTimer > 0) continue;
         attack.resolve(enemy, attack.aim);
+        if (attack.tactic === 'heavy' && typeof CombatTactics !== 'undefined') CombatTactics.recover(enemy, .8);
     }
 }
 
@@ -3224,91 +3232,7 @@ function drawOutlinedText(ctx, text, x, y, fillStyle, font, strokeStyle = 'rgba(
 }
 
 function drawBossDangerTelegraphs(ctx) {
-    for (let i = 0, len = enemies.length; i < len; i++) {
-        const boss = enemies[i];
-        if (!boss?.isBoss || boss.dead || !boss.pendingSkill?.data?.telegraph) continue;
-
-        const pending = boss.pendingSkill;
-        const data = pending.data;
-        const duration = pending.duration || data.windup || 0.45;
-        const progress = Math.max(0, Math.min(1, 1 - pending.timer / duration));
-        const pulse = 0.55 + 0.45 * Math.sin(progress * Math.PI * 8);
-        const warningAlpha = 0.10 + progress * 0.12;
-        const edgeAlpha = 0.45 + progress * 0.40;
-        const finalFlash = progress > 0.78 ? (progress - 0.78) / 0.22 : 0;
-
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
-        ctx.fillStyle = `rgba(255, 32, 20, ${warningAlpha})`;
-        ctx.strokeStyle = `rgba(255, 95, 55, ${edgeAlpha})`;
-        ctx.lineWidth = 2 + finalFlash * 2;
-        setGlow(ctx, 18 + finalFlash * 18, '#ff3322', true);
-
-        if (data.telegraph === 'circle') {
-            const radius = data.radius || boss.slamRadius || 150;
-            ctx.beginPath();
-            ctx.arc(boss.x, boss.y, radius, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.strokeStyle = `rgba(255, 210, 120, ${0.35 + finalFlash * 0.45})`;
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.arc(boss.x, boss.y, radius * (0.35 + progress * 0.65), 0, Math.PI * 2);
-            ctx.stroke();
-        } else if (data.telegraph === 'cone') {
-            const range = data.range || 200;
-            const halfAngle = ((boss.breathAngle || 60) * Math.PI / 180) / 2;
-            const angle = data.angle || 0;
-            ctx.beginPath();
-            ctx.moveTo(boss.x, boss.y);
-            ctx.arc(boss.x, boss.y, range, angle - halfAngle, angle + halfAngle);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.strokeStyle = `rgba(255, 230, 150, ${0.32 + finalFlash * 0.55})`;
-            ctx.lineWidth = 1.2 + finalFlash;
-            for (let r = range * 0.35; r <= range; r += range * 0.22) {
-                ctx.beginPath();
-                ctx.arc(boss.x, boss.y, r * (0.92 + pulse * 0.04), angle - halfAngle, angle + halfAngle);
-                ctx.stroke();
-            }
-        } else if (data.telegraph === 'line') {
-            const range = data.range || 240;
-            const width = data.width || 42;
-            const angle = data.angle || 0;
-            const nx = Math.cos(angle);
-            const ny = Math.sin(angle);
-            const px = -ny * width / 2;
-            const py = nx * width / 2;
-            const sx = boss.x;
-            const sy = boss.y;
-            const ex = boss.x + nx * range;
-            const ey = boss.y + ny * range;
-
-            ctx.beginPath();
-            ctx.moveTo(sx + px, sy + py);
-            ctx.lineTo(ex + px, ey + py);
-            ctx.lineTo(ex - px, ey - py);
-            ctx.lineTo(sx - px, sy - py);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.strokeStyle = `rgba(255, 230, 150, ${0.35 + finalFlash * 0.50})`;
-            ctx.lineWidth = 1.2 + finalFlash;
-            ctx.beginPath();
-            ctx.moveTo(sx, sy);
-            ctx.lineTo(sx + nx * range * progress, sy + ny * range * progress);
-            ctx.stroke();
-        }
-
-        clearGlow(ctx);
-        ctx.restore();
-    }
+    CombatTactics.draw(ctx, enemies, camera, getViewportWidth(), getViewportHeight());
 }
 
 function getActiveBossForHud() {
@@ -8361,6 +8285,9 @@ function updateEnemies(dt) {
         if (e.lightningOverloadTimer > 0) e.lightningOverloadTimer -= dt;
         if (e.cooldown > 0) e.cooldown -= dt;
 
+        if (typeof CombatTactics !== 'undefined' && CombatTactics.tick(e, dt)) continue;
+        if (e.combatCue) { e.wasMoving = false; continue; }
+
         // Boss 技能冷却更新
         if (e.isBoss && e.bossCooldowns) {
             for (const key in e.bossCooldowns) {
@@ -8370,6 +8297,7 @@ function updateEnemies(dt) {
             }
             // Boss 技能逻辑
             updateBossSkills(e, dt);
+            if (e.pendingSkill || e.recoveryTimer > 0) { e.wasMoving = false; continue; }
         }
 
         const speedMultiplier = (e.slowedTimer > 0 ? 0.4 : 1.0) * (e.moraleTimer > 0 ? 1.25 : 1.0) * SkillBranchSystem.speedMultiplier(e, dt);
@@ -8419,8 +8347,9 @@ function updateEnemies(dt) {
                 const body = enemies.find(other => other.dead && !other.isBoss && Math.hypot(other.x - e.x, other.y - e.y) < 200);
                 if (body) {
                     startMonsterAttack(e, {
-                        duration: 0.48,
-                        impactDelay: 0.28,
+                        duration: 0.85,
+                        impactDelay: 0.85,
+                        tactic: 'revive',
                         targetX: body.x,
                         targetY: body.y,
                         resolve: () => {
@@ -8497,72 +8426,13 @@ function updateEnemies(dt) {
             if (!e.dashCooldown) e.dashCooldown = 0;
             if (e.dashCooldown > 0) e.dashCooldown -= dt;
 
-            // 正在突进中
+            // 锁定路线的突进由同一预警与命中流程执行。
             if (e.isDashing) {
-                e.dashTimer -= dt;
-                if (e.dashTimer <= 0) {
-                    e.isDashing = false;
-                }
-                // 突进移动（快速接近目标位置）
-                const dashSpeed = 600;
-                const dx = e.dashTargetX - e.x;
-                const dy = e.dashTargetY - e.y;
-                const dashDist = Math.hypot(dx, dy);
-                if (dashDist > 5) {
-                    e.x += (dx / dashDist) * dashSpeed * dt;
-                    e.y += (dy / dashDist) * dashSpeed * dt;
-                    // 突进时创建红色残影
-                    if (Math.random() < 0.5) {
-                        particles.push({
-                            x: e.x, y: e.y,
-                            vx: (Math.random() - 0.5) * 20,
-                            vy: (Math.random() - 0.5) * 20,
-                            life: 0.3,
-                            maxLife: 0.3,
-                            color: '#aa0000',
-                            size: 15,
-                            type: 'vampire_trail'
-                        });
-                    }
-                }
-                // 突进到达后攻击
-                if (dashDist <= 40 && e.cooldown <= 0) {
-                    startMonsterAttack(e, {
-                        duration: 0.38,
-                        impactDelay: 0.16,
-                        telegraph: 'melee',
-                        targetX: player.x,
-                        targetY: player.y,
-                        resolve: (attacker) => {
-                            const dealt = resolveEnemyMeleeImpact(attacker, { lifeStealFallback: 0.2, rangeSq: 2200 });
-                            if (dealt > 0) {
-                                for (let i = 0; i < 5; i++) {
-                                    particles.push({
-                                        x: player.x + (Math.random() - 0.5) * 30,
-                                        y: player.y + (Math.random() - 0.5) * 30,
-                                        vx: (attacker.x - player.x) * 2 + (Math.random() - 0.5) * 50,
-                                        vy: (attacker.y - player.y) * 2 + (Math.random() - 0.5) * 50,
-                                        life: 0.4, maxLife: 0.4,
-                                        color: '#ff0000', size: 6, type: 'lifesteal'
-                                    });
-                                }
-                            }
-                        }
-                    });
-                    e.cooldown = 1.5;
-                    e.isDashing = false;
-                }
+                CombatTactics.charge(e, dt);
             } else {
                 // 非突进状态
                 if (distSq < 40000 && distSq > 1600 && e.dashCooldown <= 0) { // 200^2=40000, 40^2=1600
-                    // 发动突进！
-                    setMonsterFacingToward(e, player.x, player.y, 0.3);
-                    e.isDashing = true;
-                    e.dashTimer = 0.3; // 突进持续0.3秒
-                    e.dashTargetX = player.x;
-                    e.dashTargetY = player.y;
-                    e.dashCooldown = 3.0; // 3秒突进冷却
-                    AudioSys.play('swing');
+                    CombatTactics.beginCharge(e);
                 } else if (distSq < 160000 && distSq > 10000) { // 400^2=160000, 100^2=10000
                     // 缓慢靠近
                     const dist = Math.sqrt(distSq);
@@ -8668,8 +8538,9 @@ function updateEnemies(dt) {
             }
             if (!shouldFlee && distSq <= GAME_CONFIG.MONSTER_MELEE_RANGE_SQ && e.cooldown <= 0) {
                 startMonsterAttack(e, {
-                    duration: e.slamHit ? 0.46 : 0.38,
-                    impactDelay: e.slamHit ? 0.24 : 0.18,
+                    duration: e.slamHit ? 0.7 : 0.38,
+                    impactDelay: e.slamHit ? 0.7 : 0.18,
+                    tactic: e.slamHit ? 'heavy' : null,
                     telegraph: 'melee',
                     targetX: player.x,
                     targetY: player.y,
@@ -8809,7 +8680,7 @@ function draw() {
     }
 
     drawDungeonLightSources(ctx, activeBiome);
-    drawBossDangerTelegraphs(ctx);
+
 
     // 性能优化：使用 for 循环渲染 NPC
     for (let ni = 0, nLen = npcs.length; ni < nLen; ni++) {
@@ -9345,6 +9216,7 @@ function draw() {
     }
 
     ctx.textAlign = 'center';
+    drawBossDangerTelegraphs(ctx);
     // 性能优化：使用 for 循环渲染伤害数字
     for (let di = 0, dLen = damageNumbers.length; di < dLen; di++) {
         const d = damageNumbers[di];
@@ -10832,7 +10704,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         createDamageNumber(e.x, e.y - 20, "闪避!", '#aaaaaa');
         return;
     }
-    if (e.blockChance && !isSkillDamage && Math.random() < e.blockChance) {
+    if (e.blockChance && !isSkillDamage && (typeof CombatTactics === 'undefined' || e.monsterType !== 'skeleton') && Math.random() < e.blockChance) {
         e.hitFlashTimer = 0.06;
         Juice.hit(e, false, false);
         spawnVfxEffect(COMBAT_FEEDBACK_VFX.guardFlash, e.x, e.y - 8, 0.8, feedbackAngle);
@@ -10915,11 +10787,13 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         }
     }
 
+    if (typeof CombatTactics !== 'undefined') totalDamage *= CombatTactics.multiplier(e, isSkillDamage);
     // 取整避免浮点数精度问题
     totalDamage = Math.floor(totalDamage);
     if (totalDamage < 1) totalDamage = 1; // 最小伤害1点
 
     e.hp -= totalDamage;
+    if (typeof CombatTactics !== 'undefined') CombatTactics.hit(e, totalDamage, isSkillDamage);
     e.hitFlashTimer = 0.1; // 触发受击闪白
     e.hitReactDuration = isCrit ? 0.16 : 0.12;
     e.hitReactTimer = e.hitReactDuration;
@@ -10934,7 +10808,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
     if (isCrit) trackAchievement('crit_count');
 
     // 击退逻辑 (Micro-Knockback)
-    const kbForce = isCrit ? 12 : 6;
+    const kbForce = e.pendingSkill || e.combatCue ? 0 : (isCrit ? 12 : 6);
     const nx = e.x + Math.cos(angle) * kbForce;
     const ny = e.y + Math.sin(angle) * kbForce;
     if (typeof isWall !== 'undefined') {

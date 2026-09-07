@@ -53,21 +53,16 @@ function spawnBossTelegraph(effectId, x, y, scale = 1, rotation = 0) {
 }
 
 function startBossSkillWindup(boss, skillId, cooldown, data = {}) {
-  const windup = data.windup || 0.45;
+  if (boss.pendingSkill || boss.recoveryTimer > 0) return;
+  const windup = data.windup || (skillId === 'groundSlam' ? .95 : .8);
   boss.pendingSkill = { id: skillId, timer: windup, duration: windup, data };
+  if (typeof CombatTactics !== 'undefined') CombatTactics.bossStarted(boss, boss.pendingSkill);
   boss.skillCd = cooldown;
   syncBossSkillVisual(boss, 'cast', windup);
   spawnBossTelegraph('bossCastBurst', boss.x, boss.y, 1, 0);
   AudioSys.play('boss_cast');
 
-  if (data.telegraph === 'circle') {
-    const radius = data.radius || 150;
-    spawnBossTelegraph('telegraphCircle', boss.x, boss.y, Math.max(0.75, radius / 80), 0);
-  } else if (data.telegraph === 'cone') {
-    spawnBossTelegraph('telegraphCone', boss.x, boss.y, Math.max(0.8, (data.range || 200) / 180), data.angle || 0);
-  } else if (data.telegraph === 'line') {
-    spawnBossTelegraph('telegraphLine', boss.x, boss.y, Math.max(0.8, (data.range || 220) / 210), data.angle || 0);
-  }
+  // 危险区域直接读取pendingSkill绘制，打断后当帧消失。
 }
 
 function updateBossPendingSkill(boss, dt) {
@@ -79,7 +74,7 @@ function updateBossPendingSkill(boss, dt) {
   const pending = boss.pendingSkill;
   boss.pendingSkill = null;
 
-  if (boss.dead || player.dead) return true;
+  if (boss.dead || player.isDead) return true;
 
   if (pending.id === 'fireNova') {
     bossFireNova(boss, pending.data.radius, pending.data.damage);
@@ -93,6 +88,7 @@ function updateBossPendingSkill(boss, dt) {
     bossTentacleAttack(boss, pending.data.angle);
   }
 
+  if (typeof CombatTactics !== 'undefined') CombatTactics.recover(boss, CombatTactics.rules.bossRecovery);
   return true;
 }
 
@@ -271,7 +267,7 @@ function applyBossTraits(boss, bossName, baseDmg) {
 
 // 更新 Boss 技能逻辑 (在 gameLoop 中调用)
 function updateBossSkills(boss, dt) {
-  if (player.dead) return;
+  if (player.isDead || boss.recoveryTimer > 0) return;
   if (updateBossPendingSkill(boss, dt)) return;
 
   // 屠夫狂暴逻辑
