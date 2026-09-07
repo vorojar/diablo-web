@@ -2688,8 +2688,7 @@
             overflow: hidden;
         }
 
-        /* 图片背景 */
-        /* 图片背景 */
+        /* 登录封面 */
         #start-screen picture,
         #start-screen-bg {
             position: absolute;
@@ -2704,7 +2703,7 @@
 
 
 
-        /* 视频遮罩层，确保文字清晰可见 */
+        /* 轻量遮罩，保持登录文字清晰 */
         #start-screen::before {
             content: '';
             position: absolute;
@@ -2712,14 +2711,69 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.4);
+            background: linear-gradient(180deg, rgba(3, 12, 16, .12), rgba(3, 12, 16, .04) 60%, rgba(3, 12, 16, .25));
             z-index: 0;
         }
 
         #start-screen>*:not(img):not(picture) {
             position: relative;
             z-index: 1;
-            transform: translateY(200px);
+            transform: translateY(18px);
+        }
+
+        #start-screen > .login-brand {
+            position: absolute;
+            top: 12%;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            transform: none;
+            pointer-events: none;
+        }
+
+        .login-brand h1 {
+            margin: 0;
+            color: #f2d79b;
+            font-family: var(--font-ui);
+            font-size: clamp(42px, 7vw, 78px);
+            font-weight: 900;
+            letter-spacing: .12em;
+            padding-left: .12em;
+            text-shadow: 0 3px 0 #573919, 0 6px 24px #000;
+        }
+
+        .login-brand p {
+            margin: 10px 0 0;
+            color: #c2ad84;
+            font: 600 13px Georgia, serif;
+            letter-spacing: .48em;
+            padding-left: .48em;
+        }
+
+        #start-screen .start-btn {
+            border-color: #ac8248;
+            border-radius: 6px;
+            background: linear-gradient(#392d20, #1c1915);
+            color: #f4dfb6;
+            box-shadow: inset 0 0 0 2px #171411, 0 5px 22px #0008;
+        }
+
+        #start-screen .start-btn:hover:not(.disabled) {
+            background: linear-gradient(#594126, #2d231a);
+            border-color: #e3bd77;
+        }
+
+        @media (max-width: 768px) and (orientation: portrait) {
+            #start-screen > .login-brand { top: 17%; }
+            #start-screen #welcome-back { font-size: 16px; }
+            #start-screen .start-btn { font-size: 21px; padding: 14px 30px; }
+        }
+
+        @media (max-height: 480px) {
+            #start-screen > .login-brand { top: 4%; }
+            .login-brand h1 { font-size: 38px; }
+            .login-brand p { margin-top: 4px; font-size: 10px; }
+            #start-screen .start-btn { margin-top: 10px; padding: 10px 28px; font-size: 20px; }
         }
 
         #floating-texts-container {

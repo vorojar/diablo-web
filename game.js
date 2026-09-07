@@ -2445,7 +2445,7 @@ function createSimpleParticle(x, y, color, speed, angle) {
 }
 
 const wallTiles = new Image();
-wallTiles.src = 'wall_tiles.png?v=202604291730';
+wallTiles.src = 'art/brand-terrain/walls.webp?v=2026090803';
 let wallTilesLoaded = false;
 wallTiles.onload = () => {
     wallTilesLoaded = true;
@@ -2543,6 +2543,13 @@ function getBiomeStyle(floor) {
     return addBiomeAtmosphere({ tint: 'rgba(145, 38, 12, 0.20)', floorWash: 'rgba(20, 4, 2, 0.18)', wallWash: 'rgba(48, 8, 2, 0.24)', edge: 'rgba(255, 105, 38, 0.20)', crack: 'rgba(255, 72, 18, 0.32)', type: 'fire', ice: false });
 }
 
+// 坐标哈希决定材质变体，重建缓存不会闪变；不参与地图或碰撞生成。
+function getTerrainVariant(col, row) {
+    let hash = Math.imul(col + 1, 374761393) ^ Math.imul(row + 1, 668265263);
+    hash = Math.imul(hash ^ (hash >>> 13), 1274126177);
+    return ((hash ^ (hash >>> 16)) >>> 0) % 3;
+}
+
 function getWallTextureIndex(floor) {
     if (player.isInHell) return 2;
     // 复用现有的3张墙壁贴图来配合色调
@@ -2552,7 +2559,7 @@ function getWallTextureIndex(floor) {
 }
 
 const floorTiles = new Image();
-floorTiles.src = 'floor_tiles.png?v=202604291730';
+floorTiles.src = 'art/brand-terrain/floors.webp?v=2026090803';
 let floorTilesLoaded = false;
 floorTiles.onload = () => {
     floorTilesLoaded = true;
@@ -7195,7 +7202,8 @@ function generateMapCache() {
                 if (wallTilesLoaded) {
                     const wallIndex = getWallTextureIndex(player.floor);
                     const tileHeight = wallTiles.height / 3;
-                    cctx.drawImage(wallTiles, 0, wallIndex * tileHeight, wallTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
+                    const tileWidth = wallTiles.width / 3;
+                    cctx.drawImage(wallTiles, getTerrainVariant(c, r) * tileWidth, wallIndex * tileHeight, tileWidth, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
                     if (biome) {
                         cctx.fillStyle = biome.tint;
                         cctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
@@ -7225,7 +7233,8 @@ function generateMapCache() {
                 if (floorTilesLoaded) {
                     const floorIndex = getFloorTextureIndex(player.floor);
                     const tileHeight = floorTiles.height / 3;
-                    cctx.drawImage(floorTiles, 0, floorIndex * tileHeight, floorTiles.width, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
+                    const tileWidth = floorTiles.width / 3;
+                    cctx.drawImage(floorTiles, getTerrainVariant(c, r) * tileWidth, floorIndex * tileHeight, tileWidth, tileHeight, x, y, TILE_SIZE, TILE_SIZE);
 
                     // 棋盘格
                     if ((c + r) % 2 === 0) {

@@ -28,12 +28,12 @@
     <!-- <meta name="twitter:image" content="https://example.com/diablo-web/preview.jpg"> -->
 
     <!-- PWA -->
-    <link rel="icon" href="icon-192.png">
-    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon-32.png?v=2026090803" sizes="32x32">
+    <link rel="manifest" href="manifest.json?v=2026090803">
     <meta name="theme-color" content="#1a1a2e">
-    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="apple-touch-icon" href="icon-192.png?v=2026090803">
 
-    <link rel="stylesheet" href="style.css?v=2026090801">
+    <link rel="stylesheet" href="style.css?v=2026090803">
     <link rel="stylesheet" href="skill-art.css?v=2026090602">
 </head>
 
@@ -110,9 +110,10 @@
 
             <div id="start-screen">
                 <picture>
-                    <source media="(max-width: 768px)" srcset="mobile_bg.jpg?v=202512160647">
-                    <img id="start-screen-bg" src="bg.jpg?v=202512160647" alt="背景">
+                    <source media="(max-width: 768px) and (orientation: portrait)" srcset="art/brand-terrain/cover-mobile.webp?v=2026090803">
+                    <img id="start-screen-bg" src="art/brand-terrain/cover-desktop.webp?v=2026090803" alt="蓝围巾冒险者守候在暮色营地，石拱门通向森林" fetchpriority="high">
                 </picture>
+                <div class="login-brand"><h1>菠萝战纪</h1><p>BRAWLORE</p></div>
                 <div id="welcome-back"></div>
 
                 <!-- 云同步状态栏 -->
@@ -777,7 +778,7 @@
     <script src="art-samples.js?v=2026090801"></script>
     <script src="environment-art.js?v=2026090701"></script>
     <script src="skill-branches.js?v=2026090601"></script>
-    <script src="game.js?v=2026090802"></script>
+    <script src="game.js?v=2026090803"></script>
     <script src="skill-art.js?v=2026090602"></script>
     <script src="pocketbase.umd.js"></script>
     <script src="online.js?v=202606130910"></script>

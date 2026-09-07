@@ -88,6 +88,21 @@ node tools/compress-runtime-art.js
 
 ## 验收入口
 
+### 2026-09-08 封面、图标与基础贴图补齐
+
+仅替换登录横竖版封面、浏览器/PWA菠萝盾徽、旧墙地纹理；已验收角色、怪物、地标、HUD、地图和碰撞保持原样。原稿与重建说明见 [素材目录](../art/brand-terrain/README.md)。
+
+| 验收项 | 结果与证据（下文会话截图目录） |
+|---|---|
+| 桌面1280×850、手机390×844、窄屏320×568登录 | PASS：标题、按钮、主角无遮挡，无横向溢出；`brand-login-desktop.png`、`brand-login-mobile.png`、`brand-login-320.png` |
+| 登录交互 | PASS：踏入庇护所打开三个存档槽；QA入口隔离线上服务，不写真实存档 |
+| 营地、森林、冰窟、熔岩 | PASS：墙地材质分区与通行边界清晰，运行错误0、未处理Promise0；`brand-terrain-{town,forest,ice,fire}.png` |
+| 运行素材 | PASS：横版134400B、竖版100220B、墙56678B、地24190B；PNG原稿不被游戏请求；32/192/512图标尺寸正确 |
+| 启动资源 | 60项9480110B，包含浏览器视口切换触发的横竖两版封面；不含缓存命中后的流量解释。`brand-startup-network.json`；旧封面/旧墙地请求为0 |
+| 自动验证 | Agent Flow完整验证通过（197秒）；新增3600格稳定变体、尺寸与单版封面+墙地+favicon低于250KB检查；既有碰撞和美术回归通过 |
+
+手机为浏览器视口模拟，未声称实体手机或PWA安装验收。纯前端无需后端重启，刷新页面即可加载带新版本号的资源。
+
 - `tools/test-art-coverage.js`：192个英雄动作方向帧、960个怪物/Boss动作方向帧，真实Canvas绘制，旧图故障回归。
 - `tools/test-art-samples.js`：所有实际源图的真实透明、共享缩放、脚底锚点及切格。
 - `tools/test-environment-art.js`：对照真实地图配置检查场景、NPC与破坏态，无遗漏映射。
