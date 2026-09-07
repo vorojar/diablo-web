@@ -88,6 +88,23 @@ node tools/compress-runtime-art.js
 
 ## 验收入口
 
+### 2026-09-08 立体护盾试验
+
+结论：球面厚度和真实受击波纹可见，人物与原有分支纹饰保留；提升偏细腻，尚未达到继续扩展陨石/雷暴的标准。保留默认关闭的试验开关（系统设置→通用设置），只在华丽特效模式生效。采用独立约5KB原生WebGL球面着色代码，无新图片、模型或Three.js依赖；未实现全场景深度、折射或真实体积光。
+
+| case | 结果 | 本文会话目录证据 |
+|---|---|---|
+| shader/人物前后层/同尺寸原版对照 | PASS | `shield-comparison-desktop.png`，QA“护盾并排对比” |
+| 真实伤害入口 | PASS：护盾吸收50，定向波纹触发 | `shield-3d-impact.png`，QA“护盾真实受击” |
+| 手机390×844 | PASS：人物可读、球面完整 | `shield-3d-mobile.png`（桌面浏览器模拟，非手机GPU） |
+| 实际设置开关 | PASS：默认false→点击后true | `shield-setting.png`；需收起QA控制台，避免其遮挡设置页 |
+| 回归 | PASS：完整Agent Flow验证113秒 | `test-shield-3d.js`覆盖性能模式前后层、关闭试验、分支纹饰、护盾结束、无WebGL回退 |
+| 运行错误 | PASS：错误0/未处理Promise0 | QA `#qa-errors` |
+
+初步180帧采样：桌面3D中位8.3ms/P95 12.4ms，原版4.2ms/8.4ms，移动视口3D 4.2ms/8.3ms。窗口尺寸、绘制负载与刷新调度未严格锁定，这些只用于冒烟检测，不能作为GPU耗时或性能差值结论；`renderMs`仅计CPU提交时间。正式扩大范围前仍需真实手机和受控A/B压测。
+
+设置交互追踪：首次QA展开时点击“通用设置”未切页，随后对checkbox及checkmark的点击超时（DOM报告隐藏）；读取DOM确认general仍display:none；收起QA→点击通用设置→点击可见checkmark→DOM checked=true。原因是QA控制台遮挡，不修改生产设置逻辑。
+
 ### 2026-09-08 封面、图标与基础贴图补齐
 
 仅替换登录横竖版封面、浏览器/PWA菠萝盾徽、旧墙地纹理；已验收角色、怪物、地标、HUD、地图和碰撞保持原样。原稿与重建说明见 [素材目录](../art/brand-terrain/README.md)。

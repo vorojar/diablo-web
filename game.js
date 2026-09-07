@@ -827,6 +827,7 @@ const player = {
     // 打击感设置
     juiceEnabled: false, // 默认关闭打击感增强
     // 画质设置
+    experimentalShield3D: false, // 立体护盾试验默认关闭
     graphicsQuality: 'high',  // 'high'=华丽特效, 'low'=性能优先
     // 难度系统
     defeatedBaal: false,  // 是否击败巴尔（同时用于解锁地狱模式）
@@ -3549,6 +3550,7 @@ function drawShieldMirrorFacets(ctx, profile, visualTier, shieldPercent, pulse) 
 
 function drawPlayerShieldBack(ctx, x, y) {
     if (!player.shield?.active || !(player.shield.value > 0)) return;
+    if (player.experimentalShield3D === true && player.graphicsQuality !== 'low' && typeof Shield3D !== 'undefined' && Shield3D.draw(ctx, x, y, player.shield, false)) return;
 
     const shieldPercent = Math.max(0, Math.min(1, player.shield.value / player.shield.maxValue));
     const profile = getPlayerShieldVisualProfile();
@@ -3592,6 +3594,15 @@ function drawPlayerShieldBack(ctx, x, y) {
 
 function drawPlayerShieldFront(ctx, x, y) {
     if (!player.shield?.active || !(player.shield.value > 0)) return;
+    if (player.experimentalShield3D === true && player.graphicsQuality !== 'low' && typeof Shield3D !== 'undefined' && Shield3D.draw(ctx, x, y, player.shield, true)) {
+        ctx.save();ctx.translate(x,y);
+        const profile=getPlayerShieldVisualProfile(),tier=getShieldVisualGrowthTier();
+        const ratio=Math.max(0,Math.min(1,player.shield.value/player.shield.maxValue));
+        const pulse=.5+Math.sin(Date.now()/220)*.5;
+        drawShieldSacredWallRunes(ctx,profile,tier,ratio,pulse);
+        drawShieldMirrorFacets(ctx,profile,tier,ratio,pulse);
+        ctx.restore();return;
+    }
 
     const shieldPercent = Math.max(0, Math.min(1, player.shield.value / player.shield.maxValue));
     const profile = getPlayerShieldVisualProfile();
@@ -5479,6 +5490,7 @@ function startGame() {
 
     // 同步画质设置的选择框状态
     document.getElementById('select-graphics-quality').value = player.graphicsQuality || 'high';
+    document.getElementById('chk-shield-3d').checked = player.experimentalShield3D === true;
 
     // 死亡状态恢复：如果存档时处于死亡状态（弹窗未选择就刷新），自动回城
     if (player.isDead) {
@@ -13323,6 +13335,7 @@ function playerTakeDamage(rawDamage, source, options = {}) {
         }
 
         if (shieldAbsorbed > 0) {
+            if (typeof Shield3D !== 'undefined') Shield3D.hit(source ? source.x-player.x : 1, source ? source.y-player.y : 0);
             const sourceAngle = source ? Math.atan2(player.y - source.y, player.x - source.x) : 0;
             spawnVfxEffect(COMBAT_FEEDBACK_VFX.guardFlash, player.x, player.y - 12, 0.82, sourceAngle);
             spawnVfxEffect('shieldPulseStatus', player.x, player.y + 4, 0.75, 0);
