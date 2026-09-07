@@ -311,8 +311,7 @@
         if(button.dataset.action==='meteor-depth'||button.dataset.action==='storm-depth'){
             if(!gameActive)start();if(isInTown())enter();previewCleanup();gallery.style.display='none';
             const meteor=button.dataset.action==='meteor-depth',skill=meteor?'fireball':'thunder';
-            player.experimentalMeteor3D=true;player.experimentalStorm3D=true;player.graphicsQuality='high';
-            document.getElementById('chk-meteor-3d').checked=true;document.getElementById('chk-storm-3d').checked=true;
+            player.graphicsQuality='high';
             document.getElementById('qa-skill').value=skill;fillBranches();
             player.skillTree[skill]={stage1:5,stage2:{chosen:meteor?'explosion':'chain',level:5},stage3:{chosen:meteor?'meteor':'storm',level:5}};
             syncSkillsFromTree();updateSkillsUI();SkillBranchSystem.reset();Elemental3D.prepare();cast();
@@ -347,24 +346,23 @@
             const paint=()=>{
                 if(!active)return;c.fillStyle='#14221d';c.fillRect(0,0,720,320);
                 c.fillStyle='#e9dfc3';c.font='18px sans-serif';c.fillText('原版',150,30);c.fillText('立体试验',495,30);
-                const liveShield=player.shield,flag=player.experimentalShield3D,quality=player.graphicsQuality,gpuEnabled=Shield3D.getStats().enabled;
+                const liveShield=player.shield,quality=player.graphicsQuality,gpuEnabled=Shield3D.getStats().enabled;
                 const frame=getHeroFrame(player.direction),height=HERO_SPRITE_CONFIG.renderSize,width=height*frame.width/frame.height;
                 try {
                     player.shield=previewShield;player.graphicsQuality='high';
                     for(let i=0;i<2;i++){
-                        player.experimentalShield3D=!!i;Shield3D.setEnabled(!!i);
+                        Shield3D.setEnabled(!!i);
                         c.save();c.translate(180+i*360,250);c.scale(2,2);
                         drawPlayerShieldBack(c,0,0);drawHeroSprite(c,frame.source || processedHeroSprites,frame,0,-height+(frame.offsetY || 0),width,height,null);drawPlayerShieldFront(c,0,0);c.restore();
                     }
-                } finally {player.shield=liveShield;player.experimentalShield3D=flag;player.graphicsQuality=quality;Shield3D.setEnabled(gpuEnabled);}
+                } finally {player.shield=liveShield;player.graphicsQuality=quality;Shield3D.setEnabled(gpuEnabled);}
                 requestAnimationFrame(paint);
             };paint();return;
         }
         if(button.dataset.action==='shield-3d' || button.dataset.action==='shield-2d'){
             if(!gameActive)start();if(isInTown())enter();closePanels();
-            player.experimentalShield3D=button.dataset.action==='shield-3d';
-            document.getElementById('chk-shield-3d').checked=player.experimentalShield3D;
-            Shield3D.setEnabled(true);
+            Shield3D.setEnabled(button.dataset.action==='shield-3d');
+
             player.shield.cooldown=0;castSkill('holy_shield');player.shield.timer=120;
             document.getElementById('qa-shield').textContent=JSON.stringify(Shield3D.getStats());panel.open=false;return;
         }
@@ -376,7 +374,7 @@
         if(button.dataset.action==='shield-bench'){
             if(!gameActive)start();if(isInTown())enter();if(!player.shield.active){player.shield.cooldown=0;castSkill('holy_shield');}player.shield.timer=120;
             const startFrames=Shield3D.getStats().frames;const samples=[];let previous=performance.now();
-            const sample=now=>{samples.push(now-previous);previous=now;if(samples.length<180){requestAnimationFrame(sample);return;}samples.sort((a,b)=>a-b);document.getElementById('qa-shield').textContent=JSON.stringify({frames:samples.length,viewport:[innerWidth,innerHeight],experimental:player.experimentalShield3D,renderedFrames:Shield3D.getStats().frames-startFrames,median:samples[90],p95:samples[171],renderer:Shield3D.getStats()});};requestAnimationFrame(sample);return;
+            const sample=now=>{samples.push(now-previous);previous=now;if(samples.length<180){requestAnimationFrame(sample);return;}samples.sort((a,b)=>a-b);document.getElementById('qa-shield').textContent=JSON.stringify({frames:samples.length,viewport:[innerWidth,innerHeight],enabled:Shield3D.getStats().enabled,renderedFrames:Shield3D.getStats().frames-startFrames,median:samples[90],p95:samples[171],renderer:Shield3D.getStats()});};requestAnimationFrame(sample);return;
         }
         if(button.dataset.action==='hud'){checkHudLayout();return;}
         if(button.dataset.action==='combat-audit'){recordCombat();return;}

@@ -158,3 +158,10 @@ node tools/compress-runtime-art.js
 | 手机森林、HUD与素材加载 | PASS | `art-mobile-forest.png` / `art-browser-audit.json` |
 
 截图目录：`C:/Users/voroj/.codex/visualizations/2026/09/06/01a076cc-6a6b-7c00-900a-1eeddbea931a/`。本地验收服务器与测试浏览器页交付时关闭；测试角色不写入存档。纯前端无需构建服务或后端重启。
+
+
+### 立体特效正式启用（2026-09-08，取代此前试验开关方案）
+
+用户实测效果与流畅度满意后，护盾、陨石、雷暴正式随华丽特效自动启用，移除独立开关与生产代码中的旧试验标记判断；旧存档无需重新勾选。性能优先模式继续使用原有效果。雷暴删除云团及其体积着色计算，保留范围圈和按伤害节拍连接目标的落雷，陨石纹理缩为128×128。测试覆盖旧标记不影响默认护盾、雷暴不绘制云团且保留落雷、画质切换不改变伤害/耗蓝/持续时间。
+
+验收通过：Agent Flow 全量验证104秒；本地 QA 实测雷暴与陨石页面运行错误/未处理Promise均为0，设置中旧独立开关数量为0。真实施法截图位于会话证据目录 `C:/Users/voroj/.codex/visualizations/2026/09/06/01a076cc-6a6b-7c00-900a-1eeddbea931a/`：`storm-no-cloud.png`、`meteor-default.png`。

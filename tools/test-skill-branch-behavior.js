@@ -119,11 +119,11 @@ test('真实护甲入口保持分支箭与基础箭单箭伤害相同',()=>{setu
 ctx.takeDamage=simpleDamage;
 vm.runInContext(fs.readFileSync(path.join(root,'elemental-3d.js'),'utf8')+'\nglobalThis.depthEffects=Elemental3D;',ctx);
 test('立体陨石开关不改变伤害、落地时间、燃烧区域和耗蓝',()=>{
-    function run(on){setup('fireball','explosion','meteor');ctx.player.experimentalMeteor3D=on;ctx.player.graphicsQuality='high';const target=enemy();cast('fireball');const p=ctx.projectiles[0];p.age=.29;s.projectile(p,.29);assert.equal(target.hp,10000);p.age=.3;s.projectile(p,.01);return {hp:target.hp,mp:ctx.player.mp,life:p.life,areas:s.areas.map(a=>({radius:a.radius,time:a.time,damage:a.damage}))};}
+    function run(on){setup('fireball','explosion','meteor');ctx.player.graphicsQuality=on?'high':'low';const target=enemy();cast('fireball');const p=ctx.projectiles[0];p.age=.29;s.projectile(p,.29);assert.equal(target.hp,10000);p.age=.3;s.projectile(p,.01);return {hp:target.hp,mp:ctx.player.mp,life:p.life,areas:s.areas.map(a=>({radius:a.radius,time:a.time,damage:a.damage}))};}
     assert.deepEqual(run(true),run(false));
 });
 test('立体雷暴开关不改变半秒伤害、范围和持续时间',()=>{
-    function run(on){setup('thunder','chain','storm');ctx.player.experimentalStorm3D=on;ctx.player.graphicsQuality='high';const target=enemy();cast('thunder');const start=target.hp;s.update(.49);assert.equal(target.hp,start);s.update(.01);const result={hp:target.hp,mp:ctx.player.mp,areas:s.areas.map(a=>({radius:a.radius,time:a.time,interval:a.interval,damage:a.damage}))};s.reset();assert.equal(ctx.depthEffects.getStats().bolts,0);return result;}
+    function run(on){setup('thunder','chain','storm');ctx.player.graphicsQuality=on?'high':'low';const target=enemy();cast('thunder');const start=target.hp;s.update(.49);assert.equal(target.hp,start);s.update(.01);const result={hp:target.hp,mp:ctx.player.mp,areas:s.areas.map(a=>({radius:a.radius,time:a.time,interval:a.interval,damage:a.damage}))};s.reset();assert.equal(ctx.depthEffects.getStats().bolts,0);return result;}
     assert.deepEqual(run(true),run(false));
 });
 }

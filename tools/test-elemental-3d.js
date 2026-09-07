@@ -12,6 +12,15 @@ fx.update(1,true,true);assert.equal(fx.getStats().impacts,0);assert.equal(fx.get
 fx.impact(100,200,70,true);fx.update(.01,false,true);assert.equal(fx.getStats().impacts,0);
 fx.impact(100,200,70,false);assert.equal(fx.getStats().impacts,0);
 fx.pulse({x:0,y:0,bonus:{stormMode:false}},[],true);assert.equal(fx.getStats().bolts,0);
+// 雷暴只绘制范围与落雷，不生成云团纹理或启动GPU。
+let images=0,strokes=0;
+const stormCtx=new Proxy({}, {get:(_,key)=>key==='drawImage'?()=>images++:key==='stroke'?()=>strokes++:key==='createRadialGradient'?()=>({addColorStop(){}}):()=>{}});
+const area={x:100,y:200,radius:120,time:2,element:'lightning',bonus:{stormMode:true}};
+fx.pulse(area,[{x:120,y:220}],true);
+fx.ground(stormCtx,[],[area],camera,false,true);
+fx.foreground(stormCtx,[area],camera,false,true);
+assert.equal(images,0,'雷暴不得绘制云团图像');assert(strokes>=3,'保留范围圈与双色落雷');
+assert.equal(fx.getStats().ready,false,'雷暴绘制无需GPU纹理');
 assert.equal(fx.meteor(ctx,{life:1,meteorTarget:{x:1,y:2}},true),false,'无WebGL返回原图集绘制');
 assert.equal(fx.getStats().failed,true);
 fx.clear();assert.equal(fx.getStats().impacts+fx.getStats().bolts,0);

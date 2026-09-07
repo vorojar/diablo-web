@@ -8,13 +8,13 @@ const scope={player:{graphicsQuality:'low',experimentalShield3D:true,shield:{act
 vm.createContext(scope);vm.runInContext(extract('drawPlayerShieldBack')+extract('drawPlayerShieldFront'),scope);
 function pair(){scope.drawPlayerShieldBack(ctx,0,0);scope.drawPlayerShieldFront(ctx,0,0);}
 pair();assert.equal(gpu,0,'性能优先模式前后层都应使用原版');
-scope.player.graphicsQuality='high';scope.player.experimentalShield3D=false;pair();assert.equal(gpu,0,'试验未开启时保持原版');
-scope.player.experimentalShield3D=true;runes=0;pair();assert.equal(gpu,2);assert.equal(runes,2,'立体层保留既有分支纹饰');
-scope.player.shield.active=false;pair();assert.equal(gpu,2,'护盾结束后不得绘制');
+scope.player.graphicsQuality='high';scope.player.experimentalShield3D=false;pair();assert.equal(gpu,2,'旧存档关闭标记不再阻止默认立体效果');
+scope.player.experimentalShield3D=true;runes=0;pair();assert.equal(gpu,4);assert.equal(runes,2,'立体层保留既有分支纹饰');
+scope.player.shield.active=false;pair();assert.equal(gpu,4,'护盾结束后不得绘制');
 let contexts=0;
 const unavailable={document:{createElement:()=>({getContext(){contexts++;return null;}})},performance:{now:()=>1000}};
 vm.createContext(unavailable);vm.runInContext(fs.readFileSync(path.join(root,'shield-3d.js'),'utf8')+'\nglobalThis.fx=Shield3D;',unavailable);
 assert.equal(unavailable.fx.draw(ctx,0,0,{active:false,value:0},false),false);assert.equal(contexts,0,'无护盾不初始化GPU');
 for(let i=0;i<3;i++)assert.equal(unavailable.fx.draw(ctx,0,0,{active:true,value:50,maxValue:100},false),false);
 assert.equal(contexts,1,'无WebGL仅尝试一次，保留2D绘制');
-console.log('PASS: 性能模式/试验开关/分支纹饰/结束清理/WebGL不可用回退');
+console.log('PASS: 性能模式/默认启用与旧标记/分支纹饰/结束清理/WebGL不可用回退');
