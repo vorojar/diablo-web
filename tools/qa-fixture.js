@@ -18,6 +18,7 @@
     panel.insertAdjacentHTML('beforeend','<button data-action="network-audit">统计全部加载资源</button><pre id="qa-network" style="white-space:pre-wrap"></pre>');
     panel.insertAdjacentHTML('beforeend','<button data-action="wall-audit">实测向墙内移动</button>');
     const status=text=>document.getElementById('qa-status').textContent=text;
+    panel.insertAdjacentHTML('beforeend','<button data-action="meteor-depth">实测立体陨石</button><button data-action="storm-depth">实测立体雷暴</button><output id="qa-elemental" style="display:block;white-space:pre-wrap"></output>');
     panel.insertAdjacentHTML('beforeend','<button data-action="shield-compare">护盾并排对比</button>');
     panel.insertAdjacentHTML('beforeend','<details open><summary>立体特效对比</summary><button data-action="shield-3d">开启立体护盾</button><button data-action="shield-2d">切换原版护盾</button><button data-action="shield-hit">护盾真实受击</button><button data-action="shield-bench">测量护盾帧耗时</button><output id="qa-shield" style="display:block;white-space:pre-wrap"></output></details>');
     // 只覆盖此测试页面的存档写入，保留原始页面真实本地存档行为。
@@ -307,6 +308,35 @@
     panel.addEventListener('click',event=>{
         event.stopPropagation();const button=event.target.closest('button');if(!button)return;
         if(button.dataset.panel){showPanel(button.dataset.panel);return;}
+        if(button.dataset.action==='meteor-depth'||button.dataset.action==='storm-depth'){
+            if(!gameActive)start();if(isInTown())enter();previewCleanup();gallery.style.display='none';
+            const meteor=button.dataset.action==='meteor-depth',skill=meteor?'fireball':'thunder';
+            player.experimentalMeteor3D=true;player.experimentalStorm3D=true;player.graphicsQuality='high';
+            document.getElementById('chk-meteor-3d').checked=true;document.getElementById('chk-storm-3d').checked=true;
+            document.getElementById('qa-skill').value=skill;fillBranches();
+            player.skillTree[skill]={stage1:5,stage2:{chosen:meteor?'explosion':'chain',level:5},stage3:{chosen:meteor?'meteor':'storm',level:5}};
+            syncSkillsFromTree();updateSkillsUI();SkillBranchSystem.reset();Elemental3D.prepare();cast();
+            const captures=[],times=meteor?[.09,.22,.48]:[.2,.55,1.1],began=performance.now(),hpBefore=lastCast.hpBefore;
+            let active=true;previewCleanup=()=>{active=false;};
+            const record=now=>{
+                if(!active)return;const elapsed=(now-began)/1000;
+                if(captures.length<times.length && elapsed>=times[captures.length]){
+                    const shot=document.createElement('canvas');shot.width=320;shot.height=320;
+                    const source=document.getElementById('gameCanvas'),sx=source.width/getViewportWidth(),sy=source.height/getViewportHeight();
+                    const width=Math.min(source.width,320*sx),height=Math.min(source.height,320*sy);
+                    const left=Math.max(0,Math.min(source.width-width,(practiceTarget.x-camera.x-160)*sx)),top=Math.max(0,Math.min(source.height-height,(practiceTarget.y-camera.y-230)*sy));
+                    shot.getContext('2d').drawImage(source,left,top,width,height,0,0,320,320);
+                    captures.push({shot,elapsed});
+                }
+                if(elapsed<1.4){requestAnimationFrame(record);return;}
+                const result={skill,hpBefore,hpAfter:practiceTarget.hp,damage:hpBefore-practiceTarget.hp,renderer:Elemental3D.getStats(),frames:captures.map(item=>item.elapsed)};
+                document.getElementById('qa-elemental').textContent=JSON.stringify(result);
+                galleryHeader(meteor?'立体陨石：真实施法过程截图':'立体雷暴：真实施法过程截图');
+                const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;flex-wrap:wrap';gallery.appendChild(row);
+                for(const item of captures){const card=document.createElement('section'),label=document.createElement('p');label.textContent=`施法后 ${item.elapsed.toFixed(2)} 秒`;card.append(label,item.shot);row.appendChild(card);}
+                const note=document.createElement('p');note.textContent=`练习目标受到 ${result.damage} 伤害；GPU图集 ${result.renderer.ready?'已加载':'未加载'}。`;gallery.appendChild(note);
+            };requestAnimationFrame(record);return;
+        }
         if(button.dataset.action==='shield-compare'){
             if(!gameActive)start();if(isInTown())enter();player.shield.cooldown=0;castSkill('holy_shield');player.shield.timer=120;
             galleryHeader('原版护盾 / 立体护盾试验 · 同角色、同尺寸放大对照');
@@ -370,6 +400,7 @@
             peakProjectiles,peakAreas,chargeSeconds:SkillBranchSystem.charge?.time,arcShield:SkillBranchSystem.arcShield,
             target:practiceTarget ? {name:practiceTarget.name,hp:practiceTarget.hp,maxHp:practiceTarget.maxHp,damageSinceCast:lastCast.hpBefore-practiceTarget.hp}:null,
             lastCast,shield:player.shield,layoutReport,artReport,
+            elemental:typeof Elemental3D === 'undefined'?null:Elemental3D.getStats(),
             artLoaded:Object.keys(ArtSamples.definitions).filter(key=>ArtSamples.isLoaded(key)),
             environmentLoaded:Object.keys(EnvironmentArt.definitions).filter(key=>EnvironmentArt.frame(key,0,0)),
             heroCache:HeroTintCache.getStats(),monsterCache:MonsterTintCache.getStats()

@@ -827,6 +827,8 @@ const player = {
     // 打击感设置
     juiceEnabled: false, // 默认关闭打击感增强
     // 画质设置
+    experimentalMeteor3D: false, // 陨石立体表现试验
+    experimentalStorm3D: false, // 雷暴立体表现试验
     experimentalShield3D: false, // 立体护盾试验默认关闭
     graphicsQuality: 'high',  // 'high'=华丽特效, 'low'=性能优先
     // 难度系统
@@ -1372,6 +1374,7 @@ function drawVfxEffect(ctx, fx) {
 }
 
 function drawProjectileVfx(ctx, p) {
+    if (typeof Elemental3D !== 'undefined' && Elemental3D.meteor(ctx,p,player.experimentalMeteor3D === true && player.graphicsQuality !== 'low')) return true;
     const effectId = PROJECTILE_VFX[p.type] || (p.isTentacle ? PROJECTILE_VFX.tentacle : null);
     const effect = effectId ? VFX_SPRITE_CONFIG?.effects?.[effectId] : null;
     if (!vfxSpritesLoaded || !effect) return false;
@@ -5491,6 +5494,9 @@ function startGame() {
     // 同步画质设置的选择框状态
     document.getElementById('select-graphics-quality').value = player.graphicsQuality || 'high';
     document.getElementById('chk-shield-3d').checked = player.experimentalShield3D === true;
+    document.getElementById('chk-meteor-3d').checked = player.experimentalMeteor3D === true;
+    document.getElementById('chk-storm-3d').checked = player.experimentalStorm3D === true;
+    if (typeof Elemental3D !== 'undefined' && player.graphicsQuality !== 'low' && (player.experimentalMeteor3D === true || player.experimentalStorm3D === true)) Elemental3D.prepare();
 
     // 死亡状态恢复：如果存档时处于死亡状态（弹窗未选择就刷新），自动回城
     if (player.isDead) {
@@ -7985,6 +7991,7 @@ function update(dt) {
     camera.x = Math.round(player.x) - getViewportWidth() / 2;
     camera.y = Math.round(player.y) - getViewportHeight() / 2;
 
+    if (typeof Elemental3D !== 'undefined') Elemental3D.update(dt,player.experimentalMeteor3D === true && player.graphicsQuality !== 'low',player.experimentalStorm3D === true && player.graphicsQuality !== 'low');
     SkillBranchSystem.update(dt);
     updateEnemies(dt);
     EnemySpatialGrid.rebuild(gameFrameId);
@@ -8863,6 +8870,7 @@ function draw() {
         }
     }
 
+    if (typeof Elemental3D !== 'undefined') Elemental3D.ground(ctx,projectiles,SkillBranchSystem.areas,{x:camera.x,y:camera.y,width:viewportWidth,height:viewportHeight},player.experimentalMeteor3D === true && player.graphicsQuality !== 'low',player.experimentalStorm3D === true && player.graphicsQuality !== 'low');
     // 渲染可破坏物体
     drawGroundItems(ctx);
     DestructibleSystem.draw(ctx, 'behindPlayer');
@@ -9045,6 +9053,7 @@ function draw() {
         drawOutlinedText(ctx, '▼', target.x, target.y - target.radius - 48, '#ff4444', 'bold 18px Arial');
     }
 
+    if (typeof Elemental3D !== 'undefined') Elemental3D.foreground(ctx,SkillBranchSystem.areas,{x:camera.x,y:camera.y,width:viewportWidth,height:viewportHeight},player.experimentalMeteor3D === true && player.graphicsQuality !== 'low',player.experimentalStorm3D === true && player.graphicsQuality !== 'low');
     for (let pi = 0, pLen = projectiles.length; pi < pLen; pi++) {
         const p = projectiles[pi];
         // 视口剔除

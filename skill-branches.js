@@ -2,6 +2,7 @@
 const SkillBranchSystem = {
     states: new Map(), areas: [], volleys: [], charge: null, arcShield: 0, arcShieldImmuneCC: false,
     reset() {
+        if(typeof Elemental3D !== 'undefined')Elemental3D.clear();
         this.states.clear(); this.areas.length = 0; this.volleys.length = 0;
         this.charge = null; this.arcShield = 0; this.arcShieldImmuneCC = false;
         for(const p of projectiles)if(p.branch)p.life=0;
@@ -131,6 +132,7 @@ const SkillBranchSystem = {
         for (const e of this.nearby(p.x,p.y,radius,hit)) {if(this.deal(e,damage,'fire')>0)this.burn(e,p.damage,bonus);}
         AudioSys.playFireballExplosion(level);
         emitSkillImpactBurst('fireball',p.x,p.y,p.angle,bonus.meteorMode?2:1.4);
+        if(bonus.meteorMode && typeof Elemental3D !== 'undefined')Elemental3D.impact(p.x,p.y,radius,player.experimentalMeteor3D === true && player.graphicsQuality !== 'low');
         if (bonus.groundFire) this.areas.push({x:p.x,y:p.y,radius,time:bonus.groundFire,tick:0,interval:0.5,damage:damage*0.5,element:'fire',bonus});
     },
     hit(p,e) {
@@ -270,7 +272,9 @@ const SkillBranchSystem = {
             const a=this.areas[i],elapsed=Math.min(dt,a.time);a.time-=elapsed;a.tick+=elapsed;
             const targets=this.nearby(a.x,a.y,a.radius);
             if(a.bonus.slowAmount)for(const e of targets)this.state(e).stormSlow={time:0.15,amount:a.bonus.slowAmount};
-            while(a.tick>=a.interval-1e-9){a.tick-=a.interval;for(const e of targets)this.deal(e,a.damage,a.element);emitSkillImpactBurst(a.element==='fire'?'fireball':'thunder',a.x,a.y,0,1.2);}
+            while(a.tick>=a.interval-1e-9){a.tick-=a.interval;
+                if(a.element==='lightning' && typeof Elemental3D !== 'undefined')Elemental3D.pulse(a,targets,player.experimentalStorm3D === true && player.graphicsQuality !== 'low');
+                for(const e of targets)this.deal(e,a.damage,a.element);emitSkillImpactBurst(a.element==='fire'?'fireball':'thunder',a.x,a.y,0,1.2);}
             if(a.time<=1e-9)this.areas.splice(i,1);
         }
     },
