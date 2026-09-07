@@ -32,6 +32,8 @@
         }
 
         :root {
+            --font-ui: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            --font-number: 'Roboto', 'Segoe UI', sans-serif;
             --bg-color: #050505;
             --ui-border: #5d4a37;
             --ui-header-bg: #2a2218;
@@ -56,7 +58,7 @@
             overflow: hidden;
             background-color: var(--bg-color);
             color: #ccc;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             user-select: none;
             -webkit-user-select: none;
         }
@@ -82,7 +84,7 @@
         .damage-number {
             position: absolute;
             pointer-events: none;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             font-weight: 900;
             text-shadow: 1px 1px 2px #000, 0 0 5px rgba(0, 0, 0, 0.5);
             z-index: 100;
@@ -151,7 +153,7 @@
             opacity: 0;
             transition: opacity 0.3s;
             z-index: 100;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
         }
 
         #combo-hud.active {
@@ -281,17 +283,19 @@
         }
 
         .orb-container {
-            width: 130px;
-            height: 130px;
-            flex: 0 0 130px;
+            width: 108px;
+            height: 108px;
+            flex: 0 0 108px;
             aspect-ratio: 1 / 1;
             position: relative;
             background: #000;
             border-radius: 50%;
-            /* 外部边框模拟金属镶嵌 */
+            /* 与面板、技能格共用的暗铜镶边 */
             box-shadow:
-                0 0 10px #000,
-                inset 0 0 20px #000;
+                0 0 0 2px #14110d,
+                0 0 0 3px var(--ui-metal-edge),
+                0 5px 12px #000,
+                inset 0 0 18px #000;
             overflow: hidden;
             z-index: 10;
         }
@@ -305,7 +309,7 @@
             width: 30%;
             height: 20%;
             border-radius: 50%;
-            background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 70%);
+            background: radial-gradient(ellipse at center, rgba(255, 237, 207, 0.25) 0%, rgba(255, 255, 255, 0) 70%);
             transform: rotate(-45deg);
             pointer-events: none;
             z-index: 5;
@@ -320,7 +324,7 @@
             width: 60%;
             height: 20%;
             border-radius: 50%;
-            background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0) 70%);
+            background: radial-gradient(ellipse at center, rgba(255, 237, 207, 0.08) 0%, rgba(255, 255, 255, 0) 70%);
             pointer-events: none;
             z-index: 5;
         }
@@ -353,12 +357,12 @@
 
         #health-orb .orb-fill {
             /* 更加深邃和立体的红色液体 */
-            background: linear-gradient(to top, #4a0000 0%, #8a0e0e 50%, #ff4d4d 100%);
-            box-shadow: 0 0 30px #ff0000 inset;
+            background: radial-gradient(ellipse at 40% 15%, #bc4940, #7b241f 55%, #310b0b);
+            box-shadow: inset 0 0 18px #290b0b;
         }
 
         #health-orb {
-            border: 3px solid #522;
+            border: 3px solid var(--ui-metal-edge);
             transition: filter 0.3s ease;
         }
 
@@ -373,12 +377,12 @@
 
         #mana-orb .orb-fill {
             /* 更加深邃和立体的蓝色液体 */
-            background: linear-gradient(to top, #001a4d 0%, #0e2a8a 50%, #4d94ff 100%);
-            box-shadow: 0 0 30px #0055ff inset;
+            background: radial-gradient(ellipse at 40% 15%, #487eb5, #204b76 55%, #0a1c32);
+            box-shadow: inset 0 0 18px #081c31;
         }
 
         #mana-orb {
-            border: 3px solid #225;
+            border: 3px solid var(--ui-metal-edge);
             transition: filter 0.3s ease, transform 0.1s ease;
         }
 
@@ -418,6 +422,8 @@
         }
 
         .orb-text {
+            font-family: var(--font-number);
+            font-variant-numeric: tabular-nums;
             position: absolute;
             top: 50%;
             left: 50%;
@@ -844,6 +850,8 @@
         }
 
         .panel-header {
+            font-family: var(--font-ui);
+            font-weight: 600;
             text-align: center;
             font-size: 1.2em;
             margin-bottom: 15px;
@@ -852,7 +860,7 @@
             cursor: move;
             user-select: none;
             color: #e0c884;
-            text-shadow: 0 1px 0 #000, 0 0 12px rgba(199, 179, 119, 0.28);
+            text-shadow: 0 1px 0 #000;
             background:
                 linear-gradient(90deg, transparent, rgba(111, 90, 55, 0.2), transparent);
         }
@@ -865,9 +873,9 @@
             width: 24px;
             height: 24px;
             border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, #ff6666 0%, #cc2222 50%, #880000 100%);
-            border: 2px solid #5d4a37;
-            box-shadow: 0 0 5px rgba(0, 0, 0, 0.8), inset 0 2px 3px rgba(255, 255, 255, 0.3);
+            background: linear-gradient(180deg, #493c2c, #201a14);
+            border: 2px solid var(--ui-metal-edge);
+            box-shadow: 0 2px 4px #000, inset 0 1px 0 rgba(255, 235, 190, 0.15);
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 10;
         }
@@ -955,7 +963,9 @@
             width: 60px;
             height: 60px;
             border: 1px solid #444;
-            background: #080808;
+            background: #151411;
+            border-radius: 4px;
+            box-shadow: inset 0 1px 3px #000;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1007,7 +1017,9 @@
             width: 48px;
             height: 48px;
             border: 1px solid #333;
-            background: #080808;
+            background: #151411;
+            border-radius: 4px;
+            box-shadow: inset 0 1px 3px #000;
             position: relative;
             cursor: pointer;
             display: flex;
@@ -2262,7 +2274,7 @@
             color: #fff;
             padding: 5px 15px;
             cursor: pointer;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
         }
 
         .dialog-btn:hover {
@@ -2508,7 +2520,7 @@
             padding: 8px 16px;
             border: 1px solid #c7b377;
             border-radius: 4px;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
         }
 
         #floor-display {
@@ -2571,7 +2583,7 @@
                 radial-gradient(circle at 32% 24%, rgba(255, 235, 178, 0.18), transparent 34%),
                 linear-gradient(180deg, rgba(49, 42, 32, 0.96), rgba(9, 9, 10, 0.98));
             color: #ead7a9;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             font-size: 20px;
             font-weight: 700;
             align-items: center;
@@ -2613,12 +2625,14 @@
         .sys-btn {
             background:
                 linear-gradient(180deg, rgba(49, 42, 32, 0.96), rgba(13, 13, 14, 0.98));
-            border: 1px solid rgba(111, 90, 55, 0.78);
-            border-radius: 5px;
+            border: 1px solid var(--ui-metal-edge);
+            border-radius: 4px;
             color: #c9b88b;
             padding: 7px 12px;
             cursor: pointer;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
+            font-size: 13px;
+            font-weight: 500;
             position: relative;
             min-width: 92px;
             text-align: left;
@@ -2746,7 +2760,7 @@
         #welcome-back {
             color: #ffcc00;
             font-size: 1.2em;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             text-shadow: 0 0 10px #ff6600;
         }
 
@@ -2758,7 +2772,7 @@
             color: #ccc;
             font-size: 1.5em;
             cursor: pointer;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             transition: all 0.3s;
         }
 
@@ -2789,7 +2803,7 @@
             color: #888;
             font-size: 0.9em;
             cursor: pointer;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
         }
 
         .reset-btn:hover {
@@ -3038,7 +3052,7 @@
         /* ========== 云同步系统样式 ========== */
         .cloud-sync-bar {
             margin-top: 15px;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             display: flex;
             align-items: center;
             gap: 15px;
@@ -3169,7 +3183,7 @@
             font-weight: bold;
             text-align: center;
             margin-bottom: 5px;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
         }
 
         .nickname-desc {
@@ -3292,7 +3306,7 @@
             color: var(--text-gold);
             font-size: 15px;
             cursor: pointer;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             border-radius: 4px;
             transition: all 0.2s;
         }
@@ -3435,7 +3449,7 @@
             color: #fff;
             text-align: center;
             border-radius: 4px;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
         }
 
         #nickname-input:focus {
@@ -3453,7 +3467,7 @@
             color: #c7b377;
             font-size: 16px;
             cursor: pointer;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             border-radius: 4px;
         }
 
@@ -3472,7 +3486,7 @@
             color: #888;
             font-size: 14px;
             cursor: pointer;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             border-radius: 4px;
         }
 
@@ -3743,7 +3757,7 @@
         }
 
         .stat-row span:first-child {
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
         }
 
         /* 血球/蓝球数值 */
@@ -4005,7 +4019,7 @@
 
         .talent-btn {
             padding: 5px 12px;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             font-size: 11px;
             border: 1px solid #555;
             border-radius: 4px;
@@ -4925,7 +4939,7 @@
             border: 1px solid var(--text-gold);
             color: var(--text-gold);
             padding: 8px 30px;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             font-size: 13px;
             cursor: pointer;
             border-radius: 4px;
@@ -5213,7 +5227,7 @@
             border: 1px solid #555;
             color: #aaa;
             padding: 8px 20px;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             cursor: pointer;
             border-radius: 4px;
             transition: all 0.2s;
@@ -5229,7 +5243,7 @@
             border: 1px solid #882222;
             color: #ff6666;
             padding: 8px 20px;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             cursor: pointer;
             border-radius: 4px;
             transition: all 0.2s;
@@ -5319,7 +5333,7 @@
             white-space: nowrap;
             line-height: 28px;
             font-size: 14px;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             text-shadow: 0 0 8px currentColor, 1px 1px 2px black;
             padding: 0 20px;
         }
@@ -5604,7 +5618,7 @@
             border-radius: 3px;
             color: var(--text-gold);
             cursor: pointer;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             transition: all 0.2s;
         }
 
@@ -6004,6 +6018,12 @@
                 width: 65px;
                 height: 65px;
                 flex-basis: 65px;
+                margin-bottom: 64px;
+            }
+
+            #mobile-menu-toggle,
+            #mobile-chat-toggle {
+                bottom: 156px;
             }
 
             .skill-btn {
@@ -7589,7 +7609,7 @@
             background: var(--ui-header-bg);
             color: var(--text-gold);
             padding: 15px 20px;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             font-size: 18px;
             text-align: center;
             border-bottom: 1px solid var(--ui-border);
@@ -7619,7 +7639,7 @@
             background: #2a2218;
             border: 1px solid #4a3e2a;
             color: #d4c6a9;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
             text-transform: uppercase;
             cursor: pointer;
             transition: all 0.2s;
@@ -7659,7 +7679,7 @@
             box-shadow: 0 0 30px rgba(170, 50, 50, 0.5);
             z-index: 2000;
             display: none;
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
         }
 
         #abyss-entrance-panel.active,
@@ -7856,7 +7876,7 @@
             display: none;
             flex-direction: column;
             box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
-            font-family: 'Cinzel', serif;
+            font-family: var(--font-ui);
         }
 
         #abyss-leaderboard-panel.active {

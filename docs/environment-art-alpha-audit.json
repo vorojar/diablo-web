@@ -30,8 +30,8 @@
     "file": "town-npcs-painted.png",
     "width": 1024,
     "height": 1536,
-    "transparentPixels": 1171473,
-    "transparentRatio": 0.7448,
+    "transparentPixels": 1051375,
+    "transparentRatio": 0.6684,
     "cells": 6,
     "gutterAndBounds": "PASS"
   },
@@ -41,6 +41,24 @@
     "height": 1536,
     "transparentPixels": 901137,
     "transparentRatio": 0.5729,
+    "cells": 6,
+    "gutterAndBounds": "PASS"
+  },
+  {
+    "file": "townLandmarks-painted.png",
+    "width": 1024,
+    "height": 1536,
+    "transparentPixels": 1023591,
+    "transparentRatio": 0.6508,
+    "cells": 6,
+    "gutterAndBounds": "PASS"
+  },
+  {
+    "file": "biomeLandmarks-painted.png",
+    "width": 1024,
+    "height": 1536,
+    "transparentPixels": 1070250,
+    "transparentRatio": 0.6804,
     "cells": 6,
     "gutterAndBounds": "PASS"
   }

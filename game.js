@@ -460,7 +460,7 @@ const EnemyPool = {
             frameIndex: 0, ai: 'chase', monsterType: 'melee',
             isBoss: false, isQuestTarget: false, isElite: false,
             bossTraits: null, bossCooldowns: null, enraged: false,
-            canTeleport: false, skillCd: 0, pendingSkill: null,
+            canTeleport: false, skillCd: 0, pendingSkill: null, bossSkillVisual: null,
             teleportCdMax: 0, summonCdMax: 0, slamCdMax: 0, breathCdMax: 0, tentacleCdMax: 0,
             slamRadius: 0, dashDistance: 0, breathAngle: 0, breathRange: 0, tentacleCount: 0,
             summonCount: 0,
@@ -871,7 +871,7 @@ const player = {
     },
     // 死亡状态
     isDead: false,        // 是否处于死亡状态
-    deathTimer: 0,        // 死亡倒计时（秒）
+    deathTimer: 0,        // 倒地动画已播放秒数（完成后等待复活选择）
     lastDamageSource: null, // 最后伤害来源（用于显示死因）
     invincibleTimer: 0,   // 无敌帧计时器
     lightningOverloadTimer: 0, // 闪电过载视觉计时器
@@ -2181,14 +2181,16 @@ const DestructibleSystem = {
             sw: DESTRUCTIBLE_CONFIG.cellWidth,
             sh: DESTRUCTIBLE_CONFIG.cellHeight
         };
-        const drawWidthByType = { barrel: 47, crate: 52, urn: 45 };
-        const drawW = Math.round((drawWidthByType[d.type.name] || 47) * (d.broken ? 1.04 : 1));
-        const drawH = Math.round(drawW * (spriteBounds.sh / spriteBounds.sw));
+        const intact = EnvironmentArt.destructible(d.type.name, false);
+        const intactBounds = intact ? intact.contentBounds : spriteBounds;
+        const normalHeight = EnvironmentArt.visualHeights[`town_${d.type.name}`];
+        const drawW = Math.round(normalHeight * intactBounds.sw / intactBounds.sh * (d.broken ? 1.04 : 1));
+        const drawH = Math.round(drawW * spriteBounds.sh / spriteBounds.sw);
         const rx = Math.round(d.x - drawW / 2);
         const ry = Math.round(d.y - drawH + 12);
 
         ctx.save();
-        ctx.filter = 'brightness(1.08) saturate(1.04) contrast(1.03)';
+        ctx.filter = 'brightness(0.94) saturate(0.9)';
         ctx.drawImage(
             painted ? painted.source : processedDestructibleSprites,
             spriteBounds.sx, spriteBounds.sy, spriteBounds.sw, spriteBounds.sh,
@@ -2327,7 +2329,8 @@ function drawScenicPropOne(ctx, prop) {
     if (!sample && (!envSpritesLoaded || !processedEnvSprites)) return;
     const bounds = sample ? sample.contentBounds : getEnvSpriteBounds(prop.row, prop.col);
     const ratio = bounds.sw / bounds.sh;
-    const drawH = Math.round((prop.drawH || 70) * (prop.scale || 1));
+    const drawH = Math.round(sample ? EnvironmentArt.visualHeights[prop.name] * Math.max(0.9, Math.min(1.1, (prop.scale || 0.5) / 0.54))
+        : (prop.drawH || 70) * (prop.scale || 1));
     const drawW = Math.round(drawH * ratio);
     const drawX = Math.round(prop.x - drawW / 2);
     const drawY = Math.round(prop.y - drawH + (prop.baseOffset || 8));
@@ -2956,6 +2959,7 @@ function triggerHeroAction(action, duration) {
 }
 
 function getCurrentHeroAction() {
+    if (player.isDead) return 'death';
     if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) return 'sit';
     if (player.heroActionTimer > 0 && player.heroAction) return player.heroAction;
     if (player.moving) return 'walk';
@@ -2966,6 +2970,10 @@ function getHeroFrame(direction) {
     const action = getCurrentHeroAction();
     const safeDirection = action === 'sit' ? 'front' : normalizeHeroDirection(direction);
     if (typeof ArtSamples !== 'undefined') {
+        if (action === 'death') {
+            const death = ArtSamples.deathFrame('hero', player.deathTimer, 0.9, safeDirection.toLowerCase().includes('right'));
+            if (death) return death;
+        }
         const progress = player.heroActionDuration > 0
             ? Math.max(0, Math.min(0.999, 1 - player.heroActionTimer / player.heroActionDuration)) : 0;
         const transient = ['hurt', 'attack', 'cast'].includes(action);
@@ -3018,6 +3026,10 @@ function getHeroFrame(direction) {
 
 function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH, tint = null) {
     source = frame.source || source;
+    if (frame.renderScale) {
+        topY += drawH * (1 - frame.renderScale);
+        drawW *= frame.renderScale; drawH *= frame.renderScale;
+    }
     if (frame.flipX) {
         ctx.save();
         ctx.translate(centerX, topY);
@@ -3096,14 +3108,22 @@ function getMonsterSpriteDirection(enemy) {
 function getMonsterSpriteFrame(enemy) {
     const typeConfig = MONSTER_SPRITE_CONFIG.types[getEnemyMonsterType(enemy)];
     if (!typeConfig) return null;
+    if (enemy.dead && typeof ArtSamples !== 'undefined') {
+        const direction = getMonsterSpriteDirection(enemy);
+        const death = ArtSamples.deathFrame(getEnemyMonsterType(enemy), enemy.deathVisualDuration - enemy.deathVisualTimer,
+            enemy.isBoss ? 0.72 : 0.48, direction === 'right' || (direction === 'back' && enemy.lastSideDirection === 'right'));
+        if (death) return death;
+    }
 
+    const skillVisual = enemy.bossSkillVisual?.timer > 0 ? enemy.bossSkillVisual : null;
     let action = 'idle';
-    if (enemy.monsterActionTimer > 0 && enemy.monsterAction === 'hurt') action = 'hurt';
+    if (skillVisual) action = 'attack';
+    else if (enemy.monsterActionTimer > 0 && enemy.monsterAction === 'hurt') action = 'hurt';
     else if (enemy.hitFlashTimer > 0) action = 'hurt';
     else if (enemy.monsterActionTimer > 0 && enemy.monsterAction === 'attack') action = 'attack';
     else if (enemy.wasMoving) action = 'walk';
 
-    const direction = getMonsterSpriteDirection(enemy);
+    const direction = skillVisual ? skillVisual.direction : getMonsterSpriteDirection(enemy);
     const actionRows = typeConfig[action] || typeConfig.idle;
     let frameInfo;
     if (direction === 'left') frameInfo = actionRows.side;
@@ -3117,7 +3137,11 @@ function getMonsterSpriteFrame(enemy) {
 
     const fps = MONSTER_SPRITE_CONFIG.fps[action] || MONSTER_SPRITE_CONFIG.fps.idle;
     let frameIndex;
-    if ((action === 'attack' || action === 'hurt') && enemy.monsterActionDuration > 0) {
+    if (skillVisual) {
+        // 前两帧留给蓄力，伤害发出后才播放释放与收招；受击染色不吞动作。
+        const progress = Math.max(0, Math.min(0.999, 1 - skillVisual.timer / skillVisual.duration));
+        frameIndex = (skillVisual.phase === 'cast' ? 0 : 2) + Math.floor(progress * 2);
+    } else if ((action === 'attack' || action === 'hurt') && enemy.monsterActionDuration > 0) {
         const progress = Math.max(0, Math.min(0.999, 1 - (enemy.monsterActionTimer / enemy.monsterActionDuration)));
         frameIndex = Math.floor(progress * MONSTER_SPRITE_CONFIG.cols);
     } else {
@@ -3142,6 +3166,7 @@ function getMonsterSpriteFrame(enemy) {
 
 function drawMonsterSprite(ctx, source, frame, centerX, bottomY, drawW, drawH, tint = null) {
     source = frame.source || source;
+    if (frame.renderScale) { drawW *= frame.renderScale; drawH *= frame.renderScale; }
     if (frame.flipX) {
         ctx.save();
         ctx.translate(centerX, bottomY - drawH);
@@ -3618,8 +3643,8 @@ function drawEnemyActor(ctx, e) {
     const bodyX = rx + (e.hitReactX || 0) * reactAlpha;
     const bodyY = ry + (e.hitReactY || 0) * reactAlpha;
     const animatedMonsterFrame = getMonsterSpriteFrame(e);
-    const deathAlpha = e.dead ? Math.max(0, e.deathVisualTimer / e.deathVisualDuration) : 1;
-    const deathProgress = e.dead ? 1 - deathAlpha : 0;
+    const deathAlpha = e.dead ? Math.max(0, Math.min(1, e.deathVisualTimer / (e.isBoss ? 0.35 : 0.25))) : 1;
+    const deathProgress = e.dead && !animatedMonsterFrame?.death ? 1 - deathAlpha : 0;
 
     const shadowWidth = e.isBoss ? Math.max(64, e.radius * 4.4) : (animatedMonsterFrame ? 46 : 34);
     const shadowHeight = e.isBoss ? 18 : (animatedMonsterFrame ? 12 : 9);
@@ -3641,7 +3666,8 @@ function drawEnemyActor(ctx, e) {
         const renderWidth = renderHeight * animatedMonsterFrame.width / animatedMonsterFrame.height;
 
         let tint = null;
-        if (e.hitFlashTimer > 0) tint = 'white';
+        if (e.dead) tint = null;
+        else if (e.hitFlashTimer > 0) tint = 'white';
         else if (e.frozenTimer > 0 || e.slowedTimer > 0) tint = 'ice';
         else if (e.poisonTimer > 0) tint = 'poison';
         else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) tint = 'lightning';
@@ -3649,8 +3675,8 @@ function drawEnemyActor(ctx, e) {
         ctx.save();
         ctx.globalAlpha *= deathAlpha;
         ctx.translate(bodyX, bodyY + deathProgress * 6);
-        if (reactAlpha > 0) ctx.rotate((e.hitTilt || 0) * reactAlpha);
-        const juiceScale = e.juiceScale || 1.0;
+        if (reactAlpha > 0 && !e.dead) ctx.rotate((e.hitTilt || 0) * reactAlpha);
+        const juiceScale = e.dead ? 1 : (e.juiceScale || 1.0);
         ctx.scale(juiceScale * (1 + deathProgress * 0.08), (1.0 / juiceScale) * (1 - deathProgress * 0.22));
         drawMonsterSprite(ctx, processedMonsterSprites, animatedMonsterFrame, 0, 0, renderWidth, renderHeight, tint);
         ctx.restore();
@@ -5987,6 +6013,16 @@ function seedTownScenicProps(cx, cy, r, marketCx, marketRx, marketRy) {
         const def = i % 3 === 0 ? townDefs.barrel : i % 3 === 1 ? townDefs.crate : townDefs.bucket;
         addTownProp(tx, ty, def, 11000 + i * 131);
     }
+    // 营地设施围绕服务人物展开，中央广场、出城通路和传送门保持留白。
+    const landmarks = [
+        ['camp_stall',-130,-145], ['camp_tent',155,-95], ['camp_forge',235,20],
+        ['camp_wagon',-225,115], ['camp_board',-220,-30], ['camp_well',165,205]
+    ];
+    for (const [name,dx,dy] of landmarks) {
+        const x=cx*TILE_SIZE+dx,y=cy*TILE_SIZE+dy;
+        scenicProps=scenicProps.filter(prop=>Math.hypot(prop.x-x,prop.y-y)>80);
+        scenicProps.push({scenicProp:true,name,x,y,sortY:y,row:0,col:0,scale:0.54,drawH:120,baseOffset:6,alpha:1});
+    }
 }
 
 function validateAndFixPortalPosition(x, y) {
@@ -6171,6 +6207,21 @@ function seedDungeonScenicProps(rooms, currentFloor) {
         if (forceLight || def.light) addDungeonLightSource(px, py - drawH * 0.32, def.light, seed);
         return true;
     };
+
+    const landmarksByBiome = {
+        forest:['forest_pine','forest_log'], ice:['ice_arch','ice_monolith'], fire:['lava_gate','obsidian_spires']
+    };
+    const landmarkNames=landmarksByBiome[biome.type];
+    for(let i=0;i<rooms.length && i<12;i++) {
+        const room=rooms[i];
+        if(room.w<6||room.h<6) continue;
+        const candidates=[[room.x+2,room.y+2],[room.x+room.w-3,room.y+2],
+            [room.x+2,room.y+room.h-3],[room.x+room.w-3,room.y+room.h-3]];
+        for(const [x,y] of candidates) {
+            if(isNearDungeonAnchor(x,y,120)) continue;
+            if(addProp(x,y,{name:landmarkNames[i%2],row:0,col:0,scale:0.54,tall:true},currentFloor*997+i*47,false,true)) break;
+        }
+    }
 
     if (bossArena) {
         const arenaSeed = currentFloor * 12347 + bossArena.x * 271 + bossArena.y * 331;
@@ -7440,6 +7491,7 @@ function update(dt) {
         }
 
         // 普通死亡状态：等待玩家在弹窗中选择复活或回城
+        updateHeroDeathVisual(dt);
         return; // 死亡时不执行其他更新逻辑
     }
 
@@ -8233,6 +8285,7 @@ function updateEnemies(dt) {
             continue;
         }
         e.monsterAnimTime = (e.monsterAnimTime || 0) + dt;
+        if (e.bossSkillVisual?.timer > 0) e.bossSkillVisual.timer = Math.max(0, e.bossSkillVisual.timer - dt);
         if (e.monsterActionTimer > 0) {
             e.monsterActionTimer -= dt;
             if (e.monsterActionTimer <= 0) {
@@ -8795,7 +8848,7 @@ function draw() {
     renderEnemies.length = 0;
     for (let ei = 0, eLen = enemies.length; ei < eLen; ei++) {
         const e = enemies[ei];
-        if (e.dead) continue;
+        if (e.dead && !(e.deathVisualTimer > 0)) continue;
         if (e.x < camera.x - 100 || e.x > camera.x + viewportWidth + 100 ||
             e.y < camera.y - 120 || e.y > camera.y + viewportHeight + 100) continue;
         renderEnemies.push(e);
@@ -8861,7 +8914,8 @@ function draw() {
 
         let source = useHeroSheet ? processedHeroSprites : processedSpriteSheet;
         let tint = null;
-        if (player.heroAction === 'hurt' && player.heroActionTimer > 0) tint = 'white';
+        if (player.isDead) tint = null;
+        else if (player.heroAction === 'hurt' && player.heroActionTimer > 0) tint = 'white';
         else if (player.frozen || player.slowedTimer > 0) tint = 'ice';
         else if (player.poisoned) tint = 'poison';
         else if (player.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) tint = 'lightning';
@@ -8872,7 +8926,7 @@ function draw() {
 
         const isPlayerStalling = typeof MarketSystem !== 'undefined' && MarketSystem.isStalling;
         drawContactShadow(ctx, px, py - 2, useHeroSheet ? 44 : 30, useHeroSheet ? 12 : 8, isPlayerStalling ? 0.22 : 0.3);
-        if (!isPlayerStalling) drawPlayerDisciplineAura(ctx, px, py);
+        if (!isPlayerStalling && !player.isDead) drawPlayerDisciplineAura(ctx, px, py);
 
         if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) {
             drawHeroSprite(ctx, source, frame, px, py - renderHeight / (frame.source ? 1 : 2) + (frame.offsetY || 0), renderWidth, renderHeight, tint);
@@ -13027,8 +13081,9 @@ function finalizeEnemyDeath(e, totalDamage) {
     e.hp = 0;
     e.dead = true;
     e.deadAt = Date.now();
-    e.deathVisualDuration = e.isBoss ? 0.38 : (e.isElite ? 0.30 : 0.24);
+    e.deathVisualDuration = e.isBoss ? 1.5 : 1.05;
     e.deathVisualTimer = e.deathVisualDuration;
+    e.bossSkillVisual = null;
     Juice.hit(e, false, true); // 击杀反馈
     spawnEnemyDeathVfx(e);
 
@@ -13311,7 +13366,14 @@ function playerTakeDamage(rawDamage, source, options = {}) {
     return damage + shieldAbsorbed;
 }
 
+function updateHeroDeathVisual(dt) {
+    const previous = player.deathTimer;
+    player.deathTimer = Math.min(0.9, previous + dt);
+    if (previous < 0.9 && player.deathTimer >= 0.9) DeathPanel.show();
+}
+
 function checkPlayerDeath() {
+    if (player.isDead) return;
     if (player.hp <= 0) {
         // 凤凰天赋：死亡时复活一次
         if (hasTalent('phoenix') && !player.phoenixUsed) {
@@ -13366,8 +13428,7 @@ function checkPlayerDeath() {
             document.getElementById('auto-battle-icon').textContent = '🛡️';
         }
 
-        // 弹出死亡面板（选择复活或回城）
-        DeathPanel.show();
+        // 倒地动画播放完毕后，由 updateHeroDeathVisual 显示复活面板。
     }
 }
 

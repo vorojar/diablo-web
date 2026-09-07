@@ -48,7 +48,7 @@ const root = path.resolve(__dirname, '..');
             assert.equal(runtime.environment.frame(definition.key, 0).source, baked, '环境图集也必须直接使用烘焙 Image');
         }
         const original = await loadImage(path.join(root, definition.file));
-        const expected = normalizeAtlas(original, definition.cols, definition.rows);
+        const expected = normalizeAtlas(original, definition.cols, definition.rows, definition.calibration);
         assert.deepEqual(entry.contentBounds, JSON.parse(JSON.stringify(expected.contentBounds)), `${definition.file} 内容边界与运行时归一化不一致`);
         const canvas = createCanvas(baked.width, baked.height), ctx = canvas.getContext('2d');
         ctx.drawImage(baked, 0, 0);

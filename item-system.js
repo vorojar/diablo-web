@@ -77,6 +77,9 @@ function getItemSpriteCoords(item) {
 }
 
 function applyItemSpriteToElement(el, item) {
+  // 装备、腰带和掉落预览共用暗底与小圆角，品质仅通过边框标识。
+  el.style.backgroundColor = '#151411';
+  el.style.borderRadius = '4px';
   if (typeof itemSpritesLoaded !== 'undefined' && itemSpritesLoaded) {
     const coords = getItemSpriteCoords(item);
     el.innerText = '';
@@ -91,9 +94,9 @@ function applyItemSpriteToElement(el, item) {
     const rarityColor = getItemColor(item.rarity);
     el.style.border = `1px solid ${rarityColor}`;
     if (item.rarity >= RARITY.RARE) {
-      el.style.boxShadow = `inset 0 0 5px ${rarityColor}`;
+      el.style.boxShadow = `0 0 3px ${rarityColor}, inset 0 1px 2px #000`;
     } else {
-      el.style.boxShadow = 'none';
+      el.style.boxShadow = 'inset 0 1px 2px #000';
     }
   } else {
     // Fallback text

@@ -37,7 +37,7 @@ function loadCatalog(root) {
         const relative = path.relative(root, sourcePath);
         if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error(`素材必须位于项目内：${data.file}`);
         keys.add(key); files.add(data.file);
-        definitions.push({key, file: data.file, cols: data.cols, rows: data.rows});
+        definitions.push({key, file: data.file, cols: data.cols, rows: data.rows, calibration:data.calibration});
     }
     return {definitions, normalizeAtlas: scope.normalizeAtlas};
 }
@@ -47,7 +47,7 @@ async function buildAtlas(root, definition, normalizeAtlas) {
     if (!fs.existsSync(sourcePath)) throw new Error(`图集原文件不存在：${definition.file}`);
     const sourceBytes = fs.readFileSync(sourcePath);
     const image = await loadImage(sourcePath);
-    const atlas = normalizeAtlas(image, definition.cols, definition.rows);
+    const atlas = normalizeAtlas(image, definition.cols, definition.rows, definition.calibration);
     const sourceSHA256 = sourceHash(sourceBytes);
     if (sourceHash(fs.readFileSync(sourcePath)) !== sourceSHA256) throw new Error(`原图在烘焙期间发生变化，请重试：${definition.file}`);
     const png = atlas.toBuffer('image/png');

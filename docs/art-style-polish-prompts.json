@@ -1,0 +1,143 @@
+{
+  "generator": "built-in image_gen",
+  "npc": {
+    "file": "town-npcs-painted.png",
+    "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-d2d2caee-80d8-487d-97e6-23590d82b909.png",
+    "prompt": "Edit this exact 2-column 3-row town NPC sprite sheet. REPLACE ONLY row2 column2, currently the red-haired female blacksmith, with an ADULT MALE BLACKSMITH. Stocky muscular man, short dark auburn hair, thick short beard, broad shoulders, sturdy leather apron over charcoal work shirt, heavy gloves, brown boots, iron smith hammer. Same compact three-head-tall chibi painted dark fantasy style, warm top-left light, exact same occupied cell and full-body scale. Clear mature masculine facial features, practical smith appearance. Preserve the other FIVE NPCs exactly, their identities and positions. Genuine native PNG RGBA transparent empty alpha background, no checkerboard, no atmospheric backdrop, no floor shadow. Six full isolated figures in unchanged2x3 layout.",
+    "alphaPrompt": "Regenerate this exact six-character sprite sheet as a genuine TRANSPARENT BACKGROUND PNG. Preserve all six characters, their appearance, scale and arrangement exactly, especially the bearded MALE blacksmith in row2 column2. Background must be transparent empty alpha, including all checkerboard squares. Keep character artwork intact. Output a transparent-background asset.",
+    "status": "baked",
+    "userRequirement": "恰西铁匠必须是成年男性。"
+  },
+  "assets": [
+    {
+      "key": "zombie",
+      "file": "monster-zombie-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-dbb4d7c1-cbaa-4d81-8e62-63ebd7b62ef4.png",
+      "prompt": "Game-ready sprite sheet on TRANSPARENT BACKGROUND, native RGBA PNG. Exactly 8 columns x4 rows,32 isolated poses of SAME chunky gray-green zombie with torn ochre tunic and brown boots. Compact CHIBI dark-fantasy hand-painted game style, THREE HEADS TALL with large bald head, exaggerated fists, thick dark outlines, simple broad color planes, warm upper-left light, consistent with a cute blue-scarf swordsman. Menacing but not realistic or gory. 2048x1024, each figure at most140px tall, huge empty transparent gutters. Rows: idle breathing / walking / attack windup-swing-recovery / hurt recoil-recovery. In EACH row columns1-4 FRONT facing, columns5-8 LEFT facing throughout. Full body no cropping, no ground shadows, no effects outside bodies, no checkerboard, no text. Consistent proportions all32 frames.",
+      "status": "baked-composed",
+      "recipe": "art/source-patches/recipes.json",
+      "acceptedSource": "monster-zombie-painted.png"
+    },
+    {
+      "key": "mummy",
+      "file": "monster-mummy-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-72cedecb-d446-4aad-a79d-c1e9cb7d8a0a.png",
+      "prompt": "Game-ready sprite sheet on TRANSPARENT BACKGROUND, native RGBA PNG. Exactly 8 columns x4 rows,32 isolated poses of SAME compact mummy in cream linen wraps with turquoise collar and glowing teal eyes. CHIBI dark-fantasy hand-painted game style, THREE HEADS TALL with big readable head, chunky hands and feet, thick dark outlines, simple broad color planes, warm upper-left light, matching a cute blue-scarf swordsman. 2048x1024, each figure at most135px tall with huge transparent gutters. Rows idle / walk / attack four-frame windup-strike-recovery / hurt four-frame recoil-recovery. EACH row columns1-4 FRONT facing, columns5-8 strictly LEFT PROFILE, NO turning toward camera during attacks or hurt, noses always point left. Full bodies no cropping, no ground shadows, no effects outside silhouettes, no checkerboard, no text. Consistent proportions across all32 frames.",
+      "status": "baked",
+      "acceptedSource": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-f7bef54d-1e4d-4859-ab73-d3fe08144ea4.png"
+    },
+    {
+      "key": "vampire",
+      "file": "monster-vampire-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-5d677ea8-8713-4b9c-9450-21b34fc37b67.png",
+      "prompt": "Game-ready 2D sprite sheet on a TRANSPARENT BACKGROUND (native PNG RGBA, no checkerboard). EXACT 8 columns and 4 rows, 32 isolated full-body poses of the SAME pale vampire with black hair, red-lined black cloak, white cravat and dark boots. Compact CHIBI THREE-head-tall painted game art, large expressive head and chunky limbs, thick clean outline, simple bold shapes readable at50px, warm upper-left lighting. 2048x1024 canvas. Each256x256 cell has character at most135px tall, centered x128, feet y200, HUGE empty transparent gutters. Row1 idle; row2 walk; row3 magic attack windup hands forward recovery; row4 hurt recoil recovery. In EVERY row, columns1-4 FRONT four frames; columns5-8 strict LEFT PROFILE four frames, ALWAYS looking LEFT. No acrobatic spins, no turning around. All32 same proportions. No grounds, halos, shadows, effects beyond hands, text or borders. Native transparency.",
+      "status": "baked",
+      "acceptedSource": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-5d677ea8-8713-4b9c-9450-21b34fc37b67.png"
+    },
+    {
+      "key": "countess",
+      "file": "monster-countess-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-7901dc67-c19c-44c0-9344-3056371828f0.png",
+      "prompt": "Game-ready 2D sprite sheet on TRANSPARENT BACKGROUND native PNG RGBA. EXACT8 columns and4 rows,32 isolated poses of SAME chibi dark countess: gold small crown, silver hair, floor-length burgundy robe with gold belt, red orb staff. THREE-head-tall compact hand-painted dark fantasy game style, large face, bold outlines, chunky readable shapes, warm upper-left light. 2048x1024. Each256x256 cell figure maximum135px tall, centered with HUGE transparent gutters. Row1idle; row2walk; row3staff spell windup-release-recovery; row4hurt recoil-recovery. Every row columns1-4 FRONT facing four poses; columns5-8 LEFT PROFILE four poses. All side frames always nose pointing LEFT, never turn to front or right. No spinning. Full bodies. Keep spell glow confined to staff orb. No background checkerboard, no ground shadows, no text. Native empty alpha outside each figure.",
+      "status": "baked",
+      "acceptedSource": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-8d4438bf-93e1-4055-8cdf-6743c7d7c5ea.png"
+    },
+    {
+      "key": "bloodRaven",
+      "file": "monster-bloodRaven-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-ff2ea149-fe90-4460-a75d-4b97a2c06f41.png",
+      "prompt": "Game-ready 2D sprite sheet on TRANSPARENT BACKGROUND native PNG RGBA. EXACT8 columns and4 rows,32 isolated poses of SAME chibi dark female archer Blood Raven: red hood, dark feather collar, brown-black leather armor, small curved bow, brown boots. THREE-head-tall compact hand-painted dark fantasy style, large readable face, bold outlines, warm upper-left light. 2048x1024. Each256x256 cell figure maximum120px tall centered with HUGE 50px transparent gutters on ALL sides. Row1idle; row2walk; row3bow raise-draw-release-lower; row4hurt recoil-recovery. Every row columns1-4 FRONT facing four poses; columns5-8 LEFT PROFILE four poses. All side frames always look LEFT and shoot LEFT, never turn around. No long arrows or external trails. Full bodies, same proportion. Native empty alpha; no checkerboard, ground shadows, text, borders.",
+      "status": "baked-composed",
+      "recipe": "art/source-patches/recipes.json",
+      "acceptedSource": "monster-bloodRaven-painted.png"
+    }
+  ],
+  "edits": [
+    {
+      "key": "mummyFix",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-b9989f70-25ee-4eb0-b3e8-5e42d853c8e0.png",
+      "prompt": "Edit this native transparent 8-column 4-row sprite sheet. Fix ONLY row3 column7 (third row, seventh sprite): mummy currently faces RIGHT, but MUST face LEFT throughout the attack recovery. Show LEFT side profile, glowing eye at LEFT edge of head, bandage tails trailing RIGHT, fist retracting from a LEFT punch. Match row3 columns5,6,8. Preserve all other31 frames. Native transparent RGBA empty alpha background, no checkerboard."
+    },
+    {
+      "key": "bloodRavenFix",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-da1addc5-7bdc-4f32-89f1-a4157798ab35.png",
+      "prompt": "Edit this native transparent 8-column 4-row sprite sheet. Fix ONLY row3 column3 and row3 column7: in these arrow release poses the BOW disappeared. Both sprites MUST still hold the SAME curved wooden bow, extended forward in the bow-holding hand, bowstring relaxed after release. Column3 frontal archer, column7 LEFT-facing profile archer aiming LEFT. No new arrow needed. Preserve all other30 frames and existing character style. Native transparent RGBA empty alpha background, no checkerboard."
+    },
+    {
+      "key": "zombieFix",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-5d6fbafe-c999-4f1e-9c84-4e724ead1d1a.png",
+      "prompt": "Re-layout this same32-sprite sheet with larger TRANSPARENT gutters: keep exactly8columns x4rows, shrink EVERY figure uniformly to70% of its current size centered inside its own cell, leaving at least40px fully transparent space between rows. Keep all poses, proportions, colors, identities. Also correct row3 column6: the zombie must face LEFT in his punch windup, left side profile, looking left, no front-facing head. Other31 poses unchanged. Native TRANSPARENT RGBA PNG, empty alpha, no checkerboard or background."
+    },
+    {
+      "key": "zombieAlpha",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-0d80ac33-58f3-4bb7-bc1f-bb2f125425f6.png",
+      "prompt": "Regenerate this exact32-sprite sheet as a genuine TRANSPARENT BACKGROUND PNG. Preserve poses, scale and arrangement. Background must be transparent empty alpha including every checkerboard square. Important pose correction: THIRD ROW SIXTH sprite faces the camera; ROTATE THIS ONE zombie to a STRICT LEFT PROFILE showing ONE eye and nose on LEFT side, preparing a punch left. All others unchanged. Output transparent-background game asset."
+    },
+    {
+      "key": "countessFix",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-d76b7d9c-81f9-45ec-8208-d4fd2ec99901.png",
+      "prompt": "Re-layout this same32-sprite sheet with larger TRANSPARENT gutters: keep exactly8columns x4rows, shrink EVERY figure uniformly to65% of its current size centered inside its own cell, leaving fully empty alpha gaps between all rows and columns. Preserve all32 poses and character identity exactly. Remove external staff glow clouds; glow only inside red gem, so no overlaps. Native TRANSPARENT RGBA PNG. No checkerboard, no background. Completely transparent empty space surrounding every sprite."
+    },
+    {
+      "key": "countessAlpha",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-8d4438bf-93e1-4055-8cdf-6743c7d7c5ea.png",
+      "prompt": "Regenerate this exact sprite sheet as a genuine TRANSPARENT BACKGROUND PNG. Preserve all thirty-two character poses, their appearance, scale and arrangement exactly. Background must be transparent empty alpha, including all checkerboard squares. Keep the character artwork intact. Output a transparent-background asset."
+    },
+    {
+      "key": "mummyAlpha",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-f7bef54d-1e4d-4859-ab73-d3fe08144ea4.png",
+      "prompt": "Regenerate this exact sprite sheet as a genuine TRANSPARENT BACKGROUND PNG. Preserve all thirty-two character poses, their appearance, scale and arrangement exactly. Background must be transparent empty alpha. Keep character artwork intact. Output a transparent-background asset."
+    },
+    {
+      "key": "zombieLeftAttack",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-c20d45e4-4903-43bc-8988-2bf9a47023f0.png",
+      "prompt": "Game-ready transparent PNG sprite sheet: FOUR frames in ONE horizontal row, same compact chibi grey-green zombie in ragged ochre tunic, brown boots, bald large head glowing yellow eyes. ALL FOUR show STRICT LEFT PROFILE, facing screen LEFT with only one visible eye and nose at left. Four consecutive LEFT punch animation poses: fists pulled back / fist driving left / fist extended left / retract left. 3-head-tall proportions, bold dark outline, painted dark fantasy game art, warm top-left light. Exactly4 isolated figures, consistent scale, generous transparent spacing. NATIVE PNG ALPHA. No background, no floor, no shadows, no checkerboard."
+    },
+    {
+      "key": "bloodRavenSingleFront",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-f583ce64-bf91-4ad2-8db9-ea3e7e92e175.png",
+      "prompt": "Add the missing curved wooden BOW to this exact chibi archer's outstretched hand on viewer LEFT. She has just released an arrow; show the vertical curved bow with relaxed string held in that hand, bow roughly the same height as her body. Preserve her front-facing head, red hood, black feather collar, brown boots and exact stance. Full body game sprite, native transparent PNG with empty alpha background. No checkerboard, no floor shadow."
+    },
+    {
+      "key": "bloodRavenSingleLeft",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-da877e03-3df8-4650-9027-de234aa21c93.png",
+      "prompt": "Add a large curved wooden BOW to this archer's outstretched LEFT hand. She is facing LEFT and has just released an arrow. The bow must be VERTICAL, to the LEFT of her face, bow grip in that extended hand. Visible entire wooden bow arc and relaxed string, no arrow needed. Preserve this exact pose, character appearance, red hood, black feathers, boots and scale. Full body sprite on genuine transparent PNG alpha background. No checkerboard, no ground shadow. Do not remove her hand; put the bow in it."
+    },
+    {
+      "key": "zombieSingle",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-acd4f716-d75b-4e11-84c1-f090161f67ea.png",
+      "prompt": "Rotate this exact zombie to a STRICT LEFT SIDE PROFILE, preparing a punch toward screen LEFT. Nose and face point LEFT, only one glowing eye visible on LEFT side of head. Keep raised fist pulled back for windup, other fist guarding chin. Same chunky chibi proportions, bald grey-green head, ragged ochre tunic, brown boots and dark painted style. Full body isolated game sprite on genuine TRANSPARENT PNG alpha background. No ground, shadow, checkerboard, or background."
+    },
+    {
+      "key": "zombieNative",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-bf443228-b486-4532-9e86-641c5d5c4e97.png",
+      "prompt": "Regenerate this exact sprite sheet as a genuine TRANSPARENT BACKGROUND PNG. Preserve all thirty-two character poses, their appearance, scale and arrangement exactly. Background must be transparent empty alpha, including all checkerboard squares. Keep the character artwork intact. Output a transparent-background asset."
+    },
+    {
+      "key": "butcherWindup",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-de55cfce-ab0a-4348-a8fb-b86d6c752796.png",
+      "prompt": "Edit this single sprite into a strict LEFT-facing side profile attack WINDUP. SAME stocky horned butcher demon, heavy belly, dirty brown leather apron, dark shoulder armor, broad iron cleaver, same compact painted fantasy game style and body proportions. Turn head AND torso LEFT, nose at LEFT edge, looking LEFT throughout. Cleaver held drawn back toward RIGHT at shoulder height preparing a powerful LEFT chop, blade fully visible within canvas; preserve hand grip. Do not face camera or right. Single FULL BODY sprite including boots, horns, hands and complete cleaver. Generous transparent margins all sides. Genuine native TRANSPARENT PNG alpha background, no checkerboard, no ground, no shadows outside sprite."
+    },
+    {
+      "key": "butcherWindupAlpha",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-4328bb27-de01-4cef-8370-87c62df06aa5.png",
+      "prompt": "Regenerate this exact single full-body butcher sprite as a genuine TRANSPARENT BACKGROUND PNG. Preserve his appearance, pose, proportions and complete cleaver exactly. Background must be transparent empty alpha, including all white background pixels. Keep character artwork intact. Output a transparent-background asset."
+    },
+    {
+      "key": "butcherTone",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-c7849125-6f83-472b-bfdb-60ffcc2af6e3.png",
+      "prompt": "Edit this EXACT single left-facing butcher sprite. ONLY change rendering tone: halve the bright gold/yellow highlights and use subdued brown, muted olive-tan skin and dark iron, a dim painterly surface with soft low-contrast texture. Match a dark dungeon sprite under weak upper-left light, no orange glow, no shiny bright red. Preserve exact pose, proportions, left-facing direction, complete cleaver, silhouette and every object. Genuine transparent empty-alpha PNG background. No background, no checkerboard."
+    },
+    {
+      "key": "butcherToneAlpha",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-0813748e-226c-461d-990b-ca4cc53a32b4.png",
+      "prompt": "Regenerate this exact single full-body sprite as a genuine TRANSPARENT BACKGROUND PNG. Preserve appearance, pose, subdued dark colors, scale and arrangement exactly. Background must be transparent empty alpha, including all checkerboard squares. Keep character artwork intact. Output a transparent-background asset."
+    }
+  ],
+  "butcher": {
+    "file": "monster-butcher-painted.png",
+    "recipe": "art/source-patches/recipes.json",
+    "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-0813748e-226c-461d-990b-ca4cc53a32b4.png",
+    "status": "baked-composed"
+  }
+}

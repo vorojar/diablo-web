@@ -13,6 +13,8 @@
     panel.insertAdjacentHTML('beforeend','<p id="qa-environment"></p><output id="qa-errors" style="display:block;white-space:pre-wrap" aria-live="polite"></output><details><summary>实时验收摘要</summary><pre id="qa-snapshot" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px"></pre></details>');
     document.getElementById('qa-environment').textContent=window.qaDiagnostics.simulatedTouch ? '触控路径模拟（非真机），测试 ontouchstart 标志已启用。' : '普通桌面环境；?touch=1 可模拟移动脚本路径。';
     const gallery=document.createElement('section'); gallery.id='qa-gallery';document.body.appendChild(gallery);
+    panel.insertAdjacentHTML('beforeend','<button data-action="death">真实死亡与复活</button><button data-action="hud">验收HUD触控布局</button>');
+    panel.insertAdjacentHTML('beforeend','<button data-action="combat-audit">记录所选怪物真实战斗帧</button>');
     const status=text=>document.getElementById('qa-status').textContent=text;
     // 只覆盖此测试页面的存档写入，保留原始页面真实本地存档行为。
     SaveSystem.save=async()=>true;
@@ -25,6 +27,7 @@
     function protect() {
         if (!safe) return;
         AutoBattle.enabled=false;
+        if (player.isDead) return;
         player.invincibleTimer=3600;player.hp=player.maxHp;player.mp=player.maxMp;
         player.targetX=null;player.targetY=null;player.targetItem=null;
         for (const enemy of enemies) { enemy.dmg=0;enemy.speed=0; }
@@ -33,6 +36,8 @@
     setInterval(protect, 100);
     function start() {
         if (!gameActive) { window.pendingLoadData=null;startGame(); }
+        player.isDead=false;player.deathTimer=0;DeathPanel.hide();
+        document.getElementById('game-container').classList.remove('dead-filter');
         safe=true;
         player.lvl=60;player.points=100;player.skillPoints=100;player.ene=120;player.vit=150;player.gold=10000;
         player.tutorial.completed=true;player.tutorial.step=99;
@@ -51,7 +56,7 @@
         const select=document.getElementById(id); select.replaceChildren();
         for (const [value,label] of values) { const option=document.createElement('option');option.value=value;option.textContent=label;select.appendChild(option); }
     }
-    const heroActions=Object.keys(HERO_SPRITE_CONFIG.rowsByAction);
+    const heroActions=[...Object.keys(HERO_SPRITE_CONFIG.rowsByAction),'death'];
     const artDirections=['front','back','left','right','frontLeft','frontRight','backLeft','backRight'];
     const monsterTypes=Object.keys(MONSTER_SPRITE_CONFIG.types);
     const monsterLabels={melee:'沉沦魔',zombie:'僵尸',ranged:'骷髅弓箭手',skeleton:'骷髅战士',shaman:'沉沦魔巫师',ghost:'幽灵鬼魂',specter:'闪电幽魂',mummy:'木乃伊',vampire:'吸血鬼',bloodRaven:'血鸟',countess:'女伯爵',butcher:'屠夫',duriel:'树头木拳',diablo:'暗黑破坏神',baal:'巴尔'};
@@ -59,7 +64,7 @@
     fillSelect('qa-hero-action',heroActions.map(action=>[action,action]));
     fillSelect('qa-art-direction',artDirections.map(direction=>[direction,direction]));
     fillSelect('qa-monster-type',monsterTypes.map(type=>[type,`${monsterLabels[type] || type} (${type})`]));
-    fillSelect('qa-monster-action',Object.keys(MONSTER_SPRITE_CONFIG.types.melee).map(action=>[action,action]));
+    fillSelect('qa-monster-action',[...Object.keys(MONSTER_SPRITE_CONFIG.types.melee),'death','cast','release'].map(action=>[action,action]));
     fillSelect('qa-scene',Object.entries(sceneDefinitions).map(([key,scene])=>[key,`${scene.name} · ${scene.floor}层`]));
     function galleryHeader(title) {
         previewCleanup();previewCleanup=()=>{};
@@ -104,13 +109,17 @@
             artReport.cases=previews.map(item=>{
                 const index=Math.floor(now/220)%4;let frame,source;
                 if(kind==='hero'){
-                    const saved={heroAction:player.heroAction,heroActionTimer:player.heroActionTimer,heroActionDuration:player.heroActionDuration,animTime:player.animTime,moving:player.moving,direction:player.direction};
+                    const saved={heroAction:player.heroAction,heroActionTimer:player.heroActionTimer,heroActionDuration:player.heroActionDuration,animTime:player.animTime,moving:player.moving,direction:player.direction,isDead:player.isDead,deathTimer:player.deathTimer};
                     try {
                         Object.assign(player,{heroAction:item.action,heroActionTimer:4-index,heroActionDuration:4,animTime:index/(HERO_SPRITE_CONFIG.fps[item.action]||3),moving:item.action==='walk',direction:item.direction});
+                        player.isDead=item.action==='death';player.deathTimer=(index+.1)*.9/4;
                         frame=getHeroFrame(item.direction);source=frame?.source || processedHeroSprites;
                     } finally {Object.assign(player,saved);}
                 }else{
                     const enemy=item.enemy;Object.assign(enemy,{monsterAction:item.action,monsterActionTimer:4-index,monsterActionDuration:4,monsterAnimTime:index/(MONSTER_SPRITE_CONFIG.fps[item.action]||3),wasMoving:item.action==='walk',hitFlashTimer:0});
+                    enemy.dead=item.action==='death';enemy.deathVisualDuration=1.5;
+                    enemy.deathVisualTimer=1.5-(index+.1)*(enemy.isBoss?.72:.48)/4;
+                    enemy.bossSkillVisual=['cast','release'].includes(item.action)?{phase:item.action==='cast'?'cast':'attack',timer:4-index,duration:4,direction:item.direction}:null;
                     frame=getMonsterSpriteFrame(enemy);source=frame?.source || processedMonsterSprites;
                 }
                 const inspection=artSource(frame,source),ctx=item.canvas.getContext('2d');ctx.clearRect(0,0,300,206);
@@ -128,6 +137,38 @@
         }
         previewCleanup=()=>{if(!active)return;active=false;for(const preview of previews)if(preview.enemy)EnemyPool.release(preview.enemy);};
         requestAnimationFrame(animate);
+    }
+    function recordCombat() {
+        if (!gameActive) start();
+        enter();
+        const type=document.getElementById('qa-monster-type').value;
+        const target=enemies.find(enemy=>!enemy.dead);
+        const px=Math.floor(player.x/TILE_SIZE),py=Math.floor(player.y/TILE_SIZE);
+        const tile=[[2,0],[0,2],[-2,0],[0,-2],[1,0],[0,1]].map(([dx,dy])=>({x:(px+dx+.5)*TILE_SIZE,y:(py+dy+.5)*TILE_SIZE})).find(p=>!isWall(p.x,p.y)&&hasLineOfSight(player.x,player.y,p.x,p.y));
+        if (!target||!tile) {status('没有可用练习目标或邻近地块，请重新进入首层。');return;}
+        Object.assign(target,tile,{name:monsterLabels[type],monsterType:type,isBoss:Object.hasOwn(BOSS_FRAMES,type),frameIndex:MONSTER_FRAMES[type]??BOSS_FRAMES[type],hp:100,maxHp:100,dmg:0,speed:0,dodgeChance:0,blockChance:0,bossCooldowns:{},bossTraits:{},cooldown:20,skillCd:20});
+        const records=[],seen=new Set(),started=performance.now();let killed=false;
+        if (target.isBoss) startBossSkillWindup(target,'groundSlam',20,{windup:.6,telegraph:'circle',radius:100});
+        panel.open=false;
+        function sample(now) {
+            const frame=getMonsterSpriteFrame(target);
+            const phase=target.dead?'death':target.bossSkillVisual?.timer>0?target.bossSkillVisual.phase:'idle';
+            const key=`${phase}:${frame.x}:${frame.y}`;
+            if (!seen.has(key)&&(!target.dead||target.deathVisualTimer>0)) {
+                seen.add(key);
+                const picture=document.createElement('canvas');picture.width=160;picture.height=130;
+                drawMonsterSprite(picture.getContext('2d'),frame.source||processedMonsterSprites,frame,80,120,MONSTER_SPRITE_CONFIG.renderSize,MONSTER_SPRITE_CONFIG.renderSize);
+                records.push({phase,x:frame.x,y:frame.y,deathTimer:target.deathVisualTimer,picture});
+            }
+            if (!killed&&now-started>1400) {takeDamage(target,100000,true);killed=true;}
+            if(now-started<4200){requestAnimationFrame(sample);return;}
+            galleryHeader(`${monsterLabels[type]}：真实更新循环与 takeDamage 击杀记录`);
+            const strip=document.createElement('div');strip.style.cssText='display:flex;flex-wrap:wrap;gap:12px';gallery.appendChild(strip);
+            for(const record of records){const card=document.createElement('section'),label=document.createElement('p');label.textContent=`${record.phase} (${record.x},${record.y})`;card.append(label,record.picture);strip.appendChild(card);}
+            artReport={kind:'combat-recording',type,dead:target.dead,frames:records.map(({picture,...record})=>record)};
+            status(JSON.stringify(artReport));
+        }
+        requestAnimationFrame(sample);
     }
     function showScene() {
         if(!gameActive)start();previewCleanup();gallery.style.display='none';
@@ -231,11 +272,21 @@
             status(`背包布局 ${layoutReport.passed?'PASS':'FAIL'}：${JSON.stringify(layoutReport)}`);report();
         },450);
     }
+    function checkHudLayout() {
+        const bounds=selector=>[...document.querySelectorAll(selector)].map(el=>{const r=el.getBoundingClientRect();return{left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height};});
+        const orbs=bounds('.orb-container'),skills=bounds('.skill-btn');
+        const overlaps=(a,b)=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
+        const passed=orbs.every(r=>Math.abs(r.width-r.height)<1&&r.left>=0&&r.right<=innerWidth+1)
+            &&skills.every(r=>r.width>=44&&r.height>=44&&r.left>=0&&r.right<=innerWidth+1&&!orbs.some(o=>overlaps(r,o)));
+        status(`HUD布局 ${passed?'PASS':'FAIL'}：${JSON.stringify({viewport:[innerWidth,innerHeight],orbs,skills})}`);
+    }
     panel.addEventListener('pointerdown',event=>event.stopPropagation());
     panel.addEventListener('click',event=>{
         event.stopPropagation();const button=event.target.closest('button');if(!button)return;
         if(button.dataset.panel){showPanel(button.dataset.panel);return;}
-        const actions={start,floor:enter,close:closePanels,branch:applyBranch,cast,hurt:()=>{if(!gameActive)start();triggerHeroAction('hurt',2);panel.open=false;},gallery:showGallery,layout:checkLayout,
+        if(button.dataset.action==='hud'){checkHudLayout();return;}
+        if(button.dataset.action==='combat-audit'){recordCombat();return;}
+        const actions={start,floor:enter,close:closePanels,branch:applyBranch,cast,death:()=>{if(!gameActive)start();player.hp=0;checkPlayerDeath();panel.open=false;},hurt:()=>{if(!gameActive)start();triggerHeroAction('hurt',2);panel.open=false;},gallery:showGallery,layout:checkLayout,
             hero:()=>previewSprites('hero',false),heroes:()=>previewSprites('hero',true),monster:()=>previewSprites('monster',false),monsters:()=>previewSprites('monster',true),scene:showScene,coverage:showCoverage,items:showItems};
         actions[button.dataset.action]();
     });

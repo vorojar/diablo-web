@@ -1,0 +1,30 @@
+[
+  {
+    "output": "monster-bloodRaven-painted.png",
+    "base": "art/source-patches/bloodRaven-base.png",
+    "cols": 8,
+    "rows": 4,
+    "patches": [
+      { "index": 18, "file": "art/source-patches/bloodRaven-release-front.png", "bodyHeight": 0.86, "footX": 0.57 },
+      { "index": 22, "file": "art/source-patches/bloodRaven-release-left.png", "bodyHeight": 0.71, "footX": 0.64 }
+    ]
+  },
+  {
+    "output": "monster-zombie-painted.png",
+    "base": "art/source-patches/zombie-base.png",
+    "cols": 8,
+    "rows": 4,
+    "patches": [
+      { "index": 21, "file": "art/source-patches/zombie-windup-left.png", "bodyHeight": 0.78, "footX": 0.54 }
+    ]
+  },
+  {
+    "output": "monster-butcher-painted.png",
+    "base": "art/source-patches/butcher-base.png",
+    "cols": 8,
+    "rows": 4,
+    "patches": [
+      { "index": 21, "file": "art/source-patches/butcher-windup-left.png", "bodyHeight": 0.985, "targetHeight": 59, "footX": 0.34 }
+    ]
+  }
+]

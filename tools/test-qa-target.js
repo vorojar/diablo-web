@@ -4,7 +4,9 @@ const fixture=fs.readFileSync(path.join(__dirname,'qa-fixture.js'),'utf8');
 const game=fs.readFileSync(path.join(__dirname,'../game.js'),'utf8');
 const wall=game.match(/function isWall\([^\n]+/)[0];
 const losStart=game.indexOf('function hasLineOfSight('),losEnd=game.indexOf('\n}',losStart);
-const targetStart=fixture.indexOf('const px=Math.floor(player.x/TILE_SIZE)'),targetEnd=fixture.indexOf('if(!tile)',targetStart);
+const castStart=fixture.indexOf('function cast()');
+assert(castStart>=0,'QA施法入口必须存在');
+const targetStart=fixture.indexOf('const px=Math.floor(player.x/TILE_SIZE)',castStart),targetEnd=fixture.indexOf('if(!tile)',targetStart);
 const code=wall+'\n'+game.slice(losStart,losEnd+2)+'\nfunction choose(){'+fixture.slice(targetStart,targetEnd)+'return tile;}';
 function choose(map) {
     const scope={TILE_SIZE:40,MAP_WIDTH:7,MAP_HEIGHT:7,mapData:map,player:{x:140,y:140}};

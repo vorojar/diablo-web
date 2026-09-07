@@ -8,6 +8,9 @@ const scope = vm.createContext({console, Image: class {}, document: {createEleme
 vm.runInContext(fs.readFileSync(path.join(root, 'art-samples.js'), 'utf8'), scope);
 vm.runInContext(fs.readFileSync(path.join(root, 'environment-art.js'), 'utf8') + '\nthis.environment = EnvironmentArt;this.art = ArtSamples;', scope);
 const environment = scope.environment;
+assert.ok(environment.visualHeights.town_barrel < 40, '木桶必须低于人物身体高度');
+assert.ok(environment.visualHeights.town_flag > environment.visualHeights.town_bucket * 3, '旗杆和水桶需要不同物理尺度');
+for (const name of Object.keys(environment.scenicFrames)) assert.ok(environment.visualHeights[name] > 0, `${name}必须有明确世界高度`);
 (async () => {
     const audit = [];
     for (const [key, definition] of Object.entries(environment.definitions)) {
@@ -53,6 +56,6 @@ const environment = scope.environment;
     const opaque = createCanvas(100, 100); opaque.getContext('2d').fillRect(0, 0, 100, 100);
     assert.throws(() => environment.registerAtlas('ice', opaque), /透明/);
     assert.ok(environment.scenic('ice_cluster'), '错误输入不能替换已验收图集');
-    console.log('PASS: 27种场景道具 / 6位NPC / 3对破坏状态 / 全生物群系地面装饰映射');
+    console.log(`PASS: ${Object.keys(environment.scenicFrames).length}种场景道具 / 6位NPC / 3对破坏状态 / 全生物群系地面装饰映射`);
     if (process.argv.includes('--write-audit')) fs.writeFileSync(path.join(root, 'docs/environment-art-alpha-audit.json'), JSON.stringify(audit, null, 2) + '\n');
 })().catch(error => {console.error(error); process.exitCode = 1;});

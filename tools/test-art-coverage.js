@@ -86,6 +86,24 @@ function assertFrame(frame, key, row, col, monster=false) {
         assertFrame(frame, type, row, col + (direction === 'front' ? 0 : 4),true);
         assert.equal(frame.flipX,direction==='right'||direction==='back',`${type} ${direction} 镜像错误`);monsterCases++;
     }
+    const deathGroups=[['hero','melee','zombie','ranged'],['skeleton','shaman','mummy','ghost'],['specter','vampire','bloodRaven','countess'],['butcher','duriel','diablo','baal']];
+    let deathCases=0;
+    for(const [group,actors] of deathGroups.entries()) for(const [row,type] of actors.entries()) for(const right of [false,true]) {
+        let scale;
+        for(let col=0;col<4;col++) {
+            const boss=Object.hasOwn(scope.bossFrames,type),duration=boss?1.5:1.05,collapse=type==='hero'?.9:boss?.72:.48;
+            const elapsed=(col+.1)*collapse/4;
+            scope.player={isDead:true,deathTimer:elapsed,heroAction:'attack',heroActionTimer:1};
+            const frame=type==='hero'?scope.getHeroFrame(right?'right':'left'):scope.getMonsterSpriteFrame({monsterType:type,isBoss:boss,dead:true,deathVisualDuration:duration,deathVisualTimer:duration-elapsed,facingDirection:right?'right':'left'});
+            assertFrame(frame,`death${group}`,row,col,type!=='hero');
+            assert.equal(frame.flipX,right);
+            if(scale!==undefined)assert.equal(frame.renderScale,scale,'横卧不能单帧放大');
+            scale=frame.renderScale;
+            assert.equal(scope.art.deathFrame(type,99,collapse).x,3*128,'倒地结束不循环站起来');
+            deathCases++;
+        }
+    }
+    console.log(`PASS 独立死亡 ${deathCases} 个角色/方向/帧与恒定身体标尺、末帧保持`);
     scope.player = { isInHell: false };
     assert.equal(scope.getBiomeStyle(0), null);
     for (const [floor, type] of [[1, 'forest'], [11, 'ice'], [21, 'fire']]) assert.equal(scope.getBiomeStyle(floor).type, type);

@@ -1,0 +1,36 @@
+{
+  "generator": "built-in image_gen",
+  "workflow": "原生RGBA；仅确定性切帧、缩放、脚底对齐；没有抠图",
+  "assets": [
+    {
+      "key": "deathAFix",
+      "file": "death-a-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-eea60729-a3b8-4635-9ce5-f0cc43dfc2c7.png",
+      "prompt": "Edit this exact 4-column 4-row death animation sheet. REMOVE BAT WINGS from ALL FOUR red imp sprites in SECOND ROW ONLY. The imp has no wings. Keep his horns, cleaver, red skin, poses, proportions and all other twelve characters exactly unchanged. Keep native TRANSPARENT PNG alpha background, no checkerboard. Four columns of collapse progression, sixteen isolated sprites, clear transparent gutters.",
+      "status": "baked",
+      "generationPrompt": "Game-ready DEFEAT ANIMATION sprite sheet, native TRANSPARENT PNG RGBA. EXACT4 columns x4 rows,16 isolated full-body game sprites. Each ROW is one distinct character; columns show four consecutive defeat stages: 1 knees buckle,2 kneel and slump,3 falling onto side,4 fully prone motionless on side. NO gore or wounds. Row1 SAME brown-spiky-haired blue-scarf young swordsman from reference, dark leather silver pauldrons, sword and round shield staying with him. Row2 small red horned imp carrying cleaver. Row3 chunky bald gray-green zombie, ochre torn tunic brown boots. Row4 ivory skeleton archer purple hood cloak wooden bow. Compact chibi3-head-tall painted dark fantasy style, bold clean outlines, warm upper-left light. Fixed body scale across poses; bodies naturally become shorter when falling, DO NOT enlarge prone poses. Front three-quarter view, bodies fall toward screen LEFT and final head on LEFT, all visible. 1024x1024, each256cell sprite at most160px high or180px wide, HUGE transparent gutters. No ground shadows, no text, no frame lines, no checkerboard, no background. Native empty alpha."
+    },
+    {
+      "key": "deathB",
+      "file": "death-b-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-96c64f88-0495-4343-b1c6-e87c46440d9d.png",
+      "prompt": "Game-ready DEATH animation sprite sheet on genuine TRANSPARENT PNG RGBA background, exactly4 columns x4 rows (16 isolated full figures), compact painted dark fantasy game art. Input references preserve each character identity: row1 ivory skeleton warrior with rusty sword and round shield; row2 RED imp shaman with ochre robe, dark swept horns and skull staff, NO wings; row3 compact cream-wrapped mummy with gold turquoise collar; row4 CYAN hooded skeletal ghost in pale tattered robe, no legs. Each row is same character four successive death poses LEFT TO RIGHT: knees buckle and head lowers; kneeling slumps; falls sideways head LEFT; rests collapsed horizontally head LEFT. Ghost progressively sinks and crumples into its cloak. Same anatomy and costume size throughout each row, no character enlargement when prone. Slight elevated3/4 game view. Clean bold edges, warm upper-left highlights, no blood, no new equipment, no floor or cast shadows. Square 1536x1536 with each384px cell sprite MAX260x260px, at least50px empty transparent gutters on ALL sides. Exact4x4, no overlaps, no labels, no checkerboard, transparent empty alpha outside sprites.",
+      "status": "baked"
+    },
+    {
+      "key": "deathCAlpha",
+      "file": "death-c-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-2998bc7c-776e-44c3-9953-8eca1ba10181.png",
+      "prompt": "Regenerate this exact16-character death sprite sheet as a genuine TRANSPARENT BACKGROUND PNG. Preserve all sixteen poses, their appearance, scale and arrangement exactly. Background must be transparent empty alpha, including all checkerboard squares. Keep character artwork intact. Output a transparent-background asset.",
+      "status": "baked",
+      "generationPrompt": "Game-ready DEATH animation sprite sheet, native TRANSPARENT PNG RGBA background, exactly4 columns x4 rows,16 isolated full figures. References identify rows: row1 faceless purple-hooded floating specter with cyan eyes and hands; row2 compact pale black-haired vampire in red-lined black cloak and white cravat; row3 red-hooded female archer Blood Raven in dark feather collar/leather armor holding curved BOW; row4 silver-haired small gold-crowned countess in burgundy robe holding red-orb staff. Preserve their identities, props and compact game proportions. Each row four successive death poses: buckle with head lowered; kneel/slump; fall onto side head LEFT; fully collapsed horizontal resting head LEFT. Specter sinks and collapses into purple cloak, no legs. Keep BOW and STAFF in all frames including on ground next to hands. Same body size throughout row, no enlarging prone sprites. Painted dark fantasy elevated3/4 style, crisp outline and soft upper-left light, bold readable shapes. Square1536x1536, each384px cell sprite MAX240x240px, HUGE clear transparent margins on every side. No overlap, no floor shadows, no background, no checkerboard, no text, no blood. Genuine empty alpha around figures."
+    },
+    {
+      "key": "deathD",
+      "file": "death-d-painted.png",
+      "source": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-75522fb8-6f9b-4126-a764-01ebfd88ff2b.png",
+      "prompt": "Game-ready DEATH animation sprite sheet, native TRANSPARENT PNG RGBA background. Exact4 columns x4 rows,16 isolated boss figures. References preserve SAME boss identity per row: row1 stocky horned BUTCHER demon in brown leather apron holding broad iron cleaver; row2 TREEHEAD WOODFIST mossy bark golem with branching wooden horns, amber eyes and giant wooden fists, NOT insect; row3 DIABLO muscular red demon with black horns black claws red tail; row4 BAAL purple gold armored tentacle lord, golden crown helmet and purple tentacles, no new staff. Each row4 successive death poses: buckles with head lowered; kneels and slumps; falls sideways head LEFT; completely collapsed horizontal head LEFT. Keep same anatomy, costume, equipment and body size across row, no enlarging prone pose. Preserve cleaver and all identity details in final corpse, no blood or dismemberment. Bold outlined hand-painted dark fantasy game style, elevated3/4 camera, warm upper-left highlights. Square1536x1536, each384px cell isolated sprite max240x240px, huge empty transparent gutters on every side. No overlapping, no scene or shadows, no text, no checkerboard. Actual alpha zero background.",
+      "status": "baked"
+    }
+  ]
+}

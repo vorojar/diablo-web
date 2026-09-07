@@ -1,0 +1,32 @@
+{
+  "generator": "built-in image_gen",
+  "validation": "人工逐帧检查朝向；原始错帧为各图集第4行第2列。原生RGBA，无抠图。",
+  "assets": [
+    {
+      "action": "idle",
+      "path": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-903885fd-dcdf-4a01-9c2b-f68cd880b8a1.png",
+      "prompt": "Correct this game sprite sheet on native TRANSPARENT BACKGROUND. 4x4 arrangement. Only change bottom row second sprite: character must face RIGHT, showing his right-facing side profile just like bottom row columns 1,3,4. Keep closed eyes and idle breathing expression, same blue scarf hero proportions, dark armor, brown hair and boots. All other 15 sprites unchanged. Native transparent empty alpha PNG, no checkerboard, no background."
+    },
+    {
+      "action": "attack",
+      "path": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-21dd08d9-3870-49b2-b1e4-0ef9dd831813.png",
+      "prompt": "Correct this game sprite sheet on native TRANSPARENT BACKGROUND. 4x4 arrangement. Only change bottom row second sprite: character must face RIGHT, showing right-facing side profile like bottom row columns 1,3,4. This is the sword windup pose: sword raised behind head ready to strike to the RIGHT, closed eyes fierce exertion, same blue scarf hero proportions, dark armor, brown hair and boots. All other 15 sprites unchanged. Native transparent empty alpha PNG, no checkerboard, no background."
+    },
+    {
+      "action": "sit",
+      "path": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-d8d74fde-3f69-40e4-b3a5-d9a329f57302.png",
+      "prompt": "Correct this game sprite sheet on native TRANSPARENT BACKGROUND. 4x4 arrangement. Only change bottom row second sprite: seated character must face RIGHT, right-facing side profile like bottom row columns 1,3,4. Keep eyes closed relaxed sitting pose, same blue scarf hero proportions, dark armor, brown hair and boots, sword resting in lap. All other 15 sprites unchanged. Native transparent empty alpha PNG, no checkerboard, no background."
+    },
+    {
+      "action": "hurt",
+      "path": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-5b6556b7-e4d8-477f-9ee3-98c31bce6cb8.png",
+      "prompt": "Correct this game sprite sheet on native TRANSPARENT BACKGROUND. 4x4 arrangement. Only change bottom row second sprite: hurt character must KEEP FACING RIGHT, right-facing side profile like bottom row columns 1,3,4. Keep eyes shut painful recoil leaning back to left, but head/nose still points RIGHT, same blue scarf hero proportions, dark armor, brown hair and boots. All other 15 sprites unchanged. Native transparent empty alpha PNG, no checkerboard, no background."
+    },
+    {
+      "action": "walkDiagonal",
+      "path": "C:\\Users\\voroj\\.codex\\generated_images\\01a076cc-6a6b-7c00-900a-1eeddbea931a\\exec-2c377d23-6260-4ef0-9dd4-6cbbdf3b42c2.png",
+      "prompt": "Edit this exact native transparent RGBA game sprite sheet. Preserve the 4 columns x 4 rows and preserve all artwork, character identity, scale, positions and transparent gutters. Correct ONLY the sprite in ROW 4 COLUMN 2 (bottom row, second sprite): his head and torso wrongly face upper-left. Turn his head and torso to face UPPER-RIGHT, showing the back of his head and his RIGHT ear on the right side, matching the other three characters in the bottom row. Keep this frame's distinct walking stride, same blue scarf, brown spiky hair, armor, sword and round shield. Do not change the other 15 sprites. Output real native PNG RGBA with empty transparent alpha background, never a painted checkerboard.",
+      "alphaPrompt": "Regenerate this exact sprite sheet as a genuine TRANSPARENT BACKGROUND PNG. Preserve all sixteen character poses, their appearance, scale and arrangement exactly. Background must be transparent empty alpha, including all checkerboard squares. Keep the character artwork intact. Output a transparent-background asset."
+    }
+  ]
+}

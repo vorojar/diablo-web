@@ -32,7 +32,7 @@ Assert-Contains -Text $index -Pattern 'id="mobile-menu-dot"' -Message 'FAIL: mob
 Assert-Contains -Text $index -Pattern 'id="mobile-chat-dot"' -Message 'FAIL: mobile chat toggle should expose a red dot for unread messages.'
 Assert-Contains -Text $style -Pattern '#mobile-menu-toggle' -Message 'FAIL: missing mobile menu toggle styles.'
 Assert-Contains -Text $style -Pattern '#mobile-chat-toggle' -Message 'FAIL: missing mobile chat toggle styles.'
-Assert-Contains -Text $style -Pattern '(?s)\.orb-container\s*\{.*?flex:\s*0\s+0\s+130px;.*?aspect-ratio:\s*1\s*/\s*1;' -Message 'FAIL: HUD orbs should not shrink horizontally under flex layout.'
+Assert-Contains -Text $style -Pattern '(?s)\.orb-container\s*\{\s*width:\s*(?<orbSize>\d+)px;\s*height:\s*\k<orbSize>px;\s*flex:\s*0\s+0\s+\k<orbSize>px;\s*aspect-ratio:\s*1\s*/\s*1;' -Message 'FAIL: HUD orb width, height and non-shrinking flex basis must match.'
 Assert-Contains -Text $style -Pattern '(?s)@media \(max-width: 768px\),\s*\r?\n\s*\(pointer: coarse\).*?\.orb-container\s*\{.*?flex-basis:\s*80px;' -Message 'FAIL: mobile HUD orbs should keep a fixed circular flex basis.'
 Assert-Contains -Text $style -Pattern '(?s)@media \(max-width: 768px\),\s*\r?\n\s*\(pointer: coarse\).*?\.orb-container\s*\{.*?margin-bottom:\s*14px;' -Message 'FAIL: mobile HUD orbs should be lifted above the bottom edge.'
 Assert-Contains -Text $style -Pattern '\.mobile-fab-dot' -Message 'FAIL: mobile FAB red dot should use shared styles.'

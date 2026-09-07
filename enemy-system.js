@@ -31,9 +31,16 @@ const BOSS_FRAMES = {
 // ========== Boss 工具函数 ==========
 
 function syncBossSkillVisual(boss, action, duration) {
-  if (typeof setMonsterFacingToward === 'function') {
+  // 释放沿用蓄力朝向；技能命中时不再突然转头追随移动中的玩家。
+  const previous = boss.bossSkillVisual;
+  if (action === 'attack' && previous?.phase === 'cast') {
+    boss.actionDirection = previous.direction;
+    boss.actionDirectionTimer = duration;
+  } else if (typeof setMonsterFacingToward === 'function') {
     setMonsterFacingToward(boss, player.x, player.y, duration);
   }
+  boss.bossSkillVisual = {phase: action, timer: duration, duration,
+    direction: boss.actionDirection || boss.facingDirection};
   if (typeof triggerMonsterAction === 'function') {
     triggerMonsterAction(boss, action, duration);
   }
