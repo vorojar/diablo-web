@@ -359,7 +359,7 @@ const ParticlePool = {
         if (this._pool.length < 500) {
             // 清理物理属性，防止复用污染
             p.z = undefined; p.vz = undefined; p.vx = undefined; p.vy = undefined;
-            p.gravity = undefined; p.type = undefined; p.canBake = undefined; p.size = 3;
+            p.spin = undefined; p.gravity = undefined; p.type = undefined; p.canBake = undefined; p.size = 3;
             p.maxLife = undefined; p.radius = undefined; p.grow = undefined; p.width = undefined;
             p.angle = undefined; p.length = undefined; p.color2 = undefined; p.rotation = undefined;
             this._pool.push(p);
@@ -376,6 +376,7 @@ const DamageNumberPool = {
     release(d) {
         if (this._pool.length < 100) {
             d.el = undefined;
+            d.mergeSource = null; d.mergeTime = 0;
             d.isHTML = false;
             d.isImportantText = false;
             d.isCrit = false;
@@ -3738,6 +3739,10 @@ function drawOrbProjectile(ctx, p) {
 }
 
 function emitSkillImpactBurst(type, x, y, angle = 0, power = 1) {
+    if (type === 'multishot') {
+        createImpactParticles(x, y, '#c3bb9d', power > 1.3 ? 4 : 2, angle);
+        return;
+    }
     const palette = SKILL_IMPACT_PALETTES[type];
     if (!palette) return;
 
@@ -3976,42 +3981,6 @@ function emitMultishotVisualGrowth(x, y, angle, tier) {
             angle: rayAngle,
             length: tier >= 2 ? 48 : 34,
             width: i === Math.floor(rayCount / 2) ? 2.2 : 1.5
-        }));
-    }
-}
-
-function emitPhysicalHitAccent(e, angle, isCrit) {
-    const maxP = getParticleConfig().maxParticles;
-    if (particles.length < maxP) {
-        particles.push(ParticlePool.acquire({
-            x: e.x,
-            y: e.y + 2,
-            type: 'skill_impact_ring',
-            color: isCrit ? '#ffdd55' : 'rgba(235, 220, 185, 0.85)',
-            life: isCrit ? 0.22 : 0.16,
-            maxLife: isCrit ? 0.22 : 0.16,
-            radius: isCrit ? 12 : 8,
-            grow: isCrit ? 28 : 18,
-            width: isCrit ? 3 : 2,
-            rotation: angle
-        }));
-    }
-
-    const sparkCount = isCrit ? 7 : 3;
-    for (let i = 0; i < sparkCount; i++) {
-        if (particles.length >= maxP) break;
-        const spread = 0.95;
-        const a = angle + Math.PI + (Math.random() - 0.5) * spread;
-        const speed = (isCrit ? 145 : 95) * (0.7 + Math.random() * 0.45);
-        particles.push(ParticlePool.acquire({
-            x: e.x + (Math.random() - 0.5) * 8,
-            y: e.y - 10 + (Math.random() - 0.5) * 8,
-            vx: Math.cos(a) * speed,
-            vy: Math.sin(a) * speed - 18,
-            color: isCrit && Math.random() < 0.35 ? '#ffffff' : (isCrit ? '#ffcc44' : '#d8c8a0'),
-            life: 0.16 + Math.random() * 0.14,
-            size: (isCrit ? 2.4 : 1.6) + Math.random() * 1.6,
-            gravity: 90
         }));
     }
 }
@@ -8090,7 +8059,7 @@ function update(dt) {
         if (p.type === 'rising_spark') {
             p.y += p.vy * dt;
             p.vy += 50 * dt;
-        } else if (p.type === 'impact') {
+        } else if ((p.type === 'impact' || p.type === 'impact_facet')) {
             // 高级物理粒子 (带 Z 轴)
             p.x += (p.vx || 0) * dt;
             p.y += (p.vy || 0) * dt;
@@ -8189,7 +8158,7 @@ function update(dt) {
     }
 
     // 性能优化：倒序遍历避免splice跳过元素
-    for (let i = slashEffects.length - 1; i >= 0; i--) { const s = slashEffects[i]; s.life -= dt * 5; if (s.life <= 0) slashEffects.splice(i, 1); }
+    for (let i = slashEffects.length - 1; i >= 0; i--) { const s = slashEffects[i]; s.life -= dt * (s.depthSweep ? 3.2 : 5); if (s.life <= 0) slashEffects.splice(i, 1); }
 
     // 震屏效果更新
     if (screenShake.duration > 0) {
@@ -8268,7 +8237,7 @@ function updateEnemies(dt) {
                 e.lastPoisonTick = 0;
                 const pDmg = Math.max(1, Math.floor(e.poisonDamagePerTick || 1));
                 e.hp -= pDmg;
-                createDamageNumber(e.x, e.y, pDmg, COLORS.poison);
+                createDamageNumber(e.x, e.y, pDmg, COLORS.poison, null, e);
                 if (e.hp <= 0) {
                     finalizeEnemyDeath(e, pDmg);
                     continue;
@@ -9099,6 +9068,8 @@ function draw() {
             ctx.fill();
             clearGlow(ctx);
             ctx.globalAlpha = 1.0;
+        } else if (p.type === 'impact_facet') {
+            drawImpactFacet(ctx, p);
         } else if (p.type === 'impact') {
             // 击中喷溅粒子 (带高度和阴影)
             if (p.z > 0) {
@@ -9169,6 +9140,7 @@ function draw() {
     // 绘制斩击弧 - 性能优化：使用 for 循环
     for (let si = 0, sLen = slashEffects.length; si < sLen; si++) {
         const s = slashEffects[si];
+        if (typeof Physical3D !== 'undefined' && Physical3D.draw(ctx, s)) continue;
         const alpha = s.life;
         const color = s.color || '#ffffff';
 
@@ -10818,22 +10790,11 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         e.x = nx; e.y = ny;
     }
 
-    // 击中粒子：按怪物材质区分骨屑、腐肉、灵体散雾等反馈。
-    let particleColor = getMonsterImpactProfile(e).color;
-    if (e.frozenTimer > 0 || e.slowedTimer > 0) particleColor = '#33ccff';
-    else if (e.poisonTimer > 0) particleColor = '#33ff33';
-    else if (e.lightningOverloadTimer > 0) particleColor = '#ffff33';
-
-    if (isSkillDamage) {
-        createImpactParticles(e.x, e.y, particleColor, isCrit ? 8 : 4);
-    } else {
-        spawnVfxEffect(COMBAT_FEEDBACK_VFX.meleeSlash, e.x, e.y - 10, isCrit ? 1.02 : 0.88, angle);
-        createMonsterImpactParticles(e, isCrit);
-        emitPhysicalHitAccent(e, angle, isCrit);
-    }
-    if (isCrit) {
-        spawnVfxEffect(COMBAT_FEEDBACK_VFX.criticalHit, e.x, e.y - 12, 0.95, angle);
-    }
+    // 一次命中只发出一组有体积的材质碎片，取消状态染色圆点与重复光圈。
+    const impactProfile = getMonsterImpactProfile(e);
+    createImpactParticles(e.x, e.y - 8, impactProfile.color, isCrit ? 5 : 3, angle);
+    if (!isSkillDamage) spawnVfxEffect(COMBAT_FEEDBACK_VFX.meleeSlash, e.x, e.y - 10, isCrit ? 1.02 : 0.88, angle);
+    // 暴击用更大的立体碎片与金色伤害数字表达，不再叠白色圆形爆闪。
 
     // 触发打击感
     Juice.hit(e, isCrit, e.hp <= 0);
@@ -10878,7 +10839,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         else if (dmg.fire > (dmg.physical || 0)) dmgColor = COLORS.fire;
     }
 
-    createDamageNumber(e.x, e.y, Math.floor(totalDamage), dmgColor, angle);
+    createDamageNumber(e.x, e.y, Math.floor(totalDamage), isCrit ? COLORS.critical : dmgColor, angle, e);
 
     // 层次感打击音效触发
     if (e.hp <= 0) {
@@ -12002,7 +11963,18 @@ function shouldUseDomDamageNumber(val, isCrit, isGold) {
 }
 
 // 创建伤害数字（高性能版本：支持对象池与中央物理驱动）
-function createDamageNumber(x, y, val, color, angle = null) {
+function createDamageNumber(x, y, val, color, angle = null, source = null) {
+    // 高频同义提示交给受击颜色与状态效果，避免每一刀重复解释机制。
+    if (['处刑!','幸运!','倒霉...','抗性!'].includes(val)) return;
+    const mergeTime = Date.now();
+    if (source && typeof val === 'number') {
+        const previous = damageNumbers.find(d => d.mergeSource === source && d.color === color && d.life > 0 && mergeTime - d.mergeTime < 140);
+        if (previous) {
+            previous.val += Math.floor(val);
+            if (previous.el) previous.el.innerText = previous.val;
+            return;
+        }
+    }
     // 数字类型自动取整，避免浮点数显示问题
     if (typeof val === 'number') {
         val = Math.floor(val);
@@ -12056,7 +12028,7 @@ function createDamageNumber(x, y, val, color, angle = null) {
         if (isCrit) GSAPAnims.critPop(div);
 
         damageNumbers.push(DamageNumberPool.acquire({
-            x, y, val, color, isHTML: true, el: div,
+            x, y, val, color, mergeSource: source, mergeTime, isHTML: true, el: div,
             vx, vy, gravity, life, maxLife: life,
             sx: screenX, sy: screenY,
             isLightning, isPoison, isIce, isCrit, isGold, isImportantText: !isCrit && !isGold,
@@ -12065,7 +12037,7 @@ function createDamageNumber(x, y, val, color, angle = null) {
     } else {
         // 基础渲染 (Canvas Mode)
         damageNumbers.push(DamageNumberPool.acquire({
-            x, y, val, color, isHTML: false, el: null,
+            x, y, val, color, mergeSource: source, mergeTime, isHTML: false, el: null,
             life: isCrit ? 1.0 : 0.8,
             vx, vy, gravity,
             fontSize: isCrit ? 24 : 16,
@@ -12225,6 +12197,14 @@ function createPhysicalSweepEffect(fromX, fromY, attackAngle, tier, hitCount, is
     const config = getPhysicalSweepConfig(tier);
     if (!config || hitCount <= 0) return;
 
+    if (player.graphicsQuality !== 'low' && typeof Physical3D !== 'undefined') {
+        // 一次横扫一个立体刀面事件，避免高攻速叠出几十条平面圆弧。
+        let count=0;for(const fx of slashEffects)if(fx.depthSweep)count++;
+        if(count>=6){const oldest=slashEffects.findIndex(fx=>fx.depthSweep);slashEffects.splice(oldest,1);}
+        slashEffects.push({x:fromX,y:fromY,angle:attackAngle,radius:config.range*.82,tier,sweepArc:Math.min(config.arc,3.4),depthSweep:true,isCrit,life:1});
+        createImpactParticles(fromX+Math.cos(attackAngle)*config.range*.55,fromY+Math.sin(attackAngle)*config.range*.55,'#d2ae70',isCrit?5:3,attackAngle);
+        return;
+    }
     const profile = getPlayerVisualProfile();
     const color = isCrit ? '#ffdd00' : profile.trail;
     const glowColor = isCrit ? '#ffdd00' : profile.trail;
@@ -12349,8 +12329,6 @@ function triggerPhysicalSweep(primaryTarget, basePhysicalDamage, isCrit, attackA
     }
 
     createPhysicalSweepEffect(player.x, player.y, attackAngle, tier, targets.length, isCrit);
-    const visualProfile = getPhysicalGrowthVisualProfile(tier);
-    createDamageNumber(player.x, player.y - 58, `${visualProfile?.name || config.name} x${targets.length}`, isCrit ? COLORS.critical : '#ffd36a');
     return targets.length;
 }
 
@@ -12408,11 +12386,34 @@ function createParticle(x, y, color, size = 3) {
     particles.push(ParticlePool.acquire({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size }));
 }
 
-function createImpactParticles(x, y, color, count = 5) {
+// 四面体在三维空间旋转、按深度排序并计算面光照，再投影到现有Canvas。
+function drawImpactFacet(ctx, p) {
+    const a=p.spin+(0.42-p.life)*11,b=a*.73,c=Math.cos(a),s=Math.sin(a),cb=Math.cos(b),sb=Math.sin(b);
+    const vertices=[[1,1,1],[-1,-1,1],[-1,1,-1],[1,-1,-1]].map(([x,y,z])=>{
+        const rx=x*c-y*s,ry=x*s+y*c;
+        return [rx,ry*cb-z*sb,ry*sb+z*cb];
+    });
+    const faces=[[0,1,2],[0,3,1],[0,2,3],[1,3,2]].sort((a,b)=>a.reduce((v,i)=>v+vertices[i][1],0)-b.reduce((v,i)=>v+vertices[i][1],0));
+    const fade=Math.min(1,p.life/.15);
+    ctx.save();ctx.globalAlpha=fade;
+    if(p.z>0){ctx.fillStyle='rgba(0,0,0,.16)';ctx.beginPath();ctx.ellipse(p.x,p.y,p.size*.8,p.size*.3,0,0,Math.PI*2);ctx.fill();}
+    for(const face of faces){
+        const [v0,v1,v2]=face.map(i=>vertices[i]);
+        const u=v1.map((v,i)=>v-v0[i]),v=v2.map((n,i)=>n-v0[i]);
+        const normal=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+        const light=Math.max(0,(normal[0]*-.4+normal[1]*-.3+normal[2]*.8)/Math.hypot(...normal));
+        ctx.beginPath();for(let i=0;i<face.length;i++){const q=vertices[face[i]],x=p.x+q[0]*p.size,y=p.y-p.z+(q[1]*.48-q[2]) * p.size;ctx[i?'lineTo':'moveTo'](x,y);}ctx.closePath();
+        ctx.globalAlpha=fade;ctx.fillStyle=p.color;ctx.fill();
+        ctx.fillStyle=light>.45?'#fff6da':'#171b23';ctx.globalAlpha=fade*(light>.45?(light-.45)*.7:(.45-light)*1.25);ctx.fill();
+    }ctx.restore();
+}
+
+function createImpactParticles(x, y, color, count = 5, direction = null) {
+    count = Math.min(count, player.graphicsQuality === 'low' ? 2 : 5);
     const maxP = getParticleConfig().maxParticles;
     for (let i = 0; i < count; i++) {
         if (particles.length >= maxP) break;
-        const angle = Math.random() * Math.PI * 2;
+        const angle = direction === null ? Math.random() * Math.PI * 2 : direction + (Math.random() - .5) * 1.8;
         const speed = 40 + Math.random() * 80;
         particles.push(ParticlePool.acquire({
             x: x, y: y, z: 5 + Math.random() * 5,
@@ -12420,10 +12421,11 @@ function createImpactParticles(x, y, color, count = 5) {
             vy: Math.sin(angle) * speed,
             vz: 80 + Math.random() * 80,
             color: color || '#ff0000',
-            life: 0.6 + Math.random() * 0.4,
-            size: 1.5 + Math.random() * 1.5,
+            life: 0.28 + Math.random() * 0.14,
+            size: 3 + Math.random() * 2,
+            spin: Math.random() * 6.28,
             gravity: 800,
-            type: 'impact',
+            type: 'impact_facet',
             canBake: color === '#ff3333' // 只有红血可以烘焙到地面
         }));
     }
@@ -12447,35 +12449,6 @@ function getMonsterImpactProfile(enemy) {
         melee: { color: '#ff3333', secondary: '#ff9a4d', type: 'flesh', text: null }
     };
     return profiles[type] || profiles.melee;
-}
-
-function createMonsterImpactParticles(enemy, isCrit = false) {
-    const profile = getMonsterImpactProfile(enemy);
-    const baseCount = isCrit ? 10 : 5;
-    createImpactParticles(enemy.x, enemy.y - 8, profile.color, baseCount);
-
-    const maxP = getParticleConfig().maxParticles;
-    const extraCount = isCrit ? 8 : 4;
-    for (let i = 0; i < extraCount; i++) {
-        if (particles.length >= maxP) break;
-        const angle = Math.random() * Math.PI * 2;
-        const speed = 45 + Math.random() * (isCrit ? 115 : 70);
-        const upward = profile.type === 'dust' || profile.type === 'spirit' ? 30 : 85;
-        particles.push(ParticlePool.acquire({
-            x: enemy.x + (Math.random() - 0.5) * 14,
-            y: enemy.y - 14 + (Math.random() - 0.5) * 14,
-            z: 3 + Math.random() * 8,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed - upward,
-            vz: profile.type === 'bone' ? 110 + Math.random() * 90 : 55 + Math.random() * 80,
-            color: Math.random() < 0.6 ? profile.secondary : profile.color,
-            life: profile.type === 'spirit' ? 0.45 + Math.random() * 0.35 : 0.35 + Math.random() * 0.35,
-            size: profile.type === 'bone' ? 1.2 + Math.random() * 2.4 : 1.8 + Math.random() * 2.6,
-            gravity: profile.type === 'spirit' ? 120 : 760,
-            type: 'impact',
-            canBake: profile.type === 'blood' || profile.type === 'flesh'
-        }));
-    }
 }
 
 // ========== 掉落特效系统 ==========
@@ -13116,7 +13089,6 @@ function finalizeEnemyDeath(e, totalDamage) {
     }
     xpGain *= xpMultiplier;
     player.xp += xpGain;
-    createDamageNumber(player.x, player.y - 50, "+" + Math.floor(xpGain) + " XP", '#4d69cd');
     dropLoot(e);
     checkLevelUp();
 
@@ -13666,36 +13638,7 @@ function performAttack(t) {
 
         // 已移除暴击震屏，优化性能
 
-        // 大伤害数字（金色+大字体）
-        damageNumbers.push({
-            x: t.x,
-            y: t.y - 25,
-            val: `💥 ${dmg}!`,
-            color: '#ffdd00',
-            life: 1.5,
-            fontSize: 28,
-            vx: (Math.random() - 0.5) * 80,
-            vy: -180,
-            gravity: 200
-        });
-
-        // 暴击粒子爆发（金色+白色）
-        for (let i = 0; i < 12; i++) {
-            const angle = (Math.PI * 2 / 12) * i + Math.random() * 0.3;
-            const speed = 120 + Math.random() * 100;
-            const color = ['#ffdd00', '#ffffff', '#ffaa00', '#ff8800'][Math.floor(Math.random() * 4)];
-            particles.push({
-                x: t.x,
-                y: t.y,
-                vx: Math.cos(angle) * speed,
-                vy: Math.sin(angle) * speed - 50,
-                color: color,
-                life: 0.4 + Math.random() * 0.3,
-                size: 3 + Math.random() * 3,
-                gravity: 150
-            });
-        }
-
+        // 暴击数字与立体命中反馈统一由真实伤害入口生成。
     }
     // 已移除普通攻击震屏，优化性能
 
@@ -13721,11 +13664,6 @@ function performAttack(t) {
             player.hp = Math.min(player.maxHp, player.hp + h);
             createDamageNumber(player.x, player.y - 40, "+" + h, COLORS.green);
         }
-    }
-    // 暴击时更多粒子
-    const particleCount = isCrit ? 8 : 1;
-    for (let i = 0; i < particleCount; i++) {
-        createParticle(t.x + (Math.random() - 0.5) * 20, t.y + (Math.random() - 0.5) * 20, isCrit ? '#ffdd00' : '#fff', isCrit ? 4 : 5);
     }
     player.attackCooldown = 0.8 / (1 + player.attackSpeed / 100);
 }

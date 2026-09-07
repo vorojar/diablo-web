@@ -165,3 +165,14 @@ if (!context.slashEffects.some(s => s.growthStyle === 'halfmoon') || !context.sl
 }
 
 console.log('PASS: physical sweep behavior');
+
+vm.runInContext(fs.readFileSync(path.join(root,'physical-3d.js'),'utf8')+'\nglobalThis.depth=Physical3D;',context);
+context.player.graphicsQuality='high';context.createImpactParticles=()=>{};context.slashEffects=[];
+for(let i=0;i<20;i++)context.createPhysicalSweepEffect(0,0,0,3,4,true);
+if(context.slashEffects.length!==6)throw new Error('立体横扫必须限制同时事件数量');
+let faces=0;const renderCtx=new Proxy({}, {get:(_,key)=>key==='fill'?()=>faces++:(...args)=>{if(args.some(v=>typeof v==='number'&&!Number.isFinite(v)))throw new Error('立体刀面投影非有限坐标');}});
+for(const fx of context.slashEffects)context.depth.draw(renderCtx,fx);
+if(faces<100)throw new Error('立体横扫应绘制有厚度的刀面');
+context.slashEffects=[];context.player.graphicsQuality='low';context.createPhysicalSweepEffect(0,0,0,3,4,true);
+if(context.slashEffects.some(s=>s.depthSweep))throw new Error('性能模式应保留原横扫');
+console.log('PASS: 立体横扫事件上限、刀面几何与低画质回退');

@@ -19,6 +19,7 @@
     panel.insertAdjacentHTML('beforeend','<button data-action="wall-audit">实测向墙内移动</button>');
     panel.insertAdjacentHTML('beforeend','<button data-action="tactics">预警战术验收</button><button data-action="tactics-break">真实技能打断验收</button><output id="qa-tactics"></output>');
     let tacticsBoss=null;
+    panel.insertAdjacentHTML('beforeend','<button data-action="physical-depth">实测立体裂斩</button><output id="qa-physical"></output>');
     const status=text=>document.getElementById('qa-status').textContent=text;
     panel.insertAdjacentHTML('beforeend','<button data-action="meteor-depth">实测立体陨石</button><button data-action="storm-depth">实测立体雷暴</button><output id="qa-elemental" style="display:block;white-space:pre-wrap"></output>');
     panel.insertAdjacentHTML('beforeend','<button data-action="shield-compare">护盾并排对比</button>');
@@ -324,6 +325,28 @@
             takeDamage(tacticsBoss,450,true);
             document.getElementById('qa-tactics').textContent=JSON.stringify({hp:tacticsBoss.hp,pending:!!tacticsBoss.pendingSkill,recovery:tacticsBoss.recoveryTimer,multiplier:CombatTactics.multiplier(tacticsBoss,true)});
             panel.open=false;return;
+        }
+        if(button.dataset.action==='physical-depth'){
+            if(!gameActive)start();if(isInTown())enter();closePanels();previewCleanup();gallery.style.display='none';
+            player.str=120;player.lvl=60;player.critChance=100;player.graphicsQuality='high';player.attackCooldown=0;
+            const group=[];
+            for(let i=0;i<4;i++){const a=-.6+i*.4,x=player.x+Math.cos(a)*(55+i*8),y=player.y+Math.sin(a)*(55+i*8);const e=EnemyPool.acquire({x,y,name:'试斩目标',monsterType:'melee',frameIndex:0,hp:100000,maxHp:100000,dmg:0,speed:0,ai:'chase',radius:18,cooldown:100});enemies.push(e);group.push(e);}
+            performAttack(group[1]);panel.open=false;
+            const frames=[],times=[.04,.1,.2],began=performance.now();let active=true;previewCleanup=()=>{active=false;};
+            const capture=now=>{
+                if(!active)return;const elapsed=(now-began)/1000;
+                if(frames.length<times.length&&elapsed>=times[frames.length]){
+                    const shot=document.createElement('canvas');shot.width=360;shot.height=360;
+                    const source=document.getElementById('gameCanvas'),sx=source.width/getViewportWidth(),sy=source.height/getViewportHeight(),w=Math.min(source.width,360*sx),h=Math.min(source.height,360*sy);
+                    const left=Math.max(0,Math.min(source.width-w,(player.x-camera.x-155)*sx)),top=Math.max(0,Math.min(source.height-h,(player.y-camera.y-180)*sy));
+                    shot.getContext('2d').drawImage(source,left,top,w,h,0,0,360,360);frames.push({shot,elapsed});
+                }
+                if(elapsed<.65){requestAnimationFrame(capture);return;}
+                const result={hits:group.map(e=>100000-e.hp),depthEffects:slashEffects.filter(s=>s.depthSweep).length,frames:frames.map(f=>f.elapsed)};
+                document.getElementById('qa-physical').textContent=JSON.stringify(result);
+                galleryHeader('立体裂斩 · 真实普攻触发群体横扫');const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;flex-wrap:wrap';gallery.append(row);
+                for(const item of frames){const card=document.createElement('section'),label=document.createElement('p');label.textContent=item.elapsed.toFixed(2)+'秒';card.append(label,item.shot);row.append(card);}
+            };requestAnimationFrame(capture);return;
         }
         if(button.dataset.action==='meteor-depth'||button.dataset.action==='storm-depth'){
             if(!gameActive)start();if(isInTown())enter();previewCleanup();gallery.style.display='none';
