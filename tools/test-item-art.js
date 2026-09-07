@@ -13,7 +13,7 @@ for(const [index,item]of cases.entries()){
     const coords=context.getItemSpriteCoords(item),element={style:{}};
     assert.equal(coords.col,index%4);assert.equal(coords.row,Math.floor(index/4));
     context.applyItemSpriteToElement(element,{...item,rarity:3});
-    assert.match(element.style.backgroundImage,/items-painted\.png/,'UI必须使用原生透明新图集');
+    assert.match(element.style.backgroundImage,/items-painted\.webp/,'UI必须使用原生透明新图集');
     assert.equal(element.style.backgroundSize,'400% 400%');
 }
 (async()=>{

@@ -1,5 +1,5 @@
 window.VFX_SPRITE_MANIFEST = {
-    sheet: 'vfx_sheet.png?v=202605051940',
+    sheet: 'vfx_sheet.webp?v=2026090801',
     effects: {
         fireballImpact: {
             row: 0,

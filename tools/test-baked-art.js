@@ -40,7 +40,7 @@ const root = path.resolve(__dirname, '..');
         assert.equal(entry.atlasSHA256, sourceHash(bakedBytes), `${entry.file} 内容不符合清单`);
         const baked = await loadImage(path.join(root, entry.file));
         assert.equal(baked.width, entry.width); assert.equal(baked.height, entry.height);
-        assert.equal(runtime.art.assetPath(definition.file), entry.file);
+        assert.equal(runtime.art.assetPath(definition.file), entry.runtimeFile || entry.file);
         assert.equal(runtime.art.prepareSource(baked, definition), baked, '运行时必须直接复用烘焙 Image');
         assert.deepEqual(baked.contentBounds, entry.contentBounds);
         if (runtime.environment.definitions[definition.key]) {

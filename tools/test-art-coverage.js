@@ -64,6 +64,7 @@ function assertFrame(frame, key, row, col, monster=false) {
     assert.ok(pixels.some((value, index) => index % 4 === 3 && value > 0), `${key} 实际绘制为空`);
 }
 (async () => {
+    await scope.art.ensure(Object.keys(scope.art.definitions));
     await Promise.all(ready);
     assert.deepEqual(errors, [], '实际素材不可被透明/分帧校验拒绝');
     const directions = ['front', 'back', 'left', 'right', 'frontLeft', 'frontRight', 'backLeft', 'backRight'];

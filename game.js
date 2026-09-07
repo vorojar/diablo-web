@@ -1167,7 +1167,6 @@ const DIVINE_BLESSING_POOL = [
 ];
 
 const spriteSheet = new Image();
-spriteSheet.src = 'sprites.png?v=5.9';
 
 let spritesLoaded = false;
 let processedSpriteSheet = null;
@@ -1190,7 +1189,6 @@ function createTintedSpriteSheet(source, filterStr) {
 }
 // --- Hero Animation Sprites ---
 const heroSpriteSheet = new Image();
-heroSpriteSheet.src = 'hero_sprites.png?v=202605052245';
 let heroSpritesLoaded = false;
 let processedHeroSprites = null;
 const HeroTintCache = SpriteRenderer.createTintCache();
@@ -1844,7 +1842,6 @@ heroSpriteSheet.onload = () => {
 
 // --- Monster Animation Sprites ---
 const monsterSpriteSheet = new Image();
-monsterSpriteSheet.src = 'monster_sprites.png?v=202605010130';
 let monsterSpritesLoaded = false;
 let processedMonsterSprites = null;
 const MonsterTintCache = SpriteRenderer.createTintCache();
@@ -2000,7 +1997,7 @@ const SPRITE_CONFIG = {
 
 // --- Item Sprites ---
 const itemSpriteSheet = new Image();
-itemSpriteSheet.src = 'items-painted.png?v=2026090602';
+itemSpriteSheet.src = 'items-painted.webp?v=2026090801';
 let itemSpritesLoaded = false;
 let processedItemSprites = null; // 保留原生透明和深色装备细节
 
@@ -2048,7 +2045,6 @@ function drawBiomeFloorDecoration(ctx, x, y, size, type, seed, density = 1) {
 
 // 加载环境装饰贴图 (Environment Sprites)
 const envSpriteSheet = new Image();
-envSpriteSheet.src = 'environment_sprites.png?v=202604302235';
 
 let envSpritesLoaded = false;
 let processedEnvSprites = null;
@@ -2076,7 +2072,6 @@ envSpriteSheet.onload = () => {
 
 // --- Destructible Sprites ---
 const destructibleSpriteSheet = new Image();
-destructibleSpriteSheet.src = 'destructibles_sprites.png?v=202604302305';
 let destructiblesLoaded = false;
 let processedDestructibleSprites = null;
 let destructibleSpriteBounds = [];
@@ -5797,6 +5792,8 @@ function enterFloor(f, spawnAt = 'start') {
 
     // 生成地图缓存（离屏Canvas优化）
     generateMapCache();
+    ArtSamples.ensureMonsters([...new Set(enemies.filter(e=>!e.dead).map(getEnemyMonsterType))])
+        .catch(error=>showNotification(`区域美术加载失败：${error.message}`));
 }
 
 function generateTown() {
@@ -7309,6 +7306,8 @@ function gameLoop(ts) {
 }
 // Main Update Loop
 function update(dt) {
+    // 当前区域素材到齐前暂停战斗计时，避免不可见敌人造成伤害。
+    if (ArtSamples.pending > 0 || ArtSamples.loadError) return;
     // 更新敌人缓存（每帧只遍历一次enemies数组）
     gameFrameId++;
     EnemyCache.update(gameFrameId);
@@ -8669,6 +8668,10 @@ function updateEnemies(dt) {
 
 // --- Rendering ---
 function draw() {
+    const loadingOverlay=document.getElementById('art-loading');
+    loadingOverlay.hidden=ArtSamples.pending===0&&!ArtSamples.loadError;
+    const loadingText=ArtSamples.loadError?'区域资源加载失败，请刷新重试':'正在加载区域资源…';
+    if(loadingOverlay.textContent!==loadingText)loadingOverlay.textContent=loadingText;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     applyRenderViewportTransform();
@@ -17748,6 +17751,7 @@ function sortStash() {
 }
 
 // 各图集完成后刷新缓存；失败已由各加载边界报告，不能阻止成功素材显示。
+window.addEventListener('art-atlas-loaded', renderMonsterIcons);
 Promise.allSettled([ArtSamples.ready, EnvironmentArt.ready]).then(() => {
     if (gameActive && mapData.length > 0) generateMapCache();
     renderMonsterIcons();

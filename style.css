@@ -1479,7 +1479,7 @@
         .skill-sprite {
             width: 32px;
             height: 32px;
-            background-image: url('skills-painted.png?v=2026090601');
+            background-image: url('skills-painted.webp?v=2026090801');
             background-size: 200% 200%;
             background-repeat: no-repeat;
             display: inline-block;
@@ -1591,7 +1591,7 @@
             width: 32px;
             height: 32px;
             margin: 0 auto 5px auto;
-            background-image: url('items-painted.png?v=2026090602');
+            background-image: url('items-painted.webp?v=2026090801');
             background-size: 400% 400%;
             background-repeat: no-repeat;
             image-rendering: pixelated;
@@ -8557,3 +8557,5 @@
         .skill-route-option strong { color: #deca9b; font-size: 12px; }
         .skill-route-option p { color: #bfb5a3; font: 12px/1.5 sans-serif; margin: 4px 0; }
         .skill-holy_shield { background-position: 0% 0%; }
+
+#art-loading:not([hidden]) { position:absolute; inset:0; z-index:1000000; display:grid; place-items:center; background:#111d; color:#e4c98b; font:16px var(--font-ui); pointer-events:auto; }

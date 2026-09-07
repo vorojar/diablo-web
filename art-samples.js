@@ -1,6 +1,9 @@
 // 游戏原生透明图集：只切帧和对齐，不按颜色抠除任何像素。
 const ArtSamples = (() => {
     const atlases = new Map();
+    const loading = new Map();
+    let pending = 0;
+    let loadError = null;
     const definitions = {
         heroHurt: { file: 'hero-hurt-painted.png', cols: 4, rows: 4 },
         melee: { file: 'monster-imp-painted.png', cols: 8, rows: 4 },
@@ -146,7 +149,10 @@ const ArtSamples = (() => {
         const image = new Image();
         image.onload = () => {
             // 素材输入边界：不合格图片拒绝接入，原有图集仍可绘制。
-            try { atlases.set(key, prepareSource(image, definition)); resolve(key); }
+            try {
+                atlases.set(key, prepareSource(image, definition)); resolve(key);
+                if (typeof window !== 'undefined') window.dispatchEvent(new Event('art-atlas-loaded'));
+            }
             catch (error) { reject(error); }
         };
         image.onerror = () => reject(new Error(`${definition.file} 加载失败`));
@@ -155,7 +161,9 @@ const ArtSamples = (() => {
     }
 
     function assetPath(file) {
-        return typeof ArtAtlasManifest === 'undefined' ? file : ArtAtlasManifest[file].file;
+        if (typeof ArtAtlasManifest === 'undefined') return file;
+        const entry=ArtAtlasManifest[file];
+        return entry.runtimeFile || entry.file;
     }
     function prepareSource(image, definition) {
         if (typeof ArtAtlasManifest === 'undefined') return normalizeAtlas(image, definition.cols, definition.rows, definition.calibration);
@@ -169,11 +177,29 @@ const ArtSamples = (() => {
 
     function frame(key, row, col, flipX = false) {
         const source=atlases.get(key);
-        if (!source) return null;
+        if (!source) {
+            if (!loading.has(key)) ensure([key]).catch(error=>console.error('[美术图集] 按需加载失败',error));
+            return null;
+        }
         return { source, x:col*128, y:row*128, width:128, height:128, flipX, animated:true,
             contentBounds:source.contentBounds[row*definitions[key].cols+col] };
     }
-    const ready = Promise.all(Object.entries(definitions).map(([key, definition]) => load(key, definition)));
+    function ensure(keys) {
+        return Promise.all([...new Set(keys)].map(key=>{
+            if (!definitions[key]) throw new Error(`未知美术图集：${key}`);
+            if (!loading.has(key)) {
+                pending++;
+                const request=load(key,definitions[key]).finally(()=>{pending--;});
+                request.catch(error=>{loadError=error;console.error('[美术图集] 加载失败',error);});
+                loading.set(key,request);
+            }
+            return loading.get(key);
+        }));
+    }
+    function ensureMonsters(types) {
+        return ensure(types.flatMap(type=>[type,deaths[type].key]));
+    }
+    const ready = ensure([...Object.keys(heroCalibration),'death0','ruins']);
     ready.catch(error => console.error('[美术图集] 验收失败', error));
-    return { frame, heroFrame, deathFrame, normalizeAtlas, prepareSource, assetPath, definitions, ready };
+    return { frame, heroFrame, deathFrame, normalizeAtlas, prepareSource, assetPath, definitions, ready, ensure, ensureMonsters, isLoaded:key=>atlases.has(key), get pending(){return pending;}, get loadError(){return loadError;} };
 })();

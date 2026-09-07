@@ -1,4 +1,4 @@
-// 由 tools/prepare-art-atlases.js 生成；原图变化后重新烘焙。
+// 由 prepare-art-atlases.js 与 compress-runtime-art.js 生成；原图更新后依次运行。
 const ArtAtlasManifest = Object.freeze({
   "biomeLandmarks-painted.png": {
     "file": "art/atlases/biomeLandmarks.png",
@@ -45,7 +45,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "9d107817de1543e2e39a22a58fa41dac81085b2c6edcaa5af72dc372676a4e78",
-    "atlasSHA256": "16a209163bc2c6bed78d57ee5966858b82656e9a46c5a870369a94e21135cdef"
+    "atlasSHA256": "16a209163bc2c6bed78d57ee5966858b82656e9a46c5a870369a94e21135cdef",
+    "runtimeFile": "art/atlases/biomeLandmarks.webp",
+    "runtimeSHA256": "6439fd7d564002becf8228d27b2e1086556ccc37245f14458b52ec7f190c81fa"
   },
   "death-a-painted.png": {
     "file": "art/atlases/death0.png",
@@ -152,7 +154,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "7fd76a786a52f1af182b539339de22776f415b4d1a2236c6e5bfa283c6d065fc",
-    "atlasSHA256": "d06290e451491bc02e92178e7acd78ed02455ae60b422b7618ebdd9ece3b5c01"
+    "atlasSHA256": "d06290e451491bc02e92178e7acd78ed02455ae60b422b7618ebdd9ece3b5c01",
+    "runtimeFile": "art/atlases/death0.webp",
+    "runtimeSHA256": "83fd8446ec95b229a6b651ac5eae12c346edcd2721fcb4a884031f69e8561073"
   },
   "death-b-painted.png": {
     "file": "art/atlases/death1.png",
@@ -259,7 +263,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "876550380288b8adce6fc940e98f2436d758528dfcb84534350ce72e50180ad4",
-    "atlasSHA256": "c39b5bfe2a5169564aee77fe9cb40fc6354ebf5425a4c59ea7a6bc58d461c4fd"
+    "atlasSHA256": "c39b5bfe2a5169564aee77fe9cb40fc6354ebf5425a4c59ea7a6bc58d461c4fd",
+    "runtimeFile": "art/atlases/death1.webp",
+    "runtimeSHA256": "251edd0582df1b8be5e59e1cd5aa421b3fbb19ed6c01c2fa20ea765babb218c7"
   },
   "death-c-painted.png": {
     "file": "art/atlases/death2.png",
@@ -366,7 +372,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "1fe0df11a82a8852d249e7bab8c1edd43ad5f77963a434f4f673234ddee53b83",
-    "atlasSHA256": "fa2100575564affa906d2f412bf67637c5b4e756adb42ecd75b48536e0ea4d09"
+    "atlasSHA256": "fa2100575564affa906d2f412bf67637c5b4e756adb42ecd75b48536e0ea4d09",
+    "runtimeFile": "art/atlases/death2.webp",
+    "runtimeSHA256": "80297e2ab1604fda3cca1808de848522e59f0eb7ffa283fff38540074ed76f5c"
   },
   "death-d-painted.png": {
     "file": "art/atlases/death3.png",
@@ -473,7 +481,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "936c1178d7aaf99a157685d2a2ab23c7f2aa82105f789ded02d86881402bd6c2",
-    "atlasSHA256": "f1ac0f9e0ba7a993973211acea5cddbd438bf43215f48eb85c7e97d1ca364e17"
+    "atlasSHA256": "f1ac0f9e0ba7a993973211acea5cddbd438bf43215f48eb85c7e97d1ca364e17",
+    "runtimeFile": "art/atlases/death3.webp",
+    "runtimeSHA256": "2b8c17e52dd5d0a35052bf62a4454425292ec245ee500e86a99cdd0981391625"
   },
   "destructibles-painted.png": {
     "file": "art/atlases/destructibles.png",
@@ -520,7 +530,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "e2fd43f9188ee3b94b10ec8ff5cd145d28872d8b8e03b89be0fa0c51712cd2be",
-    "atlasSHA256": "3801949e410543a0c0105c3224674c4346c1dc3720bc8af54c7bd96a67d99150"
+    "atlasSHA256": "3801949e410543a0c0105c3224674c4346c1dc3720bc8af54c7bd96a67d99150",
+    "runtimeFile": "art/atlases/destructibles.webp",
+    "runtimeSHA256": "159e12b5b81ca1b7a18aac3604085bb9659945463994dc7f4ef23b0d3cbe7597"
   },
   "hero-attack-painted.png": {
     "file": "art/atlases/heroattack.png",
@@ -627,7 +639,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "e9218b082252d7d486c63e14aed2977d6ddc97e3c8038b3badaf0b5e4853bd1c",
-    "atlasSHA256": "e9995525888ed96a32f05a22be143a2767e41bdb04b53590f078aa84e9543c54"
+    "atlasSHA256": "e9995525888ed96a32f05a22be143a2767e41bdb04b53590f078aa84e9543c54",
+    "runtimeFile": "art/atlases/heroattack.webp",
+    "runtimeSHA256": "2e37046522d1a5eff412d7a4027c398abe22051f58f013ea63866b7fa5f47260"
   },
   "hero-cast-painted.png": {
     "file": "art/atlases/herocast.png",
@@ -734,7 +748,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "44352e241e8676c2b31e7ebda9c505bbe3c337e5014b9e23910d6af8ec4afef3",
-    "atlasSHA256": "5d6624f4b990b29052be0bb54531218ff3319f9c5c858e9cbf510831acc19497"
+    "atlasSHA256": "5d6624f4b990b29052be0bb54531218ff3319f9c5c858e9cbf510831acc19497",
+    "runtimeFile": "art/atlases/herocast.webp",
+    "runtimeSHA256": "93f03531b52dfc8f7ada302007f79d0ee889a797e9a5d9bf5badf64b8eb01b82"
   },
   "hero-hurt-painted.png": {
     "file": "art/atlases/heroHurt.png",
@@ -841,7 +857,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "41edd632a9b40be8dd44a98b9fbcec4b21f1ac02e887079c71e474b0b8c1a170",
-    "atlasSHA256": "6ac690407ba31e941d3356ade7c32032d5c7cda4ce648c68d7db9309465310b3"
+    "atlasSHA256": "6ac690407ba31e941d3356ade7c32032d5c7cda4ce648c68d7db9309465310b3",
+    "runtimeFile": "art/atlases/heroHurt.webp",
+    "runtimeSHA256": "d3504bd94010bde46cff969e07194f0c42c1bcda9b0cf4b9ad7f4ae033cb87c0"
   },
   "hero-idle-painted.png": {
     "file": "art/atlases/heroidle.png",
@@ -948,7 +966,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "d8e1ff9f235db20f79931c05ef97fea65f3ffbfe171e39e30d967e6c7ff59060",
-    "atlasSHA256": "59cf15c2bf5ac51ec51b9b7079f98631bbd4d52177b086600040d82909c5196a"
+    "atlasSHA256": "59cf15c2bf5ac51ec51b9b7079f98631bbd4d52177b086600040d82909c5196a",
+    "runtimeFile": "art/atlases/heroidle.webp",
+    "runtimeSHA256": "c7b96552043612ff2641c4d9bcb138a2f37fcb9be4f86a2fc6bee25ebcc24bc1"
   },
   "hero-sit-painted.png": {
     "file": "art/atlases/herosit.png",
@@ -1055,7 +1075,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "9a924b59e47cf73366831287991b290033ea674670c4ac94bc230411ed461bfb",
-    "atlasSHA256": "0bdcddae1800efc7c2dde8a78139d3000899bc86fcdd04191ea0f095debe5b37"
+    "atlasSHA256": "0bdcddae1800efc7c2dde8a78139d3000899bc86fcdd04191ea0f095debe5b37",
+    "runtimeFile": "art/atlases/herosit.webp",
+    "runtimeSHA256": "69eae7a0212e15762fae2e94afe2bd222c341a7097c0fa201b325bf1b17fbad4"
   },
   "hero-walk-painted.png": {
     "file": "art/atlases/herowalk.png",
@@ -1162,7 +1184,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "48abe2aaff1fa2dfaf4b4d825d155e92ccd51651807ec10e9490edfcc232dba9",
-    "atlasSHA256": "c83e6f90022e20ec4fa636a13232191e26296aa3bd2a367f501c62bd8ef70953"
+    "atlasSHA256": "c83e6f90022e20ec4fa636a13232191e26296aa3bd2a367f501c62bd8ef70953",
+    "runtimeFile": "art/atlases/herowalk.webp",
+    "runtimeSHA256": "38228ddc57db6b127795e97c96fcda1c50785a2c402d8c4f916f4116876d0da3"
   },
   "hero-walkDiagonal-painted.png": {
     "file": "art/atlases/herowalkDiagonal.png",
@@ -1269,7 +1293,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "ab558b89d1d0b3ef3c2b034cb6f49543980c435594a7766b33115c657aa9e1e1",
-    "atlasSHA256": "f3af4f9f70efde14c29cabca4b8c96a728a32104fe978103f235b6de39969eaa"
+    "atlasSHA256": "f3af4f9f70efde14c29cabca4b8c96a728a32104fe978103f235b6de39969eaa",
+    "runtimeFile": "art/atlases/herowalkDiagonal.webp",
+    "runtimeSHA256": "65d884dfd01f16a4b283386fe823a125a914a56599d013b01e9a6fdf543e9319"
   },
   "ice-props-painted.png": {
     "file": "art/atlases/ice.png",
@@ -1316,7 +1342,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "fc255c8bdb21051c5aff6f9b58705369259dfd998e0893797cd31f9ff34c59b1",
-    "atlasSHA256": "b2225dd50994a802882d6c61399f4223e828f4f7994537c4323715c323a7cd4f"
+    "atlasSHA256": "b2225dd50994a802882d6c61399f4223e828f4f7994537c4323715c323a7cd4f",
+    "runtimeFile": "art/atlases/ice.webp",
+    "runtimeSHA256": "3c3aef8dace7e6b9b97eedf8ded9325266d2d5388c01b4054c8ffb2a033deb4c"
   },
   "lava-props-painted.png": {
     "file": "art/atlases/fire.png",
@@ -1363,7 +1391,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "6ae6e55596ea8a5fa2ad9de16b1df155c67db852685af732e43688f7e0e3dba8",
-    "atlasSHA256": "73c2fa12f4f523efef6eeef36bf1665edf2fd02df5a5e6d35463bae8bc241e2f"
+    "atlasSHA256": "73c2fa12f4f523efef6eeef36bf1665edf2fd02df5a5e6d35463bae8bc241e2f",
+    "runtimeFile": "art/atlases/fire.webp",
+    "runtimeSHA256": "3340e6ece327e13fd4a77e8ea0138f9ea9cce6a5194a55fadd888f78a0d0f8f5"
   },
   "monster-archer-painted.png": {
     "file": "art/atlases/ranged.png",
@@ -1566,7 +1596,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "6e7717a1ef9edc5277ae3b9f76d8ef431a8d7e52f8c440a9fefe684fe94cc690",
-    "atlasSHA256": "00e2ff6318e478af4f57c3a920492159ffd8f372ccfa9380ebe8aac45e117a63"
+    "atlasSHA256": "00e2ff6318e478af4f57c3a920492159ffd8f372ccfa9380ebe8aac45e117a63",
+    "runtimeFile": "art/atlases/ranged.webp",
+    "runtimeSHA256": "3ce26af3947a5a549c6ea41c2dcef5e10ca2f28a682e6a3f8a0eba0e7ac7d062"
   },
   "monster-baal-painted.png": {
     "file": "art/atlases/baal.png",
@@ -1769,7 +1801,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "d221cc5bd14087ae1cd178a619afcb984ee8245095fa20c6e48849271c74b552",
-    "atlasSHA256": "8a904750211b41c93d0372eba681fdb77fcef95fab96894027bae145b1bc2668"
+    "atlasSHA256": "8a904750211b41c93d0372eba681fdb77fcef95fab96894027bae145b1bc2668",
+    "runtimeFile": "art/atlases/baal.webp",
+    "runtimeSHA256": "4545f2a4dbf9bf2834b45d8f395357d943f0a11a38cb49642165f4144fd8548a"
   },
   "monster-bloodRaven-painted.png": {
     "file": "art/atlases/bloodRaven.png",
@@ -1972,7 +2006,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "caa339ccfe6555b2b012fa9dc6e36a19d3def51e706461d4ec7f816b84fe74f0",
-    "atlasSHA256": "07349922012b9582b56385a27005f402c8e211fc54091d8b1b74a91125f798c0"
+    "atlasSHA256": "07349922012b9582b56385a27005f402c8e211fc54091d8b1b74a91125f798c0",
+    "runtimeFile": "art/atlases/bloodRaven.webp",
+    "runtimeSHA256": "5df9a1983a012d2533c667ab44ddeeb7d56c669b30d732238dc3bc13baa0f56d"
   },
   "monster-butcher-painted.png": {
     "file": "art/atlases/butcher.png",
@@ -2175,7 +2211,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "81ca37d242fd2c7616b235e295bf1467402719f499824602aa1158ca01fb9db8",
-    "atlasSHA256": "690c6d9e29157c831d1a522ac61eb456461e347415e7c6702874369307a380d9"
+    "atlasSHA256": "690c6d9e29157c831d1a522ac61eb456461e347415e7c6702874369307a380d9",
+    "runtimeFile": "art/atlases/butcher.webp",
+    "runtimeSHA256": "1b5da0d60e9e2a301d8b6dce8fbd46c4da101989fe69780c0e797ac9d1e7215f"
   },
   "monster-countess-painted.png": {
     "file": "art/atlases/countess.png",
@@ -2378,7 +2416,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "2e7b10e451edf499ef684459a76b647d217040db0f084a03a0c16349b50e3a82",
-    "atlasSHA256": "fbb27018075c52b89dd69cd08a14eed58e71ac8feed910825cfadfc6ac89b580"
+    "atlasSHA256": "fbb27018075c52b89dd69cd08a14eed58e71ac8feed910825cfadfc6ac89b580",
+    "runtimeFile": "art/atlases/countess.webp",
+    "runtimeSHA256": "118eea1fd8d93b69a1095025be75cf19df6213fc05ff5171268fff064a0f30a1"
   },
   "monster-diablo-painted.png": {
     "file": "art/atlases/diablo.png",
@@ -2581,7 +2621,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "b3f84b087492168026b43f0d944687a45149f30ed449ba58f135da9f2f01fbbf",
-    "atlasSHA256": "c9fbb6ae422c1261c9ac9f54623072583180790e35969e2a530cd6206079ef7b"
+    "atlasSHA256": "c9fbb6ae422c1261c9ac9f54623072583180790e35969e2a530cd6206079ef7b",
+    "runtimeFile": "art/atlases/diablo.webp",
+    "runtimeSHA256": "5db1a4238cd8551a973ab63e2f07128fb0a9696833ff55aa4d7f125cce3a4ea4"
   },
   "monster-duriel-painted.png": {
     "file": "art/atlases/duriel.png",
@@ -2784,7 +2826,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "83d777520146b9f4e1d6edc06426da2b650c6e117521efc8c1f0b56ad970ee85",
-    "atlasSHA256": "48375f8ffe6191e48cdc561c177cff7f54e1d021df7b4e2890ab6cbfd1985514"
+    "atlasSHA256": "48375f8ffe6191e48cdc561c177cff7f54e1d021df7b4e2890ab6cbfd1985514",
+    "runtimeFile": "art/atlases/duriel.webp",
+    "runtimeSHA256": "bd25c8853608af12be911c945c2c7a48c566a9d673199b4b5e3be9f7c0734f8b"
   },
   "monster-ghost-painted.png": {
     "file": "art/atlases/ghost.png",
@@ -2987,7 +3031,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "0f69f964e91c5bd81ddc892713eec75f692297ca68520342928bf4a420089c3e",
-    "atlasSHA256": "1b91881adce2262e1bf4f195b56e3f5a601e56f7d9b5601e86ed7a5a161f0bb8"
+    "atlasSHA256": "1b91881adce2262e1bf4f195b56e3f5a601e56f7d9b5601e86ed7a5a161f0bb8",
+    "runtimeFile": "art/atlases/ghost.webp",
+    "runtimeSHA256": "194c7986d06152d68913b098d18909941316e6391e8b4d5ac313fc6273ec2dff"
   },
   "monster-imp-painted.png": {
     "file": "art/atlases/melee.png",
@@ -3190,7 +3236,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "9363b5bb2a2e6bfe09263b661b72ac47072506409df438aa5129e1b87206246d",
-    "atlasSHA256": "5a174d84b5b260c91e9c6fafd84187b28ce640a4b06c59d477745fc8bbcba9ec"
+    "atlasSHA256": "5a174d84b5b260c91e9c6fafd84187b28ce640a4b06c59d477745fc8bbcba9ec",
+    "runtimeFile": "art/atlases/melee.webp",
+    "runtimeSHA256": "addd717c02ab4d2a672572c39ba30c4d32b2fe81f5c14bf57d636bc10d0ab7c7"
   },
   "monster-mummy-painted.png": {
     "file": "art/atlases/mummy.png",
@@ -3393,7 +3441,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "53f3ec3cbaf3558eae474c9f5a84fadf9af7a3ca5db9ab8833cf85ca9ab7da14",
-    "atlasSHA256": "280474dfd851aeb6a6c85417d9df084d68d4f8d04023d2310a54ed98ed69bc8a"
+    "atlasSHA256": "280474dfd851aeb6a6c85417d9df084d68d4f8d04023d2310a54ed98ed69bc8a",
+    "runtimeFile": "art/atlases/mummy.webp",
+    "runtimeSHA256": "749fec99029030aa06821e0541c67c5172418fdf93dcb71eb28f43d3d82ca2a2"
   },
   "monster-shaman-painted.png": {
     "file": "art/atlases/shaman.png",
@@ -3596,7 +3646,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "c12ad1e27aa99cc1950a121ca09955ad9da7f550550cc2bead0bd03f9e24e37f",
-    "atlasSHA256": "027507310b7cdec1d06cfc8b9b0ed5ee3b0c161e4ff87cb760096077a9096a13"
+    "atlasSHA256": "027507310b7cdec1d06cfc8b9b0ed5ee3b0c161e4ff87cb760096077a9096a13",
+    "runtimeFile": "art/atlases/shaman.webp",
+    "runtimeSHA256": "f627827b977ea6061b424a533b97c603729de0f75ddb9afc1f9565cfad1c8b67"
   },
   "monster-skeleton-painted.png": {
     "file": "art/atlases/skeleton.png",
@@ -3799,7 +3851,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "f8276c73d7fc37a7283b5e35420faab30302fa42d250d6e463475bda798d7868",
-    "atlasSHA256": "58cefcc0938243bf355349d52b36a6dfd637edcd1d9b6c654559fe4907d29e63"
+    "atlasSHA256": "58cefcc0938243bf355349d52b36a6dfd637edcd1d9b6c654559fe4907d29e63",
+    "runtimeFile": "art/atlases/skeleton.webp",
+    "runtimeSHA256": "d5c46ac73fa104cd54cbd299bc00d4c265da24cff6a45bc294e0b91c4cb9511f"
   },
   "monster-specter-painted.png": {
     "file": "art/atlases/specter.png",
@@ -4002,7 +4056,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "f114d230504802aaea7c0d251f24fd5fd082318c8519629ee211b0cf4c9d619d",
-    "atlasSHA256": "903729131ce4cbc3e1e4f61f47b5a921ebbc7f1f21c6e6ddc2bf59b3711f4589"
+    "atlasSHA256": "903729131ce4cbc3e1e4f61f47b5a921ebbc7f1f21c6e6ddc2bf59b3711f4589",
+    "runtimeFile": "art/atlases/specter.webp",
+    "runtimeSHA256": "ce7ef02121dc4993c74a07d321699a53b19481afd0337c0708fdcc1e173a5765"
   },
   "monster-vampire-painted.png": {
     "file": "art/atlases/vampire.png",
@@ -4205,7 +4261,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "383716e8f9c85f9b2e683c785ebb4016ca37f874c0f52d6d7bf51dbf8c4fbf59",
-    "atlasSHA256": "84b6b95c9ec82648c850651971d300423390dffcc8618ea07d7c3da8d5132d1a"
+    "atlasSHA256": "84b6b95c9ec82648c850651971d300423390dffcc8618ea07d7c3da8d5132d1a",
+    "runtimeFile": "art/atlases/vampire.webp",
+    "runtimeSHA256": "2c62322561cefbb6b5ffb70ead978a4aecdb6c81dfa7f4d7d8c9b37a44ccf537"
   },
   "monster-zombie-painted.png": {
     "file": "art/atlases/zombie.png",
@@ -4408,7 +4466,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "b40798083ffcdbe8bc401f8288167d32ec867ebd7c95220b17f69e42366b4cd1",
-    "atlasSHA256": "eead5f73d793afb99c31d59bdcdbb6bf7f39f68e38d28aa8c2afdc87f767ee9f"
+    "atlasSHA256": "eead5f73d793afb99c31d59bdcdbb6bf7f39f68e38d28aa8c2afdc87f767ee9f",
+    "runtimeFile": "art/atlases/zombie.webp",
+    "runtimeSHA256": "5dfa5c71ece38e574a0042bd4993034e63b5e6aee308d6c2fb2cc217fc67fdcc"
   },
   "ruins-props-painted.png": {
     "file": "art/atlases/ruins.png",
@@ -4455,7 +4515,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "812dc73fb5f0ed0d540a2f22001fc90564a53e5cf984e9a86231b3aec21c771d",
-    "atlasSHA256": "906ef65433f2cb0a3a5b4f270f5aebd379628f0688fe776ebff2445f1ca6e7a8"
+    "atlasSHA256": "906ef65433f2cb0a3a5b4f270f5aebd379628f0688fe776ebff2445f1ca6e7a8",
+    "runtimeFile": "art/atlases/ruins.webp",
+    "runtimeSHA256": "d810c38379e485085491064e7b6295897a9787e1aac61f2b39397671a93bb7c1"
   },
   "town-npcs-painted.png": {
     "file": "art/atlases/npcs.png",
@@ -4502,7 +4564,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "ddf4181f18a0169c52004708f7a2e6cdfdfb1e2b23db5c0f728a89943dc52d17",
-    "atlasSHA256": "94ecdace17388501f3931de97ec6104f8b2ced07b41d38d0851f8ca48913889e"
+    "atlasSHA256": "94ecdace17388501f3931de97ec6104f8b2ced07b41d38d0851f8ca48913889e",
+    "runtimeFile": "art/atlases/npcs.webp",
+    "runtimeSHA256": "049711a9fae3563fb178e3640b85b3230dd5f74364f0f46e7987a1da4db68666"
   },
   "town-props-painted.png": {
     "file": "art/atlases/town.png",
@@ -4549,7 +4613,9 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "84c313fa29a48ddf2e665f3ed1319229dfdfb8817fefd8e13f3693ff9a2647ed",
-    "atlasSHA256": "dcefba991860d649ed69ea3b6b0f5e7fee075a433b28bcc910a4adfecd5cc62b"
+    "atlasSHA256": "dcefba991860d649ed69ea3b6b0f5e7fee075a433b28bcc910a4adfecd5cc62b",
+    "runtimeFile": "art/atlases/town.webp",
+    "runtimeSHA256": "8f728256f910070af5b20ca4e695777f0c9cfa45cf544280efd879c282360c85"
   },
   "townLandmarks-painted.png": {
     "file": "art/atlases/townLandmarks.png",
@@ -4596,6 +4662,8 @@ const ArtAtlasManifest = Object.freeze({
       }
     ],
     "sourceSHA256": "2aa3433bce06fb5d67a7b045bd2c6c5bbe13225fef5c33c1f226d5e2fd8056ec",
-    "atlasSHA256": "1a38374d60ff7067f84ae8a03acf73d5e2a9d72505adadf9e4127fe1669a518d"
+    "atlasSHA256": "1a38374d60ff7067f84ae8a03acf73d5e2a9d72505adadf9e4127fe1669a518d",
+    "runtimeFile": "art/atlases/townLandmarks.webp",
+    "runtimeSHA256": "2d973bdef68a3b001ec974247287b5a53c7e2219d9057e7b51d68cafbe69eadd"
   }
 });

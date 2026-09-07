@@ -5,6 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const portArg = process.argv.indexOf('--port');
+const reportArg = process.argv.indexOf('--report');
+const reportFile = reportArg < 0 ? null : path.resolve(process.argv[reportArg + 1]);
+const requests = [];
 const port = portArg < 0 ? 18765 : Number(process.argv[portArg + 1]);
 if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('无效端口');
 const types = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.json':'application/json', '.png':'image/png', '.webp':'image/webp', '.jpg':'image/jpeg', '.svg':'image/svg+xml', '.ttf':'font/ttf', '.woff2':'font/woff2', '.mp3':'audio/mpeg', '.wav':'audio/wav', '.ogg':'audio/ogg', '.ico':'image/x-icon' };
@@ -16,6 +19,16 @@ function sendChatMessage(){showNotification('本地验收：不会发送聊天�
 function toggleEmotePanel(){showNotification('本地验收：聊天服务已隔离');}
 `;
 const server = http.createServer((request, response) => {
+    if (reportFile) {
+        let bytes=0;
+        const write=response.write, end=response.end;
+        response.write=function(chunk,...args){if(chunk)bytes+=Buffer.isBuffer(chunk)?chunk.length:Buffer.byteLength(chunk);return write.call(this,chunk,...args);};
+        response.end=function(chunk,...args){if(chunk)bytes+=Buffer.isBuffer(chunk)?chunk.length:Buffer.byteLength(chunk);return end.call(this,chunk,...args);};
+        response.on('finish',()=>{
+            requests.push({url:request.url,status:response.statusCode,type:response.getHeader('Content-Type'),bytes});
+            fs.writeFileSync(reportFile,JSON.stringify({totalBytes:requests.reduce((sum,item)=>sum+item.bytes,0),requests},null,2));
+        });
+    }
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Content-Security-Policy', "default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; media-src 'self'; font-src 'self'");
     const url = new URL(request.url, 'http://127.0.0.1');

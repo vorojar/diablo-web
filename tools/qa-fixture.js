@@ -15,6 +15,7 @@
     const gallery=document.createElement('section'); gallery.id='qa-gallery';document.body.appendChild(gallery);
     panel.insertAdjacentHTML('beforeend','<button data-action="death">真实死亡与复活</button><button data-action="hud">验收HUD触控布局</button>');
     panel.insertAdjacentHTML('beforeend','<button data-action="combat-audit">记录所选怪物真实战斗帧</button>');
+    panel.insertAdjacentHTML('beforeend','<button data-action="network-audit">统计全部加载资源</button><pre id="qa-network" style="white-space:pre-wrap"></pre>');
     const status=text=>document.getElementById('qa-status').textContent=text;
     // 只覆盖此测试页面的存档写入，保留原始页面真实本地存档行为。
     SaveSystem.save=async()=>true;
@@ -76,7 +77,7 @@
     function artSource(frame, fallback) {
         if (!frame) return {loaded:false};
         const source=frame.source || fallback;
-        const keys=Object.keys(ArtSamples.definitions).filter(key=>ArtSamples.frame(key,0,0)?.source===source);
+        const keys=Object.keys(ArtSamples.definitions).filter(key=>ArtSamples.isLoaded(key)&&ArtSamples.frame(key,0,0)?.source===source);
         return {loaded:!!source,source:keys.length?keys.join(','):(source?.currentSrc || source?.src || '原图集'),
             frame:{x:frame.x,y:frame.y,width:frame.width,height:frame.height,flipX:!!frame.flipX},
             sourceSize:{width:source?.width,height:source?.height},
@@ -138,10 +139,11 @@
         previewCleanup=()=>{if(!active)return;active=false;for(const preview of previews)if(preview.enemy)EnemyPool.release(preview.enemy);};
         requestAnimationFrame(animate);
     }
-    function recordCombat() {
+    async function recordCombat() {
         if (!gameActive) start();
         enter();
         const type=document.getElementById('qa-monster-type').value;
+        await ArtSamples.ensureMonsters([type]);
         const target=enemies.find(enemy=>!enemy.dead);
         const px=Math.floor(player.x/TILE_SIZE),py=Math.floor(player.y/TILE_SIZE);
         const tile=[[2,0],[0,2],[-2,0],[0,-2],[1,0],[0,1]].map(([dx,dy])=>({x:(px+dx+.5)*TILE_SIZE,y:(py+dy+.5)*TILE_SIZE})).find(p=>!isWall(p.x,p.y)&&hasLineOfSight(player.x,player.y,p.x,p.y));
@@ -286,6 +288,10 @@
         if(button.dataset.panel){showPanel(button.dataset.panel);return;}
         if(button.dataset.action==='hud'){checkHudLayout();return;}
         if(button.dataset.action==='combat-audit'){recordCombat();return;}
+        if(button.dataset.action==='network-audit'){
+            const entries=[...performance.getEntriesByType('navigation'),...performance.getEntriesByType('resource')].map(e=>({url:e.name,type:e.initiatorType,encoded:e.encodedBodySize,decoded:e.decodedBodySize,transferred:e.transferSize,duration:e.duration}));
+            document.getElementById('qa-network').textContent=JSON.stringify({requests:entries.length,encoded:entries.reduce((s,e)=>s+e.encoded,0),transferred:entries.reduce((s,e)=>s+e.transferred,0),entries},null,2);return;
+        }
         const actions={start,floor:enter,close:closePanels,branch:applyBranch,cast,death:()=>{if(!gameActive)start();player.hp=0;checkPlayerDeath();panel.open=false;},hurt:()=>{if(!gameActive)start();triggerHeroAction('hurt',2);panel.open=false;},gallery:showGallery,layout:checkLayout,
             hero:()=>previewSprites('hero',false),heroes:()=>previewSprites('hero',true),monster:()=>previewSprites('monster',false),monsters:()=>previewSprites('monster',true),scene:showScene,coverage:showCoverage,items:showItems};
         actions[button.dataset.action]();
@@ -301,7 +307,7 @@
             peakProjectiles,peakAreas,chargeSeconds:SkillBranchSystem.charge?.time,arcShield:SkillBranchSystem.arcShield,
             target:practiceTarget ? {name:practiceTarget.name,hp:practiceTarget.hp,maxHp:practiceTarget.maxHp,damageSinceCast:lastCast.hpBefore-practiceTarget.hp}:null,
             lastCast,shield:player.shield,layoutReport,artReport,
-            artLoaded:Object.keys(ArtSamples.definitions).filter(key=>ArtSamples.frame(key,0,0)),
+            artLoaded:Object.keys(ArtSamples.definitions).filter(key=>ArtSamples.isLoaded(key)),
             environmentLoaded:Object.keys(EnvironmentArt.definitions).filter(key=>EnvironmentArt.frame(key,0,0)),
             heroCache:HeroTintCache.getStats(),monsterCache:MonsterTintCache.getStats()
         };
