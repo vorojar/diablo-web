@@ -8586,17 +8586,26 @@ function updateEnemies(dt) {
                 }
             }
         } else if (e.ai === 'specter') {
-            // 闪电幽魂AI：穿墙移动 + 远程闪电球 + 保持距离
-            const hasLOS = hasLineOfSight(e.x, e.y, player.x, player.y);
-            if (distSq < 14400) { // 120^2 = 14400
-                // 太近了，后退（可穿墙）
+            // 穿墙只用于接近；失去视线时先脱离墙体，不能继续向墙内逃跑。
+            const hasLOS = !isWall(e.x, e.y) && hasLineOfSight(e.x, e.y, player.x, player.y);
+            let retreated = false;
+            if (distSq < 14400 && distSq > 0 && hasLOS) {
                 const dist = Math.sqrt(distSq);
-                if (dist > 0) {
-                    setMonsterFacingToward(e, player.x, player.y, 0.12);
-                    e.x -= (dx / dist) * currentSpeed * dt;
-                    e.y -= (dy / dist) * currentSpeed * dt;
+                setMonsterFacingToward(e, player.x, player.y, 0.12);
+                const distance = currentSpeed * dt;
+                const steps = Math.max(1, Math.ceil(distance / 6));
+                const stepX = -(dx / dist) * distance / steps;
+                const stepY = -(dy / dist) * distance / steps;
+                for (let step = 0; step < steps; step++) {
+                    const nx = e.x + stepX, ny = e.y + stepY;
+                    // 后退保留身体空间，分步检测防止长帧跨墙；不绕墙角丢失视线。
+                    if (isWall(nx, ny) || isWall(nx - e.radius, ny - e.radius) ||
+                        isWall(nx + e.radius, ny - e.radius) || isWall(nx - e.radius, ny + e.radius) ||
+                        isWall(nx + e.radius, ny + e.radius) || !hasLineOfSight(nx, ny, player.x, player.y)) break;
+                    e.x = nx; e.y = ny; retreated = true;
                 }
-            } else if (distSq < 122500 && hasLOS) { // 350^2 = 122500
+            }
+            if (!retreated && distSq < 122500 && hasLOS) { // 退路被堵时也能原地还击
                 // 有视线才能发射闪电球
                 if (e.cooldown <= 0) {
                     startMonsterAttack(e, {
@@ -8633,7 +8642,7 @@ function updateEnemies(dt) {
                     });
                     e.cooldown = 1.8;
                 }
-            } else if (distSq < 202500) { // 450^2 = 202500
+            } else if (distSq > 0 && distSq < 202500 && (!hasLOS || distSq >= 122500)) { // 450^2 = 202500
                 // 靠近玩家（可穿墙）- 无视线时也会穿墙过来
                 const dist = Math.sqrt(distSq);
                 e.x += (dx / dist) * currentSpeed * dt;

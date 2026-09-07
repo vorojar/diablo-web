@@ -60,8 +60,7 @@ Assert-Contains -Text $rangedBlock -Pattern 'if (distSq < 22500) {' -Message 'FA
 Assert-NotContains -Text $rangedBlock -Pattern 'if (distSq < 22500 && hasLOS)' -Message 'FAIL: ranged enemies only back away when line of sight is open.'
 Assert-NotContains -Text $rangedBlock -Pattern 'if (!hasLineOfSight(attacker.x, attacker.y, player.x, player.y)) return;' -Message 'FAIL: ranged delayed impact cancels the arrow after windup.'
 Assert-Contains -Text $specterBlock -Pattern "type: 'lightning_ball'" -Message 'FAIL: specter delayed attack does not emit lightning projectiles.'
-Assert-Contains -Text $specterBlock -Pattern 'if (distSq < 14400) {' -Message 'FAIL: specter should back away whenever it is too close.'
-Assert-NotContains -Text $specterBlock -Pattern 'if (distSq < 14400 && hasLOS)' -Message 'FAIL: specter only backs away when line of sight is open.'
+# 幽魂退避与墙体边界由 test-specter-wall-retreat.js 行为回放验证。
 Assert-NotContains -Text $specterBlock -Pattern 'if (!hasLineOfSight(attacker.x, attacker.y, player.x, player.y)) return;' -Message 'FAIL: specter delayed impact cancels the lightning shot after windup.'
 Assert-VersionedAsset -Index $index -Root $root -Asset 'game.js'
 
