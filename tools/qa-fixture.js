@@ -16,6 +16,7 @@
     panel.insertAdjacentHTML('beforeend','<button data-action="death">真实死亡与复活</button><button data-action="hud">验收HUD触控布局</button>');
     panel.insertAdjacentHTML('beforeend','<button data-action="combat-audit">记录所选怪物真实战斗帧</button>');
     panel.insertAdjacentHTML('beforeend','<button data-action="network-audit">统计全部加载资源</button><pre id="qa-network" style="white-space:pre-wrap"></pre>');
+    panel.insertAdjacentHTML('beforeend','<button data-action="wall-audit">实测向墙内移动</button>');
     const status=text=>document.getElementById('qa-status').textContent=text;
     // 只覆盖此测试页面的存档写入，保留原始页面真实本地存档行为。
     SaveSystem.save=async()=>true;
@@ -179,6 +180,24 @@
         artReport={kind:'scene',requested:key,floor:player.floor,biome:getBiomeStyle(player.floor)?.type || 'town',npcs:npcs.map(npc=>npc.name),props:typeof scenicProps==='undefined'?null:scenicProps.length};
         status(`${scene.name}：使用真实 enterFloor(${scene.floor})，地图/装饰/NPC保持真实生成，测试内存不保存。`);panel.open=false;
     }
+    async function checkWallMovement() {
+        enter();
+        await ArtSamples.ensureMonsters([...new Set(enemies.map(getEnemyMonsterType))]);
+        let spot=null;
+        for(let r=2;r<MAP_HEIGHT-2&&!spot;r++)for(let c=2;c<MAP_WIDTH-2;c++){
+            const x=(c+.5)*TILE_SIZE,y=(r+.5)*TILE_SIZE;
+            if(canPlayerOccupy(x,y)&&isWall(x+TILE_SIZE,y)){spot={x,y,wallX:(c+1)*TILE_SIZE};break;}
+        }
+        if(!spot){status('当前随机地图无可用右墙测试点，请重试。');return;}
+        player.x=spot.x;player.y=spot.y;player.targetX=spot.x+TILE_SIZE;player.targetY=spot.y;
+        safe=false;panel.open=false;
+        setTimeout(()=>{
+            safe=true;protect();
+            const result={start:spot,position:{x:player.x,y:player.y},radius:player.radius,wallGap:spot.wallX-player.x,
+                passed:canPlayerOccupy(player.x,player.y)&&player.x<=spot.wallX-player.radius+1e-6&&player.x>spot.x};
+            artReport={kind:'wall-collision',...result};status(JSON.stringify(artReport));
+        },1400);
+    }
     function showCoverage() {
         galleryHeader('视觉来源与遗漏清单');
         const content=document.createElement('pre');content.style.cssText='white-space:pre-wrap;line-height:1.8';
@@ -288,6 +307,7 @@
         if(button.dataset.panel){showPanel(button.dataset.panel);return;}
         if(button.dataset.action==='hud'){checkHudLayout();return;}
         if(button.dataset.action==='combat-audit'){recordCombat();return;}
+        if(button.dataset.action==='wall-audit'){checkWallMovement();return;}
         if(button.dataset.action==='network-audit'){
             const entries=[...performance.getEntriesByType('navigation'),...performance.getEntriesByType('resource')].map(e=>({url:e.name,type:e.initiatorType,encoded:e.encodedBodySize,decoded:e.decodedBodySize,transferred:e.transferSize,duration:e.duration}));
             document.getElementById('qa-network').textContent=JSON.stringify({requests:entries.length,encoded:entries.reduce((s,e)=>s+e.encoded,0),transferred:entries.reduce((s,e)=>s+e.transferred,0),entries},null,2);return;

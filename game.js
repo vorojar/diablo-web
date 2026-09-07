@@ -7865,13 +7865,12 @@ function update(dt) {
             const nx = player.x + (dx / dist) * actualMove;
             const ny = player.y + (dy / dist) * actualMove;
             const oldX = player.x, oldY = player.y;
-            if (!isWall(nx, player.y)) player.x = nx;
-            if (!isWall(player.x, ny)) player.y = ny;
+            movePlayerWithCollision(nx, ny);
             const movedX = player.x - oldX, movedY = player.y - oldY;
             player.moving = Math.hypot(movedX, movedY) > 0.35;
             if (player.moving) player.direction = heroDirectionFromMoveDelta(movedX, movedY);
             player.wasMoving = player.moving;
-            if (isWall(nx, ny) && isWall(nx, player.y) && isWall(player.x, ny)) player.targetX = null;
+            if (actualMove > 0 && movedX === 0 && movedY === 0) player.targetX = null;
         } else {
             // 到达目标位置
             player.targetX = null;
@@ -13640,6 +13639,40 @@ function updateWorldLabels() {
 
 // getItemColor (已移至 item-system.js)
 function isWall(x, y) { const c = Math.floor(x / TILE_SIZE), r = Math.floor(y / TILE_SIZE); return c < 0 || r < 0 || c >= MAP_WIDTH || r >= MAP_HEIGHT || mapData[r][c] === 0; }
+
+// 角色以脚底为中心的圆形碰撞体；不能只检查中心所在格。
+function canPlayerOccupy(x, y) {
+    const radius=player.radius;
+    for(let r=Math.floor((y-radius)/TILE_SIZE);r<=Math.floor((y+radius)/TILE_SIZE);r++) {
+        for(let c=Math.floor((x-radius)/TILE_SIZE);c<=Math.floor((x+radius)/TILE_SIZE);c++) {
+            if(!isWall((c+.5)*TILE_SIZE,(r+.5)*TILE_SIZE))continue;
+            const closestX=Math.max(c*TILE_SIZE,Math.min(x,(c+1)*TILE_SIZE));
+            const closestY=Math.max(r*TILE_SIZE,Math.min(y,(r+1)*TILE_SIZE));
+            if((x-closestX)**2+(y-closestY)**2<radius*radius-1e-8)return false;
+        }
+    }
+    return true;
+}
+
+function movePlayerWithCollision(nx, ny) {
+    // 旧存档或传送点若恰好贴进墙边，先恢复到附近合法落脚点。
+    if(!canPlayerOccupy(player.x,player.y)) {
+        let safe=null;
+        for(let distance=1;distance<=TILE_SIZE*2&&!safe;distance++)for(let i=0;i<8;i++){
+            const angle=i*Math.PI/4,x=player.x+Math.cos(angle)*distance,y=player.y+Math.sin(angle)*distance;
+            if(canPlayerOccupy(x,y)){safe={x,y};break;}
+        }
+        if(!safe)return;
+        player.x=safe.x;player.y=safe.y;
+    }
+    const dx=nx-player.x,dy=ny-player.y;
+    const steps=Math.max(1,Math.ceil(Math.max(Math.abs(dx),Math.abs(dy))/Math.min(player.radius/2,TILE_SIZE/4)));
+    for(let i=0;i<steps;i++){
+        const x=player.x+dx/steps,y=player.y+dy/steps;
+        if(canPlayerOccupy(x,player.y))player.x=x;
+        if(canPlayerOccupy(player.x,y))player.y=y;
+    }
+}
 
 // 检查两点之间是否有墙阻挡
 function hasLineOfSight(x1, y1, x2, y2) {
