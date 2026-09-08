@@ -5925,13 +5925,13 @@ function seedTownScenicProps(cx, cy, r, marketCx, marketRx, marketRy) {
     }
     // 营地设施围绕服务人物展开，中央广场、出城通路和传送门保持留白。
     const landmarks = [
-        ['camp_stall',-130,-145], ['camp_tent',155,-95], ['camp_forge',235,20],
+        ['camp_stall',-130,-145], ['camp_tent',190,-95], ['camp_forge',235,20],
         ['camp_wagon',-225,115], ['camp_board',-220,-30], ['camp_well',165,205]
     ];
     for (const [name,dx,dy] of landmarks) {
         const x=cx*TILE_SIZE+dx,y=cy*TILE_SIZE+dy;
         scenicProps=scenicProps.filter(prop=>Math.hypot(prop.x-x,prop.y-y)>80);
-        scenicProps.push({scenicProp:true,name,x,y,sortY:y,row:0,col:0,scale:0.54,drawH:120,baseOffset:6,alpha:1});
+        scenicProps.push({scenicProp:true,name,x,y,sortY:y,row:0,col:0,scale:name==='camp_tent'?0.49:0.54,drawH:120,baseOffset:6,alpha:1});
     }
 }
 
