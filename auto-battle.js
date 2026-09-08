@@ -735,11 +735,25 @@ const AutoBattle = {
         }
     },
 
+    // 行走通道必须容纳角色身体，并遵守实际移动先横后纵的碰撞顺序。
+    canWalkSegment(startX, startY, endX, endY) {
+        const dx = endX - startX, dy = endY - startY;
+        const stepSize = Math.min(player.radius / 2, TILE_SIZE / 4);
+        const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / stepSize));
+        for (let i = 1; i <= steps; i++) {
+            const x = startX + dx * i / steps;
+            const y = startY + dy * i / steps;
+            const previousY = startY + dy * (i - 1) / steps;
+            if (!canPlayerOccupy(x, previousY) || !canPlayerOccupy(x, y)) return false;
+        }
+        return true;
+    },
+
     // A*寻路：使用缓存提高性能
     findPathToTarget(targetX, targetY, target = null) {
         // 1. 检查是否有视线，有的话直接走过去
         const hasDirectLOS = target ? this.hasCachedLineOfSightTo(target) : hasLineOfSight(player.x, player.y, targetX, targetY);
-        if (hasDirectLOS) {
+        if (hasDirectLOS && this.canWalkSegment(player.x, player.y, targetX, targetY)) {
             // 清空缓存
             this.astarCache.path = null;
             this.astarCache.currentIndex = 0;
@@ -749,8 +763,8 @@ const AutoBattle = {
         // 2. 检查缓存是否有效
         const now = Date.now();
         const targetChanged = this.astarCache.targetX !== null &&
-            (Math.abs(this.astarCache.targetX - targetX) > 80 ||
-                Math.abs(this.astarCache.targetY - targetY) > 80);
+            (Math.floor(this.astarCache.targetX / TILE_SIZE) !== Math.floor(targetX / TILE_SIZE) ||
+                Math.floor(this.astarCache.targetY / TILE_SIZE) !== Math.floor(targetY / TILE_SIZE));
 
         const cacheExpired = now - this.astarCache.lastUpdateTime > 2000; // 2秒过期
         const needNewPath = !this.astarCache.path || targetChanged || cacheExpired;
@@ -766,6 +780,11 @@ const AutoBattle = {
                 this.astarCache.targetY = targetY;
                 this.astarCache.currentIndex = 0;
                 this.astarCache.lastUpdateTime = now;
+
+                // 重算后可以略过起点中心，但只有通道安全时才允许，避免定时折返。
+                if (newPath.length > 1 && this.canWalkSegment(player.x, player.y, newPath[1].x, newPath[1].y)) {
+                    this.astarCache.currentIndex = 1;
+                }
 
                 // 显示调试信息（可选）
                 if (window.DEBUG_ASTAR) {
@@ -788,8 +807,10 @@ const AutoBattle = {
                 const waypoint = this.astarCache.path[this.astarCache.currentIndex];
                 const distToWaypoint = Math.hypot(waypoint.x - player.x, waypoint.y - player.y);
 
-                // 如果距离路径点小于半个瓦片，认为已到达
-                if (distToWaypoint < TILE_SIZE * 0.6) {
+                // 与实际移动的5像素停止阈值一致；提前切角必须确认下一段能容纳身体。
+                const next = this.astarCache.path[this.astarCache.currentIndex + 1];
+                if (distToWaypoint <= 5 || (next && distToWaypoint < TILE_SIZE * 0.6 &&
+                    this.canWalkSegment(player.x, player.y, next.x, next.y))) {
                     this.astarCache.currentIndex++;
                 } else {
                     // 返回当前路径点
@@ -800,7 +821,8 @@ const AutoBattle = {
             // 所有路径点都走完了，清空缓存
             this.astarCache.path = null;
             this.astarCache.currentIndex = 0;
-            return { x: targetX, y: targetY };
+            return this.canWalkSegment(player.x, player.y, targetX, targetY)
+                ? { x: targetX, y: targetY } : null;
         }
 
         // 5. 缓存为空，返回null（让外层决定）
@@ -827,7 +849,7 @@ const AutoBattle = {
             const testX = player.x + Math.cos(a) * stepDist;
             const testY = player.y + Math.sin(a) * stepDist;
 
-            if (!isWall(testX, testY)) {
+            if (this.canWalkSegment(player.x, player.y, testX, testY)) {
                 return { x: testX, y: testY };
             }
         }
@@ -843,12 +865,15 @@ const AutoBattle = {
         if (pathPos) {
             // 检查是否寻路成功（不是返回原地）
             const pathDist = Math.hypot(pathPos.x - player.x, pathPos.y - player.y);
-            if (pathDist > 20) {
+            if (pathDist > 5) {
                 // 寻路成功，移动到新位置
                 this.targetFailCount = 0;
                 this.lastTargetId = target;
                 player.targetX = pathPos.x;
                 player.targetY = pathPos.y;
+            } else if (Math.hypot(target.x - player.x, target.y - player.y) <= 5) {
+                player.targetX = null;
+                player.targetY = null;
             } else {
                 // 寻路失败，返回原地，尝试强制脱困
                 if (this.recordTargetPathFailure(target)) return;
@@ -1153,7 +1178,7 @@ const AutoBattle = {
                 } else {
                     // 保持旧目标，但需要持续更新路径点（用于 A* 寻路）
                     const item = player.targetItem;
-                    if (this.hasCachedLineOfSightTo(item)) {
+                    if (this.hasCachedLineOfSightTo(item) && this.canWalkSegment(player.x, player.y, item.x, item.y)) {
                         player.targetX = item.x;
                         player.targetY = item.y;
                     } else {
@@ -1189,7 +1214,7 @@ const AutoBattle = {
             }
 
             // 检查是否有视线，决定移动方式
-            if (this.hasCachedLineOfSightTo(selected)) {
+            if (this.hasCachedLineOfSightTo(selected) && this.canWalkSegment(player.x, player.y, selected.x, selected.y)) {
                 // 有视线，直接走过去
                 player.targetItem = selected;
                 player.targetX = selected.x;
