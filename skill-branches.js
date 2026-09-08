@@ -224,7 +224,9 @@ const SkillBranchSystem = {
                 this.lightningHit(next,damage*ratio,bonus,damage);createLightningChain(prev.x,prev.y,next.x,next.y);visited.add(next);prev=next;
             }
             if (bonus.stormMode) this.areas.push({x:target.x,y:target.y,radius:120,time:bonus.stormDuration,tick:0,interval:bonus.stormInterval,damage,element:'lightning',bonus});
-            emitThunderVisualGrowth(target,visualTargets,getSkillVisualGrowthTier('thunder'));AudioSys.play('thunder_cast');
+            emitThunderVisualGrowth(target,visualTargets,getSkillVisualGrowthTier('thunder'));
+            // 与基础雷电共用落雷声，每次施法播放一次，连锁目标不重复叠音。
+            AudioSys.play('thunder_impact');
         } else {
             const cast={x:player.x,y:player.y,angle,damage:player.damage[0]*0.8,level,bonus};
             if (bonus.snipeMode) {

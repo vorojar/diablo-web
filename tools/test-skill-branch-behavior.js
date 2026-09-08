@@ -12,6 +12,7 @@ function extract(name) {
     }
 }
 const noop = () => {};
+const sounds = [];
 const ctx = vm.createContext({console, Math, Set, Map, WeakMap,
     player: {}, enemies: [], projectiles: [], particles: [], mouse: {worldX: 100, worldY: 0, rightDown: false}, touchState: {isLongPress: false},
     ProjectilePool: {acquire: p => p}, AutoBattle: {enabled: false,onPlayerDamaged:noop}, setTimeout:noop,
@@ -20,7 +21,7 @@ const ctx = vm.createContext({console, Math, Set, Map, WeakMap,
     createImpactParticles:noop,Juice:{hit:noop},DestructibleSystem:{break:d=>d.broken=true,checkMeleeCollision:noop},
     createMonsterImpactParticles:noop,emitPhysicalHitAccent:noop,addCombo:noop,createSlashEffect:noop,triggerPhysicalSweep:noop,
     isInTown: () => false, isWall: () => false, hasLineOfSight: () => true,
-    AudioSys: {play: noop, playFireballExplosion: noop}, CAST_SOURCE_VFX: {},
+    AudioSys: {play: type => sounds.push(type), playFireballExplosion: noop}, CAST_SOURCE_VFX: {},
     createFloatingText: noop, createDamageNumber: noop, createParticle: noop,
     emitSkillImpactBurst: noop, emitFireballVisualGrowth: noop, emitThunderVisualGrowth: noop,
     emitMultishotVisualGrowth: noop, spawnVfxEffect: noop, spawnCastSourceVfx: noop,
@@ -34,7 +35,9 @@ vm.runInContext(fs.readFileSync(path.join(root, 'constants.js'), 'utf8'), ctx);
 const modulePath = path.join(root, 'skill-branches.js');
 if (fs.existsSync(modulePath)) vm.runInContext(fs.readFileSync(modulePath, 'utf8') + '\nglobalThis.system = SkillBranchSystem;', ctx);
 vm.runInContext(extract('castSkill'), ctx);
+vm.runInContext(extract('findNearestEnemy'), ctx);
 function setup(skill, choice, final = null, level = 2) {
+    sounds.length = 0;
     if (ctx.system) ctx.system.reset();
     ctx.enemies = []; ctx.projectiles = []; ctx.mouse.rightDown = false;
     ctx.player = {x:0,y:0,hp:100,maxHp:100,mp:1000,ene:10,damage:[100,100],floor:1,
@@ -50,6 +53,26 @@ const s=ctx.system;
 const cast=skill=>ctx.castSkill(skill);
 const hit=(p,e)=>{p.x=e.x;p.y=e.y;s.hit(p,e);};
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
+
+test('基础雷电与全部进阶分支每次施法只播放一次落雷声',()=>{
+    for (const [choice, final, level] of [[null,null,0],['chain',null,2],['shock',null,2],['chain','storm',2],['chain','overload',2],['shock','torture',2],['shock','shield',2]]) {
+        setup('thunder',choice,final,level);
+        enemy(100);enemy(120);enemy(240);enemy(360);
+        cast('thunder');
+        assert.equal(sounds.filter(type=>type==='thunder_impact').length,1,`${choice}/${final} 应有一次落雷声`);
+        cast('thunder');
+        assert.equal(sounds.filter(type=>type==='thunder_impact').length,1,'冷却中的重复施法不应重播');
+    }
+});
+test('雷电无目标、超射程与缺蓝均不播放落雷声',()=>{
+    for (const reason of ['no-target','range','mana']) {
+        setup('thunder','chain');
+        if(reason!=='no-target')enemy(reason==='range'?250:100);
+        if(reason==='mana')ctx.player.mp=0;
+        cast('thunder');
+        assert.equal(sounds.filter(type=>type==='thunder_impact').length,0);
+    }
+});
 test('爆炸二阶段强化范围与伤害',()=>{setup('fireball','explosion');const a=enemy(),b=enemy(185);cast('fireball');hit(ctx.projectiles[0],a);close(10000-b.hp,80*0.28*1.16);});
 test('灼烧二阶段按持续时间累计真实伤害',()=>{setup('fireball','burn');const e=enemy();cast('fireball');hit(ctx.projectiles[0],e);const hp=e.hp;s.update(2.8);close(hp-e.hp,80*0.12*2.8);});
 test('连锁二阶段扩展弹射目标',()=>{setup('thunder','chain');const targets=[enemy(100),enemy(250),enemy(400),enemy(550),enemy(700)];cast('thunder');assert.ok(targets.every(e=>e.hp<10000));});
