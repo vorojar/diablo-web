@@ -107,11 +107,11 @@ context.player.skillCooldowns.thunder = 0;
 
 context.AutoBattle.decideAction(0.016);
 
-if (moveCalls !== 1) {
-    throw new Error(`FAIL: phase-through specter should not force melee reposition, got ${moveCalls} move calls.`);
+if (moveCalls !== 2) {
+    throw new Error(`FAIL: blocked specter should trigger melee reposition, got ${moveCalls} move calls.`);
 }
-if (skillCalls !== 1) {
-    throw new Error(`FAIL: phase-through specter should remain thunder-capable when it is the only target, got ${skillCalls}.`);
+if (skillCalls !== 0) {
+    throw new Error(`FAIL: blocked specter should not wait for a no-LOS thunder cast, got ${skillCalls}.`);
 }
 
 console.log('PASS: auto battle wall target priority');

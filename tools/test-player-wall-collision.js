@@ -30,3 +30,16 @@ scope.mapData=Array.from({length:7},()=>Array(7).fill(1));for(let r=0;r<7;r++)sc
 scope.player.x=119;scope.player.y=100;scope.movePlayerWithCollision(90,100);
 assert(scope.player.x<=108,'旧存档已经压进墙边时仍可脱离');
 console.log('PASS: 贴墙半径、跨格扫掠、沿墙滑动、对角墙角、地图边界与窄走廊');
+
+vm.runInContext(extract('moveEnemyWithCollision'),scope);
+scope.mapData=Array.from({length:7},()=>Array(7).fill(1));
+for(let r=0;r<7;r++)scope.mapData[r][3]=0;
+const monster={x:100,y:100,radius:16};
+scope.moveEnemyWithCollision(monster,200,150);
+assert(monster.x<=104&&monster.y>100,'怪物长帧追击必须保留脚底半径并沿墙滑动');
+monster.x=118;monster.y=100;scope.moveEnemyWithCollision(monster,110,105);
+assert(scope.canPlayerOccupy(monster.x,monster.y,16),'原本嵌墙的出生点可以恢复');
+scope.mapData=Array.from({length:7},()=>Array(7).fill(0));for(let r=0;r<7;r++)scope.mapData[r][2]=1;
+const boss={x:100,y:60,radius:45};scope.moveEnemyWithCollision(boss,100,200);
+assert(Math.abs(boss.y-200)<1e-8,'大型怪物攻击半径不能堵死一格宽通道');
+console.log('PASS: 怪物贴墙追击、长帧扫掠、出生点恢复与大型怪窄通道');

@@ -64,7 +64,6 @@ const AutoBattle = {
     },
 
     shouldCloseForMelee(target, dist, hasLOS) {
-        if (target.phaseThrough || target.ai === 'specter') return false;
         return !hasLOS &&
             dist >= GAME_CONFIG.PLAYER_MELEE_NO_LOS_RANGE &&
             dist <= this.getMeleeEngageDistance(target);

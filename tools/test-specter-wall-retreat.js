@@ -37,3 +37,23 @@ for(let i=0;i<600;i++){
 }
 assert(minGap<50,'玩家必须能追到近战可命中距离');
 console.log('PASS: 幽魂追堵、墙内脱离、隔墙禁射、长帧、空地后退与完整AI十秒追堵回放');
+
+// 中心刚飘出墙边、身体仍压在墙中时，必须继续脱离而不是停下施法。
+scope.player={x:180,y:160};
+scope.isWall=(x,y)=>x>=80&&x<160&&y>=80&&y<120;
+scope.hasLineOfSight=()=>true;
+const clipped={ai:'specter',x:140,y:121,radius:20,speed:70,cooldown:0};
+scope.enemies=[clipped];const attacksBeforeExit=scope.attacks;
+scope.updateEnemies(1/60);
+assert(clipped.y>121,'中心出墙但身体未出墙时必须继续接近');
+assert.equal(scope.attacks,attacksBeforeExit,'身体压墙时不能停下攻击');
+for(let i=0;i<120;i++)scope.updateEnemies(1/60);
+assert(clipped.y-clipped.radius>=120||clipped.x-clipped.radius>=160,'身体必须完整脱离墙体');
+
+// 双向视线不一致时以玩家能否看见幽魂为准，不能单方面停在墙后。
+scope.isWall=()=>false;scope.player={x:100,y:100};
+scope.hasLineOfSight=(x,y)=>x!==scope.player.x||y!==scope.player.y;
+const oneWay={x:160,y:100,radius:12,speed:70,cooldown:0};
+scope.tick(oneWay,.1);
+assert(oneWay.x<160,'玩家看不到幽魂时应主动接近，不能按反向视线后退');
+console.log('PASS: 半身出墙持续脱离、压墙禁射与玩家侧视线一致性');

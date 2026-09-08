@@ -8274,7 +8274,7 @@ function updateEnemies(dt) {
                     const beforeRetreatY = e.y;
                     const moveX = e.x - (dx / dist) * currentSpeed * dt;
                     const moveY = e.y - (dy / dist) * currentSpeed * dt;
-                    if (!isWall(moveX, e.y)) e.x = moveX; if (!isWall(e.x, moveY)) e.y = moveY;
+                    moveEnemyWithCollision(e, moveX, moveY);
                     const retreated = Math.hypot(e.x - beforeRetreatX, e.y - beforeRetreatY) > 0.5;
                     if (!retreated && hasLOS && e.cooldown <= 0) {
                         startRangedEnemyAttack(e);
@@ -8289,8 +8289,7 @@ function updateEnemies(dt) {
                 const dist = Math.sqrt(distSq);
                 const nx = e.x + (dx / dist) * currentSpeed * dt;
                 const ny = e.y + (dy / dist) * currentSpeed * dt;
-                if (!isWall(nx, e.y)) e.x = nx;
-                if (!isWall(e.x, ny)) e.y = ny;
+                moveEnemyWithCollision(e, nx, ny);
             }
         } else if (e.ai === 'revive') {
             for (let mi = 0; mi < enemies.length; mi++) {
@@ -8356,7 +8355,7 @@ function updateEnemies(dt) {
             if (distSq < 90000 && distSq > 10000) { // 300^2=90000, 100^2=10000
                 const dist = Math.sqrt(distSq);
                 const nx = e.x + (dx / dist) * currentSpeed * dt, ny = e.y + (dy / dist) * currentSpeed * dt;
-                if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
+                moveEnemyWithCollision(e, nx, ny);
             }
         } else if (e.ai === 'phase') {
             // 幽灵AI：可以穿墙，直线追击玩家
@@ -8395,8 +8394,7 @@ function updateEnemies(dt) {
                     const dist = Math.sqrt(distSq);
                     const nx = e.x + (dx / dist) * currentSpeed * dt;
                     const ny = e.y + (dy / dist) * currentSpeed * dt;
-                    if (!isWall(nx, e.y)) e.x = nx;
-                    if (!isWall(e.x, ny)) e.y = ny;
+                    moveEnemyWithCollision(e, nx, ny);
                 } else if (distSq <= 1600 && e.cooldown <= 0) { // 40^2 = 1600
                     // 近身普通攻击
                     startMonsterAttack(e, {
@@ -8414,7 +8412,11 @@ function updateEnemies(dt) {
             }
         } else if (e.ai === 'specter') {
             // 穿墙只用于接近；失去视线时先脱离墙体，不能继续向墙内逃跑。
-            const hasLOS = !isWall(e.x, e.y) && hasLineOfSight(e.x, e.y, player.x, player.y);
+            const clearBody = !isWall(e.x, e.y) &&
+                !isWall(e.x - e.radius, e.y - e.radius) && !isWall(e.x + e.radius, e.y - e.radius) &&
+                !isWall(e.x - e.radius, e.y + e.radius) && !isWall(e.x + e.radius, e.y + e.radius);
+            const hasLOS = clearBody && hasLineOfSight(e.x, e.y, player.x, player.y) &&
+                hasLineOfSight(player.x, player.y, e.x, e.y);
             let retreated = false;
             if (distSq < 14400 && distSq > 0 && hasLOS) {
                 const dist = Math.sqrt(distSq);
@@ -8428,7 +8430,8 @@ function updateEnemies(dt) {
                     // 后退保留身体空间，分步检测防止长帧跨墙；不绕墙角丢失视线。
                     if (isWall(nx, ny) || isWall(nx - e.radius, ny - e.radius) ||
                         isWall(nx + e.radius, ny - e.radius) || isWall(nx - e.radius, ny + e.radius) ||
-                        isWall(nx + e.radius, ny + e.radius) || !hasLineOfSight(nx, ny, player.x, player.y)) break;
+                        isWall(nx + e.radius, ny + e.radius) || !hasLineOfSight(nx, ny, player.x, player.y) ||
+                        !hasLineOfSight(player.x, player.y, nx, ny)) break;
                     e.x = nx; e.y = ny; retreated = true;
                 }
             }
@@ -8472,8 +8475,9 @@ function updateEnemies(dt) {
             } else if (distSq > 0 && distSq < 202500 && (!hasLOS || distSq >= 122500)) { // 450^2 = 202500
                 // 靠近玩家（可穿墙）- 无视线时也会穿墙过来
                 const dist = Math.sqrt(distSq);
-                e.x += (dx / dist) * currentSpeed * dt;
-                e.y += (dy / dist) * currentSpeed * dt;
+                const travel = Math.min(dist, currentSpeed * dt);
+                e.x += (dx / dist) * travel;
+                e.y += (dy / dist) * travel;
             }
         } else {
             // 普通chase AI
@@ -8483,7 +8487,7 @@ function updateEnemies(dt) {
                 const fleeSpeed = currentSpeed * 1.15;
                 const nx = e.x - (dx / dist) * fleeSpeed * dt;
                 const ny = e.y - (dy / dist) * fleeSpeed * dt;
-                if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
+                moveEnemyWithCollision(e, nx, ny);
                 if (!(e.fleeYellTimer > 0)) {
                     createDamageNumber(e.x, e.y - 22, "逃跑!", '#ffcc66');
                     e.fleeYellTimer = 2.5;
@@ -8491,7 +8495,7 @@ function updateEnemies(dt) {
             } else if (distSq < GAME_CONFIG.MONSTER_CHASE_RANGE_SQ && distSq > GAME_CONFIG.MONSTER_DISENGAGE_RANGE_SQ) {
                 const dist = Math.sqrt(distSq);
                 const nx = e.x + (dx / dist) * currentSpeed * dt, ny = e.y + (dy / dist) * currentSpeed * dt;
-                if (!isWall(nx, e.y)) e.x = nx; if (!isWall(e.x, ny)) e.y = ny;
+                moveEnemyWithCollision(e, nx, ny);
             }
             if (!shouldFlee && distSq <= GAME_CONFIG.MONSTER_MELEE_RANGE_SQ && e.cooldown <= 0) {
                 startMonsterAttack(e, {
@@ -9163,12 +9167,15 @@ function draw() {
         };
         for (let oi = 0, oLen = enemies.length; oi < oLen; oi++) { const e = enemies[oi]; if (!e.dead) collectOcclusion(e); }
         collectOcclusion(player);
-        // 遍历并解码
+        // 只弱化实体前方的墙面重绘，保留墙的位置，同时避免完全盖住贴墙角色。
+        ctx.save();
+        ctx.globalAlpha = 0.32;
         _occlusionSet.forEach(key => {
             const c = key & 0xFF, r = key >> 8;  // 位运算解码
             const tx = c * TILE_SIZE, ty = r * TILE_SIZE;
             ctx.drawImage(mapCacheCanvas, tx, ty, TILE_SIZE, TILE_SIZE, tx, ty, TILE_SIZE, TILE_SIZE);
         });
+        ctx.restore();
     }
 
     ctx.textAlign = 'center';
@@ -13524,8 +13531,7 @@ function updateWorldLabels() {
 function isWall(x, y) { const c = Math.floor(x / TILE_SIZE), r = Math.floor(y / TILE_SIZE); return c < 0 || r < 0 || c >= MAP_WIDTH || r >= MAP_HEIGHT || mapData[r][c] === 0; }
 
 // 角色以脚底为中心的圆形碰撞体；不能只检查中心所在格。
-function canPlayerOccupy(x, y) {
-    const radius=player.radius;
+function canPlayerOccupy(x, y, radius = player.radius) {
     for(let r=Math.floor((y-radius)/TILE_SIZE);r<=Math.floor((y+radius)/TILE_SIZE);r++) {
         for(let c=Math.floor((x-radius)/TILE_SIZE);c<=Math.floor((x+radius)/TILE_SIZE);c++) {
             if(!isWall((c+.5)*TILE_SIZE,(r+.5)*TILE_SIZE))continue;
@@ -13535,6 +13541,30 @@ function canPlayerOccupy(x, y) {
         }
     }
     return true;
+}
+
+// 怪物脚底碰撞与玩家共用圆形检测；大型怪攻击半径不作为走廊占地半径。
+function moveEnemyWithCollision(enemy, nx, ny) {
+    const radius = Math.min(enemy.radius, TILE_SIZE * .45);
+    if (!canPlayerOccupy(enemy.x, enemy.y, radius)) {
+        // 兼容已经贴进墙边的出生点，连续修复到最近合法脚底位置。
+        let recovered = false;
+        for (let distance = 1; distance <= TILE_SIZE && !recovered; distance++) {
+            for (let i = 0; i < 8; i++) {
+                const angle = i * Math.PI / 4;
+                const x = enemy.x + Math.cos(angle) * distance, y = enemy.y + Math.sin(angle) * distance;
+                if (canPlayerOccupy(x, y, radius)) { enemy.x = x; enemy.y = y; recovered = true; break; }
+            }
+        }
+        if (!recovered) return;
+    }
+    const dx = nx - enemy.x, dy = ny - enemy.y;
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 6));
+    for (let i = 0; i < steps; i++) {
+        const x = enemy.x + dx / steps, y = enemy.y + dy / steps;
+        if (canPlayerOccupy(x, enemy.y, radius)) enemy.x = x;
+        if (canPlayerOccupy(enemy.x, y, radius)) enemy.y = y;
+    }
 }
 
 function movePlayerWithCollision(nx, ny) {
