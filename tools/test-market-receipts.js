@@ -12,7 +12,7 @@ class TestRecord {
 const app = {
   findCollectionByNameOrId(name) { assert.ok(tables[name]); return name; },
   findRecordsByFilter(name, filter, sort, limit, offset, params) {
-    return [...tables[name].values()].filter(record => (name === 'market_receipts' ? record.get('request_id') : record.id) === params.id);
+    return [...tables[name].values()].filter(record => params.index !== undefined ? (record.get('stall_index') === params.index || record.get('user_id') === params.owner) : (name === 'market_receipts' ? record.get('request_id') : record.id) === params.id);
   },
   findRecordById(name, id) { const record = tables[name].get(id); if (!record) throw new Error('missing record'); return record; },
   save(record) { tables[record.collection].set(record.id, record); },
@@ -83,3 +83,17 @@ for (const route of routes) {
   vm.runInNewContext(`(${route})(event)`, { __hooks: '/hooks', require: path => { assert.equal(path, '/hooks/market-lib.js'); return handlers; }, event: { requestInfo: () => ({ body: request }), json: (status, data) => ({ status, data }) } });
 }
 console.log('PASS Hook 路由不依赖外层词法上下文');
+
+const opening = { requestId: 'open-stall-test-001', sellerId: 'new-seller', nickname: '测试', stallName: '测试', stallIndex: 2, hours: 1, items: [{ item: { id: 'new-item', name: '剑' }, price: 10 }] };
+const opened = call('openStall', opening);
+assert.equal(opened.status, 200);
+assert.deepEqual(call('openStall', structuredClone(opening)), opened);
+assert.equal(call('openStall', { ...opening, requestId: 'open-stall-test-002' }).status, 409);
+const closing = { requestId: 'close-stall-test-001', sellerId: 'new-seller', stallId: opened.data.stallId };
+assert.equal(call('closeStall', { ...closing, sellerId: 'other' }).status, 403);
+const closed = call('closeStall', closing);
+assert.equal(closed.status, 200); assert.equal(closed.data.items[0].id, 'new-item');
+assert.deepEqual(call('closeStall', structuredClone(closing)), closed);
+assert.equal(call('closeStall', { ...closing, requestId: 'close-stall-test-002' }).data.items.length, 0);
+assert.equal(call('purchase', { ...request, requestId: 'buy-closed-test-001', stallId: opened.data.stallId }).status, 409);
+console.log('PASS 上架收据重放、摊位占用检查、收摊归属检查、重复收摊不重复返还、收摊后不可购买');

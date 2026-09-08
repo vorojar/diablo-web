@@ -8,3 +8,9 @@ routerAdd("POST", "/api/market/purchase", function (e) {
 routerAdd("POST", "/api/market/claim-sales", function (e) {
   return require(__hooks + "/market-lib.js").claimSales(e);
 });
+routerAdd("POST", "/api/market/close-stall", function (e) {
+  return require(__hooks + "/market-lib.js").closeStall(e);
+});
+routerAdd("POST", "/api/market/open-stall", function (e) {
+  return require(__hooks + "/market-lib.js").openStall(e);
+});

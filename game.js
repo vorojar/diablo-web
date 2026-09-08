@@ -5088,8 +5088,17 @@ function formatLastPlayed(timestamp) {
 
 // 选择存档槽位
 async function selectSlot(slotNum) {
+    if (SaveSystem.loadingSlot) return;
+    SaveSystem.loadingSlot = true;
+    try {
+        await SaveSystem.loadSlot(slotNum);
+    } catch (error) {
+        showNotification(error.message || '读取存档失败，请重试');
+        return;
+    } finally {
+        SaveSystem.loadingSlot = false;
+    }
     hideSlotSelection();
-    await SaveSystem.loadSlot(slotNum);
 
     // 进入游戏时建立在线状态（心跳、Realtime 订阅）
     if (typeof OnlineSystem !== 'undefined' && OnlineSystem.nickname) {
@@ -12959,6 +12968,7 @@ function finalizeEnemyDeath(e, totalDamage) {
     emitMummyDeathCloud(e);
 
     player.kills++;
+    if (typeof OnlineSystem !== 'undefined' && OnlineSystem.recordWeeklyKill) OnlineSystem.recordWeeklyKill();
     // 新手引导：步骤5 - 击杀第一只怪物
     if (player.kills === 1) advanceTutorial(5);
 
@@ -13994,6 +14004,7 @@ function applyDamageToPlayer(damage, attacker) {
                     if (attacker.hp <= 0) {
                         // 击杀奖励和成就
                         player.kills++;
+                        if (typeof OnlineSystem !== 'undefined' && OnlineSystem.recordWeeklyKill) OnlineSystem.recordWeeklyKill();
                         if (typeof DailyQuestSystem !== 'undefined') {
                             DailyQuestSystem.updateProgress('kill_monster', 1);
                         }

@@ -10,7 +10,14 @@ const CloudSync = {
     recordId: null,
     isReady: false,  // 云同步是否初始化完成
     uploadDebounceTimer: null,
+    uploadTimers: {},
+    uploadQueue: Promise.resolve(),
+    conflictWarnings: new Set(),
     DEBOUNCE_DELAY: 2000,  // 2秒防抖
+    knownCloudTimes: {},
+    rememberCloud(record) {
+        for (let slot = 1; slot <= 3; slot++) this.knownCloudTimes[slot] = this.saveTime(this.parseCloudSlot(record[`slot_${slot}`])?.fullData);
+    },
 
     // 初始化：检查本地是否已绑定
     async init() {
@@ -32,9 +39,20 @@ const CloudSync = {
         console.log('[云同步] 初始化完成, 已绑定:', this.isBound);
     },
 
-    // 从云端同步最新数据到本地（比较等级，云端更高则覆盖）
+    // 以保存时间判断新旧；覆盖前保留本地备份，不以等级推断进度。
+    saveTime(data) {
+        return Number(data?.lastPlayed || data?.lastOnlineTime || 0);
+    },
+
+    async waitForLocalStore() {
+        if (typeof SaveSystem === 'undefined') return;
+        while (!SaveSystem.isReady) await new Promise(resolve => setTimeout(resolve, 20));
+        if (typeof db === 'undefined' || !db) throw new Error('本地存储不可用，无法同步存档');
+    },
+
     async syncFromCloud() {
         try {
+            await this.waitForLocalStore();
             const cloudRecord = await pb.collection('cloud_saves').getOne(this.recordId);
             if (!cloudRecord) return;
 
@@ -47,19 +65,15 @@ const CloudSync = {
 
             let updated = false;
             for (let i = 0; i < 3; i++) {
-                const cloud = cloudSlots[i];
-                const local = localSlots[i];
+                const cloud = this.parseCloudSlot(cloudSlots[i])?.fullData;
+                const local = localSlots[i]?.fullData;
 
                 if (!cloud) continue;
 
-                const cloudLevel = cloud.lvl || 0;
-                const localLevel = local?.lvl || 0;
-
-                // 云端等级更高，覆盖本地
-                if (cloudLevel > localLevel) {
+                if (!local || this.saveTime(cloud) > this.saveTime(local)) {
                     await this.saveToLocalSlot(i + 1, cloud);
                     updated = true;
-                    console.log(`[云同步] 槽位${i + 1}: 云端(Lv${cloudLevel}) > 本地(Lv${localLevel})，已更新`);
+                    console.log(`[云同步] 槽位${i + 1}: 已恢复较新的云端进度`);
                 }
             }
 
@@ -69,6 +83,7 @@ const CloudSync = {
                     SaveSystem.loadAllSlotsMeta();
                 }
             }
+            this.rememberCloud(cloudRecord);
         } catch (e) {
             console.error('[云同步] 同步失败:', e);
         }
@@ -76,7 +91,7 @@ const CloudSync = {
 
     // 保存数据到本地指定槽位
     async saveToLocalSlot(slotId, data) {
-        if (typeof db === 'undefined' || !db) return;
+        if (typeof db === 'undefined' || !db) throw new Error('本地存储不可用');
 
         // 确保数据有正确的 id 和 slotId
         const saveData = {
@@ -85,11 +100,16 @@ const CloudSync = {
             slotId: slotId
         };
 
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             const tx = db.transaction(['saveData'], 'readwrite');
-            tx.objectStore('saveData').put(saveData);
+            const store = tx.objectStore('saveData');
+            const previous = store.get(`slot_${slotId}`);
+            previous.onsuccess = () => {
+                if (previous.result) store.put({ ...previous.result, id: `backup_slot_${slotId}` });
+                store.put(saveData);
+            };
             tx.oncomplete = () => resolve(true);
-            tx.onerror = () => resolve(false);
+            tx.onerror = tx.onabort = () => reject(new Error('存档写入失败，原存档已保留'));
         });
     },
 
@@ -106,15 +126,15 @@ const CloudSync = {
     // 获取本地所有槽位的存档数据
     async getLocalSlots() {
         const slots = [null, null, null];
-        if (typeof db === 'undefined' || !db) return slots;
+        if (typeof db === 'undefined' || !db) throw new Error('本地存储不可用，无法读取存档');
 
         for (let i = 1; i <= 3; i++) {
             try {
-                const data = await new Promise((resolve) => {
+                const data = await new Promise((resolve, reject) => {
                     const tx = db.transaction(['saveData'], 'readonly');
                     const req = tx.objectStore('saveData').get(`slot_${i}`);
                     req.onsuccess = (e) => resolve(e.target.result);
-                    req.onerror = () => resolve(null);
+                    req.onerror = tx.onerror = tx.onabort = () => reject(new Error('读取本地存档失败，已停止云同步'));
                 });
                 if (data) {
                     slots[i - 1] = {
@@ -127,7 +147,7 @@ const CloudSync = {
                         fullData: data
                     };
                 }
-            } catch (e) { }
+            } catch (e) { throw e; }
         }
         return slots;
     },
@@ -160,6 +180,7 @@ const CloudSync = {
             });
 
             // 保存到本地
+            this.rememberCloud(record);
             this.syncCode = code;
             this.recordId = record.id;
             this.isBound = true;
@@ -232,6 +253,8 @@ const CloudSync = {
     // 解析云端槽位数据
     parseCloudSlot(data) {
         if (!data) return null;
+        if (typeof data === 'string') data = JSON.parse(data);
+        if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('云端存档格式无效');
         return {
             lvl: data.lvl || 1,
             gold: data.gold || 0,
@@ -321,22 +344,25 @@ const CloudSync = {
 
     // 应用云端存档到本地
     async applyCloudSave(cloudRecord) {
-        if (!db) return;
+        if (!db) throw new Error('本地存储不可用');
 
         const slots = [cloudRecord.slot_1, cloudRecord.slot_2, cloudRecord.slot_3];
         const tx = db.transaction(['saveData'], 'readwrite');
         const store = tx.objectStore('saveData');
 
         for (let i = 0; i < 3; i++) {
-            if (slots[i]) {
-                const data = { ...slots[i], id: `slot_${i + 1}`, slotId: i + 1 };
-                store.put(data);
-            }
+            const slot = this.parseCloudSlot(slots[i])?.fullData;
+            const previous = store.get(`slot_${i + 1}`);
+            previous.onsuccess = () => {
+                if (previous.result) store.put({ ...previous.result, id: `backup_slot_${i + 1}` });
+                if (slot) store.put({ ...slot, id: `slot_${i + 1}`, slotId: i + 1 });
+                else store.delete(`slot_${i + 1}`);
+            };
         }
 
-        return new Promise((resolve) => {
-            tx.oncomplete = resolve;
-            tx.onerror = resolve;
+        return new Promise((resolve, reject) => {
+            tx.oncomplete = () => { this.rememberCloud(cloudRecord); resolve(); };
+            tx.onerror = tx.onabort = () => reject(new Error('存档恢复失败，原存档已保留，请重试'));
         });
     },
 
@@ -355,10 +381,11 @@ const CloudSync = {
 
         try {
             await pb.collection('cloud_saves').update(id, updateData);
+            this.rememberCloud(updateData);
             return true;
         } catch (e) {
             console.error('[云同步] 上传失败:', e);
-            return false;
+            throw e;
         }
     },
 
@@ -366,33 +393,40 @@ const CloudSync = {
     uploadSlotDebounced(slotId) {
         if (!this.isBound || !this.recordId) return;
 
-        clearTimeout(this.uploadDebounceTimer);
-        this.uploadDebounceTimer = setTimeout(() => {
+        clearTimeout(this.uploadTimers[slotId]);
+        this.uploadTimers[slotId] = setTimeout(() => {
+            delete this.uploadTimers[slotId];
             this.uploadSlot(slotId);
         }, this.DEBOUNCE_DELAY);
     },
 
     // 上传单个槽位
-    async uploadSlot(slotId) {
+    uploadSlot(slotId) {
+        this.uploadQueue = this.uploadQueue.catch(() => {}).then(() => this.uploadSlotNow(slotId));
+        return this.uploadQueue;
+    },
+
+    async uploadSlotNow(slotId) {
         if (!this.isBound || !this.recordId) return;
-
-        const slots = await this.getLocalSlots();
-        const localSlot = slots[slotId - 1];
-        if (!localSlot) return;
-
-        const localLevel = localSlot.lvl || 0;
-
-        // 降级保护：获取云端当前数据比较等级
         try {
+            const slots = await this.getLocalSlots();
+            const localSlot = slots[slotId - 1];
+            if (!localSlot) return;
+            const localLevel = localSlot.lvl || 0;
             const cloudRecord = await pb.collection('cloud_saves').getOne(this.recordId);
-            const cloudSlot = cloudRecord[`slot_${slotId}`];
+            const cloudSlot = this.parseCloudSlot(cloudRecord[`slot_${slotId}`])?.fullData;
+            if (this.knownCloudTimes[slotId] === undefined || this.knownCloudTimes[slotId] !== this.saveTime(cloudSlot)) {
+                console.warn('[云同步] 云端已有其他设备更新，暂停上传以保留双方进度');
+                if (!this.conflictWarnings.has(slotId) && typeof showNotification === 'function') {
+                    this.conflictWarnings.add(slotId);
+                    showNotification('云存档尚未核对或已在其他设备更新，已暂停自动同步；本地进度继续保存，请重新进入游戏核对');
+                }
+                return;
+            }
 
             if (cloudSlot) {
-                const cloudLevel = cloudSlot.lvl || 0;
-
-                // 如果本地等级比云端低5级以上，跳过（防止误覆盖）
-                if (localLevel < cloudLevel - 5) {
-                    console.warn(`[云同步] 检测到降级(本地Lv${localLevel} < 云端Lv${cloudLevel})，跳过自动同步`);
+                if (this.saveTime(localSlot.fullData) <= this.saveTime(cloudSlot)) {
+                    console.warn('[云同步] 云端存档更新或无法确定新旧，保留云端进度');
                     return;
                 }
             }
@@ -402,6 +436,7 @@ const CloudSync = {
                 version: Date.now()
             };
             await pb.collection('cloud_saves').update(this.recordId, updateData);
+            this.knownCloudTimes[slotId] = this.saveTime(localSlot.fullData);
             console.log(`[云同步] 槽位${slotId} 已上传 (Lv${localLevel})`);
         } catch (e) {
             console.error('[云同步] 上传槽位失败:', e);
@@ -630,35 +665,39 @@ const CloudSync = {
 
     // 解决绑定冲突
     async resolveBindConflict(choice, code, recordId) {
-        const cloudNickname = this._pendingCloudRecord?.nickname || null;
+        try {
+            const cloudNickname = this._pendingCloudRecord?.nickname || null;
 
-        if (choice === 'local') {
-            // 用本地覆盖云端
-            await this.uploadAllSlots(recordId);
-        } else {
-            // 用云端覆盖本地
+            if (choice === 'local') {
+                // 用本地覆盖云端
+                await this.uploadAllSlots(recordId);
+            } else {
+                // 用云端覆盖本地
+                if (this._pendingCloudRecord) {
+                    await this.applyCloudSave(this._pendingCloudRecord);
+                    if (typeof SaveSystem !== 'undefined') {
+                        SaveSystem.loadAllSlotsMeta();
+                    }
+                }
+            }
+            this.completeBinding(code, recordId, cloudNickname);
+            this._pendingCloudRecord = null;
+        } catch (error) { this.showErrorMessage(error.message || "存档操作失败，请重试"); }
+    },
+
+    // 解决恢复冲突
+    async resolveRestoreConflict(code, recordId) {
+        try {
             if (this._pendingCloudRecord) {
                 await this.applyCloudSave(this._pendingCloudRecord);
                 if (typeof SaveSystem !== 'undefined') {
                     SaveSystem.loadAllSlotsMeta();
                 }
             }
-        }
-        this.completeBinding(code, recordId, cloudNickname);
-        this._pendingCloudRecord = null;
-    },
-
-    // 解决恢复冲突
-    async resolveRestoreConflict(code, recordId) {
-        if (this._pendingCloudRecord) {
-            await this.applyCloudSave(this._pendingCloudRecord);
-            if (typeof SaveSystem !== 'undefined') {
-                SaveSystem.loadAllSlotsMeta();
-            }
-        }
-        this.completeBinding(code, recordId);
-        this._pendingCloudRecord = null;
-        this.showSuccessMessage('存档恢复成功！');
+            this.completeBinding(code, recordId);
+            this._pendingCloudRecord = null;
+            this.showSuccessMessage('存档恢复成功！');
+        } catch (error) { this.showErrorMessage(error.message || "存档操作失败，请重试"); }
     },
 
     // 复制同步码到剪贴板
@@ -1295,6 +1334,31 @@ const OnlineSystem = {
         */
     },
 
+    recordWeeklyKill() {
+        const floor = player.isInHell ? (player.maxHellFloor || player.hellFloor || 0) + 10 : (player.maxFloor || 0);
+        const score = player.lvl * 100 + player.kills + floor * 50;
+        // 跨周首杀先按击杀前的累计值建基线，再记录这次击杀。
+        if (!player.weeklyLeaderboard || player.weeklyLeaderboard.version !== 2 || player.weeklyLeaderboard.week !== this.getWeekStart()) {
+            this.getWeeklyProgress({ kills: player.kills - 1 }, score - 1);
+        }
+        this.getWeeklyProgress({ kills: player.kills }, score);
+    },
+
+    getWeeklyProgress(data, score) {
+        const week = this.getWeekStart();
+        const kills = Number(data.kills) || 0;
+        let progress = player.weeklyLeaderboard;
+        if (!progress || progress.week !== week || progress.version !== 2) {
+            progress = player.weeklyLeaderboard = { version: 2, week, kills: 0, score: 0, lastKills: kills, lastScore: score };
+        } else {
+            progress.kills += Math.max(0, kills - progress.lastKills);
+            progress.score += Math.max(0, score - progress.lastScore);
+            progress.lastKills = kills;
+            progress.lastScore = score;
+        }
+        return progress;
+    },
+
     // 提交分数到排行榜（双轨匹配：优先 sync_code，兜底 user_id）
     async submitScore(data) {
         if (!this.userId || !this.nickname) return;
@@ -1322,6 +1386,7 @@ const OnlineSystem = {
             gold: data.gold || 0,
             score: (data.level || 1) * 100 + (data.kills || 0) + (data.maxFloor || 0) * 50
         };
+        const weekly = this.getWeeklyProgress(data, scoreData.score);
 
         try {
             // 双轨查询：优先用 sync_code，fallback 用 user_id
@@ -1343,17 +1408,9 @@ const OnlineSystem = {
                 const oldWeekStart = old.week_start || 0;
                 const isNewWeek = oldWeekStart < currentWeekStart;
 
-                // 计算周数据
-                let weekKills, weekScore;
-                if (isNewWeek) {
-                    // 新的一周，重置周数据
-                    weekKills = data.kills || 0;
-                    weekScore = scoreData.score;
-                } else {
-                    // 同一周，累加（取最大值）
-                    weekKills = Math.max(old.week_kills || 0, data.kills || 0);
-                    weekScore = Math.max(old.week_score || 0, scoreData.score);
-                }
+                // 周进度保存在角色存档中；旧档首次建立基线，不把历史击杀记入本周。
+                const weekKills = weekly.kills;
+                const weekScore = weekly.score;
 
                 // 添加周数据字段
                 scoreData.week_kills = weekKills;
@@ -1365,8 +1422,8 @@ const OnlineSystem = {
                 const shouldUpdate = scoreData.score > old.score ||
                     scoreData.gold > (old.gold || 0) ||
                     isNewWeek ||
-                    weekKills > (old.week_kills || 0) ||
-                    weekScore > (old.week_score || 0) ||
+                    weekKills !== (old.week_kills || 0) ||
+                    weekScore !== (old.week_score || 0) ||
                     needsMigration;
 
                 if (shouldUpdate) {
@@ -1376,9 +1433,9 @@ const OnlineSystem = {
                     this.loadLeaderboard(true);  // 强制刷新
                 }
             } else {
-                // 新用户，周数据等于总数据
-                scoreData.week_kills = data.kills || 0;
-                scoreData.week_score = scoreData.score;
+                // 新角色先建立周统计基线
+                scoreData.week_kills = weekly.kills;
+                scoreData.week_score = weekly.score;
                 scoreData.week_start = currentWeekStart;
                 await pb.collection('leaderboard').create(scoreData);
                 this.loadLeaderboard(true);  // 强制刷新
@@ -1389,18 +1446,24 @@ const OnlineSystem = {
     // 加载排行榜（带缓存）
     async loadLeaderboard(forceRefresh = false) {
         const now = Date.now();
+        const queryKey = `${this.leaderboardMode}:${this.currentTab}:${this.getWeekStart()}`;
 
         // 使用缓存（5分钟内不重复请求）
-        if (!forceRefresh && this.leaderboardCache && (now - this.leaderboardCacheTime) < this.CACHE_DURATION) {
+        if (!forceRefresh && this.leaderboardCacheKey === queryKey && this.leaderboardCache && (now - this.leaderboardCacheTime) < this.CACHE_DURATION) {
             this.updateLeaderboardDisplay(this.leaderboardCache);
             return;
         }
 
         try {
-            // 获取更多数据（50条），让前端根据周榜/总榜分别排序
+            const weekly = this.leaderboardMode === 'week';
+            const field = weekly ? (this.currentTab === 'kills' ? 'week_kills' : 'week_score') :
+                ({ kills: 'kills', gold: 'gold', floor: 'max_floor' }[this.currentTab] || 'score');
             const records = await pb.collection('leaderboard').getList(1, 50, {
-                sort: '-score'
+                sort: `-${field}`,
+                ...(weekly ? { filter: `week_start = ${this.getWeekStart()}` } : {})
             });
+            if (queryKey !== `${this.leaderboardMode}:${this.currentTab}:${this.getWeekStart()}`) return;
+            this.leaderboardCacheKey = queryKey;
             this.leaderboardCache = records.items || [];
             this.leaderboardCacheTime = now;
             this.updateLeaderboardDisplay(this.leaderboardCache);
@@ -1570,9 +1633,7 @@ const OnlineSystem = {
             return;
         }
 
-        if (panel && this.leaderboardData) {
-            this.renderLeaderboardContent(panel, this.leaderboardData);
-        }
+        this.loadLeaderboard(true);
     },
 
     // 渲染深渊排行榜（保持与普通榜一致的风格）
@@ -1660,9 +1721,7 @@ const OnlineSystem = {
             this.currentTab = 'score';
         }
         const panel = document.getElementById('leaderboard-panel');
-        if (panel && this.leaderboardData) {
-            this.renderLeaderboardContent(panel, this.leaderboardData);
-        }
+        this.loadLeaderboard(true);
     },
 
     // 根据当前标签排序

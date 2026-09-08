@@ -94,12 +94,13 @@ const MarketSystem = {
 
   transactionBusy: false,
 
-  async requireReceiptProtocol() {
+  async requireReceiptProtocol(kind) {
     if (typeof pb === 'undefined' || typeof pb.send !== 'function') {
       throw new Error('市场升级中，暂时无法交易');
     }
     const protocol = await pb.send('/api/market/protocol', { method: 'GET' });
     if (protocol?.version !== 2) throw new Error('市场升级中，暂时无法交易');
+    if (['open-stall', 'close-stall'].includes(kind) && !protocol.stallReceipts) throw new Error('市场升级中，暂时无法上架或收摊');
   },
 
   async tryServerPurchase(stall, slotData, itemIndex, totalPrice) {
@@ -124,7 +125,7 @@ const MarketSystem = {
     }
     this.transactionBusy = true;
     try {
-      await this.requireReceiptProtocol();
+      await this.requireReceiptProtocol(player.marketPending?.kind || kind);
       if (player.marketPending) {
         await this.deliverPendingTransaction();
         showNotification('已处理上次交易，请重新确认本次操作', 'info');
@@ -135,6 +136,13 @@ const MarketSystem = {
       }
       if (kind === 'purchase' && !player.inventory.includes(null)) throw new Error('背包已满');
       const pending = { kind, body: { ...body, requestId: this.createRequestId(kind) }, reservedGold, applied: false };
+      if (kind === 'open-stall') {
+        if (!Number.isSafeInteger(reservedGold) || reservedGold <= 0 || player.gold < reservedGold) throw new Error('金币不足');
+        const indices = body.items.map(s => player.inventory.findIndex(i => i && i.id === s.item.id));
+        if (indices.some(i => i < 0) || new Set(indices).size !== indices.length) throw new Error('上架物品已变化，请重新选择');
+        pending.reservedItems = indices.map(i => player.inventory[i]);
+        indices.forEach(i => { player.inventory[i] = null; });
+      }
       player.marketPending = pending;
       player.gold -= reservedGold;
       // 存档未成功前绝不请求服务端成交。
@@ -143,6 +151,7 @@ const MarketSystem = {
       finally {
         if (!saved) {
           player.gold += reservedGold;
+          this.restoreReservedItems(pending);
           delete player.marketPending;
         }
       }
@@ -174,6 +183,7 @@ const MarketSystem = {
         const code = error?.data?.code || error?.response?.code;
         if (['sold_out', 'price_changed', 'invalid_stall', 'own_stall', 'forbidden', 'invalid_request'].includes(code)) {
           player.gold += pending.reservedGold;
+          this.restoreReservedItems(pending);
           pending.applied = true;
           pending.rejected = true;
           if (!await SaveSystem.save()) throw new Error('退款尚未保存，请重试恢复');
@@ -188,6 +198,17 @@ const MarketSystem = {
         const index = player.inventory.findIndex(item => item === null);
         if (index === -1) throw new Error('已购买，背包已满；腾出空位后重新打开市场领取');
         player.inventory[index] = response.item;
+      } else if (pending.kind === 'close-stall') {
+        if (!Array.isArray(response.items) || response.items.some(i => !i || !i.id)) throw new Error('收摊收据异常');
+        if (player.inventory.filter(i => i === null).length < response.items.length) throw new Error('收摊已完成，请腾出背包后重新打开市场领取商品');
+        response.items.forEach(item => { player.inventory[player.inventory.indexOf(null)] = item; });
+      } else if (pending.kind === 'open-stall') {
+        if (!response.stallId) throw new Error('上架收据异常');
+        this.localStallId = response.stallId;
+        this.isStalling = true;
+        this.setupItems = [];
+        this.closeSetupPanel();
+        this.showCloseStallButton();
       } else {
         if (!Number.isSafeInteger(response.totalGold) || response.totalGold < 0) throw new Error('收益收据数据异常');
         player.gold += response.totalGold;
@@ -197,6 +218,18 @@ const MarketSystem = {
     // applied 与金币/物品同一存档事务，重启或存档重试都不会重复交付。
     if (!await SaveSystem.save()) throw new Error('交易已到账但尚未保存，请重试恢复');
     delete player.marketPending;
+    if (pending.kind === 'close-stall') {
+      this.localStallId = null;
+      this.isStalling = false;
+      this.stallStartTime = null;
+      this._expirationWarned = false;
+      this.currentStallIndex = -1;
+      this.hideCloseStallButton();
+    }
+    if (pending.kind === 'open-stall' && !pending.rejected) {
+      if (typeof AudioSys !== 'undefined') AudioSys.play('levelup');
+      if (typeof OnlineSystem.announce === 'function') OnlineSystem.announce('stall_open', pending.body.stallName);
+    }
     if (pending.kind === 'claim-sales' && !pending.rejected) {
       const claimedIds = new Set(pending.body.saleIds);
       this.pendingSales = (this.pendingSales || []).filter(sale => !claimedIds.has(sale.id));
@@ -213,6 +246,15 @@ const MarketSystem = {
   async recoverPendingTransactions() {
     if (!player.marketPending || this.transactionBusy) return;
     return this.runMarketTransaction(null, null, 0);
+  },
+
+  restoreReservedItems(pending) {
+    for (const item of pending.reservedItems || []) {
+      const index = player.inventory.indexOf(null);
+      if (index >= 0) player.inventory[index] = item;
+      else player.stash.push(item);
+    }
+    pending.reservedItems = [];
   },
 
   createUI() {
@@ -421,6 +463,13 @@ const MarketSystem = {
       });
 
       this.stalls = records.items || [];
+      // 离线期间过期的自有摊位也要加载，供收据流程返还商品。
+      if (typeof OnlineSystem !== 'undefined' && OnlineSystem.userId && !this.stalls.some(s => s.user_id === OnlineSystem.userId)) {
+        const own = await pb.collection('market_stalls').getList(1, 1, {
+          filter: `user_id = "${OnlineSystem.userId}"`, sort: '-created'
+        });
+        if (own.items?.length) this.stalls.push(own.items[0]);
+      }
       console.log('[摆摊系统] 加载摊位:', this.stalls.length);
 
       // 检查是否有自己的摊位
@@ -658,9 +707,7 @@ const MarketSystem = {
   performMarketGC() {
     if (typeof OnlineSystem === 'undefined' || !OnlineSystem.gc) return;
 
-    // 1. 清理过期超过 48 小时的僵尸摊位 (弃坑玩家)
-    const fortyEightHoursAgo = new Date(Date.now() - 48 * 3600 * 1000).toISOString().replace('T', ' ');
-    OnlineSystem.gc('market_stalls', `expires_at < "${fortyEightHoursAgo}"`, 3);
+    // 未领取商品必须保留，过期摊位由收摊收据回收。
 
     // 2. 清理超过 15 天未领取的销售收益 (按用户要求保留 15 天)
     const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString().replace('T', ' ');
@@ -692,41 +739,8 @@ const MarketSystem = {
   },
 
   async handleExpiredStall(stall) {
-    showNotification('⏰ 摊位已过期，自动收摊中...', 'warning');
-
-    // 返还商品
-    const items = this.parseItems(stall.items);
-    for (const slotData of items) {
-      if (slotData && slotData.item) {
-        if (!addItemToInventory(slotData.item)) {
-          groundItems.push({
-            x: player.x + Math.random() * 40 - 20,
-            y: player.y + Math.random() * 40 - 20,
-            item: slotData.item
-          });
-        }
-      }
-    }
-
-    // 尝试删除服务器记录
-    try {
-      await pb.collection('market_stalls').delete(stall.id);
-    } catch (e) {
-      // 可能已被服务器清理
-    }
-
-    // 清理本地状态
-    this.stalls = this.stalls.filter(s => s.id !== stall.id);
-    this.localStallId = null;
-    this.isStalling = false;
-    this.stallStartTime = null;
-    this.currentStallIndex = -1;
-    this._expirationWarned = false;
-    this.hideCloseStallButton();
-
-    showNotification('✅ 已自动收摊，商品已返还', 'success');
-    renderInventory();
-    SaveSystem?.save();
+    if (this.transactionBusy) return;
+    return this.runMarketTransaction('close-stall', { sellerId: OnlineSystem.userId, stallId: stall.id }, 0);
   },
 
   // ========== 检查未领取的销售收益 ==========
@@ -932,12 +946,7 @@ const MarketSystem = {
     if (panel) panel.style.display = 'none';
     this.isPanelOpen = false;
 
-    // 返还未上架的物品到背包
-    for (const item of this.setupItems) {
-      if (item && item.item) {
-        addItemToInventory(item.item);
-      }
-    }
+    // 货架仅引用背包物品，关闭面板不重复返还。
     this.setupItems = [];
     this.currentStallIndex = -1;
     renderInventory();
@@ -1187,7 +1196,6 @@ const MarketSystem = {
     const durationSelect = document.getElementById('stall-duration-select');
     const hours = durationSelect ? parseInt(durationSelect.value) : 1;
     const stallFee = hours * MARKET_CONFIG.STALL_FEE_PER_HOUR;
-    const durationMs = hours * 60 * 60 * 1000;
 
     // 检查金币是否足够
     if (typeof player === 'undefined' || player.gold < stallFee) {
@@ -1228,157 +1236,19 @@ const MarketSystem = {
 
     this.currentStallIndex = assignedIndex;
 
-    try {
-      // 先扣除摊位费
-      player.gold -= stallFee;
-
-      // PocketBase DateTime 格式: "2006-01-02 15:04:05.000Z"
-      const expiresAt = new Date(Date.now() + durationMs)
-        .toISOString()
-        .replace('T', ' ')
-        .slice(0, 23) + 'Z';
-
-      const requestData = {
-        user_id: OnlineSystem.userId,
-        nickname: OnlineSystem.nickname || '匿名',
-        stall_index: assignedIndex,
-        stall_name: stallName,
-        items: itemsToSell.map(s => ({
-          item: s.item,
-          price: s.price
-        })),
-        expires_at: expiresAt
-      };
-
-      const record = await pb.collection('market_stalls').create(requestData);
-
-      // 上传成功后，才真正从背包移除物品（用 item.id 查找，防止索引错位）
-      for (const slotData of itemsToSell) {
-        const realIndex = player.inventory.findIndex(inv => inv && inv.id === slotData.item.id);
-        if (realIndex !== -1) {
-          player.inventory[realIndex] = null;
-        }
-      }
-
-      this.localStallId = record.id;
-      this.isStalling = true;
-      this.stallStartTime = Date.now();
-      this.stalls.push(record);
-
-      // 移动玩家到摊位位置
-      const stallPos = this.getStallWorldPosition(this.currentStallIndex);
-      if (stallPos && typeof player !== 'undefined') {
-        player.x = stallPos.x;
-        player.y = stallPos.y;
-        player.target = null;
-      }
-
-      // 清空临时数据（保留 currentStallIndex）
-      this.setupItems = [];
-
-      // 关闭面板
-      document.getElementById('stall-setup-panel').style.display = 'none';
-      this.isPanelOpen = false;
-
-      // 显示收摊按钮
-      this.showCloseStallButton();
-
-      // 保存游戏，防止物品丢失
-      renderInventory();
-      if (typeof SaveSystem !== 'undefined') SaveSystem.save();
-
-      showNotification('🛒 开始营业！点击"收摊"结束', 'success');
-      if (typeof AudioSys !== 'undefined') AudioSys.play('levelup');
-      console.log('[摆摊系统] 开始摆摊:', record.id);
-
-      // 发送摆摊公告
-      if (typeof OnlineSystem !== 'undefined' && stallName) {
-        OnlineSystem.announce('stall_open', stallName);
-      }
-
-    } catch (e) {
-      console.error('[摆摊系统] 开始摆摊失败:', e);
-
-      // 退还摊位费
-      player.gold += stallFee;
-
-      // 显示详细错误信息
-      let errorMsg = e.message || '未知错误';
-      if (e.data && e.data.data) {
-        // PocketBase 字段验证错误
-        const fieldErrors = Object.entries(e.data.data)
-          .map(([k, v]) => `${k}: ${v.message || v}`)
-          .join(', ');
-        errorMsg = fieldErrors || errorMsg;
-      }
-      showNotification('摆摊失败: ' + errorMsg, 'error');
-
-      // 物品还在背包，不需要返还
-      this.setupItems = [];
-    }
+    await this.runMarketTransaction('open-stall', {
+      sellerId: OnlineSystem.userId, nickname: OnlineSystem.nickname,
+      stallName, stallIndex: assignedIndex, hours,
+      items: itemsToSell.map(s => ({ item: s.item, price: s.price }))
+    }, stallFee);
   },
 
-  // ========== 收摊 ==========
+  // 服务器收摊与收据原子提交，断网保留请求，绝不提前返还。
   async closeStall() {
     if (!this.localStallId) return;
-
-    try {
-      // 获取当前摊位数据
-      const stallData = this.stalls.find(s => s.id === this.localStallId);
-
-      if (stallData) {
-        // 返还未售出的物品
-        const items = this.parseItems(stallData.items);
-
-        for (const slotData of items) {
-          if (slotData && slotData.item) {
-            if (!addItemToInventory(slotData.item)) {
-              // 背包满了，掉落到地上
-              groundItems.push({
-                x: player.x + Math.random() * 40 - 20,
-                y: player.y + Math.random() * 40 - 20,
-                item: slotData.item
-              });
-            }
-          }
-        }
-      }
-
-      // 删除服务器记录（忽略404错误）
-      try {
-        await pb.collection('market_stalls').delete(this.localStallId);
-      } catch (deleteErr) {
-        // 404 表示记录已不存在，不是真正的错误
-        if (deleteErr.status !== 404) {
-          throw deleteErr;
-        }
-      }
-
-      this.stalls = this.stalls.filter(s => s.id !== this.localStallId);
-      this.localStallId = null;
-      this.isStalling = false;
-      this.stallStartTime = null;
-      this.currentStallIndex = -1;
-
-      // 隐藏收摊按钮
-      this.hideCloseStallButton();
-
-      showNotification('已收摊，商品已返还', 'success');
-      renderInventory();
-
-    } catch (e) {
-      console.error('[摆摊系统] 收摊失败:', e);
-
-      // 即使失败也强制清理本地状态
-      this.stalls = this.stalls.filter(s => s.id !== this.localStallId);
-      this.localStallId = null;
-      this.isStalling = false;
-      this.stallStartTime = null;
-      this.currentStallIndex = -1;
-      this.hideCloseStallButton();
-
-      showNotification('已收摊', 'info');
-    }
+    return this.runMarketTransaction('close-stall', {
+      sellerId: OnlineSystem.userId, stallId: this.localStallId
+    }, 0);
   },
 
   // ========== 打开查看摊位面板 ==========

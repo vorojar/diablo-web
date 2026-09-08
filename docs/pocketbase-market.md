@@ -13,7 +13,7 @@
 1. 备份 PocketBase 数据目录。确认版本支持现代 `Collection.fields` / `app.runInTransaction` API（沿用当前 Hook 的现代 API）。
 2. 将 `pb_migrations/1788652800_market_receipts.js` 放进服务的 `pb_migrations` 目录，执行 `pocketbase migrate up`。
 3. 同时复制 `pb_hooks/market.pb.js` 和 `pb_hooks/market-lib.js`。两者必须一起部署。
-4. 重启 PocketBase，确认新进程和健康接口，再请求 `GET /api/market/protocol`，期望 `{"version":2}`。
+4. 重启 PocketBase，确认新进程和健康接口，再请求 `GET /api/market/protocol`，期望包含 `{"version":2,"stallReceipts":true}`。
 5. 完成隔离环境验收后发布前端。未安装新版服务时客户端显示“市场升级中”，不会回退到不具备可靠交付的旧购买/领取路径。
 
 路由通过 `require` 加载模块，以适应 PocketBase 每个 handler 的隔离上下文，见 [官方说明](https://pocketbase.io/docs/js-overview/#handlers-scope)。集合迁移语法见 [官方迁移文档](https://pocketbase.io/docs/js-migrations/)。
@@ -50,3 +50,9 @@ node tools/test-market-pocketbase-live.js <官方pocketbase.exe路径> <新隔�
 这是单浏览器、单角色存档的故障恢复协议，不是完整服务端经济或认证体系。`buyerId`/`sellerId` 仍由既有在线系统提交，**不构成可信登录认证**；收据绑定原请求参数可防误用，但不解决伪造身份或客户端金币作弊。旧客户端仍能直接写集合时也不能承诺全市场并发安全，正式上线需统一升级并审计集合写入规则。
 
 复制/回滚旧存档、跨设备并发打开同一角色、多标签页同时写同一存档、清除浏览器数据仍可能破坏本地资产一致性。要覆盖这些场景，需要把余额和背包归入可信服务端账户事务，超出本次修复范围。不要将本次结果宣传为完整反作弊或跨设备金融级一致性。
+
+## 2026-09-08 上架和收摊
+
+新增 `/api/market/open-stall` 和 `/api/market/close-stall`。上架先将商品和费用连同请求预存；服务端检查摊位占用并原子写入上架收据。收摊在同一事务删除摊位并保存剩余商品收据，购买与收摊不会同时取得同一商品。返回商品只进入背包，空间不足保留请求供重试，不掉落到不会持久化的地面。此版本沿用原收据集合，无新增迁移。
+
+部署时必须同时更新两个 Hook 文件。协议仍兼容购买版本2，并额外返回 `stallReceipts: true`；前端在缺少此能力时禁止上架和收摊。该变更尚未部署生产服务。

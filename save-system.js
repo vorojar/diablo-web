@@ -146,6 +146,7 @@ const SaveSystem = {
             console.log('[存档迁移] 已将旧存档迁移到槽位1');
             resolve();
           };
+          writeTx.onerror = writeTx.onabort = () => resolve();
         } else {
           resolve();
         }
@@ -209,7 +210,8 @@ const SaveSystem = {
     player.lastOnlineTime = Date.now();
 
     // 同时写入 localStorage（同步，可靠）作为备份
-    localStorage.setItem(`lastOnlineTime_slot${this.currentSlot}`, player.lastOnlineTime.toString());
+    try { localStorage.setItem(`lastOnlineTime_slot${this.currentSlot}`, player.lastOnlineTime.toString()); }
+    catch (error) { console.warn('[存档系统] 时间戳备份失败:', error); }
 
     const data = {
       id: `slot_${this.currentSlot}`,
@@ -261,10 +263,13 @@ const SaveSystem = {
 
   // 加载指定槽位
   loadSlot: function (slotId) {
-    return new Promise((resolve) => {
-      if (!db) { resolve(null); return; }
-      this.currentSlot = slotId;
-      db.transaction(['saveData']).objectStore('saveData').get(`slot_${slotId}`).onsuccess = e => {
+    return new Promise((resolve, reject) => {
+      if (!db) { reject(new Error('存档数据库未就绪，请刷新后重试')); return; }
+      const tx = db.transaction(['saveData']);
+      const req = tx.objectStore('saveData').get(`slot_${slotId}`);
+      req.onerror = tx.onerror = tx.onabort = () => reject(new Error('读取存档失败，请重试；原存档已保留'));
+      req.onsuccess = e => {
+        this.currentSlot = slotId;
         if (e.target.result) {
           window.pendingLoadData = e.target.result;
 

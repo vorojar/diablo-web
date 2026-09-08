@@ -45,6 +45,9 @@ function receiptKey(body) {
 }
 
 function receiptBody(body, kind) {
+  if (kind === 'close-stall') return JSON.stringify([kind, body.sellerId, body.stallId]);
+  if (kind === 'open-stall') return JSON.stringify([kind, body.sellerId, body.nickname, body.stallName,
+    body.stallIndex, body.hours, body.items.map(function (s) { return [s.item.id, s.price]; })]);
   // Go map 转入 JS 的属性顺序不稳定，使用固定字段顺序绑定业务参数。
   return JSON.stringify(kind === "purchase" ? [kind, body.buyerId, body.buyerName,
     body.stallId, body.itemId, body.itemIndex, body.expectedPrice, body.expectedTotal] :
@@ -74,7 +77,7 @@ function saveReceipt(app, body, kind, result) {
 function protocol(e) {
   try {
     $app.findCollectionByNameOrId("market_receipts");
-    return e.json(200, { version: 2 });
+    return e.json(200, { version: 2, stallReceipts: true });
   } catch (err) { return handleMarketError(e, err, "receipts_not_installed"); }
 }
 
@@ -198,4 +201,62 @@ function claimSales(e) {
   }
 }
 
-module.exports = { protocol: protocol, purchase: purchase, claimSales: claimSales };
+function closeStall(e) {
+  try {
+    var body = e.requestInfo().body || {};
+    if (!body.sellerId || !body.stallId) abortMarket(400, 'invalid_request', '收摊参数不完整');
+    var result;
+    $app.runInTransaction(function (app) {
+      result = readReceipt(app, body, 'close-stall');
+      if (result) return;
+      var stalls = app.findRecordsByFilter('market_stalls', 'id = {:id}', '', 1, 0, { id: body.stallId });
+      result = { ok: true, items: [] };
+      if (stalls.length) {
+        var stall = stalls[0];
+        if (stall.get('user_id') !== body.sellerId) abortMarket(403, 'forbidden', '只能收回自己的摊位');
+        result.items = readJsonArray(stall.getString('items')).filter(function (s) { return s && s.item; }).map(function (s) { return s.item; });
+        app.delete(stall);
+      }
+      saveReceipt(app, body, 'close-stall', result);
+    });
+    return e.json(200, result);
+  } catch (err) { return handleMarketError(e, err, 'close_failed'); }
+}
+
+function openStall(e) {
+  try {
+    var body = e.requestInfo().body || {};
+    if (!body.sellerId || !Array.isArray(body.items) || !body.items.length || body.items.length > 10 ||
+        !Number.isInteger(body.hours) || body.hours < 1 || body.hours > 10 ||
+        !Number.isInteger(body.stallIndex) || body.stallIndex < 0 || body.stallIndex > 4) {
+      abortMarket(400, 'invalid_request', '上架参数无效');
+    }
+    var ids = {};
+    body.items.forEach(function (s) {
+      if (!s.item || !s.item.id || ids[s.item.id] || !Number.isSafeInteger(s.price) || s.price < 1 || s.price > 999999999)
+        abortMarket(400, 'invalid_request', '商品参数无效');
+      ids[s.item.id] = true;
+    });
+    var result;
+    $app.runInTransaction(function (app) {
+      result = readReceipt(app, body, 'open-stall');
+      if (result) return;
+      var occupied = app.findRecordsByFilter('market_stalls', '(stall_index = {:index} && expires_at > {:now}) || user_id = {:owner}', '', 1, 0,
+        { index: body.stallIndex, owner: body.sellerId, now: new Date().toISOString().replace('T', ' ') });
+      if (occupied.length) abortMarket(409, 'invalid_stall', '摊位已占用或已有营业中的摊位');
+      var stall = new Record(app.findCollectionByNameOrId('market_stalls'));
+      stall.set('user_id', body.sellerId);
+      stall.set('nickname', String(body.nickname || '匿名').slice(0, 24));
+      stall.set('stall_name', String(body.stallName || '摊位').slice(0, 10));
+      stall.set('stall_index', body.stallIndex);
+      stall.set('items', body.items);
+      stall.set('expires_at', new Date(Date.now() + body.hours * 3600000).toISOString().replace('T', ' '));
+      app.save(stall);
+      result = { ok: true, stallId: stall.id };
+      saveReceipt(app, body, 'open-stall', result);
+    });
+    return e.json(200, result);
+  } catch (err) { return handleMarketError(e, err, 'open_failed'); }
+}
+
+module.exports = { protocol: protocol, purchase: purchase, claimSales: claimSales, closeStall: closeStall, openStall: openStall };
