@@ -494,7 +494,7 @@ function bossTentacleAttack(boss, lockedAngle) {
   showNotification(`${boss.name} 释放了触手！`);
 }
 
-// Boss死亡特效：慢动作 + 爆炸粒子 + 巨型伤害数字
+// Boss死亡特效：慢动作 + 关键光柱 + 击杀数字
 function triggerBossDeathEffect(boss, damage) {
   // 启动慢动作
   slowMotion.active = true;
@@ -532,25 +532,6 @@ function triggerBossDeathEffect(boss, damage) {
     gravity: 0    // 修正为匹配 game.js
   });
 
-  // 大量爆炸粒子
-  const particleCount = 60;
-  for (let i = 0; i < particleCount; i++) {
-    const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.3;
-    const speed = 200 + Math.random() * 300;
-    const sparkColor = ['#ff4400', '#ff8800', '#ffcc00', '#ffffff', '#ff0000'][Math.floor(Math.random() * 5)];
-
-    particles.push({
-      x: boss.x,
-      y: boss.y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed - 100,
-      color: sparkColor,
-      life: 1.5 + Math.random() * 1.0,
-      size: 4 + Math.random() * 6,
-      gravity: 150
-    });
-  }
-
   // 创建红色光柱
   particles.push({
     type: 'drop_beam',
@@ -565,18 +546,7 @@ function triggerBossDeathEffect(boss, damage) {
     isUnique: true
   });
 
-  // 上升火焰
-  for (let i = 0; i < 20; i++) {
-    particles.push({
-      type: 'rising_spark',
-      x: boss.x + (Math.random() - 0.5) * 80,
-      y: boss.y,
-      vy: -250 - Math.random() * 200,
-      color: ['#ff4400', '#ff8800', '#ffcc00'][Math.floor(Math.random() * 3)],
-      life: 1.5 + Math.random() * 0.5,
-      size: 5 + Math.random() * 4
-    });
-  }
+
 }
 
 // ========== 精英怪词缀系统 ==========

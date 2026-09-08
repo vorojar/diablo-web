@@ -361,6 +361,7 @@ const ParticlePool = {
             p.z = undefined; p.vz = undefined; p.vx = undefined; p.vy = undefined;
             p.spin = undefined; p.gravity = undefined; p.type = undefined; p.canBake = undefined; p.size = 3;
             p.maxLife = undefined; p.radius = undefined; p.grow = undefined; p.width = undefined;
+            p.maxAlpha = undefined;
             p.angle = undefined; p.length = undefined; p.color2 = undefined; p.rotation = undefined;
             this._pool.push(p);
         }
@@ -1326,6 +1327,10 @@ if (VFX_SPRITE_CONFIG?.sheet) {
 }
 
 function spawnVfxEffect(effectId, x, y, scale = 1, rotation = 0) {
+    if (effectId === 'poisonStatusBurst' || effectId === 'playerPoisonHit') {
+        emitDriftingVeil(x, y, COLORS.poison, 22 * scale);
+        return;
+    }
     const effect = VFX_SPRITE_CONFIG?.effects?.[effectId];
     if (!effect) return;
 
@@ -1467,9 +1472,12 @@ function spawnCastSourceVfx(effectId, x, y, angle = 0, scale = 1, forward = 14, 
 }
 
 function spawnEnemyDeathVfx(enemy) {
-    const effectId = enemy.isBoss ? KILL_FEEDBACK_VFX.boss : (enemy.isElite ? KILL_FEEDBACK_VFX.elite : KILL_FEEDBACK_VFX.normal);
-    const scale = enemy.isBoss ? 1.18 : (enemy.isElite ? 0.96 : 0.78);
-    spawnVfxEffect(effectId, enemy.x, enemy.y + 4, scale, Math.random() * Math.PI * 2);
+    const profile = getMonsterImpactProfile(enemy);
+    if (profile.type === 'spirit') {
+        emitDriftingVeil(enemy.x, enemy.y, profile.color, enemy.radius * 1.4);
+    } else {
+        createImpactParticles(enemy.x, enemy.y, profile.color, enemy.isBoss ? 5 : 3);
+    }
 }
 
 function spawnMonsterAttackTelegraph(enemy, options) {
@@ -1816,22 +1824,7 @@ function emitMummyDeathCloud(enemy) {
     if (enemy.monsterType !== 'mummy') return;
 
     const radius = 95;
-    for (let i = 0; i < 18; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 10 + Math.random() * radius;
-        particles.push({
-            x: enemy.x + Math.cos(angle) * dist,
-            y: enemy.y + Math.sin(angle) * dist,
-            vx: Math.cos(angle) * 12,
-            vy: Math.sin(angle) * 12,
-            life: 1.0 + Math.random() * 0.6,
-            maxLife: 1.4,
-            color: COLORS.poison,
-            size: 5 + Math.random() * 6,
-            alpha: 0.45,
-            maxAlpha: 0.45
-        });
-    }
+    emitDriftingVeil(enemy.x, enemy.y, COLORS.poison, radius);
 
     if (Math.hypot(player.x - enemy.x, player.y - enemy.y) < radius) {
         if (!player.poisoned) spawnVfxEffect('poisonStatusBurst', player.x, player.y + 4, 1, 0);
@@ -9054,15 +9047,9 @@ function draw() {
 
             ctx.globalAlpha = 1.0;
         } else if (p.type === 'rising_spark') {
-            // 渲染上升光点
-            ctx.globalAlpha = p.life;
-            ctx.fillStyle = p.color;
-            setGlow(ctx, 10, p.color);
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
-            ctx.fill();
-            clearGlow(ctx);
-            ctx.globalAlpha = 1.0;
+            drawParticleSliver(ctx, p);
+        } else if (p.type === 'drifting_veil') {
+            drawDriftingVeil(ctx, p);
         } else if (p.type === 'impact_facet') {
             drawImpactFacet(ctx, p);
         } else if (p.type === 'impact') {
@@ -9079,6 +9066,8 @@ function draw() {
             // 飞行中也使用椭圆，更有动态感
             ctx.ellipse(p.x, p.y - (p.z || 0), p.size * 1.2, p.size * 0.8, Math.atan2(p.vy, p.vx), 0, Math.PI * 2);
             ctx.fill();
+        } else if (p.maxAlpha === undefined) {
+            drawParticleSliver(ctx, p);
         } else {
             ctx.fillStyle = p.color; ctx.globalAlpha = Math.min(1, p.life) * (p.maxAlpha === undefined ? 1 : p.maxAlpha); ctx.beginPath(); ctx.arc(p.x, p.y - (p.z || 0), p.size, 0, Math.PI * 2); ctx.fill();
         }
@@ -12375,9 +12364,58 @@ function getParticleConfig() {
 }
 
 function createParticle(x, y, color, size = 3) {
+    if (color === COLORS.poison || color === '#00ff00') {
+        emitDriftingVeil(x, y, color, Math.max(18, size * 3));
+        return;
+    }
     const maxParticles = getParticleConfig().maxParticles;
     if (particles.length >= maxParticles) return;  // 超出上限不创建
     particles.push(ParticlePool.acquire({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size }));
+}
+
+// 毒雾与灵体共用低透明度曲面烟带：按区域合并、限制并发，不创建逐帧烟粒。
+function emitDriftingVeil(x, y, color, radius) {
+    let count = 0;
+    for (const p of particles) {
+        if (p.type !== 'drifting_veil') continue;
+        count++;
+        if (p.color === color && Math.hypot(p.x - x, p.y - y) < Math.min(p.size, radius)) {
+            p.size = Math.max(p.size, radius);
+            return;
+        }
+    }
+    if (count >= (player.graphicsQuality === 'low' ? 6 : 16) || particles.length >= getParticleConfig().maxParticles) return;
+    particles.push(ParticlePool.acquire({type:'drifting_veil',x,y,color,size:radius,life:.85,maxLife:.85}));
+}
+
+function drawDriftingVeil(ctx, p) {
+    const age = 1 - p.life / p.maxLife, radius = p.size * (.75 + age * .25);
+    const fade = Math.sin(Math.PI * Math.max(0, Math.min(1, age)));
+    const layers = player.graphicsQuality === 'low' ? 2 : 3;
+    ctx.save();
+    for (let i = 0; i < layers; i++) {
+        const lift = age * 20 + i * 8, sway = Math.sin(age * 4 + i * 2) * radius * .16;
+        ctx.globalAlpha = fade * (i === 0 ? .2 : .12);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.moveTo(p.x - radius, p.y - lift);
+        ctx.bezierCurveTo(p.x - radius * .4 + sway, p.y - lift - radius * .42,
+            p.x + radius * .35 + sway, p.y - lift + radius * .12, p.x + radius, p.y - lift - radius * .14);
+        ctx.bezierCurveTo(p.x + radius * .3, p.y - lift + radius * .3,
+            p.x - radius * .3, p.y - lift - radius * .08, p.x - radius, p.y - lift);
+        ctx.closePath();ctx.fill();
+    }
+    ctx.restore();
+}
+
+// 零散火星、魔法残屑和上升光点改为随速度定向的短光痕，不加圆形光晕。
+function drawParticleSliver(ctx, p) {
+    const size = Math.min(5, p.size), angle = Math.atan2(p.vy || -1, p.vx || 0);
+    ctx.save();ctx.translate(p.x, p.y - (p.z || 0));ctx.rotate(angle);
+    ctx.globalAlpha = Math.min(1, p.life) * .7;ctx.fillStyle = p.color;
+    ctx.beginPath();ctx.moveTo(size * 2, 0);ctx.lineTo(0, size * .35);
+    ctx.lineTo(-size * 1.4, 0);ctx.lineTo(0, -size * .35);ctx.closePath();ctx.fill();
+    ctx.restore();
 }
 
 // 四面体在三维空间旋转、按深度排序并计算面光照，再投影到现有Canvas。
@@ -12560,9 +12598,9 @@ function triggerLevelUpEffect(newLevel) {
     createLevelUpBeam(player.x, player.y);
     spawnVfxEffect('levelUpBurst', player.x, player.y, 1, 0);
 
-    // 创建大量金色粒子爆发
-    const particleCount = 40;
-    for (let i = 0; i < particleCount; i++) {
+    // 少量金色短光痕，按画质限制数量
+    const particleCount = player.graphicsQuality === 'low' ? 4 : 10;
+    for (let i = 0; i < particleCount && particles.length < getParticleConfig().maxParticles; i++) {
         const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.2;
         const speed = 150 + Math.random() * 200;
         const sparkColor = ['#ffd700', '#ffaa00', '#ffcc44', '#ffffff'][Math.floor(Math.random() * 4)];
@@ -12580,7 +12618,7 @@ function triggerLevelUpEffect(newLevel) {
     }
 
     // 创建上升的星星
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < (player.graphicsQuality === 'low' ? 2 : 4) && particles.length < getParticleConfig().maxParticles; i++) {
         particles.push({
             type: 'rising_spark',
             x: player.x + (Math.random() - 0.5) * 60,
@@ -12615,8 +12653,8 @@ function createLevelUpBeam(x, y) {
     });
 }
 
-// Boss死亡特效：慢动作 + 爆炸粒子 + 巨型伤害数字
-// Boss死亡特效：慢动作 + 爆炸粒子 + 巨型伤害数字 (已移至 enemy-system.js)
+// Boss死亡特效：慢动作 + 关键光柱 + 击杀数字
+// Boss死亡特效：慢动作 + 关键光柱 + 击杀数字 (已移至 enemy-system.js)
 
 // 精英怪死亡特效：比普通怪华丽，比Boss轻
 function triggerEliteDeathEffect(elite, damage) {
@@ -12656,25 +12694,6 @@ function triggerEliteDeathEffect(elite, damage) {
         gravity: 0
     });
 
-    // 紫色爆炸粒子（比Boss少）
-    const particleCount = 25;
-    for (let i = 0; i < particleCount; i++) {
-        const angle = (Math.PI * 2 / particleCount) * i + Math.random() * 0.3;
-        const speed = 120 + Math.random() * 180;
-        const sparkColor = ['#aa44ff', '#cc66ff', '#ff88ff', '#ffffff'][Math.floor(Math.random() * 4)];
-
-        particles.push({
-            x: elite.x,
-            y: elite.y,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed - 60,
-            color: sparkColor,
-            life: 0.8 + Math.random() * 0.5,
-            size: 3 + Math.random() * 4,
-            gravity: 100
-        });
-    }
-
     // 紫色光柱（比Boss矮）
     particles.push({
         type: 'drop_beam',
@@ -12689,18 +12708,7 @@ function triggerEliteDeathEffect(elite, damage) {
         isUnique: false
     });
 
-    // 上升光点
-    for (let i = 0; i < 10; i++) {
-        particles.push({
-            type: 'rising_spark',
-            x: elite.x + (Math.random() - 0.5) * 40,
-            y: elite.y,
-            vy: -150 - Math.random() * 100,
-            color: ['#aa44ff', '#cc66ff', '#ffaaff'][Math.floor(Math.random() * 3)],
-            life: 0.8 + Math.random() * 0.4,
-            size: 3 + Math.random() * 3
-        });
-    }
+
 }
 
 // ========== 传送门和地牢入口/出口渲染 ==========
@@ -12987,7 +12995,7 @@ function finalizeEnemyDeath(e, totalDamage) {
     }
     if (e.isBoss) {
         player.stats.bossKills++;
-        // Boss死亡特效：慢动作 + 爆炸粒子 + 巨型伤害数字
+        // Boss死亡特效：慢动作 + 关键光柱 + 击杀数字
         triggerBossDeathEffect(e, totalDamage);
         // 全服公告：击杀Boss
         if (typeof OnlineSystem !== 'undefined') {
