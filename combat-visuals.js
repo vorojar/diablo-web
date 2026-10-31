@@ -172,6 +172,7 @@ const CombatVisuals = (() => {
         decorationBudget--; return true;
     }
     function isDecoration(particle) { return particle.cosmetic === true || particle.type === 'skill_ground_glow' || particle.type === 'rising_spark'; }
+    function isBusy() { return overloaded || crowded; }
     function frost(ctx, source, frame, x, y, w, h, remaining = Infinity) {
         if (!highQuality || !(remaining > 0)) return;
         const surface = frostCache.get(source, frame.x, frame.y, frame.width, frame.height, 'frost');
@@ -279,5 +280,5 @@ const CombatVisuals = (() => {
     }
     function getStats() { return { frost:frostCache.stats(),light:lightCache.stats(),frostBudget,lightBudget,frameCost,overloaded,crowded,decorationBudget,focusBudget,feedbacks:feedbacks.length,warmup:{pending:warmPlan ? warmPlan.frames.length-warmIndex : 0,warmed,cost: warmCost,scheduled:idleHandle !== null} }; }
     if (typeof document.addEventListener === 'function') document.addEventListener('visibilitychange', () => { if (document.hidden) cancelWarmup(); else scheduleWarmup(); });
-    return { beginFrame,setQuality,sampleFrame,allowDecoration,isDecoration,warm,frost,coldGround,vfx,trackAttack,monsterFrame,strike,feedback,update,drawFeedback,clear,getStats };
+    return { beginFrame,setQuality,sampleFrame,allowDecoration,isDecoration,isBusy,warm,frost,coldGround,vfx,trackAttack,monsterFrame,strike,feedback,update,drawFeedback,clear,getStats };
 })();

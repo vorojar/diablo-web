@@ -1,0 +1,180 @@
+{
+  "recipeSHA256": "a16f13ba55e839221f6b9a0236f06a43ca05d51fad14b88604f3b2b3eade1bbb",
+  "seed": 1,
+  "width": 576,
+  "height": 816,
+  "body": "art/vfx-generated/body.webp",
+  "light": "art/vfx-generated/light.webp",
+  "effects": {
+    "fireBloom": {
+      "row": 0,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 0.85,
+      "loop": false,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "frostBreak": {
+      "row": 1,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 0.75,
+      "loop": false,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "shockFade": {
+      "row": 2,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 0.5,
+      "loop": false,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "poisonFade": {
+      "row": 3,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 0.8,
+      "loop": false,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "ashDeath": {
+      "row": 4,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 0.9,
+      "loop": false,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "fireCharge": {
+      "row": 5,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 1,
+      "loop": true,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "iceCharge": {
+      "row": 6,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 1,
+      "loop": true,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "shockCharge": {
+      "row": 7,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 1,
+      "loop": true,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "earthCharge": {
+      "row": 8,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 1,
+      "loop": true,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "lootRare": {
+      "row": 9,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 1,
+      "loop": true,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "lootGold": {
+      "row": 10,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 1,
+      "loop": true,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "lootSet": {
+      "row": 11,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 1,
+      "loop": true,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "lootCollect": {
+      "row": 12,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 0.45,
+      "loop": false,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "leaves": {
+      "row": 13,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 3,
+      "loop": true,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "snow": {
+      "row": 14,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 3,
+      "loop": true,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "embers": {
+      "row": 15,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 2,
+      "loop": true,
+      "pivotX": 24,
+      "pivotY": 38
+    },
+    "ripple": {
+      "row": 16,
+      "frameWidth": 48,
+      "frameHeight": 48,
+      "frameCount": 12,
+      "duration": 2,
+      "loop": true,
+      "pivotX": 24,
+      "pivotY": 38
+    }
+  }
+}

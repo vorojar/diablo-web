@@ -1319,6 +1319,7 @@ if (VFX_SPRITE_CONFIG?.sheet) {
     vfxSpriteSheet.onload = () => {
         vfxSpritesLoaded = true;
         CombatVisuals.warm(vfxSpriteSheet, VFX_SPRITE_CONFIG.effects, player.graphicsQuality !== 'low');
+        VfxDirector.setQuality(player.graphicsQuality !== 'low');
     };
     vfxSpriteSheet.onerror = () => {
         console.error('VFX sprite sheet failed to load:', VFX_SPRITE_CONFIG.sheet);
@@ -1464,6 +1465,7 @@ function drawEliteAffixAuras(ctx, enemy, x, y) {
 }
 
 function spawnCastSourceVfx(effectId, x, y, angle = 0, scale = 1, forward = 14, lift = 14) {
+    if (typeof VfxDirector !== 'undefined' && (effectId === CAST_SOURCE_VFX.fireball || effectId === CAST_SOURCE_VFX.thunder)) VfxDirector.cast(effectId === CAST_SOURCE_VFX.fireball ? 'fireball' : 'thunder', x + Math.cos(angle) * forward, y - lift, angle);
     spawnVfxEffect(
         effectId,
         x + Math.cos(angle) * forward,
@@ -1473,7 +1475,8 @@ function spawnCastSourceVfx(effectId, x, y, angle = 0, scale = 1, forward = 14, 
     );
 }
 
-function spawnEnemyDeathVfx(enemy) {
+function spawnEnemyDeathVfx(enemy, damage = null) {
+    if (typeof VfxDirector !== 'undefined') VfxDirector.death(enemy, damage, typeof SkillBranchSystem === 'undefined' ? null : SkillBranchSystem.states?.get(enemy));
     const profile = getMonsterImpactProfile(enemy);
     if (profile.type === 'spirit') {
         emitDriftingVeil(enemy.x, enemy.y, profile.color, enemy.radius * 1.4);
@@ -3746,6 +3749,7 @@ function drawOrbProjectile(ctx, p) {
 }
 
 function emitSkillImpactBurst(type, x, y, angle = 0, power = 1) {
+    if (typeof VfxDirector !== 'undefined') VfxDirector.impact(type, x, y, power);
     if (type === 'multishot') {
         createImpactParticles(x, y, '#c3bb9d', power > 1.3 ? 4 : 2, angle);
         return;
@@ -4295,6 +4299,7 @@ function toggleGraphicsQuality() {
     const val = cachedUI.selectGraphicsQuality.value;
     player.graphicsQuality = val;
     CombatVisuals.setQuality(val !== 'low');
+    VfxDirector.setQuality(val !== 'low');
     document.body.classList.toggle('high-quality', val === 'high');
     resize();
     SaveSystem.save();
@@ -5466,6 +5471,7 @@ function enterFloor(f, spawnAt = 'start') {
     enemySpawnCandidates = [];
     vfxEffects = [];
     CombatVisuals.clear(true);
+    VfxDirector.clear();
     destructibles = []; // 清空可破坏物体
     dungeonRoomFeatures = [];
     scenicProps = [];
@@ -7245,6 +7251,7 @@ function update(dt) {
     // 当前区域素材到齐前暂停战斗计时，避免不可见敌人造成伤害。
     if (ArtSamples.pending > 0 || ArtSamples.loadError) return;
     CombatVisuals.update(dt);
+    VfxDirector.update(dt);
     // 更新敌人缓存（每帧只遍历一次enemies数组）
     gameFrameId++;
     EnemyCache.update(gameFrameId);
@@ -7693,6 +7700,7 @@ function update(dt) {
                 if (!inventoryFull) {
                     if (addItemToInventory(item)) {
                         // 拾取成功
+                        if (typeof VfxDirector !== 'undefined') VfxDirector.collect(item, particles);
                         if (item.el) item.el.remove();
                         groundItems.splice(i, 1);
                         createFloatingText(player.x, player.y - 40, `拾取了 ${item.name}`, '#4ade80', 1.5);
@@ -7885,6 +7893,7 @@ function update(dt) {
                     }
 
                     // 从地面移除物品和UI元素
+                    if (typeof VfxDirector !== 'undefined') VfxDirector.collect(item, particles);
                     groundItems = groundItems.filter(x => x !== item);
                     if (item.el) item.el.remove();
                     updateLabelsPosition();
@@ -8250,7 +8259,7 @@ function updateEnemies(dt) {
                 e.hp -= pDmg;
                 createDamageNumber(e.x, e.y, pDmg, COLORS.poison, null, e);
                 if (e.hp <= 0) {
-                    finalizeEnemyDeath(e, pDmg);
+                    finalizeEnemyDeath(e, pDmg, 'poison');
                     continue;
                 }
             }
@@ -8555,6 +8564,7 @@ function updateEnemies(dt) {
 function draw() {
     const visualFocus = AutoBattle.enabled && AutoBattle.currentTarget && !AutoBattle.currentTarget.dead ? AutoBattle.currentTarget : player;
     CombatVisuals.beginFrame(player.graphicsQuality !== 'low', performance.now() / 1000, visualFocus.x, visualFocus.y, particles.length + vfxEffects.length);
+    VfxDirector.setQuality(player.graphicsQuality !== 'low');
     const loadingOverlay=document.getElementById('art-loading');
     loadingOverlay.hidden=ArtSamples.pending===0&&!ArtSamples.loadError;
     const loadingText=ArtSamples.loadError?'区域资源加载失败，请刷新重试':'正在加载区域资源…';
@@ -8732,6 +8742,7 @@ function draw() {
 
     if (typeof Elemental3D !== 'undefined') Elemental3D.ground(ctx,projectiles,SkillBranchSystem.areas,{x:camera.x,y:camera.y,width:viewportWidth,height:viewportHeight},player.graphicsQuality !== 'low',player.graphicsQuality !== 'low');
     // 渲染可破坏物体
+    VfxDirector.ambient(ctx, camera, viewportWidth, viewportHeight, player.floor, player.isInHell, player.x, player.y, isWall, scenicProps);
     drawGroundItems(ctx);
     DestructibleSystem.draw(ctx, 'behindPlayer');
     drawScenicProps(ctx, 'behindPlayer');
@@ -9044,6 +9055,7 @@ function draw() {
             ctx.restore();
             ctx.globalAlpha = 1.0;
         } else if (p.type === 'drop_beam') {
+            if (VfxDirector.drawLoot(ctx, p)) continue;
             // 渲染掉落光柱
             const fadeIn = Math.min(1, (p.maxLife - p.life) / 0.2);  // 0.2秒淡入
             const fadeOut = Math.min(1, p.life / 0.3);               // 0.3秒淡出
@@ -9208,6 +9220,8 @@ function draw() {
         ctx.restore();
     }
 
+    VfxDirector.drawEvents(ctx, camera, viewportWidth, viewportHeight);
+    VfxDirector.drawBosses(ctx, renderEnemies, camera, viewportWidth, viewportHeight);
     CombatVisuals.drawFeedback(ctx, camera, viewportWidth, viewportHeight);
     ctx.textAlign = 'center';
     drawBossDangerTelegraphs(ctx);
@@ -10873,7 +10887,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
         AudioSys.play(isSkillDamage ? 'hit' : 'melee_hit');
     }
 
-    if (e.hp <= 0) finalizeEnemyDeath(e, totalDamage);
+    if (e.hp <= 0) finalizeEnemyDeath(e, totalDamage, dmg);
 }
 
 function showNotification(msg) {
@@ -12980,7 +12994,7 @@ function createBloodSplat(x, y, size) {
     }
 }
 
-function finalizeEnemyDeath(e, totalDamage) {
+function finalizeEnemyDeath(e, totalDamage, fatalDamage = null) {
     if (!e || e.dead) return;
     SkillBranchSystem.killed();
 
@@ -12992,7 +13006,7 @@ function finalizeEnemyDeath(e, totalDamage) {
     e.deathVisualTimer = e.deathVisualDuration;
     e.bossSkillVisual = null;
     Juice.hit(e, false, true); // 击杀反馈
-    spawnEnemyDeathVfx(e);
+    spawnEnemyDeathVfx(e, fatalDamage);
 
     // 创建地面血迹
     createBloodSplat(e.x, e.y, e.radius);
@@ -13526,6 +13540,7 @@ function updateWorldLabels() {
                 }
 
                 // 从地面移除物品
+                if (typeof VfxDirector !== 'undefined') VfxDirector.collect(i, particles);
                 groundItems = groundItems.filter(x => x !== i);
                 d.remove();
                 player.targetItem = null; // 清除目标

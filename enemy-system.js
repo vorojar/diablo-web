@@ -30,9 +30,10 @@ const BOSS_FRAMES = {
 
 // ========== Boss 工具函数 ==========
 
-function syncBossSkillVisual(boss, action, duration) {
+function syncBossSkillVisual(boss, action, duration, skill) {
   // 释放沿用蓄力朝向；技能命中时不再突然转头追随移动中的玩家。
   const previous = boss.bossSkillVisual;
+  if (action === 'attack' && typeof VfxDirector !== 'undefined') VfxDirector.release(boss, skill);
   if (action === 'attack' && previous?.phase === 'cast') {
     boss.actionDirection = previous.direction;
     boss.actionDirectionTimer = duration;
@@ -350,7 +351,7 @@ function updateBossSkills(boss, dt) {
 
 // Boss 技能：火焰新星
 function bossFireNova(boss, radius, damage) {
-  syncBossSkillVisual(boss, 'attack', 0.45);
+  syncBossSkillVisual(boss, 'attack', 0.45, 'fireNova');
 
   const dist = Math.hypot(player.x - boss.x, player.y - boss.y);
   if (dist < radius && player.invincibleTimer <= 0) {
@@ -432,7 +433,7 @@ function bossSummonMinions(boss) {
 
 // Boss 技能：吐息攻击（扇形）
 function bossBreathAttack(boss, lockedAngle) {
-  syncBossSkillVisual(boss, 'attack', 0.6);
+  syncBossSkillVisual(boss, 'attack', 0.6, 'breathAttack');
 
   const range = boss.breathRange || 200;
   const halfAngle = (boss.breathAngle || 60) * Math.PI / 360; // 转为弧度的一半

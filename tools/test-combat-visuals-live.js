@@ -28,13 +28,14 @@ let browser;
    await page.goto(address.url+(mode.touch?'?touch=1':''));
    try{await page.waitForFunction(()=>vfxSpritesLoaded&&CombatVisuals.getStats().warmup.pending===0,{},{timeout:30000});}
    catch(error){console.error(JSON.stringify({mode,errors,logs,state:await page.evaluate(()=>({active:gameActive,hidden:document.hidden,loaded:vfxSpritesLoaded,stats:CombatVisuals.getStats()}))}));throw error;}
+   await page.waitForFunction(()=>VfxDirector.getStats().bodyReady&&VfxDirector.getStats().lightReady);
    const prewarm=await page.evaluate(()=>CombatVisuals.getStats());assert.equal(prewarm.light.entries,24,'登录等待阶段应完成24帧预热');
    await page.getByRole('button',{name:'启动60级安全角色',exact:true}).click();
    await page.getByRole('button',{name:'进入第一层',exact:true}).click();
    await page.waitForFunction(()=>ArtSamples.pending===0&&!ArtSamples.loadError);
    await page.evaluate(async quality=>{
     await ArtSamples.ensureMonsters(['skeleton','zombie','ghost','butcher']);
-    gameActive=false;AutoBattle.enabled=false;player.graphicsQuality=quality;CombatVisuals.setQuality(quality!=='low');
+    gameActive=false;AutoBattle.enabled=false;player.graphicsQuality=quality;CombatVisuals.setQuality(quality!=='low');VfxDirector.setQuality(quality!=='low');
     document.getElementById('qa-controls').open=false;
     for(const e of enemies)EnemyPool.release(e);enemies=[];particles=[];vfxEffects=[];scheduledMonsterAttacks.length=0;
     const types=['skeleton','zombie','ghost'];
@@ -50,6 +51,7 @@ let browser;
      life:1,maxLife:1,color:'#a5672e',color2:'#ffc16d',cosmetic:true});
     for(let i=0;i<12;i++)spawnVfxEffect('fireballImpact',player.x+(i%4-1.5)*45,player.y+(Math.floor(i/4)-1)*42,.55,0);
     for(let i=0;i<48;i++)spawnVfxEffect('fireballImpact',player.x+(i%8-3.5)*35,player.y+(Math.floor(i/8)-3)*25,.35,0,true);
+    for(let i=0;i<50;i++)VfxDirector.emit(i%2?'fireBloom':'frostBreak',player.x+(i%8-4)*35,player.y+(Math.floor(i/8)-3)*25,1,i%2===0);
     window.visualBudgetProof={critical:0,decorative:0,danger:0,feedback:0,frames:0};
     const originalVfx=drawVfxEffect,originalDanger=CombatTactics.draw,originalFeedback=CombatVisuals.drawFeedback;
     drawVfxEffect=function(ctx,fx){visualBudgetProof[fx.decorative?'decorative':'critical']++;return originalVfx(ctx,fx);};
@@ -64,7 +66,8 @@ let browser;
     return await new Promise(resolve=>{
      function frame(now){
       if(previous)intervals.push(now-previous);previous=now;
-      const dt=1/60;CombatVisuals.update(dt);
+      const dt=1/60;CombatVisuals.update(dt);VfxDirector.update(dt);
+      if(frames%15===0){VfxDirector.cast('fireball',player.x,player.y);VfxDirector.death({x:player.x+65,y:player.y,frozenTimer:1},{cold:1});}
       if(frames%18===0){CombatVisuals.feedback('block',plain,0);CombatVisuals.feedback('dodge',dodge,0);CombatVisuals.feedback('interrupt',interrupt,0);}
       for(let i=0;i<enemies.length;i++)if(i%4===0)enemies[i].frozenTimer=.01+(.99-(frames%60)/60);
       for(let i=0;i<vfxEffects.length;i++)vfxEffects[i].age=((frames+i)%8)/24;
@@ -74,7 +77,7 @@ let browser;
       costs.sort((a,b)=>a-b);intervals.sort((a,b)=>a-b);
       resolve({actors:enemies.length,particles:particles.length,mainVfx:12,decorativeVfx:48,proof:visualBudgetProof,
        renderMedian:costs[Math.floor(costs.length*.5)],renderP95:costs[Math.floor(costs.length*.95)],intervalP95:intervals[Math.floor(intervals.length*.95)],
-       stats:CombatVisuals.getStats(),errors:qaDiagnostics.errors,touch:qaDiagnostics.simulatedTouch,
+       generated:VfxDirector.getStats(),stats:CombatVisuals.getStats(),errors:qaDiagnostics.errors,touch:qaDiagnostics.simulatedTouch,
        title:document.title,url:location.href,notBlank:document.getElementById('game-container').offsetWidth>0});
      }requestAnimationFrame(frame);
     });
@@ -83,6 +86,9 @@ let browser;
    assert.equal(result.proof.danger,result.proof.frames,'危险预警每帧仍绘制');
    assert.equal(result.proof.feedback,result.proof.frames,'关键结果反馈每帧仍绘制');
    assert(result.proof.decorative<result.proof.frames*48,'装饰预算应真实限制绘制');
+   assert(!result.generated.assetError);assert(result.generated.maxAtlasBytes<4*1024*1024);
+   assert(result.generated.active<=(mode.quality==='high'?32:12));
+   if(mode.quality==='low')assert(!result.generated.lightReady);
    assert.equal(result.errors.length,0);assert(result.notBlank);assert.equal(result.touch,mode.touch);
    assert(result.stats.frost.bytes<=2*1024*1024&&result.stats.light.bytes<=4*1024*1024);
    assert.equal(result.stats.light.builds,prewarm.light.builds,'跨层预热复用，实际混战无需重建常用光照帧');
@@ -114,6 +120,23 @@ let browser;
      CombatVisuals.drawFeedback(c,{x:0,y:0},1100,610);
     });
     await page.locator('#combat-proof').screenshot({path:path.join(output,'feedback-and-thaw.png')});
+    await page.evaluate(()=>{
+     const panel=document.getElementById('combat-proof'),c=panel.querySelector('canvas'),x=c.getContext('2d');
+     panel.querySelector('h2').textContent='新增元素、聚能与掉落 · 实际双层图集渲染';c.width=1100;c.height=690;
+     x.fillStyle='#202d35';x.fillRect(0,0,c.width,c.height);x.textAlign='center';x.font='18px sans-serif';
+     CombatVisuals.clear(true);CombatVisuals.beginFrame(true,0);VfxDirector.setQuality(true);
+     const cards=[['fireBloom','火焰命中',.2],['frostBreak','冰晶碎裂',.2],['shockFade','电弧消退',.12],['poisonFade','毒雾消散',.2],['ashDeath','火焰余烬',.25],
+      ['fireCharge','火焰聚能',.2],['iceCharge','冰霜聚能',.2],['shockCharge','雷电聚能',.2],['earthCharge','重击聚能',.2],['lootCollect','成功拾取收束',.15]];
+     cards.forEach(([id,label,age],i)=>{const px=110+i%5*220,py=165+Math.floor(i/5)*205;
+      x.fillStyle='#e8d9af';x.fillText(label,px,py-105);VfxDirector.clear();VfxDirector.emit(id,px,py,2,true);VfxDirector.update(age);VfxDirector.drawEvents(x,{x:0,y:0},1100,690);
+     });
+     for(const [i,kind]of ['rare','gold','set'].entries()){
+      const px=180+i*370;x.fillStyle='#e8d9af';x.fillText(['稀有 · 菱形','暗金 · 细长光柱','套装 · 绿色环形'][i],px,490);
+      VfxDirector.drawLoot(x,{x:px,y:620,lootKind:kind,color:'#f0ca74',maxLife:1,life:.5});
+     }VfxDirector.clear();
+    });
+    await page.locator('#combat-proof').screenshot({path:path.join(output,'element-loot-gallery.png')});
+
    }
    assert.deepEqual(errors,[]);assert.deepEqual(logs,[]);
    reports.push({mode,prewarm,result,pageErrors:errors,console:logs});

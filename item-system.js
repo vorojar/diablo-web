@@ -541,6 +541,7 @@ function createDropBeam(x, y, rarity) {
   // 创建光柱粒子
   particles.push({
     type: 'drop_beam',
+    lootKind: isSet ? 'set' : isUnique ? 'gold' : 'rare',
     x: x,
     y: y,
     color: beamColor,
