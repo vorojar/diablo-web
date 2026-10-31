@@ -53,6 +53,8 @@ const SpriteRenderer = (() => {
     }
 
     function drawFrame(ctx, source, frame, x, y, width, height, tint, cache) {
+        const frozen = tint === 'frozen' || tint === 'frozenWhite';
+        if (frozen) tint = tint === 'frozenWhite' ? 'white' : 'ice';
         const tinted = tint ? cache.get(source, frame, tint) : null;
         if (tinted) {
             ctx.drawImage(tinted, 0, 0, frame.width, frame.height, x, y, width, height);
@@ -64,6 +66,7 @@ const SpriteRenderer = (() => {
         } else {
             ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height, x, y, width, height);
         }
+        if (frozen) CombatVisuals.frost(ctx, source, frame, x, y, width, height);
     }
     return { createTintCache, drawFrame };
 })();

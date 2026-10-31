@@ -10,7 +10,8 @@ window.VFX_SPRITE_MANIFEST = {
             renderSize: 82,
             pivotX: 64,
             pivotY: 100,
-            blend: 'lighter'
+            blend: 'split',
+            material: { x: 64, y: 94, rx: 10, ry: 10 }
         },
         thunderImpact: {
             row: 1,
@@ -164,7 +165,8 @@ window.VFX_SPRITE_MANIFEST = {
             renderSize: 58,
             pivotX: 88,
             pivotY: 64,
-            blend: 'lighter'
+            blend: 'split',
+            material: { x: 98, y: 96, rx: 10, ry: 9 }
         },
         lightningProjectile: {
             row: 15,
@@ -186,7 +188,8 @@ window.VFX_SPRITE_MANIFEST = {
             renderSize: 50,
             pivotX: 92,
             pivotY: 64,
-            blend: 'lighter'
+            blend: 'split',
+            material: { x: 104, y: 100, rx: 14, ry: 5 }
         },
         tentacleProjectile: {
             row: 17,

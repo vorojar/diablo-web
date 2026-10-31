@@ -1358,20 +1358,20 @@ function drawVfxEffect(ctx, fx) {
     const dy = fx.y - (effect.pivotY || effect.frameHeight / 2) * scale;
 
     ctx.save();
-    if (effect.blend) ctx.globalCompositeOperation = effect.blend;
+    if (effect.blend && effect.blend !== 'split') ctx.globalCompositeOperation = effect.blend;
     if (fx.rotation) {
         ctx.translate(fx.x, fx.y);
         ctx.rotate(fx.rotation);
-        ctx.drawImage(
+        CombatVisuals.vfx(ctx,
             vfxSpriteSheet,
             sx, sy, effect.frameWidth, effect.frameHeight,
-            dx - fx.x, dy - fx.y, renderSize, renderSize
+            dx - fx.x, dy - fx.y, renderSize, renderSize, effect.blend === 'split', effect.material
         );
     } else {
-        ctx.drawImage(
+        CombatVisuals.vfx(ctx,
             vfxSpriteSheet,
             sx, sy, effect.frameWidth, effect.frameHeight,
-            dx, dy, renderSize, renderSize
+            dx, dy, renderSize, renderSize, effect.blend === 'split', effect.material
         );
     }
     ctx.restore();
@@ -1392,13 +1392,13 @@ function drawProjectileVfx(ctx, p) {
     const dy = -(effect.pivotY || effect.frameHeight / 2) * scale;
 
     ctx.save();
-    if (effect.blend) ctx.globalCompositeOperation = effect.blend;
+    if (effect.blend && effect.blend !== 'split') ctx.globalCompositeOperation = effect.blend;
     ctx.translate(p.x, p.y);
     ctx.rotate(p.angle || 0);
-    ctx.drawImage(
+    CombatVisuals.vfx(ctx,
         vfxSpriteSheet,
         sx, sy, effect.frameWidth, effect.frameHeight,
-        dx, dy, renderSize, renderSize
+        dx, dy, renderSize, renderSize, effect.blend === 'split', effect.material
     );
     ctx.restore();
     return true;
@@ -1417,20 +1417,20 @@ function drawLoopingVfxEffect(ctx, effectId, x, y, scale = 1, rotation = 0, time
     const dy = y - (effect.pivotY || effect.frameHeight / 2) * frameScale;
 
     ctx.save();
-    if (effect.blend) ctx.globalCompositeOperation = effect.blend;
+    if (effect.blend && effect.blend !== 'split') ctx.globalCompositeOperation = effect.blend;
     if (rotation) {
         ctx.translate(x, y);
         ctx.rotate(rotation);
-        ctx.drawImage(
+        CombatVisuals.vfx(ctx,
             vfxSpriteSheet,
             sx, sy, effect.frameWidth, effect.frameHeight,
-            dx - x, dy - y, renderSize, renderSize
+            dx - x, dy - y, renderSize, renderSize, effect.blend === 'split', effect.material
         );
     } else {
-        ctx.drawImage(
+        CombatVisuals.vfx(ctx,
             vfxSpriteSheet,
             sx, sy, effect.frameWidth, effect.frameHeight,
-            dx, dy, renderSize, renderSize
+            dx, dy, renderSize, renderSize, effect.blend === 'split', effect.material
         );
     }
     ctx.restore();
@@ -1524,6 +1524,7 @@ function startMonsterAttack(enemy, options) {
         resolve: options.resolve
     };
     scheduledMonsterAttacks.push(attack);
+    if (typeof CombatVisuals !== 'undefined') CombatVisuals.trackAttack(enemy, attack, options.duration);
     if (typeof CombatTactics !== 'undefined') CombatTactics.attackStarted(enemy, options, attack);
 }
 
@@ -2958,7 +2959,7 @@ function normalizeHeroDirection(direction) {
 
 function triggerHeroAction(action, duration) {
     player.heroAction = action;
-    player.heroActionTimer = Math.max(player.heroActionTimer || 0, duration);
+    player.heroActionTimer = duration;
     player.heroActionDuration = duration;
     player.animTime = 0;
 }
@@ -2982,15 +2983,19 @@ function getHeroFrame(direction) {
         const progress = player.heroActionDuration > 0
             ? Math.max(0, Math.min(0.999, 1 - player.heroActionTimer / player.heroActionDuration)) : 0;
         const transient = ['hurt', 'attack', 'cast'].includes(action);
-        const sample = ArtSamples.heroFrame(action, safeDirection, transient ? Math.floor(progress * 4)
-            : Math.floor((player.animTime || 0) * HERO_SPRITE_CONFIG.fps[action]) % 4);
+        // 普攻在调用时已经命中：接触帧起手，随后收招，不把准备姿势放到伤害之后。
+        const sampleIndex = player.frozen ? 0 : action === 'attack' ? 2 + Math.min(1, Math.floor(progress * 2))
+            : transient ? Math.floor(progress * 4) : Math.floor((player.animTime || 0) * HERO_SPRITE_CONFIG.fps[action]) % 4;
+        const sample = ArtSamples.heroFrame(player.frozen && action !== 'death' ? 'idle' : action, safeDirection, sampleIndex);
         if (sample) return sample;
     }
     if (heroSpritesLoaded && processedHeroSprites) {
         const actionRows = HERO_SPRITE_CONFIG.rowsByAction[action] || HERO_SPRITE_CONFIG.rowsByAction.idle;
         const frameInfo = actionRows[safeDirection] || actionRows.front;
         const fps = HERO_SPRITE_CONFIG.fps[action] || HERO_SPRITE_CONFIG.fps.idle;
-        const frameIndex = Math.floor((player.animTime || 0) * fps) % HERO_SPRITE_CONFIG.cols;
+        const progress = player.heroActionDuration > 0 ? Math.max(0, Math.min(.999, 1 - player.heroActionTimer / player.heroActionDuration)) : 0;
+        const frameIndex = action === 'attack' ? 2 + Math.min(1, Math.floor(progress * 2))
+            : Math.floor((player.animTime || 0) * fps) % HERO_SPRITE_CONFIG.cols;
         return {
             x: frameIndex * HERO_SPRITE_CONFIG.frameWidth,
             y: frameInfo.row * HERO_SPRITE_CONFIG.frameHeight,
@@ -3122,7 +3127,8 @@ function getMonsterSpriteFrame(enemy) {
 
     const skillVisual = enemy.bossSkillVisual?.timer > 0 ? enemy.bossSkillVisual : null;
     let action = 'idle';
-    if (skillVisual) action = 'attack';
+    if (enemy.frozenTimer > 0 && !enemy.dead) action = 'idle';
+    else if (skillVisual) action = 'attack';
     else if (enemy.monsterActionTimer > 0 && enemy.monsterAction === 'hurt') action = 'hurt';
     else if (enemy.hitFlashTimer > 0) action = 'hurt';
     else if (enemy.monsterActionTimer > 0 && enemy.monsterAction === 'attack') action = 'attack';
@@ -3142,13 +3148,16 @@ function getMonsterSpriteFrame(enemy) {
 
     const fps = MONSTER_SPRITE_CONFIG.fps[action] || MONSTER_SPRITE_CONFIG.fps.idle;
     let frameIndex;
-    if (skillVisual) {
+    if (enemy.frozenTimer > 0 && !enemy.dead) {
+        frameIndex = 0;
+    } else if (skillVisual) {
         // 前两帧留给蓄力，伤害发出后才播放释放与收招；受击染色不吞动作。
         const progress = Math.max(0, Math.min(0.999, 1 - skillVisual.timer / skillVisual.duration));
         frameIndex = (skillVisual.phase === 'cast' ? 0 : 2) + Math.floor(progress * 2);
     } else if ((action === 'attack' || action === 'hurt') && enemy.monsterActionDuration > 0) {
         const progress = Math.max(0, Math.min(0.999, 1 - (enemy.monsterActionTimer / enemy.monsterActionDuration)));
         frameIndex = Math.floor(progress * MONSTER_SPRITE_CONFIG.cols);
+        if (action === 'attack' && typeof CombatVisuals !== 'undefined') frameIndex = CombatVisuals.monsterFrame(enemy, frameIndex);
     } else {
         frameIndex = Math.floor((enemy.monsterAnimTime || 0) * fps) % MONSTER_SPRITE_CONFIG.cols;
     }
@@ -3580,6 +3589,7 @@ function drawEnemyActor(ctx, e) {
     const shadowWidth = e.isBoss ? Math.max(64, e.radius * 4.4) : (animatedMonsterFrame ? 46 : 34);
     const shadowHeight = e.isBoss ? 18 : (animatedMonsterFrame ? 12 : 9);
     drawContactShadow(ctx, rx, ry - 2, shadowWidth, shadowHeight, (e.isBoss ? 0.36 : 0.27) * deathAlpha);
+    if (!e.dead && (e.frozenTimer > 0 || e.slowedTimer > 0)) CombatVisuals.coldGround(ctx, rx, ry, e.radius, e.frozenTimer > 0, e.frozenTimer > 0 ? e.frozenTimer : e.slowedTimer);
     if (!e.dead) drawEliteAffixAuras(ctx, e, rx, ry);
 
     if (e.isBoss && !e.dead) {
@@ -3598,8 +3608,9 @@ function drawEnemyActor(ctx, e) {
 
         let tint = null;
         if (e.dead) tint = null;
-        else if (e.hitFlashTimer > 0) tint = 'white';
-        else if (e.frozenTimer > 0 || e.slowedTimer > 0) tint = 'ice';
+        else if (e.hitFlashTimer > 0) tint = e.frozenTimer > 0 ? 'frozenWhite' : 'white';
+        else if (e.frozenTimer > 0) tint = 'frozen';
+        else if (e.slowedTimer > 0) tint = 'ice';
         else if (e.poisonTimer > 0) tint = 'poison';
         else if (e.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) tint = 'lightning';
 
@@ -3630,6 +3641,7 @@ function drawEnemyActor(ctx, e) {
         ctx.scale(juiceScale * (1 + deathProgress * 0.08), (1.0 / juiceScale) * (1 - deathProgress * 0.22));
         ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
             -renderWidth / 2, -renderHeight, renderWidth, renderHeight);
+        if (!e.dead && e.frozenTimer > 0) CombatVisuals.frost(ctx, processedSpriteSheet, frame, -renderWidth / 2, -renderHeight, renderWidth, renderHeight);
         ctx.restore();
     } else {
         if (e.hitFlashTimer > 0) ctx.fillStyle = '#ffffff';
@@ -5448,6 +5460,7 @@ function enterFloor(f, spawnAt = 'start') {
     enemies = []; groundItems = []; projectiles = []; npcs = []; flyingPickups = [];
     enemySpawnCandidates = [];
     vfxEffects = [];
+    CombatVisuals.clear();
     destructibles = []; // 清空可破坏物体
     dungeonRoomFeatures = [];
     scenicProps = [];
@@ -8146,7 +8159,7 @@ function update(dt) {
     }
 
     // 性能优化：倒序遍历避免splice跳过元素
-    for (let i = slashEffects.length - 1; i >= 0; i--) { const s = slashEffects[i]; s.life -= dt * (s.depthSweep ? 3.2 : 5); if (s.life <= 0) slashEffects.splice(i, 1); }
+    for (let i = slashEffects.length - 1; i >= 0; i--) { const s = slashEffects[i]; s.life -= dt * (s.strike ? 1 / s.duration : s.depthSweep ? 3.2 : 5); if (s.life <= 0) slashEffects.splice(i, 1); }
 
     // 震屏效果更新
     if (screenShake.duration > 0) {
@@ -8530,6 +8543,7 @@ function updateEnemies(dt) {
 
 // --- Rendering ---
 function draw() {
+    CombatVisuals.beginFrame(player.graphicsQuality !== 'low', performance.now() / 1000);
     const loadingOverlay=document.getElementById('art-loading');
     loadingOverlay.hidden=ArtSamples.pending===0&&!ArtSamples.loadError;
     const loadingText=ArtSamples.loadError?'区域资源加载失败，请刷新重试':'正在加载区域资源…';
@@ -8769,6 +8783,7 @@ function draw() {
     const px = Math.round(player.x);
     const py = Math.round(player.y);
 
+    if (!player.isDead && (player.frozen || player.slowedTimer > 0)) CombatVisuals.coldGround(ctx, px, py, player.radius, player.frozen, player.frozen ? player.frozenTimer : player.slowedTimer);
     drawPlayerShieldBack(ctx, px, py);
     const heroFrame = getHeroFrame(player.direction);
     if (heroFrame.source || (heroSpritesLoaded && processedHeroSprites) || (spritesLoaded && processedSpriteSheet)) {
@@ -8781,11 +8796,12 @@ function draw() {
         let source = useHeroSheet ? processedHeroSprites : processedSpriteSheet;
         let tint = null;
         if (player.isDead) tint = null;
-        else if (player.heroAction === 'hurt' && player.heroActionTimer > 0) tint = 'white';
-        else if (player.frozen || player.slowedTimer > 0) tint = 'ice';
+        else if (player.heroAction === 'hurt' && player.heroActionTimer > 0) tint = player.frozen ? 'frozenWhite' : 'white';
+        else if (player.frozen) tint = 'frozen';
+        else if (player.slowedTimer > 0) tint = 'ice';
         else if (player.poisoned) tint = 'poison';
         else if (player.lightningOverloadTimer > 0 && Math.floor(Date.now() / 50) % 2 === 0) tint = 'lightning';
-        if (!useHeroSheet && tint) {
+        if (!useHeroSheet && tint && tint !== 'frozen' && tint !== 'frozenWhite') {
             source = TintCache[tint];
             tint = null;
         }
@@ -9128,6 +9144,7 @@ function draw() {
     // 绘制斩击弧 - 性能优化：使用 for 循环
     for (let si = 0, sLen = slashEffects.length; si < sLen; si++) {
         const s = slashEffects[si];
+        if (CombatVisuals.strike(ctx, s)) continue;
         if (typeof Physical3D !== 'undefined' && Physical3D.draw(ctx, s)) continue;
         const alpha = s.life;
         const color = s.color || '#ffffff';
@@ -12040,30 +12057,15 @@ function createDamageNumber(x, y, val, color, angle = null, source = null) {
 function createSlashEffect(fromX, fromY, toX, toY, damage = 50, isCrit = false) {
     const angle = Math.atan2(toY - fromY, toX - fromX);
     const profile = getPlayerVisualProfile();
-
-    // 暴击时更多斩击弧、更大半径
-    let count = damage < 50 ? 1 : damage < 150 ? 2 : 3;
-    if (isCrit) count = Math.min(count + 2, 5);  // 暴击增加2条，最多5条
-
-    const getOffsets = (n) => {
-        if (n === 1) return [0];
-        if (n === 2) return [-0.5, 0.5];
-        if (n === 3) return [-0.7, 0, 0.7];
-        if (n === 4) return [-0.9, -0.3, 0.3, 0.9];
-        return [-1.0, -0.5, 0, 0.5, 1.0];
-    };
-
-    const offsets = getOffsets(count);
-    offsets.forEach(off => {
-        slashEffects.push({
-            x: fromX + Math.cos(angle) * 10,
-            y: fromY + Math.sin(angle) * 10,
-            angle: angle + off,
-            radius: isCrit ? 45 : 30,  // 暴击更大半径
-            life: 1.0,
-            isCrit: isCrit,  // 标记暴击，用于渲染
-            color: isCrit ? '#ffdd00' : profile.trail
-        });
+    // 每次命中一个刀锋事件，接触时最亮，沿挥击方向收束；高攻速不叠加多条静止弧。
+    let count = 0;
+    for (const effect of slashEffects) if (effect.strike) count++;
+    if (count >= 6) slashEffects.splice(slashEffects.findIndex(effect => effect.strike), 1);
+    slashEffects.push({
+        x: fromX, y: fromY, angle, radius: isCrit ? 45 : 32,
+        life: 1, strike: true, isCrit,
+        duration: Math.max(.04, Math.min(isCrit ? .23 : .18, .8 / (1 + player.attackSpeed / 100) * .8)),
+        color: isCrit ? '#efc063' : profile.trail
     });
 }
 
@@ -13689,7 +13691,7 @@ function performAttack(t) {
     createSlashEffect(player.x, player.y, t.x, t.y, dmg, isCrit);  // 传递isCrit给斩击效果
     triggerPhysicalSweep(t, dmg, isCrit, attackAngle);
     player.attackAnim = 1;
-    triggerHeroAction('attack', 0.35);
+    triggerHeroAction('attack', Math.min(0.35, 0.8 / (1 + player.attackSpeed / 100) * 0.8));
 
     if (player.lifeSteal > 0) {
         let h = Math.ceil(dmg * player.lifeSteal / 100);

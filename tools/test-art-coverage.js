@@ -75,7 +75,9 @@ function assertFrame(frame, key, row, col, monster=false) {
         const diagonal = ['frontLeft', 'frontRight', 'backLeft', 'backRight'];
         const key = action === 'walk' && diagonal.includes(safeDirection) ? 'herowalkDiagonal' : action === 'hurt' ? 'heroHurt' : `hero${action}`;
         const row = key === 'herowalkDiagonal' ? diagonal.indexOf(safeDirection) : safeDirection.startsWith('back') ? 1 : ['left', 'frontLeft'].includes(safeDirection) ? 2 : ['right', 'frontRight'].includes(safeDirection) ? 3 : 0;
-        assertFrame(scope.getHeroFrame(direction), key, row, col); heroCases++;
+        // 即时普攻以接触帧起手；伤害后的半个动作周期用于收招。
+        const visibleCol = action === 'attack' ? (col < 2 ? 2 : 3) : col;
+        assertFrame(scope.getHeroFrame(direction), key, row, visibleCol); heroCases++;
     }
     const types = Object.keys(scope.monsterConfig.types);
     assert.equal(types.length, 15);
