@@ -49,7 +49,12 @@ export async function build(output=path.join(root,'art/lightning'),preview){
  const result=render();fs.mkdirSync(output,{recursive:true});
  for(const layer of ['body','light'])await sharp(result[layer].toBuffer('image/png')).webp({lossless:true,effort:6}).toFile(path.join(output,layer+'.webp'));
  fs.writeFileSync(path.join(output,'manifest.json'),JSON.stringify(result.meta,null,2)+'\n');
- fs.writeFileSync(path.join(root,'lightning-manifest.js'),'// 由 tools/build-lightning.mjs 生成；仅运行图集元数据。\nwindow.LIGHTNING_VFX_MANIFEST = '+JSON.stringify(result.meta,null,2)+';\n');
+ // 元数据并入运行脚本，避免 FTP 少传一个清单就使主循环崩溃。
+ const runtime=path.join(root,'lightning-vfx.js'),source=fs.readFileSync(runtime,'utf8');
+ const marker=/\/\/ 雷电清单开始[^\n]*\n\s*const m=.*?;\r?\n\s*\/\/ 雷电清单结束/s;
+ if(!marker.test(source))throw Error('雷电脚本缺少清单生成标记');
+ fs.writeFileSync(runtime,source.replace(marker,'// 雷电清单开始（由 tools/build-lightning.mjs 更新，随脚本一起交付）\n    const m='+JSON.stringify(result.meta)+';\n    // 雷电清单结束'));
+
  if(preview){fs.mkdirSync(preview,{recursive:true});const c=createCanvas(12*140,300),x=c.getContext('2d');x.fillStyle='#202b35';x.fillRect(0,0,c.width,c.height);
   for(let i=0;i<12;i++){x.drawImage(result.body,i*128,0,128,208,i*140,25,128,208);x.save();x.globalCompositeOperation='lighter';x.drawImage(result.light,i*128,0,128,208,i*140,25,128,208);x.restore();x.fillStyle='#e4d9bd';x.font='12px sans-serif';x.fillText(ages[i]+'s',i*140+8,270);}
   fs.writeFileSync(path.join(preview,'lightning-contact.png'),c.toBuffer('image/png'));

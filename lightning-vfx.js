@@ -1,6 +1,9 @@
 // PixelFX 雷电离线图集：运行时只做裁剪、定位与双层合成，不推进伤害或连锁目标。
 const LightningVfx=(()=>{
-    const m=window.LIGHTNING_VFX_MANIFEST,events=[],pool=[],MAX_STRIKES=12;
+    // 雷电清单开始（由 tools/build-lightning.mjs 更新，随脚本一起交付）
+    const m={"sourceSHA256":"080b7e01e24baf5620a83770b530a0a6a9fd32f7c7ef28176d44cac3aae593b6","width":1536,"height":208,"cellWidth":128,"frames":12,"ages":[0,0.025,0.05,0.075,0.1,0.13,0.16,0.2,0.25,0.3,0.46,0.6],"duration":0.68,"strike":{"y":0,"height":144,"pivotX":64,"pivotY":120},"link":{"y":144,"height":64,"startX":11,"endX":117,"pivotY":32},"body":"art/lightning/body.webp","light":"art/lightning/light.webp"};
+    // 雷电清单结束
+    const events=[],pool=[],MAX_STRIKES=12;
     let high=true,initialized=false,body=null,light=null,bodyReady=false,lightReady=false,bodyFailed=false,lightFailed=false,emitted=0;
     function load(layer){
         if(layer==='body'?(body||bodyFailed):(light||lightFailed))return;
