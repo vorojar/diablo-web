@@ -28,14 +28,14 @@ let browser;
    await page.goto(address.url+(mode.touch?'?touch=1':''));
    try{await page.waitForFunction(()=>vfxSpritesLoaded&&CombatVisuals.getStats().warmup.pending===0,{},{timeout:30000});}
    catch(error){console.error(JSON.stringify({mode,errors,logs,state:await page.evaluate(()=>({active:gameActive,hidden:document.hidden,loaded:vfxSpritesLoaded,stats:CombatVisuals.getStats()}))}));throw error;}
-   await page.waitForFunction(()=>VfxDirector.getStats().bodyReady&&VfxDirector.getStats().lightReady&&LightningVfx.getStats().bodyReady&&LightningVfx.getStats().lightReady);
+   await page.waitForFunction(()=>VfxDirector.getStats().bodyReady&&VfxDirector.getStats().lightReady&&LightningVfx.getStats().bodyReady&&LightningVfx.getStats().lightReady&&HeroVfx.getStats().bodyReady&&HeroVfx.getStats().lightReady);
    const prewarm=await page.evaluate(()=>CombatVisuals.getStats());assert.equal(prewarm.light.entries,24,'登录等待阶段应完成24帧预热');
    await page.getByRole('button',{name:'启动60级安全角色',exact:true}).click();
    await page.getByRole('button',{name:'进入第一层',exact:true}).click();
    await page.waitForFunction(()=>ArtSamples.pending===0&&!ArtSamples.loadError);
    await page.evaluate(async quality=>{
     await ArtSamples.ensureMonsters(['skeleton','zombie','ghost','butcher']);
-    gameActive=false;AutoBattle.enabled=false;player.graphicsQuality=quality;CombatVisuals.setQuality(quality!=='low');VfxDirector.setQuality(quality!=='low');LightningVfx.setQuality(quality!=='low');
+    gameActive=false;AutoBattle.enabled=false;player.graphicsQuality=quality;CombatVisuals.setQuality(quality!=='low');VfxDirector.setQuality(quality!=='low');LightningVfx.setQuality(quality!=='low');HeroVfx.setQuality(quality!=='low');
     document.getElementById('qa-controls').open=false;
     for(const e of enemies)EnemyPool.release(e);enemies=[];particles=[];vfxEffects=[];scheduledMonsterAttacks.length=0;
     const types=['skeleton','zombie','ghost'];
@@ -49,6 +49,8 @@ let browser;
     boss.pendingSkill={id:'groundSlam',originX:boss.x,originY:boss.y,timer:.6,duration:1,label:'危险重击 · 离开红圈',data:{telegraph:'circle',radius:85}};enemies.push(boss);
     for(let i=0;i<180;i++)particles.push({x:player.x+(i%15-7)*24,y:player.y+(Math.floor(i/15)-6)*20,type:'skill_ground_glow',radius:18,size:2,
      life:1,maxLife:1,color:'#a5672e',color2:'#ffc16d',cosmetic:true});
+    for(let i=0;i<20;i++)projectiles.push(ProjectilePool.acquire({x:player.x+(i%5-2)*45,y:player.y+(Math.floor(i/5)-2)*30,angle:i*.7,type:i%3?'multishot':'fireball',owner:player,life:1,age:.1,color:'#ffbb55'}));
+    slashEffects=[];for(let i=0;i<3;i++){slashEffects.push({x:player.x+(i-1)*35,y:player.y,angle:i,radius:32,life:.8,strike:true});slashEffects.push({x:player.x+(i-1)*35,y:player.y,angle:i,radius:75,tier:3,sweepArc:2.6,life:.8,depthSweep:quality!=='low',isSweep:quality==='low',heroLead:true,heroRange:75});}
     for(let i=0;i<12;i++)spawnVfxEffect('fireballImpact',player.x+(i%4-1.5)*45,player.y+(Math.floor(i/4)-1)*42,.55,0);
     for(let i=0;i<48;i++)spawnVfxEffect('fireballImpact',player.x+(i%8-3.5)*35,player.y+(Math.floor(i/8)-3)*25,.35,0,true);
     for(let i=0;i<50;i++)VfxDirector.emit(i%2?'fireBloom':'frostBreak',player.x+(i%8-4)*35,player.y+(Math.floor(i/8)-3)*25,1,i%2===0);
@@ -66,7 +68,10 @@ let browser;
     return await new Promise(resolve=>{
      function frame(now){
       if(previous)intervals.push(now-previous);previous=now;
-      const dt=1/60;CombatVisuals.update(dt);VfxDirector.update(dt);LightningVfx.update(dt);
+      const dt=1/60;CombatVisuals.update(dt);VfxDirector.update(dt);LightningVfx.update(dt);HeroVfx.update(dt);
+      for(let i=0;i<projectiles.length;i++)projectiles[i].age=(frames+i)/30;
+      for(const s of slashEffects)s.life=1-(frames%20)/20;
+      if(frames%15===0)for(let i=0;i<8;i++)HeroVfx.hit({x:player.x+(i%4-1.5)*50,y:player.y+(i>3?30:-30)},null,true);
       if(frames%15===0)for(let i=0;i<12;i++){
        const x=player.x+(i%4-1.5)*65,y=player.y+(Math.floor(i/4)-1)*50;
        LightningVfx.strike(x,y,[{x:x+10,y:y-250},{x,y}]);
@@ -81,7 +86,7 @@ let browser;
       costs.sort((a,b)=>a-b);intervals.sort((a,b)=>a-b);
       resolve({actors:enemies.length,particles:particles.length,mainVfx:12,decorativeVfx:48,proof:visualBudgetProof,
        renderMedian:costs[Math.floor(costs.length*.5)],renderP95:costs[Math.floor(costs.length*.95)],intervalP95:intervals[Math.floor(intervals.length*.95)],
-       lightning:LightningVfx.getStats(),generated:VfxDirector.getStats(),stats:CombatVisuals.getStats(),errors:qaDiagnostics.errors,touch:qaDiagnostics.simulatedTouch,
+       hero:HeroVfx.getStats(),lightning:LightningVfx.getStats(),generated:VfxDirector.getStats(),stats:CombatVisuals.getStats(),errors:qaDiagnostics.errors,touch:qaDiagnostics.simulatedTouch,
        title:document.title,url:location.href,notBlank:document.getElementById('game-container').offsetWidth>0});
      }requestAnimationFrame(frame);
     });
@@ -90,6 +95,8 @@ let browser;
    assert.equal(result.proof.danger,result.proof.frames,'危险预警每帧仍绘制');
    assert.equal(result.proof.feedback,result.proof.frames,'关键结果反馈每帧仍绘制');
    assert(result.proof.decorative<result.proof.frames*48,'装饰预算应真实限制绘制');
+   assert(!result.hero.assetError);assert(result.hero.active<=(mode.quality==='high'?24:12));assert(result.hero.maxAtlasBytes<=6*1024*1024);
+   if(mode.quality==='low')assert(!result.hero.lightReady);
    assert(!result.lightning.assetError);assert(result.lightning.active<=12);assert(result.lightning.maxAtlasBytes<3*1024*1024);
    if(mode.quality==='low')assert(!result.lightning.lightReady);
    assert(!result.generated.assetError);assert(result.generated.maxAtlasBytes<4*1024*1024);

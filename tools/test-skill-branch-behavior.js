@@ -32,6 +32,7 @@ const ctx = vm.createContext({console, Math, Set, Map, WeakMap,
     getEnemyAtCursor: () => ctx.enemies[0], getDestructibleAtCursor: () => null
 });
 vm.runInContext(fs.readFileSync(path.join(root, 'constants.js'), 'utf8'), ctx);
+if(process.argv.includes('--with-hero-vfx'))vm.runInContext(fs.readFileSync(path.join(root,'hero-vfx.js'),'utf8'),ctx);
 const modulePath = path.join(root, 'skill-branches.js');
 if (fs.existsSync(modulePath)) vm.runInContext(fs.readFileSync(modulePath, 'utf8') + '\nglobalThis.system = SkillBranchSystem;', ctx);
 vm.runInContext(extract('castSkill'), ctx);

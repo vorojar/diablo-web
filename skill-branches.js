@@ -54,6 +54,7 @@ const SkillBranchSystem = {
         const absorbed = Math.min(damage, this.arcShield);
         this.arcShield -= absorbed;
         if (absorbed > 0) createDamageNumber(player.x,player.y-45,`电弧护盾-${Math.ceil(absorbed)}`,'#66ccff');
+        if(absorbed>0 && typeof HeroVfx !== 'undefined')HeroVfx.shieldHit(player.x,player.y);
         return damage - absorbed;
     },
     controlMultiplier() {
@@ -90,6 +91,7 @@ const SkillBranchSystem = {
                 shield.pulseTimer-=effect.pulseInterval;
                 for(const e of this.nearby(player.x,player.y,150)){
                     this.deal(e,player.maxHp*effect.auraDamageRatio,'lightning');
+                    if(typeof HeroVfx !== 'undefined')HeroVfx.retributionHit(player,e);
                     this.state(e).stormSlow={time:effect.pulseInterval,amount:effect.slowAmount};
                 }
                 spawnVfxEffect('shieldPulseStatus',player.x,player.y,1.3,0);
@@ -102,6 +104,7 @@ const SkillBranchSystem = {
             player.hp=Math.min(player.maxHp,player.hp+heal);
             createDamageNumber(player.x,player.y-40,`+${Math.floor(heal)}`,'#66ff88');
         }
+        if(typeof HeroVfx !== 'undefined')HeroVfx.shieldEnd(player.x,player.y);
         if(shield.stage3==='angel')shield.invincibleTimer=SKILL_TREE.holy_shield.stage3.guard.angel.effect.invincibleDuration;
         if(shield.stage3==='link'){
             const effect=SKILL_TREE.holy_shield.stage3.guard.link.effect;
@@ -133,6 +136,7 @@ const SkillBranchSystem = {
         AudioSys.playFireballExplosion(level);
         emitSkillImpactBurst('fireball',p.x,p.y,p.angle,bonus.meteorMode?2:1.4);
         if(bonus.meteorMode && typeof Elemental3D !== 'undefined')Elemental3D.impact(p.x,p.y,radius,player.graphicsQuality !== 'low');
+        if(bonus.meteorMode && typeof HeroVfx !== 'undefined')HeroVfx.meteorImpact(p.x,p.y,radius);
         if (bonus.groundFire) this.areas.push({x:p.x,y:p.y,radius,time:bonus.groundFire,tick:0,interval:0.5,damage:damage*0.5,element:'fire',bonus});
     },
     hit(p,e) {
@@ -158,6 +162,7 @@ const SkillBranchSystem = {
         if (p.branch.rainMode && !p.transformed && p.age >= 0.35) {
             p.transformed=true; p.life=0;
             emitSkillImpactBurst('multishot',p.x,p.y,p.angle,1.7);
+            if(typeof HeroVfx !== 'undefined')HeroVfx.arrowRain(p.x,p.y,85);
             for (const e of this.nearby(p.x,p.y,85)) this.deal(e,p.damage*p.branch.rainDamageRatio,'physical');
         } else if (p.branch.splitMode && !p.transformed && p.age >= 0.25) {
             p.transformed=true; p.life=0;
@@ -173,6 +178,7 @@ const SkillBranchSystem = {
         const count=2+cast.level+(cast.bonus.extraArrows || 0);
         const width=0.6+(cast.bonus.spreadAngle || 0)*Math.PI/180;
         for (let i=0;i<count;i++) this.arrow(cast.x,cast.y,cast.angle-width/2+width*i/(count-1),cast.damage*ratio,cast.bonus,cast.level,extraPierce);
+        if(typeof HeroVfx !== 'undefined')HeroVfx.volley(cast.x,cast.y,cast.angle);
         AudioSys.play('multishot_cast');
     },
     cast(skill) {
@@ -203,6 +209,7 @@ const SkillBranchSystem = {
             }
             if (bonus.novaMode) {
                 emitSkillImpactBurst('fireball',player.x,player.y,angle,2);
+                if(typeof HeroVfx !== 'undefined')HeroVfx.nova(player.x,player.y,150);
                 for (const e of this.nearby(player.x,player.y,150)) {
                     this.deal(e,damage*bonus.novaDamageRatio,'fire');
                     if (bonus.knockback) {const a=Math.atan2(e.y-player.y,e.x-player.x),x=e.x+Math.cos(a)*25,y=e.y+Math.sin(a)*25;if (!isWall(x,y)) {e.x=x;e.y=y;}}

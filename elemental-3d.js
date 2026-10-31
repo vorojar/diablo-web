@@ -83,7 +83,7 @@ void main(){
         if(meteorEnabled){
             for(const p of projectiles){if(!p.meteorTarget||p.life<=0||!visible(p.meteorTarget.x,p.meteorTarget.y,camera))continue;const t=Math.min(1,(p.age === undefined ? 0 : p.age)/.3);glow(ctx,p.meteorTarget.x,p.meteorTarget.y,25+t*17,'#f79c3b',.14+t*.12);ring(ctx,p.meteorTarget.x,p.meteorTarget.y,14+t*12,'#ffbb66',.6,.45);}
             for(const fx of impacts){
-                if(!visible(fx.x,fx.y,camera))continue;
+                if(!visible(fx.x,fx.y,camera)||(typeof HeroVfx!=='undefined'&&HeroVfx.isReady()))continue;
                 const t=fx.age/.85,shock=Math.min(1,fx.age/.4);
                 glow(ctx,fx.x,fx.y,fx.radius*.8,'#e96920',(1-t)*.42);
                 ring(ctx,fx.x,fx.y,fx.radius*(.15+.85*Math.sqrt(shock)),'#ffd296',(1-shock)*.95,.55);
@@ -102,7 +102,7 @@ void main(){
     function foreground(ctx,areas,camera,meteorEnabled,stormEnabled,now=performance.now()){
         if((!meteorEnabled&&!stormEnabled)||failed)return;
         if(meteorEnabled)for(const fx of impacts){
-            if(!visible(fx.x,fx.y,camera))continue;const t=fx.age,fade=Math.max(0,1-t/.85);
+            if(!visible(fx.x,fx.y,camera)||(typeof HeroVfx!=='undefined'&&HeroVfx.isReady()))continue;const t=fx.age,fade=Math.max(0,1-t/.85);
             if(t<.14)glow(ctx,fx.x,fx.y-8,54,'#fff0ba',(1-t/.14)*.8);
             ctx.save();ctx.globalAlpha=fade;
             for(let i=0;i<13;i++){

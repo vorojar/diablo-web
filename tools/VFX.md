@@ -11,3 +11,5 @@
 `VfxDirector` 只读取现有施法、伤害结算结果、Boss pendingSkill 和成功拾取事件；禁止用它推进技能计时、决定命中或发放奖励。危险区域及原始主命中特效仍由原系统绘制；新增附加光效和环境装饰共享 CombatVisuals 装饰预算。跨层清空临时事件并复用通用图集。
 
 雷电使用固定版本的 PixelFX 原始绘制源，入口为 `node tools/build-lightning.mjs --preview <仓库外目录>`。它生成 `art/lightning/` 双层图集并将清单直接更新到 `lightning-vfx.js`，浏览器仅由 `LightningVfx` 定位、合成和回收。上游来源及 MIT 许可位于 `tools/vendor/pixelfx/`；部署时保留 `art/lightning/` 内的许可文件。示例蓄力不接入游戏计时，实际连锁两端由原战斗结果提供。
+
+主角攻击与法术入口为 `node tools/build-hero-vfx.mjs --preview <仓库外目录>`，生成 `art/hero-vfx/` 并将清单直接写入 `hero-vfx.js`。原素材中的示例角色通过空遮罩排除，命中从接触帧采样；施法不采用示例的长蓄力。图集缺失时回到既有精灵/刀面，不中断更新。`HeroVfx` 只读取原弹体、挥击、持续区域和技能状态；新增瞬时反馈由真实命中/波次/破盾触发。

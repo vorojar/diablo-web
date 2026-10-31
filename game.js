@@ -1321,6 +1321,7 @@ if (VFX_SPRITE_CONFIG?.sheet) {
         CombatVisuals.warm(vfxSpriteSheet, VFX_SPRITE_CONFIG.effects, player.graphicsQuality !== 'low');
         VfxDirector.setQuality(player.graphicsQuality !== 'low');
         LightningVfx.setQuality(player.graphicsQuality !== 'low');
+        if (typeof HeroVfx !== 'undefined') HeroVfx.setQuality(player.graphicsQuality !== 'low');
     };
     vfxSpriteSheet.onerror = () => {
         console.error('VFX sprite sheet failed to load:', VFX_SPRITE_CONFIG.sheet);
@@ -1351,6 +1352,7 @@ function spawnVfxEffect(effectId, x, y, scale = 1, rotation = 0, decorative = fa
 
 function drawVfxEffect(ctx, fx) {
     const effect = VFX_SPRITE_CONFIG?.effects?.[fx.effectId];
+    if (effect && typeof HeroVfx !== 'undefined' && HeroVfx.drawVfx(ctx, fx, effect)) return;
     if (!vfxSpritesLoaded || !effect) return;
 
     const frameIndex = Math.min(effect.frameCount - 1, Math.floor(fx.age * effect.fps));
@@ -1382,6 +1384,7 @@ function drawVfxEffect(ctx, fx) {
 }
 
 function drawProjectileVfx(ctx, p) {
+    if (typeof HeroVfx !== 'undefined' && HeroVfx.projectile(ctx, p, p.owner === player)) return true;
     if (typeof Elemental3D !== 'undefined' && Elemental3D.meteor(ctx,p,player.graphicsQuality !== 'low')) return true;
     const effectId = PROJECTILE_VFX[p.type] || (p.isTentacle ? PROJECTILE_VFX.tentacle : null);
     const effect = effectId ? VFX_SPRITE_CONFIG?.effects?.[effectId] : null;
@@ -3483,6 +3486,7 @@ function drawShieldMirrorFacets(ctx, profile, visualTier, shieldPercent, pulse) 
 
 function drawPlayerShieldBack(ctx, x, y) {
     if (!player.shield?.active || !(player.shield.value > 0)) return;
+    if (typeof HeroVfx !== 'undefined' && HeroVfx.shield(ctx, x, y, player.shield, false)) return;
     if (player.graphicsQuality !== 'low' && typeof Shield3D !== 'undefined' && Shield3D.draw(ctx, x, y, player.shield, false)) return;
 
     const shieldPercent = Math.max(0, Math.min(1, player.shield.value / player.shield.maxValue));
@@ -3527,6 +3531,13 @@ function drawPlayerShieldBack(ctx, x, y) {
 
 function drawPlayerShieldFront(ctx, x, y) {
     if (!player.shield?.active || !(player.shield.value > 0)) return;
+    if (typeof HeroVfx !== 'undefined' && HeroVfx.shield(ctx, x, y, player.shield, true)) {
+        ctx.save();ctx.translate(x,y);
+        const profile=getPlayerShieldVisualProfile(),tier=getShieldVisualGrowthTier();
+        const ratio=Math.max(0,Math.min(1,player.shield.value/player.shield.maxValue)),pulse=.5+Math.sin(Date.now()/220)*.5;
+        drawShieldSacredWallRunes(ctx,profile,tier,ratio,pulse);drawShieldMirrorFacets(ctx,profile,tier,ratio,pulse);
+        ctx.restore();return;
+    }
     if (player.graphicsQuality !== 'low' && typeof Shield3D !== 'undefined' && Shield3D.draw(ctx, x, y, player.shield, true)) {
         ctx.save();ctx.translate(x,y);
         const profile=getPlayerShieldVisualProfile(),tier=getShieldVisualGrowthTier();
@@ -3751,6 +3762,7 @@ function drawOrbProjectile(ctx, p) {
 
 function emitSkillImpactBurst(type, x, y, angle = 0, power = 1) {
     if (typeof VfxDirector !== 'undefined') VfxDirector.impact(type, x, y, power);
+    if (typeof HeroVfx !== 'undefined') HeroVfx.impact(type, x, y, angle, power);
     if (type === 'multishot') {
         createImpactParticles(x, y, '#c3bb9d', power > 1.3 ? 4 : 2, angle);
         return;
@@ -4302,6 +4314,7 @@ function toggleGraphicsQuality() {
     CombatVisuals.setQuality(val !== 'low');
     VfxDirector.setQuality(val !== 'low');
     LightningVfx.setQuality(val !== 'low');
+    if (typeof HeroVfx !== 'undefined') HeroVfx.setQuality(val !== 'low');
     document.body.classList.toggle('high-quality', val === 'high');
     resize();
     SaveSystem.save();
@@ -5475,6 +5488,7 @@ function enterFloor(f, spawnAt = 'start') {
     CombatVisuals.clear(true);
     VfxDirector.clear();
     LightningVfx.clear();
+    if (typeof HeroVfx !== 'undefined') HeroVfx.clear();
     player.activeLightning = null;
     destructibles = []; // 清空可破坏物体
     dungeonRoomFeatures = [];
@@ -7257,6 +7271,7 @@ function update(dt) {
     CombatVisuals.update(dt);
     VfxDirector.update(dt);
     LightningVfx.update(dt);
+    if (typeof HeroVfx !== 'undefined') HeroVfx.update(dt);
     if (player.activeLightning) { player.activeLightning.life -= dt / .36; if (player.activeLightning.life <= 0) player.activeLightning = null; }
     // 更新敌人缓存（每帧只遍历一次enemies数组）
     gameFrameId++;
@@ -8572,6 +8587,7 @@ function draw() {
     CombatVisuals.beginFrame(player.graphicsQuality !== 'low', performance.now() / 1000, visualFocus.x, visualFocus.y, particles.length + vfxEffects.length);
     VfxDirector.setQuality(player.graphicsQuality !== 'low');
     LightningVfx.setQuality(player.graphicsQuality !== 'low');
+    if (typeof HeroVfx !== 'undefined') HeroVfx.setQuality(player.graphicsQuality !== 'low');
     const loadingOverlay=document.getElementById('art-loading');
     loadingOverlay.hidden=ArtSamples.pending===0&&!ArtSamples.loadError;
     const loadingText=ArtSamples.loadError?'区域资源加载失败，请刷新重试':'正在加载区域资源…';
@@ -8750,6 +8766,7 @@ function draw() {
     if (typeof Elemental3D !== 'undefined') Elemental3D.ground(ctx,projectiles,SkillBranchSystem.areas,{x:camera.x,y:camera.y,width:viewportWidth,height:viewportHeight},player.graphicsQuality !== 'low',player.graphicsQuality !== 'low');
     // 渲染可破坏物体
     VfxDirector.ambient(ctx, camera, viewportWidth, viewportHeight, player.floor, player.isInHell, player.x, player.y, isWall, scenicProps);
+    if (typeof HeroVfx !== 'undefined') HeroVfx.drawAreas(ctx, SkillBranchSystem.areas, camera, viewportWidth, viewportHeight);
     drawGroundItems(ctx);
     DestructibleSystem.draw(ctx, 'behindPlayer');
     drawScenicProps(ctx, 'behindPlayer');
@@ -8928,6 +8945,8 @@ function draw() {
         if (p.x < camera.x - 100 || p.x > camera.x + viewportWidth + 100 ||
             p.y < camera.y - 120 || p.y > camera.y + viewportHeight + 100) continue;
 
+        // 新刀锋已包含碎屑与亮锋，避免重复绘制旧的平面地裂射线。
+        if (p.growthStyle === 'earthsplit' && typeof HeroVfx !== 'undefined' && HeroVfx.isReady()) continue;
         if (CombatVisuals.isDecoration(p) && !CombatVisuals.allowDecoration(p.x, p.y)) continue;
         if (p.type === 'lightning') {
             ctx.beginPath();
@@ -9107,8 +9126,12 @@ function draw() {
     // 绘制斩击弧 - 性能优化：使用 for 循环
     for (let si = 0, sLen = slashEffects.length; si < sLen; si++) {
         const s = slashEffects[si];
+        if (typeof Physical3D !== 'undefined' && Physical3D.draw(ctx, s)) {
+            if (typeof HeroVfx !== 'undefined') HeroVfx.slash(ctx, s, true);
+            continue;
+        }
+        if (typeof HeroVfx !== 'undefined' && HeroVfx.slash(ctx, s)) continue;
         if (CombatVisuals.strike(ctx, s)) continue;
-        if (typeof Physical3D !== 'undefined' && Physical3D.draw(ctx, s)) continue;
         const alpha = s.life;
         const color = s.color || '#ffffff';
 
@@ -9158,6 +9181,10 @@ function draw() {
         ctx.restore();
     }
 
+    if (typeof HeroVfx !== 'undefined') {
+        HeroVfx.drawStates(ctx, SkillBranchSystem.states, player, SkillBranchSystem.charge, SkillBranchSystem.arcShield, camera, viewportWidth, viewportHeight);
+        HeroVfx.drawEvents(ctx, camera, viewportWidth, viewportHeight);
+    }
     VfxDirector.drawEvents(ctx, camera, viewportWidth, viewportHeight);
     VfxDirector.drawBosses(ctx, renderEnemies, camera, viewportWidth, viewportHeight);
     CombatVisuals.drawFeedback(ctx, camera, viewportWidth, viewportHeight);
@@ -10771,6 +10798,7 @@ function takeDamage(e, dmg, isSkillDamage = false) {
 
     // 触发打击感
     Juice.hit(e, isCrit, e.hp <= 0);
+    if (typeof HeroVfx !== 'undefined') HeroVfx.hit(e, dmg, isCrit);
 
     // 检测近战可能波及的可破坏物体
     DestructibleSystem.checkMeleeCollision(e.x, e.y, 40);
@@ -12182,6 +12210,8 @@ function createPhysicalSweepEffect(fromX, fromY, attackAngle, tier, hitCount, is
             life: 1.0,
             isCrit,
             isSweep: true,
+            heroLead: i === 0,
+            heroRange: config.range * .82,
             color,
             glowColor,
             glowBlur: isCrit ? 14 : 8,
@@ -13174,6 +13204,7 @@ function playerTakeDamage(rawDamage, source, options = {}) {
         if (shieldAbsorbed > 0) {
             if (typeof Shield3D !== 'undefined') Shield3D.hit(source ? source.x-player.x : 1, source ? source.y-player.y : 0);
             const sourceAngle = source ? Math.atan2(player.y - source.y, player.x - source.x) : 0;
+            if (typeof HeroVfx !== 'undefined') HeroVfx.shieldHit(player.x, player.y, sourceAngle + Math.PI);
             if (typeof CombatVisuals !== 'undefined') CombatVisuals.feedback('block', player, sourceAngle);
             spawnVfxEffect('shieldPulseStatus', player.x, player.y + 4, 0.75, 0);
             createDamageNumber(player.x, player.y - 50, `护盾-${shieldAbsorbed}`, '#66ccff');
@@ -13960,6 +13991,7 @@ function castSkill(skillName) {
 
         // 音效和视觉效果
         AudioSys.play('shield');
+        if (typeof HeroVfx !== 'undefined') HeroVfx.shieldCast(player.x, player.y);
         spawnVfxEffect('shieldPulseStatus', player.x, player.y + 4, 1, 0);
         createParticle(player.x, player.y, '#ffd700', 15);
         for (let i = 0; i < 20; i++) {

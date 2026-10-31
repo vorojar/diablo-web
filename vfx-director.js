@@ -75,6 +75,7 @@ const VfxDirector=(()=>{
         for(const e of events){
             if(!visible(e.x,e.y,camera,width,height))continue;
             if(!e.critical&&!CombatVisuals.allowDecoration(e.x,e.y))continue;
+            if(typeof HeroVfx !== 'undefined'&&HeroVfx.drawDirector(ctx,e))continue;
             const def=manifest.effects[e.id],alpha=def.loop?Math.min(1,(e.duration-e.age)/.08):1;
             frame(ctx,e.id,e.x,e.y,e.age,e.scale,alpha,e.angle);
         }

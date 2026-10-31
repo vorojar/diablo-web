@@ -3,15 +3,17 @@ const Physical3D = (() => {
     const segments=28;
     function draw(ctx,s){
         if(!s.depthSweep)return false;
+        // 混战或慢帧收敛残影，保留主刀面的侧壁、厚度与亮锋。
+        const busy=typeof CombatVisuals!=='undefined'&&CombatVisuals.isBusy(),steps=busy?12:segments;
         const t=1-s.life,fade=Math.min(1,s.life*2.2),swing=s.angle+(t-.5)*s.sweepArc;
         const project=(a,r,z)=>[s.x+Math.cos(a)*r,s.y+Math.sin(a)*r*.78-z];
         const polygon=(points,color,alpha)=>{ctx.globalAlpha=alpha;ctx.fillStyle=color;ctx.beginPath();for(let i=0;i<points.length;i++)ctx[i?'lineTo':'moveTo'](...points[i]);ctx.closePath();ctx.fill();ctx.strokeStyle=color;ctx.lineWidth=.5;ctx.stroke();};
         ctx.save();
         // 残影逐层降低、变薄；每片刀面保留上表面和厚度侧壁。
-        for(let layer=2;layer>=0;layer--){
+        for(let layer=busy?0:2;layer>=0;layer--){
             const radius=s.radius-layer*9,span=1.05+s.tier*.12,start=swing-span*.55-layer*.17;
-            for(let i=0;i<segments;i++){
-                const u=i/segments,v=(i+1)/segments,a=start+u*span,b=start+v*span;
+            for(let i=0;i<steps;i++){
+                const u=i/steps,v=(i+1)/steps,a=start+u*span,b=start+v*span;
                 const width=(10+s.tier*4+(s.isCrit?7:0))*Math.pow(Math.sin(Math.PI*u),.8)/(1+layer*.7);
                 const nextWidth=(10+s.tier*4+(s.isCrit?7:0))*Math.pow(Math.sin(Math.PI*v),.8)/(1+layer*.7);
                 const z=18+Math.sin(a-s.angle)*12+layer*4,zz=18+Math.sin(b-s.angle)*12+layer*4;
@@ -24,7 +26,7 @@ const Physical3D = (() => {
             }
         }
         // 高阶裂斩的窄亮锋，爆发集中在刀刃而非铺满屏幕。
-        if(s.tier>=3){ctx.globalAlpha=fade*.75;ctx.strokeStyle='#fff0ba';ctx.lineWidth=s.isCrit?3:1.5;ctx.beginPath();for(let i=0;i<=segments;i++){const a=swing-.65+i/segments*1.3;ctx[i?'lineTo':'moveTo'](...project(a,s.radius+8,24));}ctx.stroke();}
+        if(s.tier>=3){ctx.globalAlpha=fade*.75;ctx.strokeStyle='#fff0ba';ctx.lineWidth=s.isCrit?3:1.5;ctx.beginPath();for(let i=0;i<=steps;i++){const a=swing-.65+i/steps*1.3;ctx[i?'lineTo':'moveTo'](...project(a,s.radius+8,24));}ctx.stroke();}
         ctx.restore();return true;
     }
     return {draw};

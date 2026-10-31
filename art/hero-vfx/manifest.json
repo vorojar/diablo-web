@@ -1,0 +1,139 @@
+{
+  "sourceSHA256": "e69d1fed92e34a569d1f76ce06614fdc67a03860d183370b01317797ee33400d",
+  "width": 768,
+  "height": 1024,
+  "cell": 64,
+  "frames": 12,
+  "body": "art/hero-vfx/body.webp",
+  "light": "art/hero-vfx/light.webp",
+  "effects": {
+    "fireball": {
+      "row": 0,
+      "pivotX": 51.41176470588235,
+      "pivotY": 32,
+      "radius": 2.2058823529411766,
+      "loop": true,
+      "duration": 1.2
+    },
+    "fireImpact": {
+      "row": 1,
+      "pivotX": 32,
+      "pivotY": 50,
+      "radius": 9,
+      "loop": false,
+      "duration": 0.55
+    },
+    "fireCast": {
+      "row": 2,
+      "pivotX": 32,
+      "pivotY": 31.31818181818182,
+      "radius": 20.454545454545453,
+      "loop": true,
+      "duration": 1.6
+    },
+    "arrow": {
+      "row": 3,
+      "pivotX": 51.285714285714285,
+      "pivotY": 32,
+      "radius": 9.642857142857142,
+      "loop": true,
+      "duration": 0.6
+    },
+    "arrowHit": {
+      "row": 4,
+      "pivotX": 21.41176470588235,
+      "pivotY": 33.76470588235294,
+      "radius": 13.235294117647058,
+      "loop": false,
+      "duration": 0.25
+    },
+    "arrowCast": {
+      "row": 5,
+      "pivotX": 32,
+      "pivotY": 31.31818181818182,
+      "radius": 20.454545454545453,
+      "loop": true,
+      "duration": 1.6
+    },
+    "slash": {
+      "row": 6,
+      "pivotX": 24.058823529411764,
+      "pivotY": 38.17647058823529,
+      "radius": 18.52941176470588,
+      "loop": false,
+      "duration": 0.18
+    },
+    "heavySlash": {
+      "row": 7,
+      "pivotX": 22.480769230769234,
+      "pivotY": 36.61538461538461,
+      "radius": 10.673076923076922,
+      "loop": false,
+      "duration": 0.32
+    },
+    "shieldCast": {
+      "row": 8,
+      "pivotX": 32,
+      "pivotY": 49.72727272727273,
+      "radius": 19.77272727272727,
+      "loop": true,
+      "duration": 2.4
+    },
+    "shieldHit": {
+      "row": 9,
+      "pivotX": 19.432432432432435,
+      "pivotY": 37.67567567567568,
+      "radius": 12.162162162162163,
+      "loop": false,
+      "duration": 0.28
+    },
+    "shieldBreak": {
+      "row": 10,
+      "pivotX": 32,
+      "pivotY": 38.05769230769231,
+      "radius": 8.653846153846153,
+      "loop": false,
+      "duration": 0.5
+    },
+    "groundFire": {
+      "row": 11,
+      "pivotX": 32,
+      "pivotY": 39.5,
+      "radius": 24.642857142857142,
+      "loop": false,
+      "duration": 0.5
+    },
+    "meteorImpact": {
+      "row": 12,
+      "pivotX": 35.088235294117645,
+      "pivotY": 52.294117647058826,
+      "radius": 15.441176470588236,
+      "loop": false,
+      "duration": 0.8
+    },
+    "critHit": {
+      "row": 13,
+      "pivotX": 25.333333333333336,
+      "pivotY": 35.33333333333333,
+      "radius": 8.333333333333334,
+      "loop": false,
+      "duration": 0.27
+    },
+    "thunderCast": {
+      "row": 14,
+      "pivotX": 32,
+      "pivotY": 32,
+      "radius": 20.454545454545453,
+      "loop": false,
+      "duration": 0.2
+    },
+    "iceBurst": {
+      "row": 15,
+      "pivotX": 20.214285714285715,
+      "pivotY": 38.42857142857143,
+      "radius": 8.035714285714285,
+      "loop": false,
+      "duration": 0.75
+    }
+  }
+}
