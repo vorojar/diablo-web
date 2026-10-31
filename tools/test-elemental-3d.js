@@ -1,6 +1,6 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
-const scope={performance:{now:()=>1000},document:{createElement:()=>({getContext:()=>null})}};
-vm.createContext(scope);vm.runInContext(fs.readFileSync(path.join(__dirname,'../elemental-3d.js'),'utf8')+'\nglobalThis.fx=Elemental3D;',scope);
+const scope={window:{LIGHTNING_VFX_MANIFEST:{frames:12,ages:[0],width:1536,height:208}},Image:class{},performance:{now:()=>1000},document:{createElement:()=>({getContext:()=>null})}};
+vm.createContext(scope);vm.runInContext(fs.readFileSync(path.join(__dirname,'../lightning-vfx.js'),'utf8'),scope);vm.runInContext(fs.readFileSync(path.join(__dirname,'../elemental-3d.js'),'utf8')+'\nglobalThis.fx=Elemental3D;',scope);
 const fx=scope.fx,camera={x:0,y:0,width:800,height:600};let shapes=0;
 const ctx=new Proxy({}, {get:(_,key)=>key==='createRadialGradient'? (...args)=>{assert(args.every(Number.isFinite),'首次施法未初始化age时仍应产生有限坐标');shapes++;return {addColorStop(){}};}:()=>{}});
 // ProjectilePool的新对象在首次update前没有age，绘制入口必须支持这一真实状态。

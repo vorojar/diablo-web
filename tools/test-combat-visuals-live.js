@@ -19,7 +19,7 @@ let browser;
  const reports=[];
  for(const mode of [{name:'desktop-high',width:1440,height:900,quality:'high',rate:1,touch:false},
   {name:'mobile-high-cpu4',width:390,height:844,quality:'high',rate:4,touch:true},
-  {name:'mobile-low-cpu4',width:390,height:844,quality:'low',rate:4,touch:true}]){
+  {name:'mobile-low-cpu4',width:390,height:844,quality:'low',rate:4,touch:true}].filter(mode=>!process.argv.includes('--desktop-only')||!mode.touch)){
   const context=await browser.newContext({viewport:{width:mode.width,height:mode.height},deviceScaleFactor:mode.touch?2:1,isMobile:mode.touch,hasTouch:mode.touch});
   try{
    const page=await context.newPage(),errors=[],logs=[];
@@ -28,14 +28,14 @@ let browser;
    await page.goto(address.url+(mode.touch?'?touch=1':''));
    try{await page.waitForFunction(()=>vfxSpritesLoaded&&CombatVisuals.getStats().warmup.pending===0,{},{timeout:30000});}
    catch(error){console.error(JSON.stringify({mode,errors,logs,state:await page.evaluate(()=>({active:gameActive,hidden:document.hidden,loaded:vfxSpritesLoaded,stats:CombatVisuals.getStats()}))}));throw error;}
-   await page.waitForFunction(()=>VfxDirector.getStats().bodyReady&&VfxDirector.getStats().lightReady);
+   await page.waitForFunction(()=>VfxDirector.getStats().bodyReady&&VfxDirector.getStats().lightReady&&LightningVfx.getStats().bodyReady&&LightningVfx.getStats().lightReady);
    const prewarm=await page.evaluate(()=>CombatVisuals.getStats());assert.equal(prewarm.light.entries,24,'登录等待阶段应完成24帧预热');
    await page.getByRole('button',{name:'启动60级安全角色',exact:true}).click();
    await page.getByRole('button',{name:'进入第一层',exact:true}).click();
    await page.waitForFunction(()=>ArtSamples.pending===0&&!ArtSamples.loadError);
    await page.evaluate(async quality=>{
     await ArtSamples.ensureMonsters(['skeleton','zombie','ghost','butcher']);
-    gameActive=false;AutoBattle.enabled=false;player.graphicsQuality=quality;CombatVisuals.setQuality(quality!=='low');VfxDirector.setQuality(quality!=='low');
+    gameActive=false;AutoBattle.enabled=false;player.graphicsQuality=quality;CombatVisuals.setQuality(quality!=='low');VfxDirector.setQuality(quality!=='low');LightningVfx.setQuality(quality!=='low');
     document.getElementById('qa-controls').open=false;
     for(const e of enemies)EnemyPool.release(e);enemies=[];particles=[];vfxEffects=[];scheduledMonsterAttacks.length=0;
     const types=['skeleton','zombie','ghost'];
@@ -66,7 +66,11 @@ let browser;
     return await new Promise(resolve=>{
      function frame(now){
       if(previous)intervals.push(now-previous);previous=now;
-      const dt=1/60;CombatVisuals.update(dt);VfxDirector.update(dt);
+      const dt=1/60;CombatVisuals.update(dt);VfxDirector.update(dt);LightningVfx.update(dt);
+      if(frames%15===0)for(let i=0;i<12;i++){
+       const x=player.x+(i%4-1.5)*65,y=player.y+(Math.floor(i/4)-1)*50;
+       LightningVfx.strike(x,y,[{x:x+10,y:y-250},{x,y}]);
+      }
       if(frames%15===0){VfxDirector.cast('fireball',player.x,player.y);VfxDirector.death({x:player.x+65,y:player.y,frozenTimer:1},{cold:1});}
       if(frames%18===0){CombatVisuals.feedback('block',plain,0);CombatVisuals.feedback('dodge',dodge,0);CombatVisuals.feedback('interrupt',interrupt,0);}
       for(let i=0;i<enemies.length;i++)if(i%4===0)enemies[i].frozenTimer=.01+(.99-(frames%60)/60);
@@ -77,7 +81,7 @@ let browser;
       costs.sort((a,b)=>a-b);intervals.sort((a,b)=>a-b);
       resolve({actors:enemies.length,particles:particles.length,mainVfx:12,decorativeVfx:48,proof:visualBudgetProof,
        renderMedian:costs[Math.floor(costs.length*.5)],renderP95:costs[Math.floor(costs.length*.95)],intervalP95:intervals[Math.floor(intervals.length*.95)],
-       generated:VfxDirector.getStats(),stats:CombatVisuals.getStats(),errors:qaDiagnostics.errors,touch:qaDiagnostics.simulatedTouch,
+       lightning:LightningVfx.getStats(),generated:VfxDirector.getStats(),stats:CombatVisuals.getStats(),errors:qaDiagnostics.errors,touch:qaDiagnostics.simulatedTouch,
        title:document.title,url:location.href,notBlank:document.getElementById('game-container').offsetWidth>0});
      }requestAnimationFrame(frame);
     });
@@ -86,6 +90,8 @@ let browser;
    assert.equal(result.proof.danger,result.proof.frames,'危险预警每帧仍绘制');
    assert.equal(result.proof.feedback,result.proof.frames,'关键结果反馈每帧仍绘制');
    assert(result.proof.decorative<result.proof.frames*48,'装饰预算应真实限制绘制');
+   assert(!result.lightning.assetError);assert(result.lightning.active<=12);assert(result.lightning.maxAtlasBytes<3*1024*1024);
+   if(mode.quality==='low')assert(!result.lightning.lightReady);
    assert(!result.generated.assetError);assert(result.generated.maxAtlasBytes<4*1024*1024);
    assert(result.generated.active<=(mode.quality==='high'?32:12));
    if(mode.quality==='low')assert(!result.generated.lightReady);
@@ -136,6 +142,33 @@ let browser;
      }VfxDirector.clear();
     });
     await page.locator('#combat-proof').screenshot({path:path.join(output,'element-loot-gallery.png')});
+    const lightningProof=await page.evaluate(()=>{
+     const panel=document.getElementById('combat-proof'),c=panel.querySelector('canvas'),x=c.getContext('2d');
+     panel.querySelector('h2').textContent='雷电本体对比 · 同一游戏的实际绘制入口';c.width=1100;c.height=690;
+     x.fillStyle='#202d35';x.fillRect(0,0,1100,690);x.font='22px sans-serif';x.textAlign='center';x.fillStyle='#e8d9af';
+     x.fillText('升级前 · 八段折线与模糊发光',270,45);x.fillText('升级后 · PixelFX 原始双层雷电',820,45);
+     const sprite=getMonsterSpriteFrame({monsterType:'skeleton',facingDirection:'front'});
+     for(const px of [270,820])drawMonsterSprite(x,processedMonsterSprites,sprite,px,370,100,100);
+     LightningVfx.clear();createLightningEffect(270,365);const old=player.activeLightning;
+     createLightningEffect(820,365);const active=LightningVfx.getStats().active;
+     if(active!==2)throw Error('真实多目标落雷应同时保留两处');
+     LightningVfx.clear();
+     x.save();x.lineCap='round';x.lineJoin='round';x.beginPath();old.points.forEach((p,i)=>x[i?'lineTo':'moveTo'](p.x,p.y));
+     x.shadowBlur=15;x.shadowColor='#0088ff';x.strokeStyle='#0088ff';x.lineWidth=6;x.stroke();x.strokeStyle='#ffffff';x.lineWidth=2;x.stroke();x.restore();
+     LightningVfx.strike(820,365,[{x:830,y:115},{x:820,y:365}]);LightningVfx.update(.025);LightningVfx.drawStrikes(x,{x:0,y:0},1100,690);
+     x.fillStyle='#e8d9af';x.fillText('闪电链',550,475);
+     const before=particles.length;createLightningChain(100,585,440,585);const link=particles[before];
+     x.save();x.beginPath();link.points.forEach((p,i)=>x[i?'lineTo':'moveTo'](p.x,p.y));
+     x.shadowBlur=25;x.shadowColor='#88ccff';x.globalAlpha=.5;x.strokeStyle='#88ccff';x.lineWidth=9;x.stroke();
+     x.shadowBlur=15;x.shadowColor='#ffffff';x.globalAlpha=.8;x.strokeStyle='#ffffff';x.lineWidth=5;x.stroke();
+     x.globalAlpha=1;x.shadowBlur=8;x.lineWidth=3;x.stroke();x.restore();
+     LightningVfx.drawLink(x,{type:'lightning_chain',points:[{x:650,y:585},{x:990,y:585}],life:.25,maxLife:.25,isMain:true});
+     LightningVfx.clear();player.activeLightning=null;
+     return {actualCastTargets:active,stats:LightningVfx.getStats()};
+    });
+    assert.equal(lightningProof.actualCastTargets,2);
+    await page.locator('#combat-proof').screenshot({path:path.join(output,'lightning-before-after.png')});
+
 
    }
    assert.deepEqual(errors,[]);assert.deepEqual(logs,[]);

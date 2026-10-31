@@ -117,27 +117,7 @@ void main(){
         if(!stormEnabled)return;
         for(const bolt of bolts){
             if(!visible(bolt.tx,bolt.ty,camera))continue;
-            const alpha=Math.pow(1-bolt.age/.3,.7),surge=1+Math.max(0,1-bolt.age/.09)*.6;
-            ctx.save();ctx.globalAlpha=alpha;ctx.lineJoin='round';ctx.lineCap='round';
-            const points=[];
-            for(let j=0;j<=10;j++){const t=j/10;points.push([bolt.x+(bolt.tx-bolt.x)*t+(j===0||j===10?0:Math.sin(j*23+bolt.seed)*16),bolt.y+(bolt.ty-bolt.y)*t]);}
-            ctx.beginPath();for(let j=0;j<points.length;j++)ctx[j?'lineTo':'moveTo'](...points[j]);
-            ctx.strokeStyle='rgba(70,100,255,.18)';ctx.lineWidth=17*surge;ctx.stroke();
-            ctx.strokeStyle='#6e9fff';ctx.lineWidth=6*surge;ctx.stroke();ctx.strokeStyle='#f3fbff';ctx.lineWidth=2.1*surge;ctx.stroke();
-            // 分叉只在主雷附近展开，不暗示额外目标受到伤害。
-            for(let i=0;i<3;i++){
-                const j=3+i*2,[x,y]=points[j],side=i%2?1:-1;
-                ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+side*20,y+12);ctx.lineTo(x+side*13,y+25);ctx.lineTo(x+side*(29+i*6),y+39);
-                ctx.strokeStyle='rgba(108,151,255,.55)';ctx.lineWidth=4;ctx.stroke();ctx.strokeStyle='#c9eaff';ctx.lineWidth=1;ctx.stroke();
-            }
-            ctx.restore();
-            glow(ctx,bolt.tx,bolt.ty+12,37,'#9acbff',alpha*.48);
-            ring(ctx,bolt.tx,bolt.ty+12,8+bolt.age*95,'#b8e5ff',alpha*.65,.48);
-            if(bolt.age<.12){
-                const flash=1-bolt.age/.12;glow(ctx,bolt.tx,bolt.ty,23,'#f0fbff',flash*.9);
-                ctx.save();ctx.globalAlpha=flash;ctx.strokeStyle='#edfaff';ctx.lineWidth=1.6;ctx.beginPath();
-                for(let i=0;i<6;i++){const a=i*Math.PI/3+bolt.seed;ctx.moveTo(bolt.tx+Math.cos(a)*5,bolt.ty+Math.sin(a)*5);ctx.lineTo(bolt.tx+Math.cos(a)*26,bolt.ty+Math.sin(a)*26);}ctx.stroke();ctx.restore();
-            }
+            LightningVfx.drawStorm(ctx,bolt);
         }
     }
     function clear(){impacts.length=0;bolts.length=0;}

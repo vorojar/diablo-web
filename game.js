@@ -1320,6 +1320,7 @@ if (VFX_SPRITE_CONFIG?.sheet) {
         vfxSpritesLoaded = true;
         CombatVisuals.warm(vfxSpriteSheet, VFX_SPRITE_CONFIG.effects, player.graphicsQuality !== 'low');
         VfxDirector.setQuality(player.graphicsQuality !== 'low');
+        LightningVfx.setQuality(player.graphicsQuality !== 'low');
     };
     vfxSpriteSheet.onerror = () => {
         console.error('VFX sprite sheet failed to load:', VFX_SPRITE_CONFIG.sheet);
@@ -4300,6 +4301,7 @@ function toggleGraphicsQuality() {
     player.graphicsQuality = val;
     CombatVisuals.setQuality(val !== 'low');
     VfxDirector.setQuality(val !== 'low');
+    LightningVfx.setQuality(val !== 'low');
     document.body.classList.toggle('high-quality', val === 'high');
     resize();
     SaveSystem.save();
@@ -5472,6 +5474,8 @@ function enterFloor(f, spawnAt = 'start') {
     vfxEffects = [];
     CombatVisuals.clear(true);
     VfxDirector.clear();
+    LightningVfx.clear();
+    player.activeLightning = null;
     destructibles = []; // 清空可破坏物体
     dungeonRoomFeatures = [];
     scenicProps = [];
@@ -7252,6 +7256,8 @@ function update(dt) {
     if (ArtSamples.pending > 0 || ArtSamples.loadError) return;
     CombatVisuals.update(dt);
     VfxDirector.update(dt);
+    LightningVfx.update(dt);
+    if (player.activeLightning) { player.activeLightning.life -= dt / .36; if (player.activeLightning.life <= 0) player.activeLightning = null; }
     // 更新敌人缓存（每帧只遍历一次enemies数组）
     gameFrameId++;
     EnemyCache.update(gameFrameId);
@@ -8565,6 +8571,7 @@ function draw() {
     const visualFocus = AutoBattle.enabled && AutoBattle.currentTarget && !AutoBattle.currentTarget.dead ? AutoBattle.currentTarget : player;
     CombatVisuals.beginFrame(player.graphicsQuality !== 'low', performance.now() / 1000, visualFocus.x, visualFocus.y, particles.length + vfxEffects.length);
     VfxDirector.setQuality(player.graphicsQuality !== 'low');
+    LightningVfx.setQuality(player.graphicsQuality !== 'low');
     const loadingOverlay=document.getElementById('art-loading');
     loadingOverlay.hidden=ArtSamples.pending===0&&!ArtSamples.loadError;
     const loadingText=ArtSamples.loadError?'区域资源加载失败，请刷新重试':'正在加载区域资源…';
@@ -8762,44 +8769,8 @@ function draw() {
         if (e.y > player.y + 4) continue;
         drawEnemyActor(ctx, e);
     }
-    // 绘制雷电特效 (直接在最上层绘制，确保可见)
-    if (player.activeLightning && player.activeLightning.life > 0) {
-        const l = player.activeLightning;
-        ctx.save();
-        ctx.beginPath();
-        // 遍历点集绘制折线
-        if (l.points.length > 0) {
-            ctx.moveTo(l.points[0].x, l.points[0].y);
-            for (let i = 1; i < l.points.length; i++) {
-                ctx.lineTo(l.points[i].x, l.points[i].y);
-            }
-        }
-
-        // 样式参考：高亮白芯，蓝色光晕
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-
-        // 外发光
-        setGlow(ctx, 15, '#0088ff');
-
-        // 宽线条背景 (蓝色)
-        ctx.strokeStyle = '#0088ff';
-        ctx.lineWidth = 6;
-        ctx.globalAlpha = l.life * 2; // 快速闪烁
-        ctx.stroke();
-
-        // 细线条核心 (白色)
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = l.life * 3;
-        ctx.stroke();
-
-        ctx.restore();
-
-        // 减少生命值
-        l.life -= 0.05; // 持续约 20 帧
-    }
-
+    // 命中即播放原始 PixelFX 落雷，不引入示例里的长蓄力。
+    LightningVfx.drawStrikes(ctx, camera, viewportWidth, viewportHeight);
 
     if (player.targetX !== null) { ctx.strokeStyle = '#333'; ctx.beginPath(); ctx.arc(player.targetX, player.targetY, 5, 0, Math.PI * 2); ctx.stroke(); }
     const px = Math.round(player.x);
@@ -8968,41 +8939,8 @@ function draw() {
             setGlow(ctx, 20, p.color);
             ctx.stroke();
             clearGlow(ctx);
-        } else if (p.type === 'lightning_chain') {
-            // 渲染闪电链（增强版）
-            const alpha = p.life / (p.maxLife || 0.3);
-
-            ctx.beginPath();
-            ctx.moveTo(p.points[0].x, p.points[0].y);
-            for (let j = 1; j < p.points.length; j++) {
-                ctx.lineTo(p.points[j].x, p.points[j].y);
-            }
-
-            // 外层发光（蓝色光晕）
-            ctx.globalAlpha = alpha * 0.5;
-            ctx.strokeStyle = p.glowColor || '#88ccff';
-            ctx.lineWidth = (p.lineWidth || 2) + 6;
-            setGlow(ctx, 25, p.glowColor || '#88ccff');
-            ctx.stroke();
-
-            // 中层（主体颜色）
-            ctx.globalAlpha = alpha * 0.8;
-            ctx.strokeStyle = p.color;
-            ctx.lineWidth = (p.lineWidth || 2) + 2;
-            setGlow(ctx, 15, p.color);
-            ctx.stroke();
-
-            // 内核（白色高亮，主闪电才有）
-            if (p.isMain) {
-                ctx.globalAlpha = alpha;
-                ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = p.lineWidth || 2;
-                setGlow(ctx, 8, '#ffffff');
-                ctx.stroke();
-            }
-
-            clearGlow(ctx);
-            ctx.globalAlpha = 1.0;
+        } else if (p.type === 'lightning_chain' || p.type === 'chain_lightning') {
+            LightningVfx.drawLink(ctx, p);
         } else if (p.type === 'skill_ground_glow') {
             const alpha = Math.max(0, p.life / (p.maxLife || 0.25));
             const radius = (p.radius || 24) * (1.08 - alpha * 0.08);
@@ -11844,8 +11782,9 @@ function createLightningEffect(targetX, targetY) {
         life: 1.0 // 初始生命值
     };
 
-    // 备用视觉：在目标点创建一个爆炸粒子，确保至少能看到击中位置
-    createNovaEffect(targetX, targetY, '#ffff00');
+    if (typeof LightningVfx !== 'undefined') LightningVfx.strike(targetX, targetY, points);
+    // 保留原粒子数量与随机调用，只统一为雷电冷色。
+    createNovaEffect(targetX, targetY, '#a8ddff');
 }
 
 // 寻找最近的敌人（用于闪电链）
