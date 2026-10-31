@@ -1,5 +1,9 @@
 # 暗黑破坏神 Web版 (Diablo Web Remake)
 
+在线游玩：[菠萝战纪 GitHub Pages](https://vorojar.github.io/diablo-web/)。
+
+网站从 `main` 分支根目录自动发布，推送后由 GitHub Pages 更新全部脚本与素材，无需 FTP；`.nojekyll` 保留原始静态资源。在线功能沿用现有 PocketBase 服务。新域名的本地存档独立，原站进度可通过已有云同步码恢复。
+
 这是一个初始使用 Gemini 3.0 Pro，后续使用 Claude code（Claude Opus4.5、Sonnet4.5Kimi k2）开发的纯前端页游，完全使用Vibe Coding 模式，不看一行代码。
 基于 HTML5 Canvas 和原生 JavaScript 开发的动作角色扮演游戏 (ARPG)，致敬经典的《暗黑破坏神2》。游戏实现了核心的 ARPG 体验，包括随机无限地牢、地狱、装备系统、技能树、任务系统、成就、商店、以及实时战斗、自动战斗、存档系统、小地图、仓库、洗点、祝福等。
 ![游戏界面](ScreenShot.jpg)
