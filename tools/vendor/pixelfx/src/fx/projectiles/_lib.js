@@ -301,4 +301,3 @@ export function pixelShape(x0, y0, w, h, build) {
       if (g[j][i] === "." && (solid(i - 1, j) || solid(i + 1, j) || solid(i, j - 1) || solid(i, j + 1))) g[j][i] = "o";
   return { rows: g.map((r) => r.join("")), x0, y0 };
 }
-

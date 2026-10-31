@@ -207,4 +207,3 @@ export function along(pts, len, fn) {
     d += l;
   }
 }
-
