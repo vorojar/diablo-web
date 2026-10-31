@@ -1,0 +1,91 @@
+{
+  "sourceSHA256": "8b289b3c08e63cb357a7977e4ef11dd0b48a5c4c4e0e2574c4baf2405655ae02",
+  "width": 768,
+  "height": 640,
+  "cell": 64,
+  "frames": 12,
+  "body": "art/enemy-vfx/body.webp",
+  "light": "art/enemy-vfx/light.webp",
+  "effects": {
+    "hostileArrow": {
+      "row": 0,
+      "pivotX": 51.285714285714285,
+      "pivotY": 32,
+      "radius": 9.642857142857142,
+      "loop": true,
+      "duration": 0.6
+    },
+    "lightningOrb": {
+      "row": 1,
+      "pivotX": 32,
+      "pivotY": 32,
+      "radius": 13.928571428571429,
+      "loop": true,
+      "duration": 4
+    },
+    "shadowOrb": {
+      "row": 2,
+      "pivotX": 32,
+      "pivotY": 32,
+      "radius": 14.285714285714286,
+      "loop": true,
+      "duration": 3.2
+    },
+    "poisonCloud": {
+      "row": 3,
+      "pivotX": 32,
+      "pivotY": 40.4375,
+      "radius": 26.71875,
+      "loop": true,
+      "duration": 4
+    },
+    "clawSlash": {
+      "row": 4,
+      "pivotX": 22.15625,
+      "pivotY": 37.15625,
+      "radius": 18.75,
+      "loop": false,
+      "duration": 0.25
+    },
+    "heavySlam": {
+      "row": 5,
+      "pivotX": 32,
+      "pivotY": 44.5,
+      "radius": 21.666666666666668,
+      "loop": false,
+      "duration": 0.65
+    },
+    "summon": {
+      "row": 6,
+      "pivotX": 32,
+      "pivotY": 50.94736842105263,
+      "radius": 10.263157894736842,
+      "loop": true,
+      "duration": 2.4
+    },
+    "tentacle": {
+      "row": 7,
+      "pivotX": 32,
+      "pivotY": 43.82692307692307,
+      "radius": 10.96153846153846,
+      "loop": true,
+      "duration": 3.2
+    },
+    "curse": {
+      "row": 8,
+      "pivotX": 32,
+      "pivotY": 44.58064516129032,
+      "radius": 14.516129032258064,
+      "loop": false,
+      "duration": 0.65
+    },
+    "drain": {
+      "row": 9,
+      "pivotX": 13.73913043478261,
+      "pivotY": 38.52173913043478,
+      "radius": 9.782608695652174,
+      "loop": false,
+      "duration": 0.5
+    }
+  }
+}

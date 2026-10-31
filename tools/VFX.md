@@ -13,3 +13,9 @@
 雷电使用固定版本的 PixelFX 原始绘制源，入口为 `node tools/build-lightning.mjs --preview <仓库外目录>`。它生成 `art/lightning/` 双层图集并将清单直接更新到 `lightning-vfx.js`，浏览器仅由 `LightningVfx` 定位、合成和回收。上游来源及 MIT 许可位于 `tools/vendor/pixelfx/`；部署时保留 `art/lightning/` 内的许可文件。示例蓄力不接入游戏计时，实际连锁两端由原战斗结果提供。
 
 主角攻击与法术入口为 `node tools/build-hero-vfx.mjs --preview <仓库外目录>`，生成 `art/hero-vfx/` 并将清单直接写入 `hero-vfx.js`。原素材中的示例角色通过空遮罩排除，命中从接触帧采样；施法不采用示例的长蓄力。图集缺失时回到既有精灵/刀面，不中断更新。`HeroVfx` 只读取原弹体、挥击、持续区域和技能状态；新增瞬时反馈由真实命中/波次/破盾触发。
+
+怪物和 Boss 使用 `node tools/build-enemy-vfx.mjs --preview <仓库外目录>`，生成 `art/enemy-vfx/`，元数据嵌入 `enemy-vfx.js`。共享主角的火焰/命中材质与雷电电弧，避免重复图集。雷球的上游环境游走仅在离线采样时跟随裁剪，运行时始终以真实弹体坐标为中心。场景不执行上游粒子模拟，不读取战斗随机数。
+
+`EnemyVfx` 的释放钩子位于队列取消/死亡/恢复检查之后；复活与召唤在成功生成实体后展示；吸血/诅咒和玩家受击仅在原结算成功处分发。Boss 释放本体和关键命中不消耗装饰额度，光照及蓄力共用 `CombatVisuals` 预算，吐息在拥挤时最多3束并释放附加光层。危险几何仍由 `CombatTactics.draw` 最后绘制，禁止将表现事件用于推进技能或重新瞄准。
+
+新增上游模块或修改共享采样器后，依次重跑三个 PixelFX 构建入口并同步资源版本；共享源指纹会同时变化。`test-enemy-vfx.js` 检查像素、内存与只读/回收；`test-enemy-vfx-combat.js` 对照开关表现后的真实结算和随机序列；`test-enemy-vfx-live.js --output <仓库外目录>` 检查实际技能、绘制顺序、低画质与缺图回退。混战压力验收使用 `test-combat-visuals-live.js --output <仓库外目录>`。

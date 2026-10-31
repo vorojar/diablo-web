@@ -29,9 +29,9 @@ export const definitions=[
 ];
 export function sourceHash(){const h=crypto.createHash('sha256');function visit(dir){for(const name of fs.readdirSync(dir).sort()){const p=path.join(dir,name);if(fs.statSync(p).isDirectory())visit(p);else if(name.endsWith('.js'))h.update(fs.readFileSync(p,'utf8').replace(/\r\n/g,'\n'));}}visit(vendor);h.update(fs.readFileSync(fileURLToPath(import.meta.url),'utf8').replace(/\r\n/g,'\n'));return h.digest('hex');}
 function layer(f,light){const c=createCanvas(f.w,f.h),rgba=new Uint8ClampedArray(f.w*f.h*4),v=light?f.light:f.color;for(let i=0;i<v.length;i++){const x=v[i],r=x&255,g=x>>>8&255,b=x>>>16&255,a=light?Math.max(r,g,b):x>>>24,j=i*4;rgba[j]=light&&a?r*255/a:r;rgba[j+1]=light&&a?g*255/a:g;rgba[j+2]=light&&a?b*255/a:b;rgba[j+3]=a;}c.getContext('2d').putImageData(new ImageData(rgba,f.w,f.h),0,0);return c;}
-export async function render(){
+export async function renderDefinitions(definitions, assetRoot='art/hero-vfx', signature=sourceHash()){
  const body=createCanvas(cell*frames,cell*definitions.length),light=createCanvas(body.width,body.height),bc=body.getContext('2d'),lc=light.getContext('2d');bc.imageSmoothingEnabled=false;lc.imageSmoothingEnabled=false;
- const meta={sourceSHA256:sourceHash(),width:body.width,height:body.height,cell,frames,body:'art/hero-vfx/body.webp',light:'art/hero-vfx/light.webp',effects:{}};
+ const meta={sourceSHA256:signature,width:body.width,height:body.height,cell,frames,body:assetRoot+'/body.webp',light:assetRoot+'/light.webp',effects:{}};
  for(const [row,d]of definitions.entries()){
   const mod=await import(pathToFileURL(path.join(vendor,'src/fx',d.src+'.js'))),base=mod.meta,o={...base.options,...d.options,actor:{x:0,y:0,mask:{w:0,h:0,data:new Uint8Array(0)}}},fx=mod.create?mod.create(o):mod;
   const [w,h]=base.size,[ox,oy]=base.origin,crop=d.crop||[-ox,-oy,w,h],ratio=60/Math.max(crop[2],crop[3]),dw=crop[2]*ratio,dh=crop[3]*ratio,px=(cell-dw)/2,py=(cell-dh)/2,anchor=d.anchor||[0,0];
@@ -42,11 +42,13 @@ export async function render(){
    const q=i/(d.loop?frames:frames-1),t=d.loop?(d.start||0)+q*((d.end||base.duration)-(d.start||0)):(d.start||0)+Math.pow(q,1.6)*((d.end||base.duration)-(d.start||0));
    if(fx.update)while(current<t-1e-9){const dt=Math.min(1/120,t-current);fx.update(dt,o);current+=dt;}
    const f={w,h,ox:-ox,oy:-oy,color:new Uint32Array(w*h),light:new Uint32Array(w*h)},p=new Painter(f);p.layer='back';if(fx.drawBack)fx.drawBack(p,t,o);p.layer='front';fx.draw(p,t,o);
-   bc.drawImage(layer(f,false),ox+crop[0],oy+crop[1],crop[2],crop[3],i*cell+px,row*cell+py,dw,dh);lc.drawImage(layer(f,true),ox+crop[0],oy+crop[1],crop[2],crop[3],i*cell+px,row*cell+py,dw,dh);
+   const track=d.track?d.track(t):[0,0];
+   bc.drawImage(layer(f,false),ox+crop[0]+track[0],oy+crop[1]+track[1],crop[2],crop[3],i*cell+px,row*cell+py,dw,dh);lc.drawImage(layer(f,true),ox+crop[0]+track[0],oy+crop[1]+track[1],crop[2],crop[3],i*cell+px,row*cell+py,dw,dh);
   }
  }
  return {body,light,meta};
 }
+export async function render(){return renderDefinitions(definitions);}
 export async function build(preview){
  const r=await render(),out=path.join(root,'art/hero-vfx');fs.mkdirSync(out,{recursive:true});if(r.meta.width*r.meta.height*8>6*1024*1024)throw Error('主角图集超出6MiB解码预算');
  for(const layer of ['body','light'])await sharp(r[layer].toBuffer('image/png')).webp({lossless:true,effort:6}).toFile(path.join(out,layer+'.webp'));

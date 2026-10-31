@@ -35,6 +35,8 @@ function extract(name){const start=game.indexOf(`function ${name}(`);let depth=0
  fx.drawStrikes(ctx,{x:0,y:0},500,500);assert.equal(draws.length,2);const count=fx.getStats().active;
  for(let i=0;i<10;i++)fx.drawStrikes(ctx,{x:0,y:0},500,500);assert.equal(fx.getStats().active,count,'绘制不推进生命周期');
  fx.update(.7);assert.equal(fx.getStats().active,0);fx.strike(10000,10000,points);draws.length=0;fx.drawStrikes(ctx,{x:0,y:0},500,500);assert.equal(draws.length,0);
+ draws.length=0;fx.drawLink(ctx,{x:10,y:20,tx:100,ty:20,life:.2,maxLife:.4,bodyOnly:true});assert.equal(draws.length,1,'敌方吐息在装饰耗尽时保留实体并取消附加光层');
+ draws.length=0;fx.drawLink(ctx,{x:10,y:20,tx:100,ty:20,life:.2,maxLife:.4});assert.equal(draws.length,2,'既有主角电弧仍保留双层材质');
  fx.setQuality(false);assert(!fx.getStats().lightReady);assert.equal(fx.getStats().atlasBytes,m.width*m.height*4);
  draws.length=0;fx.drawLink(ctx,{type:'lightning_chain',points:[{x:10,y:20},{x:222,y:20}],life:.25,maxLife:.25,isMain:true});assert.equal(draws.length,1);assert(transforms.some(t=>t[0]==='scale'&&t[1]===2),'链路长度精确映射既有两端点');
  draws.length=0;fx.drawLink(ctx,{type:'lightning_chain',points,life:.1,maxLife:.4,isMain:false});assert.equal(draws.length,0,'不叠旧模糊残影');

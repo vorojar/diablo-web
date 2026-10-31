@@ -293,8 +293,10 @@ function updateBossSkills(boss, dt) {
 
   // 女伯爵瞬移
   if (boss.canTeleport && dist > 250) { // 玩家太远时瞬移
+    const fromX = boss.x, fromY = boss.y;
     boss.x = player.x + (Math.random() - 0.5) * 100;
     boss.y = player.y + (Math.random() - 0.5) * 100;
+    if (typeof EnemyVfx !== 'undefined') EnemyVfx.teleport(fromX, fromY, boss.x, boss.y);
     createParticle(boss.x, boss.y, '#ff4400', 10); // 出现特效
     if (boss.bossTraits && boss.bossTraits.fireNovaOnTeleport) {
       startBossSkillWindup(boss, 'fireNova', boss.teleportCdMax || 5, {
@@ -352,11 +354,13 @@ function updateBossSkills(boss, dt) {
 // Boss 技能：火焰新星
 function bossFireNova(boss, radius, damage) {
   syncBossSkillVisual(boss, 'attack', 0.45, 'fireNova');
+  if (typeof EnemyVfx !== 'undefined') EnemyVfx.boss('fireNova', boss.x, boss.y, radius);
 
   const dist = Math.hypot(player.x - boss.x, player.y - boss.y);
   if (dist < radius && player.invincibleTimer <= 0) {
     const fireDmg = damage * (1 - player.resistances.fire / 100);
     player.hp -= fireDmg;
+    if (fireDmg > 0 && typeof EnemyVfx !== 'undefined') EnemyVfx.playerHit('fire', player.x, player.y);
     player.lastDamageSource = boss.name + '的火焰新星';
     player.invincibleTimer = 0.3;
     createDamageNumber(player.x, player.y - 30, Math.floor(fireDmg), '#ff4400');
@@ -375,10 +379,12 @@ function bossGroundSlam(boss) {
   syncBossSkillVisual(boss, 'attack', 0.55);
 
   const radius = boss.slamRadius || 150;
+  if (typeof EnemyVfx !== 'undefined') EnemyVfx.boss('slam', boss.x, boss.y, radius);
   const dist = Math.hypot(player.x - boss.x, player.y - boss.y);
   if (dist < radius && player.invincibleTimer <= 0) {
     const slamDmg = boss.dmg * 0.8;
     player.hp -= slamDmg;
+    if (slamDmg > 0 && typeof EnemyVfx !== 'undefined') EnemyVfx.playerHit('physical', player.x, player.y);
     player.lastDamageSource = boss.name + '的地震波';
     player.invincibleTimer = 0.5;
     player.slowedTimer = 1.0; // 减速 1 秒
@@ -425,6 +431,7 @@ function bossSummonMinions(boss) {
       isSummon: true // 标记为召唤物，不计入击杀数
     });
     enemies.push(minion);
+    if (typeof EnemyVfx !== 'undefined') EnemyVfx.summon(x, y);
     // 召唤特效
     for (let j = 0; j < 5; j++) createParticle(x, y, '#00ff00', 5);
   }
@@ -438,6 +445,7 @@ function bossBreathAttack(boss, lockedAngle) {
   const range = boss.breathRange || 200;
   const halfAngle = (boss.breathAngle || 60) * Math.PI / 360; // 转为弧度的一半
   const angleToPlayer = typeof lockedAngle === 'number' ? lockedAngle : Math.atan2(player.y - boss.y, player.x - boss.x);
+  if (typeof EnemyVfx !== 'undefined') EnemyVfx.boss('breath', boss.x, boss.y, range, angleToPlayer, halfAngle);
 
   const dist = Math.hypot(player.x - boss.x, player.y - boss.y);
   if (dist < range && player.invincibleTimer <= 0) {
@@ -449,6 +457,7 @@ function bossBreathAttack(boss, lockedAngle) {
     if (angleDiff <= halfAngle) {
       const breathDmg = boss.dmg * 1.2 * (1 - player.resistances.lightning / 100);
       player.hp -= breathDmg;
+      if (breathDmg > 0 && typeof EnemyVfx !== 'undefined') EnemyVfx.playerHit('lightning', player.x, player.y);
       player.lastDamageSource = boss.name + '的吐息';
       player.invincibleTimer = 0.4;
       createDamageNumber(player.x, player.y - 30, Math.floor(breathDmg), '#ffff00');
@@ -589,6 +598,7 @@ const ELITE_AFFIXES = [
     onDeath: (enemy) => {
       // 火焰爆炸
       const explosionRadius = 150;
+      if (typeof EnemyVfx !== 'undefined') EnemyVfx.boss('fireNova', enemy.x, enemy.y, explosionRadius);
       // 伤害改为15%血量，且上限200
       const explosionDamage = Math.min(enemy.maxHp * 0.15, 200);
       const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
@@ -596,6 +606,7 @@ const ELITE_AFFIXES = [
         const dmg = explosionDamage * (1 - dist / explosionRadius);
         const finalDmg = dmg * (1 - player.resistances.fire / 100);
         player.hp -= finalDmg;
+        if (finalDmg > 0 && typeof EnemyVfx !== 'undefined') EnemyVfx.playerHit('fire', player.x, player.y);
         player.lastDamageSource = enemy.name + '的火焰爆炸';
         player.invincibleTimer = 0.3;  // 0.3秒无敌帧
         createDamageNumber(player.x, player.y - 30, Math.floor(finalDmg), '#ff4400');

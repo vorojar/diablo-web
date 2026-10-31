@@ -1322,6 +1322,7 @@ if (VFX_SPRITE_CONFIG?.sheet) {
         VfxDirector.setQuality(player.graphicsQuality !== 'low');
         LightningVfx.setQuality(player.graphicsQuality !== 'low');
         if (typeof HeroVfx !== 'undefined') HeroVfx.setQuality(player.graphicsQuality !== 'low');
+        if (typeof EnemyVfx !== 'undefined') EnemyVfx.setQuality(player.graphicsQuality !== 'low');
     };
     vfxSpriteSheet.onerror = () => {
         console.error('VFX sprite sheet failed to load:', VFX_SPRITE_CONFIG.sheet);
@@ -1332,6 +1333,7 @@ if (VFX_SPRITE_CONFIG?.sheet) {
 
 function spawnVfxEffect(effectId, x, y, scale = 1, rotation = 0, decorative = false) {
     if (effectId === 'poisonStatusBurst' || effectId === 'playerPoisonHit') {
+        if (typeof EnemyVfx !== 'undefined') EnemyVfx.poison(x, y, 22 * scale);
         emitDriftingVeil(x, y, COLORS.poison, 22 * scale);
         return;
     }
@@ -1352,6 +1354,7 @@ function spawnVfxEffect(effectId, x, y, scale = 1, rotation = 0, decorative = fa
 
 function drawVfxEffect(ctx, fx) {
     const effect = VFX_SPRITE_CONFIG?.effects?.[fx.effectId];
+    if (effect && typeof EnemyVfx !== 'undefined' && EnemyVfx.drawVfx(ctx, fx)) return;
     if (effect && typeof HeroVfx !== 'undefined' && HeroVfx.drawVfx(ctx, fx, effect)) return;
     if (!vfxSpritesLoaded || !effect) return;
 
@@ -1384,6 +1387,7 @@ function drawVfxEffect(ctx, fx) {
 }
 
 function drawProjectileVfx(ctx, p) {
+    if (typeof EnemyVfx !== 'undefined' && EnemyVfx.projectile(ctx, p, !!p.owner && p.owner !== player)) return true;
     if (typeof HeroVfx !== 'undefined' && HeroVfx.projectile(ctx, p, p.owner === player)) return true;
     if (typeof Elemental3D !== 'undefined' && Elemental3D.meteor(ctx,p,player.graphicsQuality !== 'low')) return true;
     const effectId = PROJECTILE_VFX[p.type] || (p.isTentacle ? PROJECTILE_VFX.tentacle : null);
@@ -1549,6 +1553,7 @@ function processScheduledMonsterAttacks(dt) {
         if (enemy?.combatCue === attack) enemy.combatCue = null;
         if (!enemy || enemy.dead || player.isDead || !enemies.includes(enemy)) continue;
         if (enemy.pendingSkill || enemy.recoveryTimer > 0) continue;
+        if (typeof EnemyVfx !== 'undefined') EnemyVfx.release(enemy, attack.aim, attack.tactic);
         attack.resolve(enemy, attack.aim);
         if (attack.tactic === 'heavy' && typeof CombatTactics !== 'undefined') CombatTactics.recover(enemy, .8);
     }
@@ -1685,6 +1690,7 @@ function applyEnemyCursedHit(enemy, dealt) {
     player.curseDamageTakenMult = enemy.curseDamageTakenMult || 1.15;
 
     if (!wasCursed) {
+        if (typeof EnemyVfx !== 'undefined') EnemyVfx.curse(player.x, player.y);
         createDamageNumber(player.x, player.y - 55, '诅咒!', '#cc66ff');
         for (let i = 0; i < 6; i++) {
             createParticle(player.x + (Math.random() - 0.5) * 28, player.y - 20 + (Math.random() - 0.5) * 24, '#aa44ff', 3);
@@ -1798,6 +1804,7 @@ function resolveEnemyMeleeImpact(enemy, options = {}) {
         const heal = Math.floor(dealt * lifeStealRatio);
         if (heal > 0) {
             enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal);
+            if (typeof EnemyVfx !== 'undefined') EnemyVfx.drain(enemy.x, enemy.y, player.x, player.y);
             createDamageNumber(enemy.x, enemy.y - 30, "+" + heal, COLORS.green);
         }
     }
@@ -1834,6 +1841,7 @@ function emitMummyDeathCloud(enemy) {
     if (enemy.monsterType !== 'mummy') return;
 
     const radius = 95;
+    if (typeof EnemyVfx !== 'undefined') EnemyVfx.poison(enemy.x, enemy.y, radius);
     emitDriftingVeil(enemy.x, enemy.y, COLORS.poison, radius);
 
     if (Math.hypot(player.x - enemy.x, player.y - enemy.y) < radius) {
@@ -4315,6 +4323,7 @@ function toggleGraphicsQuality() {
     VfxDirector.setQuality(val !== 'low');
     LightningVfx.setQuality(val !== 'low');
     if (typeof HeroVfx !== 'undefined') HeroVfx.setQuality(val !== 'low');
+    if (typeof EnemyVfx !== 'undefined') EnemyVfx.setQuality(val !== 'low');
     document.body.classList.toggle('high-quality', val === 'high');
     resize();
     SaveSystem.save();
@@ -5489,6 +5498,7 @@ function enterFloor(f, spawnAt = 'start') {
     VfxDirector.clear();
     LightningVfx.clear();
     if (typeof HeroVfx !== 'undefined') HeroVfx.clear();
+    if (typeof EnemyVfx !== 'undefined') EnemyVfx.clear();
     player.activeLightning = null;
     destructibles = []; // 清空可破坏物体
     dungeonRoomFeatures = [];
@@ -7272,6 +7282,7 @@ function update(dt) {
     VfxDirector.update(dt);
     LightningVfx.update(dt);
     if (typeof HeroVfx !== 'undefined') HeroVfx.update(dt);
+    if (typeof EnemyVfx !== 'undefined') EnemyVfx.update(dt);
     if (player.activeLightning) { player.activeLightning.life -= dt / .36; if (player.activeLightning.life <= 0) player.activeLightning = null; }
     // 更新敌人缓存（每帧只遍历一次enemies数组）
     gameFrameId++;
@@ -8398,6 +8409,7 @@ function updateEnemies(dt) {
                                 }
                             }
 
+                            if (typeof EnemyVfx !== 'undefined') EnemyVfx.summon(body.x, body.y);
                             createDamageNumber(body.x, body.y - 20, "复活!", COLORS.revive);
                         }
                     });
@@ -8588,6 +8600,7 @@ function draw() {
     VfxDirector.setQuality(player.graphicsQuality !== 'low');
     LightningVfx.setQuality(player.graphicsQuality !== 'low');
     if (typeof HeroVfx !== 'undefined') HeroVfx.setQuality(player.graphicsQuality !== 'low');
+    if (typeof EnemyVfx !== 'undefined') EnemyVfx.setQuality(player.graphicsQuality !== 'low');
     const loadingOverlay=document.getElementById('art-loading');
     loadingOverlay.hidden=ArtSamples.pending===0&&!ArtSamples.loadError;
     const loadingText=ArtSamples.loadError?'区域资源加载失败，请刷新重试':'正在加载区域资源…';
@@ -9184,6 +9197,10 @@ function draw() {
     if (typeof HeroVfx !== 'undefined') {
         HeroVfx.drawStates(ctx, SkillBranchSystem.states, player, SkillBranchSystem.charge, SkillBranchSystem.arcShield, camera, viewportWidth, viewportHeight);
         HeroVfx.drawEvents(ctx, camera, viewportWidth, viewportHeight);
+    }
+    if (typeof EnemyVfx !== 'undefined') {
+        EnemyVfx.drawEvents(ctx, camera, viewportWidth, viewportHeight);
+        EnemyVfx.drawWindups(ctx, renderEnemies, camera, viewportWidth, viewportHeight);
     }
     VfxDirector.drawEvents(ctx, camera, viewportWidth, viewportHeight);
     VfxDirector.drawBosses(ctx, renderEnemies, camera, viewportWidth, viewportHeight);

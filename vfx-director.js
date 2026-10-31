@@ -55,7 +55,7 @@ const VfxDirector=(()=>{
             damage==null&&state?.burn?'ashDeath':damage==null&&enemy.poisonTimer>0?'poisonFade':null;
         if(id)emit(id,enemy.x,enemy.y,enemy.isBoss?1.8:1.15,true);
     }
-    function release(boss,skill){const kind=skill==='fireNova'||skill==='breathAttack'?'fire':elementOf(boss.elementalDmg),id=kind==='fire'?'fireBloom':kind==='cold'?'frostBreak':kind==='lightning'?'shockFade':'ashDeath';emit(id,boss.x,boss.y,1.5,false);}
+    function release(boss,skill){if(typeof EnemyVfx!=='undefined'&&EnemyVfx.isReady()&&typeof HeroVfx!=='undefined'&&HeroVfx.isReady())return;const kind=skill==='fireNova'||skill==='breathAttack'?'fire':elementOf(boss.elementalDmg),id=kind==='fire'?'fireBloom':kind==='cold'?'frostBreak':kind==='lightning'?'shockFade':'ashDeath';emit(id,boss.x,boss.y,1.5,false);}
     function collect(item,markers){
         if(!(item.rarity>=RARITY.RARE))return;
         emit('lootCollect',item.x,item.y,1,true);
@@ -81,6 +81,7 @@ const VfxDirector=(()=>{
         }
     }
     function drawBosses(ctx,list,camera,width,height){
+        if(typeof EnemyVfx!=='undefined'&&EnemyVfx.isReady()&&typeof HeroVfx!=='undefined'&&HeroVfx.isReady())return;
         let count=0;
         for(const e of list){
             if(!e.isBoss||e.dead||!e.pendingSkill||!visible(e.x,e.y,camera,width,height)||count++>=4)continue;
