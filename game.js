@@ -361,7 +361,7 @@ const ParticlePool = {
             p.z = undefined; p.vz = undefined; p.vx = undefined; p.vy = undefined;
             p.spin = undefined; p.gravity = undefined; p.type = undefined; p.canBake = undefined; p.size = 3;
             p.maxLife = undefined; p.radius = undefined; p.grow = undefined; p.width = undefined;
-            p.maxAlpha = undefined;
+            p.maxAlpha = undefined; p.cosmetic = false;
             p.angle = undefined; p.length = undefined; p.color2 = undefined; p.rotation = undefined;
             this._pool.push(p);
         }
@@ -1318,6 +1318,7 @@ if (VFX_SPRITE_CONFIG?.sheet) {
     vfxSpriteSheet.src = VFX_SPRITE_CONFIG.sheet;
     vfxSpriteSheet.onload = () => {
         vfxSpritesLoaded = true;
+        CombatVisuals.warm(vfxSpriteSheet, VFX_SPRITE_CONFIG.effects, player.graphicsQuality !== 'low');
     };
     vfxSpriteSheet.onerror = () => {
         console.error('VFX sprite sheet failed to load:', VFX_SPRITE_CONFIG.sheet);
@@ -1326,7 +1327,7 @@ if (VFX_SPRITE_CONFIG?.sheet) {
     console.error('VFX_SPRITE_MANIFEST is missing.');
 }
 
-function spawnVfxEffect(effectId, x, y, scale = 1, rotation = 0) {
+function spawnVfxEffect(effectId, x, y, scale = 1, rotation = 0, decorative = false) {
     if (effectId === 'poisonStatusBurst' || effectId === 'playerPoisonHit') {
         emitDriftingVeil(x, y, COLORS.poison, 22 * scale);
         return;
@@ -1336,6 +1337,7 @@ function spawnVfxEffect(effectId, x, y, scale = 1, rotation = 0) {
 
     vfxEffects.push({
         effectId,
+        decorative,
         x,
         y,
         scale,
@@ -3034,7 +3036,7 @@ function getHeroFrame(direction) {
     };
 }
 
-function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH, tint = null) {
+function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH, tint = null, freezeRemaining = Infinity) {
     source = frame.source || source;
     if (frame.renderScale) {
         topY += drawH * (1 - frame.renderScale);
@@ -3044,12 +3046,12 @@ function drawHeroSprite(ctx, source, frame, centerX, topY, drawW, drawH, tint = 
         ctx.save();
         ctx.translate(centerX, topY);
         ctx.scale(-1, 1);
-        SpriteRenderer.drawFrame(ctx, source, frame, -drawW / 2, 0, drawW, drawH, tint, HeroTintCache);
+        SpriteRenderer.drawFrame(ctx, source, frame, -drawW / 2, 0, drawW, drawH, tint, HeroTintCache, freezeRemaining);
         ctx.restore();
         return;
     }
 
-    SpriteRenderer.drawFrame(ctx, source, frame, centerX - drawW / 2, topY, drawW, drawH, tint, HeroTintCache);
+    SpriteRenderer.drawFrame(ctx, source, frame, centerX - drawW / 2, topY, drawW, drawH, tint, HeroTintCache, freezeRemaining);
 }
 
 function getEnemyMonsterType(enemy) {
@@ -3178,19 +3180,19 @@ function getMonsterSpriteFrame(enemy) {
     };
 }
 
-function drawMonsterSprite(ctx, source, frame, centerX, bottomY, drawW, drawH, tint = null) {
+function drawMonsterSprite(ctx, source, frame, centerX, bottomY, drawW, drawH, tint = null, freezeRemaining = Infinity) {
     source = frame.source || source;
     if (frame.renderScale) { drawW *= frame.renderScale; drawH *= frame.renderScale; }
     if (frame.flipX) {
         ctx.save();
         ctx.translate(centerX, bottomY - drawH);
         ctx.scale(-1, 1);
-        SpriteRenderer.drawFrame(ctx, source, frame, -drawW / 2, 0, drawW, drawH, tint, MonsterTintCache);
+        SpriteRenderer.drawFrame(ctx, source, frame, -drawW / 2, 0, drawW, drawH, tint, MonsterTintCache, freezeRemaining);
         ctx.restore();
         return;
     }
 
-    SpriteRenderer.drawFrame(ctx, source, frame, centerX - drawW / 2, bottomY - drawH, drawW, drawH, tint, MonsterTintCache);
+    SpriteRenderer.drawFrame(ctx, source, frame, centerX - drawW / 2, bottomY - drawH, drawW, drawH, tint, MonsterTintCache, freezeRemaining);
 }
 
 const ContactShadowCache = new Map();
@@ -3620,7 +3622,7 @@ function drawEnemyActor(ctx, e) {
         if (reactAlpha > 0 && !e.dead) ctx.rotate((e.hitTilt || 0) * reactAlpha);
         const juiceScale = e.dead ? 1 : (e.juiceScale || 1.0);
         ctx.scale(juiceScale * (1 + deathProgress * 0.08), (1.0 / juiceScale) * (1 - deathProgress * 0.22));
-        drawMonsterSprite(ctx, processedMonsterSprites, animatedMonsterFrame, 0, 0, renderWidth, renderHeight, tint);
+        drawMonsterSprite(ctx, processedMonsterSprites, animatedMonsterFrame, 0, 0, renderWidth, renderHeight, tint, e.frozenTimer);
         ctx.restore();
     } else if (spritesLoaded && processedSpriteSheet && e.frameIndex !== undefined) {
         const frame = e.isBoss ? getBossFrame(e.frameIndex) : getMonsterFrame(e.frameIndex);
@@ -3641,7 +3643,7 @@ function drawEnemyActor(ctx, e) {
         ctx.scale(juiceScale * (1 + deathProgress * 0.08), (1.0 / juiceScale) * (1 - deathProgress * 0.22));
         ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height,
             -renderWidth / 2, -renderHeight, renderWidth, renderHeight);
-        if (!e.dead && e.frozenTimer > 0) CombatVisuals.frost(ctx, processedSpriteSheet, frame, -renderWidth / 2, -renderHeight, renderWidth, renderHeight);
+        if (!e.dead && e.frozenTimer > 0) CombatVisuals.frost(ctx, processedSpriteSheet, frame, -renderWidth / 2, -renderHeight, renderWidth, renderHeight, e.frozenTimer);
         ctx.restore();
     } else {
         if (e.hitFlashTimer > 0) ctx.fillStyle = '#ffffff';
@@ -3814,6 +3816,7 @@ function emitSkillImpactBurst(type, x, y, angle = 0, power = 1) {
         particles.push(ParticlePool.acquire({
             x: x + (Math.random() - 0.5) * 6,
             y: y + (Math.random() - 0.5) * 6,
+            cosmetic: true,
             vx: Math.cos(a) * speed,
             vy: Math.sin(a) * speed - (type === 'fireball' ? 22 : 8),
             color: Math.random() < 0.28 ? palette.core : (Math.random() < 0.55 ? palette.ember : palette.main),
@@ -3863,7 +3866,7 @@ function emitFireballVisualGrowth(x, y, angle, tier) {
         const mx = x + Math.cos(angle) * (forward + Math.random() * 12) + Math.cos(sideAngle) * lane * fanStep + (Math.random() - 0.5) * 8;
         const my = y + Math.sin(angle) * (forward + Math.random() * 12) + Math.sin(sideAngle) * lane * fanStep + (Math.random() - 0.5) * 8;
 
-        spawnVfxEffect('fireballImpact', mx, my, tier >= 2 ? 0.72 : 0.58, angle + (Math.random() - 0.5) * 0.4);
+        spawnVfxEffect('fireballImpact', mx, my, tier >= 2 ? 0.72 : 0.58, angle + (Math.random() - 0.5) * 0.4, true);
 
         if (particles.length < maxP) {
             particles.push(ParticlePool.acquire({
@@ -3884,6 +3887,7 @@ function emitFireballVisualGrowth(x, y, angle, tier) {
             particles.push(ParticlePool.acquire({
                 x: mx + (Math.random() - 0.5) * 18,
                 y: my - 62 - Math.random() * 28,
+                cosmetic: true,
                 vx: (Math.random() - 0.5) * 34,
                 vy: 130 + Math.random() * 70,
                 color: Math.random() < 0.35 ? palette.core : (Math.random() < 0.65 ? palette.ember : palette.main),
@@ -4290,6 +4294,7 @@ function toggleGraphicsQuality() {
     if (!cachedUI.selectGraphicsQuality) return;
     const val = cachedUI.selectGraphicsQuality.value;
     player.graphicsQuality = val;
+    CombatVisuals.setQuality(val !== 'low');
     document.body.classList.toggle('high-quality', val === 'high');
     resize();
     SaveSystem.save();
@@ -5460,7 +5465,7 @@ function enterFloor(f, spawnAt = 'start') {
     enemies = []; groundItems = []; projectiles = []; npcs = []; flyingPickups = [];
     enemySpawnCandidates = [];
     vfxEffects = [];
-    CombatVisuals.clear();
+    CombatVisuals.clear(true);
     destructibles = []; // 清空可破坏物体
     dungeonRoomFeatures = [];
     scenicProps = [];
@@ -7207,6 +7212,7 @@ function generateMapCache() {
 
 function gameLoop(ts) {
     if (!gameActive) return;
+    const frameStartedAt = performance.now();
     let dt = Math.min((ts - lastTime) / 1000, 0.1);
     lastTime = ts;
 
@@ -7214,6 +7220,7 @@ function gameLoop(ts) {
     if (Juice.update(dt)) {
         // 顿帧期间不更新物理逻辑，但继续渲染
         draw();
+        CombatVisuals.sampleFrame(performance.now() - frameStartedAt);
         requestAnimationFrame(gameLoop);
         return;
     }
@@ -7229,6 +7236,7 @@ function gameLoop(ts) {
     }
 
     update(dt); draw();
+    CombatVisuals.sampleFrame(performance.now() - frameStartedAt);
     autoSaveTimer += dt; if (autoSaveTimer > GAME_CONFIG.AUTO_SAVE_INTERVAL) { SaveSystem.save(true); autoSaveTimer = 0; }  // 静默自动存档
     requestAnimationFrame(gameLoop);
 }
@@ -7236,6 +7244,7 @@ function gameLoop(ts) {
 function update(dt) {
     // 当前区域素材到齐前暂停战斗计时，避免不可见敌人造成伤害。
     if (ArtSamples.pending > 0 || ArtSamples.loadError) return;
+    CombatVisuals.update(dt);
     // 更新敌人缓存（每帧只遍历一次enemies数组）
     gameFrameId++;
     EnemyCache.update(gameFrameId);
@@ -7915,6 +7924,7 @@ function update(dt) {
                 color: trailColors[Math.floor(Math.random() * trailColors.length)],
                 life: 0.3 + Math.random() * 0.2,
                 size: 3 + Math.random() * 3,
+                cosmetic: true,
                 gravity: -30  // 火焰向上飘
             });
         }
@@ -8543,7 +8553,8 @@ function updateEnemies(dt) {
 
 // --- Rendering ---
 function draw() {
-    CombatVisuals.beginFrame(player.graphicsQuality !== 'low', performance.now() / 1000);
+    const visualFocus = AutoBattle.enabled && AutoBattle.currentTarget && !AutoBattle.currentTarget.dead ? AutoBattle.currentTarget : player;
+    CombatVisuals.beginFrame(player.graphicsQuality !== 'low', performance.now() / 1000, visualFocus.x, visualFocus.y, particles.length + vfxEffects.length);
     const loadingOverlay=document.getElementById('art-loading');
     loadingOverlay.hidden=ArtSamples.pending===0&&!ArtSamples.loadError;
     const loadingText=ArtSamples.loadError?'区域资源加载失败，请刷新重试':'正在加载区域资源…';
@@ -8811,14 +8822,14 @@ function draw() {
         if (!isPlayerStalling && !player.isDead) drawPlayerDisciplineAura(ctx, px, py);
 
         if (typeof MarketSystem !== 'undefined' && MarketSystem.isStalling) {
-            drawHeroSprite(ctx, source, frame, px, py - renderHeight / (frame.source ? 1 : 2) + (frame.offsetY || 0), renderWidth, renderHeight, tint);
+            drawHeroSprite(ctx, source, frame, px, py - renderHeight / (frame.source ? 1 : 2) + (frame.offsetY || 0), renderWidth, renderHeight, tint, player.frozenTimer);
         } else if (scale === 1) {
-            drawHeroSprite(ctx, source, frame, px, py - renderHeight + (frame.offsetY || 0), renderWidth, renderHeight, tint);
+            drawHeroSprite(ctx, source, frame, px, py - renderHeight + (frame.offsetY || 0), renderWidth, renderHeight, tint, player.frozenTimer);
         } else {
             ctx.save();
             ctx.translate(px, py - renderHeight / 2 + (frame.offsetY || 0));
             ctx.scale(scale, scale);
-            drawHeroSprite(ctx, source, frame, 0, -renderHeight / 2, renderWidth, renderHeight, tint);
+            drawHeroSprite(ctx, source, frame, 0, -renderHeight / 2, renderWidth, renderHeight, tint, player.frozenTimer);
             ctx.restore();
         }
         drawPlayerShieldFront(ctx, px, py);
@@ -8935,6 +8946,7 @@ function draw() {
         if (p.x < camera.x - 100 || p.x > camera.x + viewportWidth + 100 ||
             p.y < camera.y - 120 || p.y > camera.y + viewportHeight + 100) continue;
 
+        if (CombatVisuals.isDecoration(p) && !CombatVisuals.allowDecoration(p.x, p.y)) continue;
         if (p.type === 'lightning') {
             ctx.beginPath();
             ctx.moveTo(p.points[0].x, p.points[0].y);
@@ -9098,6 +9110,7 @@ function draw() {
         const fx = vfxEffects[vi];
         if (fx.x < camera.x - 140 || fx.x > camera.x + viewportWidth + 140 ||
             fx.y < camera.y - 160 || fx.y > camera.y + viewportHeight + 160) continue;
+        if (fx.decorative && !CombatVisuals.allowDecoration(fx.x, fx.y)) continue;
         drawVfxEffect(ctx, fx);
     }
 
@@ -9195,6 +9208,7 @@ function draw() {
         ctx.restore();
     }
 
+    CombatVisuals.drawFeedback(ctx, camera, viewportWidth, viewportHeight);
     ctx.textAlign = 'center';
     drawBossDangerTelegraphs(ctx);
     // 性能优化：使用 for 循环渲染伤害数字
@@ -10680,14 +10694,14 @@ function takeDamage(e, dmg, isSkillDamage = false) {
 
     // 幽灵闪避检测
     if (e.dodgeChance && Math.random() < e.dodgeChance) {
-        spawnVfxEffect(COMBAT_FEEDBACK_VFX.guardFlash, e.x, e.y - 8, 0.7, feedbackAngle);
+        if (typeof CombatVisuals !== 'undefined') CombatVisuals.feedback('dodge', e, feedbackAngle);
         createDamageNumber(e.x, e.y - 20, "闪避!", '#aaaaaa');
         return;
     }
     if (e.blockChance && !isSkillDamage && (typeof CombatTactics === 'undefined' || e.monsterType !== 'skeleton') && Math.random() < e.blockChance) {
         e.hitFlashTimer = 0.06;
         Juice.hit(e, false, false);
-        spawnVfxEffect(COMBAT_FEEDBACK_VFX.guardFlash, e.x, e.y - 8, 0.8, feedbackAngle);
+        if (typeof CombatVisuals !== 'undefined') CombatVisuals.feedback('block', e, feedbackAngle);
         createDamageNumber(e.x, e.y - 20, "格挡!", '#dddddd');
         AudioSys.play('melee_hit');
         return;
@@ -12379,7 +12393,7 @@ function createParticle(x, y, color, size = 3) {
     }
     const maxParticles = getParticleConfig().maxParticles;
     if (particles.length >= maxParticles) return;  // 超出上限不创建
-    particles.push(ParticlePool.acquire({ x, y, color, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size }));
+    particles.push(ParticlePool.acquire({ x, y, color, cosmetic: true, vx: (Math.random() - 0.5) * 100, vy: (Math.random() - 0.5) * 100, life: 0.5, size }));
 }
 
 // 毒雾与灵体共用低透明度曲面烟带：按区域合并、限制并发，不创建逐帧烟粒。
@@ -13207,7 +13221,7 @@ function playerTakeDamage(rawDamage, source, options = {}) {
         if (shieldAbsorbed > 0) {
             if (typeof Shield3D !== 'undefined') Shield3D.hit(source ? source.x-player.x : 1, source ? source.y-player.y : 0);
             const sourceAngle = source ? Math.atan2(player.y - source.y, player.x - source.x) : 0;
-            spawnVfxEffect(COMBAT_FEEDBACK_VFX.guardFlash, player.x, player.y - 12, 0.82, sourceAngle);
+            if (typeof CombatVisuals !== 'undefined') CombatVisuals.feedback('block', player, sourceAngle);
             spawnVfxEffect('shieldPulseStatus', player.x, player.y + 4, 0.75, 0);
             createDamageNumber(player.x, player.y - 50, `护盾-${shieldAbsorbed}`, '#66ccff');
         }

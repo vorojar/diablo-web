@@ -23,6 +23,7 @@ const CombatTactics = (() => {
             pending.damageTaken+=damage;
             if(!e.isBoss || pending.damageTaken>=e.maxHp*rules.bossBreak){
                 pending.cancelled=true;e.pendingSkill=null;e.bossSkillVisual=null;e.isDashing=false;
+                if(typeof CombatVisuals!=='undefined')CombatVisuals.feedback('interrupt',e,0);
                 recover(e,rules.interruptRecovery,'打断 · 破绽 +25%');return;
             }
         }
@@ -95,7 +96,7 @@ const CombatTactics = (() => {
                 ctx.fillStyle='rgba(235,50,30,.10)';ctx.fill();ctx.strokeStyle='#281511';ctx.lineWidth=6;ctx.stroke();ctx.strokeStyle='#ff815c';ctx.lineWidth=2.5;ctx.stroke();
                 label(ctx,e,p.label || (p.tactic==='charge'?'突进 · 侧向躲避':p.tactic==='revive'?'复活 · 技能打断':'重击 · 拉开距离'),'#ffbe91',progress);
                 if(e.pendingSkill && p.damageTaken > 0)label(ctx,{x:e.x,y:e.y-27},'打断 '+Math.min(100,Math.floor(p.damageTaken/(e.maxHp*rules.bossBreak)*100))+'%','#b1d7ff');
-            }else if(e.recoveryTimer>0)label(ctx,e,'破绽 +25%','#78ebcd',e.recoveryTimer/e.recoveryDuration);
+            }else if(e.recoveryTimer>0)label(ctx,e,e.recoveryLabel || '破绽 +25%','#78ebcd',e.recoveryTimer/e.recoveryDuration);
             else if(e.monsterType==='skeleton' && e === (typeof AutoBattle !== 'undefined' ? AutoBattle.currentTarget : null)){
                 ctx.beginPath();ctx.arc(e.x,e.y,25,facingAngle(e)-Math.PI/3,facingAngle(e)+Math.PI/3);ctx.strokeStyle='#c5d5e1';ctx.lineWidth=3;ctx.stroke();
             }

@@ -2,6 +2,11 @@
 const CombatVisuals = (() => {
     let highQuality = true, time = 0, frostBudget = 2, lightBudget = 1;
     let attacks = new WeakMap();
+    let frameCost = 0, overloaded = false, recoveryFrames = 0, crowded = false;
+    let decorationBudget = 48, focusBudget = 16, focusX = 0, focusY = 0;
+    let warmPlan = null, warmIndex = 0, idleHandle = null, warmGeneration = 0, warmed = 0;
+    let warmCost = 1;
+    const feedbacks = [];
 
     function surfaceCache(maxEntries, maxBytes, build) {
         let sources = new WeakMap(), nextId = 0, bytes = 0, builds = 0;
@@ -97,14 +102,84 @@ const CombatVisuals = (() => {
     const frostCache = surfaceCache(48, 2 * 1024 * 1024, frostSurface);
     const lightCache = surfaceCache(32, 4 * 1024 * 1024, lightSurfaces);
 
-    function beginFrame(high, now) { highQuality = high; time = now; frostBudget = high ? 2 : 0; lightBudget = high ? 1 : 0; }
-    function frost(ctx, source, frame, x, y, w, h) {
-        if (!highQuality) return;
+    function cancelWarmup() {
+        warmGeneration++;
+        if (idleHandle !== null && typeof cancelIdleCallback === 'function') cancelIdleCallback(idleHandle);
+        idleHandle = null;
+    }
+    function scheduleWarmup() {
+        if (!warmPlan || warmIndex >= warmPlan.frames.length || !highQuality || idleHandle !== null ||
+            typeof requestIdleCallback !== 'function' || document.hidden) return;
+        const generation = warmGeneration;
+        idleHandle = requestIdleCallback(deadline => {
+            if (generation !== warmGeneration) return;
+            idleHandle = null;
+            // 不强制超时执行；独立的空闲切片每次最多准备一帧，不改变渲染构建名额。
+            if (!highQuality || document.hidden) return;
+            const available = deadline.timeRemaining();
+            if (!overloaded && !crowded && available >= Math.max(2, warmCost * 1.4)) {
+                const f = warmPlan.frames[warmIndex++], before = lightCache.stats().builds;
+                const renderBudget = lightBudget; lightBudget = 1;
+                const started = typeof performance === 'undefined' ? Date.now() : performance.now();
+                lightCache.get(warmPlan.source, f.x, f.y, f.w, f.h, 'light', f.material);
+                const elapsed = (typeof performance === 'undefined' ? Date.now() : performance.now()) - started;
+                warmCost = Math.max(.5, Math.min(5, warmCost * .75 + elapsed * .25));
+                lightBudget = renderBudget;
+                warmed += lightCache.stats().builds - before;
+            } else if (!overloaded && !crowded && available >= 2) {
+                // 首次解码/GC的偶发高耗时不能永久抬高门槛；有短空闲窗口时逐步重新评估。
+                warmCost = Math.max(.5, warmCost * .9);
+            }
+            scheduleWarmup();
+        });
+    }
+    function warm(source, effects, high = highQuality) {
+        cancelWarmup();
+        const frames = [];
+        for (const effect of Object.values(effects)) if (effect.blend === 'split') {
+            for (let i = 0; i < effect.frameCount; i++) frames.push({x:i*effect.frameWidth,y:effect.row*effect.frameHeight,w:effect.frameWidth,h:effect.frameHeight,material:effect.material});
+        }
+        warmPlan = {source, frames}; warmIndex = 0; highQuality = high;
+        scheduleWarmup();
+    }
+    function sampleFrame(ms) {
+        if (!Number.isFinite(ms) || ms <= 0) return;
+        frameCost = frameCost ? frameCost * .9 + Math.min(ms, 100) * .1 : Math.min(ms, 100);
+        if (frameCost > 14) { overloaded = true; recoveryFrames = 0; }
+        else if (overloaded) {
+            recoveryFrames = frameCost < 9 ? recoveryFrames + 1 : 0;
+            if (recoveryFrames >= 60) { overloaded = false; recoveryFrames = 0; }
+        }
+    }
+    function setQuality(high) {
+        if (highQuality === high) return;
+        highQuality = high; cancelWarmup();
+        if (high) scheduleWarmup();
+        else { frostCache.clear(); lightCache.clear(); warmIndex = 0; }
+    }
+    function beginFrame(high, now, x = 0, y = 0, load = 0) {
+        setQuality(high);
+        time = now; focusX = x; focusY = y; crowded = load > 100;
+        frostBudget = high ? 2 : 0; lightBudget = high ? 1 : 0;
+        decorationBudget = high ? overloaded || crowded ? 16 : 48 : 8;
+        focusBudget = high ? overloaded || crowded ? 8 : 16 : 4;
+        scheduleWarmup();
+    }
+    function allowDecoration(x, y) {
+        const dx = x - focusX, dy = y - focusY;
+        if (dx * dx + dy * dy <= 14400 && focusBudget > 0) { focusBudget--; return true; }
+        if (decorationBudget <= 0) return false;
+        decorationBudget--; return true;
+    }
+    function isDecoration(particle) { return particle.cosmetic === true || particle.type === 'skill_ground_glow' || particle.type === 'rising_spark'; }
+    function frost(ctx, source, frame, x, y, w, h, remaining = Infinity) {
+        if (!highQuality || !(remaining > 0)) return;
         const surface = frostCache.get(source, frame.x, frame.y, frame.width, frame.height, 'frost');
         if (!surface) return;
         const canvas = surface.canvases[0];
+        ctx.save(); ctx.globalAlpha *= Math.min(1, remaining / .22);
         ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, x, y, w, h);
-        ctx.save(); ctx.fillStyle = '#effcff';
+        ctx.fillStyle = '#effcff';
         ctx.globalAlpha *= .25 + .45 * Math.pow(Math.max(0, Math.sin(time * 5)), 6);
         for (const point of surface.glints) ctx.fillRect(x + point.x / canvas.width * w, y + point.y / canvas.height * h, 1.4, 1.4);
         ctx.restore();
@@ -161,7 +236,48 @@ const CombatVisuals = (() => {
         }
         ctx.restore(); return true;
     }
-    function clear() { frostCache.clear(); lightCache.clear(); attacks = new WeakMap(); }
-    function getStats() { return { frost: frostCache.stats(), light: lightCache.stats(), frostBudget, lightBudget }; }
-    return { beginFrame, frost, coldGround, vfx, trackAttack, monsterFrame, strike, clear, getStats };
+    function feedback(type, entity, angle) {
+        if (!['block','dodge','interrupt'].includes(type)) throw new RangeError('未知战斗反馈');
+        for (const f of feedbacks) if (f.entity === entity && f.type === type && f.age < .1) { f.age = 0; f.x = entity.x; f.y = entity.y - 12; f.angle = angle; return; }
+        if (feedbacks.length >= 96) feedbacks.shift();
+        feedbacks.push({type,entity,x:entity.x,y:entity.y-12,angle,age:0,duration:type === 'interrupt' ? .38 : .26});
+    }
+    function update(dt) {
+        for (let i = feedbacks.length - 1; i >= 0; i--) {
+            feedbacks[i].age += dt;
+            if (feedbacks[i].age >= feedbacks[i].duration) feedbacks.splice(i, 1);
+        }
+    }
+    function drawFeedback(ctx, camera, width, height) {
+        ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.shadowBlur = 0;
+        for (const f of feedbacks) {
+            if (f.x < camera.x-60 || f.y < camera.y-60 || f.x > camera.x+width+60 || f.y > camera.y+height+60) continue;
+            const t = f.age / f.duration;
+            ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(f.angle); ctx.globalAlpha *= (1-t)*(1-t);
+            ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath();
+            if (f.type === 'block') {
+                ctx.strokeStyle = '#ffe4a0';
+                ctx.moveTo(-13,-13); ctx.lineTo(-19,-5); ctx.lineTo(-19,5); ctx.lineTo(-13,13);
+                for (let i = 0; i < 3; i++) { const y = (i-1)*10, spread=3+t*16; ctx.moveTo(-20-spread,y); ctx.lineTo(-23-spread,y*1.25); }
+            } else if (f.type === 'dodge') {
+                ctx.strokeStyle = '#b2d3de';
+                for (let i = 0; i < (highQuality ? 3 : 2); i++) { const x = t*25+i*6; ctx.moveTo(x-16,-16+i*7); ctx.quadraticCurveTo(x-5,-8+i*7,x+4,-13+i*7); }
+            } else {
+                ctx.strokeStyle = '#8fe8e2';
+                const n = highQuality ? 8 : 4, r = 16+t*24;
+                for (let i = 0; i < n; i++) { const a=i*Math.PI*2/n; ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r*.65); ctx.lineTo(Math.cos(a+.16)*(r+6),Math.sin(a+.16)*(r+6)*.65); }
+            }
+            ctx.stroke(); ctx.restore();
+        }
+        ctx.restore();
+    }
+    function clear(keepLight = false) {
+        cancelWarmup(); frostCache.clear(); attacks = new WeakMap(); feedbacks.length = 0;
+        // 通用图集不依赖楼层；切层复用已预热帧，全量清理和性能模式仍释放全部表面。
+        if (!keepLight) { lightCache.clear(); warmIndex = 0; }
+        scheduleWarmup();
+    }
+    function getStats() { return { frost:frostCache.stats(),light:lightCache.stats(),frostBudget,lightBudget,frameCost,overloaded,crowded,decorationBudget,focusBudget,feedbacks:feedbacks.length,warmup:{pending:warmPlan ? warmPlan.frames.length-warmIndex : 0,warmed,cost: warmCost,scheduled:idleHandle !== null} }; }
+    if (typeof document.addEventListener === 'function') document.addEventListener('visibilitychange', () => { if (document.hidden) cancelWarmup(); else scheduleWarmup(); });
+    return { beginFrame,setQuality,sampleFrame,allowDecoration,isDecoration,warm,frost,coldGround,vfx,trackAttack,monsterFrame,strike,feedback,update,drawFeedback,clear,getStats };
 })();

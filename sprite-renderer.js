@@ -52,7 +52,7 @@ const SpriteRenderer = (() => {
         };
     }
 
-    function drawFrame(ctx, source, frame, x, y, width, height, tint, cache) {
+    function drawFrame(ctx, source, frame, x, y, width, height, tint, cache, freezeRemaining = Infinity) {
         const frozen = tint === 'frozen' || tint === 'frozenWhite';
         if (frozen) tint = tint === 'frozenWhite' ? 'white' : 'ice';
         const tinted = tint ? cache.get(source, frame, tint) : null;
@@ -66,7 +66,7 @@ const SpriteRenderer = (() => {
         } else {
             ctx.drawImage(source, frame.x, frame.y, frame.width, frame.height, x, y, width, height);
         }
-        if (frozen) CombatVisuals.frost(ctx, source, frame, x, y, width, height);
+        if (frozen) CombatVisuals.frost(ctx, source, frame, x, y, width, height, freezeRemaining);
     }
     return { createTintCache, drawFrame };
 })();
