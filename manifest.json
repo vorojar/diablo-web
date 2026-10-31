@@ -2,7 +2,7 @@
   "name": "菠萝战纪 Brawlore",
   "short_name": "菠萝战纪",
   "description": "经典ARPG网页游戏",
-  "start_url": "/diablo/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#1a1a2e",
   "theme_color": "#1a1a2e",
