@@ -9,7 +9,7 @@ function run(enabled){
  player:{x:80,y:0,hp:10000,maxHp:10000,mp:500,invincibleTimer:0,resistances:{fire:20,cold:10,lightning:15},isDead:false},enemies:[],projectiles:[],scheduledMonsterAttacks:[],COLORS:{green:'#0f0',ice:'#0ff',poison:'#0f0',revive:'#fff',manaCost:'#00f'},GAME_CONFIG:{MONSTER_MELEE_RANGE_SQ:2200},CAST_SOURCE_VFX:{enemyArrow:'enemyArrowMuzzle',enemyLightning:'enemyLightningMuzzle'},EnemyPool:{acquire:o=>o},ProjectilePool:{acquire:o=>o},SkillBranchSystem:{controlMultiplier:()=>.8},AudioSys:{play:noop},spawnVfxEffect:noop,emitDriftingVeil:noop,spawnMonsterAttackTelegraph:noop,spawnCastSourceVfx:noop,triggerMonsterAction:noop,setMonsterFacingToward:noop,createDamageNumber:noop,showNotification:noop,updateUI:noop,checkPlayerDeath:noop,isWall:()=>false,hasLineOfSight:()=>true,createParticle(){particles++;random();}};
  s.playerTakeDamage=(d,e)=>{damages++;if(s.player.invincibleTimer>0)return 0;s.player.hp-=d;return d;};
  const context=vm.createContext(s);vm.runInContext(fs.readFileSync(path.join(root,'combat-tactics.js'),'utf8'),context);vm.runInContext(fs.readFileSync(path.join(root,'enemy-system.js'),'utf8')+'\nthis.affixes=ELITE_AFFIXES;this.tactics=CombatTactics;',context);
- if(enabled){vm.runInContext(fs.readFileSync(path.join(root,'enemy-vfx.js'),'utf8')+'\nthis.fx=EnemyVfx;',context);s.fx.setQuality(true);}
+ if(enabled){vm.runInContext(fs.readFileSync(path.join(root,'pixelfx-polish.js'),'utf8')+'\nthis.polish=PixelFxPolish;',context);s.polish.setQuality(true);s.polish.warmLarge();vm.runInContext(fs.readFileSync(path.join(root,'enemy-vfx.js'),'utf8')+'\nthis.fx=EnemyVfx;',context);s.fx.setQuality(true);}
  for(const name of ['createMonsterAttackAim','startMonsterAttack','processScheduledMonsterAttacks','startRangedEnemyAttack','calculateEnemyOutgoingDamage','applyEnemyCursedHit','emitEnemyScatterVolley','resolveEnemyMeleeImpact','applyEnemyProjectileOnHit','emitMummyDeathCloud'])vm.runInContext(extract(name),context);
  const enemy=(extra={})=>{const e={name:'验收怪',x:0,y:0,hp:100,maxHp:1000,dmg:20,cooldown:0,dead:false,...extra};s.enemies.push(e);return e;};
  const b=enemy({isBoss:true,slamRadius:150,breathRange:200,breathAngle:60,summonCount:3,tentacleCount:5});
@@ -29,7 +29,7 @@ function run(enabled){
  s.applyEnemyProjectileOnHit(vampire,0);s.player.invincibleTimer=1;const healed=vampire.hp;s.resolveEnemyMeleeImpact(vampire);assert.equal(vampire.hp,healed,'免疫不触发吸血');
  s.emitMummyDeathCloud(enemy({monsterType:'mummy'}));
  s.player.invincibleTimer=0;s.affixes.find(a=>a.id==='fire_enchanted').onDeath(vampire);
- if(enabled){s.fx.update(.1);s.fx.drawEvents(new Proxy({globalAlpha:1},{get:(o,k)=>k in o?o[k]:noop}),{x:0,y:0},800,600);s.fx.update(2);assert.equal(s.fx.getStats().active,0);}
+ if(enabled){s.fx.update(.1);s.fx.drawEvents(new Proxy({globalAlpha:1},{get:(o,k)=>k in o?o[k]:noop}),{x:0,y:0},800,600);s.fx.update(2);s.polish.update(2);assert.equal(s.fx.getStats().active,0);assert.equal(s.polish.getStats().active,0);}
  return JSON.parse(JSON.stringify({player:s.player,enemies:s.enemies.map(e=>({...e,combatCue:e.combatCue?{timer:e.combatCue.timer,tactic:e.combatCue.tactic,aim:e.combatCue.aim}:null})),projectiles:s.projectiles.map(p=>({...p,owner:p.owner?.name})),queued:s.scheduledMonsterAttacks.length,seed,calls,particles,damages,resolves}));
 }
 assert.deepEqual(run(true),run(false));console.log('PASS: 开关敌方特效时，真实Boss范围/无敌帧/锁向/召唤墙体/触手/箭矢/打断/死亡/吸血/诅咒/冰冻/法力/毒云结算与随机序列完全一致');

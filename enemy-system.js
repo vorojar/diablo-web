@@ -598,7 +598,7 @@ const ELITE_AFFIXES = [
     onDeath: (enemy) => {
       // 火焰爆炸
       const explosionRadius = 150;
-      if (typeof EnemyVfx !== 'undefined') EnemyVfx.boss('fireNova', enemy.x, enemy.y, explosionRadius);
+      if (typeof EnemyVfx !== 'undefined') EnemyVfx.boss('fireNova', enemy.x, enemy.y, explosionRadius, 0, 0, 2);
       // 伤害改为15%血量，且上限200
       const explosionDamage = Math.min(enemy.maxHp * 0.15, 200);
       const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);

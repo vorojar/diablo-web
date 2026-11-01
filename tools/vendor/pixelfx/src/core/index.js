@@ -5,3 +5,6 @@ export * from "./sim.js";
 export * from "./shapes.js";
 export {READY} from "./poses.js";
 export {cycle} from "./particles.js";
+export {FONTS} from "./font.js";
+export {Painter} from "./painter.js";
+export {createFrame} from "./fx.js";

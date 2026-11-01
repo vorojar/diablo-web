@@ -407,7 +407,9 @@ function useOrEquipItem(idx) {
 
   if (item.type === 'potion') {
     if (item.heal) {
+      const beforeHeal = player.hp;
       player.hp = Math.min(player.maxHp, player.hp + item.heal);
+      if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.heal(player, player.hp - beforeHeal);
       player.stats.currentStreak = 0; // 喝红药重置连杀
     }
     if (item.mana) player.mp = Math.min(player.maxMp, player.mp + item.mana);

@@ -1,7 +1,7 @@
 // PixelFX 雷电离线图集：运行时只做裁剪、定位与双层合成，不推进伤害或连锁目标。
 const LightningVfx=(()=>{
     // 雷电清单开始（由 tools/build-lightning.mjs 更新，随脚本一起交付）
-    const m={"sourceSHA256":"4372d93773fe8d06e72d46e69bb268ba823ce1374fe0e5c4499a8c9c11493454","width":1536,"height":208,"cellWidth":128,"frames":12,"ages":[0,0.025,0.05,0.075,0.1,0.13,0.16,0.2,0.25,0.3,0.46,0.6],"duration":0.68,"strike":{"y":0,"height":144,"pivotX":64,"pivotY":120},"link":{"y":144,"height":64,"startX":11,"endX":117,"pivotY":32},"body":"art/lightning/body.webp","light":"art/lightning/light.webp"};
+    const m={"sourceSHA256":"2279f1da7f8897a3f97561401a6bf9d91eedfeabbb1423db77ff858176b3ff85","width":1536,"height":240,"cellWidth":128,"frames":12,"ages":[0,0.025,0.05,0.075,0.1,0.13,0.16,0.2,0.25,0.3,0.46,0.6],"duration":0.68,"strike":{"y":0,"height":144,"pivotX":64,"pivotY":120},"link":{"y":144,"height":64,"startX":11,"endX":117,"pivotY":32},"hostileLink":{"y":208,"height":32,"startX":11,"endX":117,"pivotY":16},"body":"art/lightning/body.webp","light":"art/lightning/light.webp"};
     // 雷电清单结束
     const events=[],pool=[],MAX_STRIKES=12;
     let high=true,initialized=false,body=null,light=null,bodyReady=false,lightReady=false,bodyFailed=false,lightFailed=false,emitted=0;
@@ -51,8 +51,8 @@ const LightningVfx=(()=>{
         const tx=last?last.x:p.tx,ty=last?last.y:p.ty,dx=tx-x,dy=ty-y,distance=Math.hypot(dx,dy);
         if(!Number.isFinite(distance)||distance<1)return;
         const duration=p.maxLife??.3,age=Math.max(0,Math.min(m.duration,(1-p.life/duration)*m.duration));
-        if(!bodyReady){if(p.points)fallback(ctx,p.points,p.life/duration);else{ctx.save();ctx.strokeStyle='#e4f6ff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();ctx.restore();}return;}
-        ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(dy,dx));imageFrame(ctx,'link',age,0,0,distance/106,1.5,false,p.bodyOnly);ctx.restore();
+        if(!bodyReady){if(p.points)fallback(ctx,p.points,p.life/duration);else{ctx.save();ctx.strokeStyle=p.hostile?'#ffd8eb':'#e4f6ff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(tx,ty);ctx.stroke();ctx.restore();}return;}
+        ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(dy,dx));imageFrame(ctx,p.hostile?'hostileLink':'link',age,0,0,distance/106,1.5,false,p.bodyOnly);ctx.restore();
     }
     function drawStorm(ctx,bolt){
         if(bodyReady)imageFrame(ctx,'strike',bolt.age/.3*.46,bolt.tx,bolt.ty+12,1.55,1.55,bolt.seed%2<1);

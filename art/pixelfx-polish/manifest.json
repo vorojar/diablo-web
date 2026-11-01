@@ -1,0 +1,247 @@
+{
+  "sourceSHA256": "c3c25dfa03ed50a9ad99f0c6b5a5e357f8f48e574bfcaf66fa0bff9acee95bf6",
+  "common": {
+    "width": 384,
+    "height": 1440,
+    "body": "art/pixelfx-polish/common-body.webp",
+    "light": "art/pixelfx-polish/common-light.webp",
+    "effects": {
+      "poisoned": {
+        "x": 0,
+        "y": 0,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 37.44444444444444,
+        "radius": 18.333333333333336,
+        "loop": true,
+        "duration": 1.6
+      },
+      "cursed": {
+        "x": 0,
+        "y": 96,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 41.80952380952381,
+        "radius": 15.714285714285715,
+        "loop": true,
+        "duration": 2.4
+      },
+      "electrified": {
+        "x": 0,
+        "y": 192,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 36.22222222222222,
+        "radius": 12.222222222222221,
+        "loop": true,
+        "duration": 2
+      },
+      "boneSlash": {
+        "x": 0,
+        "y": 288,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 11.428571428571429,
+        "pivotY": 24.448979591836732,
+        "radius": 6.73469387755102,
+        "loop": false,
+        "duration": 0.22
+      },
+      "blunt": {
+        "x": 0,
+        "y": 384,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 26.0625,
+        "radius": 10.3125,
+        "loop": false,
+        "duration": 0.26
+      },
+      "heal": {
+        "x": 0,
+        "y": 480,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 40.92307692307692,
+        "radius": 12.692307692307692,
+        "loop": false,
+        "duration": 0.65
+      },
+      "blessing": {
+        "x": 0,
+        "y": 576,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 39.125,
+        "radius": 10.3125,
+        "loop": true,
+        "duration": 3
+      },
+      "resurrection": {
+        "x": 0,
+        "y": 672,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 37.75,
+        "radius": 6.875,
+        "loop": false,
+        "duration": 1.1
+      },
+      "shield": {
+        "x": 0,
+        "y": 768,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 37,
+        "radius": 14.5,
+        "loop": true,
+        "duration": 2.4
+      },
+      "cleanse": {
+        "x": 0,
+        "y": 864,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 18.5,
+        "radius": 8.25,
+        "loop": false,
+        "duration": 0.32
+      },
+      "level": {
+        "x": 0,
+        "y": 960,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 35.25,
+        "radius": 7.5,
+        "loop": false,
+        "duration": 1.1
+      },
+      "achievement": {
+        "x": 0,
+        "y": 1056,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 24,
+        "radius": 6,
+        "loop": false,
+        "duration": 1.2
+      },
+      "quest": {
+        "x": 0,
+        "y": 1152,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 24,
+        "radius": 6.470588235294118,
+        "loop": false,
+        "duration": 1.2
+      },
+      "chest": {
+        "x": 0,
+        "y": 1248,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 39.714285714285715,
+        "radius": 11.785714285714285,
+        "loop": false,
+        "duration": 0.55
+      },
+      "enemyNova": {
+        "x": 0,
+        "y": 1344,
+        "w": 48,
+        "h": 48,
+        "frames": 8,
+        "pivotX": 24,
+        "pivotY": 29.5,
+        "radius": 18.07142857142857,
+        "loop": false,
+        "duration": 0.65
+      }
+    }
+  },
+  "detail": {
+    "width": 1344,
+    "height": 576,
+    "body": "art/pixelfx-polish/detail-body.webp",
+    "light": "art/pixelfx-polish/detail-light.webp",
+    "effects": {
+      "heroNova": {
+        "x": 0,
+        "y": 0,
+        "w": 112,
+        "h": 72,
+        "frames": 12,
+        "pivotX": 56,
+        "pivotY": 49.5,
+        "radius": 44.35714285714286,
+        "loop": false,
+        "duration": 3.9
+      },
+      "enemyNova": {
+        "x": 0,
+        "y": 144,
+        "w": 112,
+        "h": 72,
+        "frames": 12,
+        "pivotX": 56,
+        "pivotY": 49.5,
+        "radius": 44.35714285714286,
+        "loop": false,
+        "duration": 3.9
+      },
+      "slam": {
+        "x": 0,
+        "y": 288,
+        "w": 112,
+        "h": 72,
+        "frames": 12,
+        "pivotX": 56,
+        "pivotY": 55.61538461538461,
+        "radius": 34,
+        "loop": false,
+        "duration": 3.2
+      },
+      "meteor": {
+        "x": 0,
+        "y": 432,
+        "w": 112,
+        "h": 72,
+        "frames": 12,
+        "pivotX": 60.10344827586207,
+        "pivotY": 62.9655172413793,
+        "radius": 20.51724137931034,
+        "loop": false,
+        "duration": 5
+      }
+    }
+  }
+}

@@ -28,21 +28,21 @@ let browser;
    await page.goto(address.url+(mode.touch?'?touch=1':''));
    try{await page.waitForFunction(()=>vfxSpritesLoaded&&CombatVisuals.getStats().warmup.pending===0,{},{timeout:30000});}
    catch(error){console.error(JSON.stringify({mode,errors,logs,state:await page.evaluate(()=>({active:gameActive,hidden:document.hidden,loaded:vfxSpritesLoaded,stats:CombatVisuals.getStats()}))}));throw error;}
-   await page.waitForFunction(()=>VfxDirector.getStats().bodyReady&&VfxDirector.getStats().lightReady&&LightningVfx.getStats().bodyReady&&LightningVfx.getStats().lightReady&&HeroVfx.getStats().bodyReady&&HeroVfx.getStats().lightReady&&EnemyVfx.getStats().bodyReady&&EnemyVfx.getStats().lightReady);
+   await page.waitForFunction(()=>VfxDirector.getStats().bodyReady&&VfxDirector.getStats().lightReady&&LightningVfx.getStats().bodyReady&&LightningVfx.getStats().lightReady&&HeroVfx.getStats().bodyReady&&HeroVfx.getStats().lightReady&&EnemyVfx.getStats().bodyReady&&EnemyVfx.getStats().lightReady&&PixelFxPolish.getStats().commonReady);
    const prewarm=await page.evaluate(()=>CombatVisuals.getStats());assert.equal(prewarm.light.entries,24,'登录等待阶段应完成24帧预热');
    await page.getByRole('button',{name:'启动60级安全角色',exact:true}).click();
    await page.getByRole('button',{name:'进入第一层',exact:true}).click();
    await page.waitForFunction(()=>ArtSamples.pending===0&&!ArtSamples.loadError);
    await page.evaluate(async quality=>{
     await ArtSamples.ensureMonsters(['skeleton','zombie','ghost','butcher']);
-    gameActive=false;AutoBattle.enabled=false;player.graphicsQuality=quality;CombatVisuals.setQuality(quality!=='low');VfxDirector.setQuality(quality!=='low');LightningVfx.setQuality(quality!=='low');HeroVfx.setQuality(quality!=='low');EnemyVfx.setQuality(quality!=='low');EnemyVfx.clear();
+    gameActive=false;AutoBattle.enabled=false;player.graphicsQuality=quality;CombatVisuals.setQuality(quality!=='low');VfxDirector.setQuality(quality!=='low');LightningVfx.setQuality(quality!=='low');HeroVfx.setQuality(quality!=='low');EnemyVfx.setQuality(quality!=='low');EnemyVfx.clear();PixelFxPolish.setQuality(quality!=='low');PixelFxPolish.clear();
     document.getElementById('qa-controls').open=false;
     for(const e of enemies)EnemyPool.release(e);enemies=[];particles=[];vfxEffects=[];scheduledMonsterAttacks.length=0;
     const types=['skeleton','zombie','ghost'];
     for(let i=0;i<72;i++){
      const type=types[i%types.length],x=player.x+(i%12-5.5)*26,y=player.y+(Math.floor(i/12)-3)*29;
      enemies.push(EnemyPool.acquire({x,y,hp:1000,maxHp:1000,dmg:0,speed:0,ai:'chase',radius:12,dead:false,
-      monsterType:type,frameIndex:MONSTER_FRAMES[type],name:'',cooldown:99,facingDirection:'front',frozenTimer:i%4===0?1:0,slowedTimer:i%4===1?2:0}));
+      monsterType:type,frameIndex:MONSTER_FRAMES[type],name:'',cooldown:99,facingDirection:'front',frozenTimer:i%4===0?1:0,slowedTimer:i%4===1?2:0,poisoned:i%3===0,poisonTimer:i%3===0?3:0,cursedTimer:i%3===1?3:0,lightningOverloadTimer:i%3===2?2:0}));
     }
     const boss=EnemyPool.acquire({x:player.x,y:player.y-25,hp:1000,maxHp:1000,dmg:0,speed:0,radius:22,dead:false,isBoss:true,
      monsterType:'butcher',frameIndex:BOSS_FRAMES.butcher,name:'危险预警保持',facingDirection:'front',cooldown:99});
@@ -69,7 +69,7 @@ let browser;
     return await new Promise(resolve=>{
      function frame(now){
       if(previous)intervals.push(now-previous);previous=now;
-      const dt=1/60;CombatVisuals.update(dt);VfxDirector.update(dt);LightningVfx.update(dt);HeroVfx.update(dt);EnemyVfx.update(dt);
+      const dt=1/60;CombatVisuals.update(dt);VfxDirector.update(dt);LightningVfx.update(dt);HeroVfx.update(dt);EnemyVfx.update(dt);PixelFxPolish.update(dt);
       for(let i=0;i<projectiles.length;i++)projectiles[i].age=(frames+i)/30;
       for(const s of slashEffects)s.life=1-(frames%20)/20;
       if(frames%15===0)for(let i=0;i<8;i++)HeroVfx.hit({x:player.x+(i%4-1.5)*50,y:player.y+(i>3?30:-30)},null,true);
@@ -77,6 +77,7 @@ let browser;
        const x=player.x+(i%4-1.5)*65,y=player.y+(Math.floor(i/4)-1)*50;
        LightningVfx.strike(x,y,[{x:x+10,y:y-250},{x,y}]);
       }
+      if(frames%15===0){HeroVfx.nova(player.x-80,player.y,100);HeroVfx.meteorImpact(player.x+60,player.y+60,80);PixelFxPolish.reward('achievement',player.x,player.y-50);}
       if(frames%15===0){EnemyVfx.boss('breath',player.x-75,player.y,180,0,.52);EnemyVfx.boss('slam',player.x+70,player.y,90);EnemyVfx.boss('fireNova',player.x,player.y+60,100);for(let i=0;i<6;i++)EnemyVfx.playerHit('lightning',player.x+(i-3)*30,player.y);}
       if(frames%15===0){VfxDirector.cast('fireball',player.x,player.y);VfxDirector.death({x:player.x+65,y:player.y,frozenTimer:1},{cold:1});}
       if(frames%18===0){CombatVisuals.feedback('block',plain,0);CombatVisuals.feedback('dodge',dodge,0);CombatVisuals.feedback('interrupt',interrupt,0);}
@@ -88,7 +89,7 @@ let browser;
       costs.sort((a,b)=>a-b);intervals.sort((a,b)=>a-b);
       resolve({actors:enemies.length,particles:particles.length,mainVfx:12,decorativeVfx:48,proof:visualBudgetProof,
        renderMedian:costs[Math.floor(costs.length*.5)],renderP95:costs[Math.floor(costs.length*.95)],intervalP95:intervals[Math.floor(intervals.length*.95)],
-       enemy:EnemyVfx.getStats(),hero:HeroVfx.getStats(),lightning:LightningVfx.getStats(),generated:VfxDirector.getStats(),stats:CombatVisuals.getStats(),errors:qaDiagnostics.errors,touch:qaDiagnostics.simulatedTouch,
+       polish:PixelFxPolish.getStats(),enemy:EnemyVfx.getStats(),hero:HeroVfx.getStats(),lightning:LightningVfx.getStats(),generated:VfxDirector.getStats(),stats:CombatVisuals.getStats(),errors:qaDiagnostics.errors,touch:qaDiagnostics.simulatedTouch,
        title:document.title,url:location.href,notBlank:document.getElementById('game-container').offsetWidth>0});
      }requestAnimationFrame(frame);
     });
@@ -97,6 +98,7 @@ let browser;
    assert.equal(result.proof.danger,result.proof.frames,'危险预警每帧仍绘制');
    assert.equal(result.proof.feedback,result.proof.frames,'关键结果反馈每帧仍绘制');
    assert(result.proof.decorative<result.proof.frames*48,'装饰预算应真实限制绘制');
+   assert(!result.polish.assetError);assert(result.polish.active<=(mode.quality==='high'?12:6));assert(result.polish.maxAtlasBytes<11*1024*1024);if(mode.quality==='low'){assert(!result.polish.detailReady&&!result.polish.lightReady);assert(result.polish.atlasBytes<2.2*1024*1024);}
    assert(!result.enemy.assetError);assert(result.enemy.active<=(mode.quality==='high'?24:12));assert(result.enemy.maxAtlasBytes<4*1024*1024);assert(result.enemy.coverage.projectiles>0);if(mode.quality==='low')assert(!result.enemy.lightReady);
    assert(!result.hero.assetError);assert(result.hero.active<=(mode.quality==='high'?24:12));assert(result.hero.maxAtlasBytes<=6*1024*1024);
    if(mode.quality==='low')assert(!result.hero.lightReady);

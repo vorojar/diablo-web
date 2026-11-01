@@ -151,6 +151,7 @@ const DailyQuestSystem = {
 
         if (currentQuest.progress >= currentQuest.target) {
             currentQuest.completed = true;
+            if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.reward('quest', player.x, player.y - 55);
             showNotification('📋 每日任务完成！');
             AudioSys.play('quest');
             if (typeof updateMenuIndicators === 'function') updateMenuIndicators();

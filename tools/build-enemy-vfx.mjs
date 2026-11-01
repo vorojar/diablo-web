@@ -6,10 +6,11 @@ import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
 import {renderDefinitions,sourceHash as sharedHash} from './build-hero-vfx.mjs';
 const require=createRequire(import.meta.url),sharp=require('sharp'),{createCanvas}=require('@napi-rs/canvas');
+const HOSTILE=['#250d2a','#601f62','#a6449a','#dc7abb','#ffafd8','#ffd8eb','#fff6fc','#ffffff'];
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export const definitions=[
  {id:'hostileArrow',src:'projectiles/arrow',loop:true,anchor:[0,0],radius:18,options:{palette:['#321620','#682531','#a43c32','#dc703e','#f5b767','#ffe4a4','#ffffff']}},
- {id:'lightningOrb',src:'lightning/ball-lightning',loop:true,crop:[-28,-28,56,56],radius:13,track:t=>{const a=t/4*Math.PI*2;return [38*Math.sin(a)+9*Math.sin(2*a+1),-42+13*Math.sin(2*a+.4)+6*Math.sin(3*a+.5)];}},
+ {id:'lightningOrb',src:'lightning/ball-lightning',options:{palette:HOSTILE,sparks:['#fff6fc','#ffd8eb','#dc7abb','#a6449a']},loop:true,crop:[-28,-28,56,56],radius:13,track:t=>{const a=t/4*Math.PI*2;return [38*Math.sin(a)+9*Math.sin(2*a+1),-42+13*Math.sin(2*a+.4)+6*Math.sin(3*a+.5)];}},
  {id:'shadowOrb',src:'shadow/void-orb',loop:true,anchor:[0,-62],crop:[-42,-104,84,84],radius:20},
  {id:'poisonCloud',src:'nature/poison-cloud',loop:true,radius:114},
  {id:'clawSlash',src:'melee/claw-swipe',start:.01,end:.85,duration:.25,anchor:[7,-25],radius:40},

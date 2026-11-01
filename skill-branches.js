@@ -73,7 +73,9 @@ const SkillBranchSystem = {
     killed() {
         if(player.hp>0 && !player.isDead && player.shield?.active && player.shield.stage3==='fortress'){
             const heal=player.maxHp*SKILL_TREE.holy_shield.stage3.reflect.fortress.effect.lifestealRatio;
+            const beforeHeal=player.hp;
             player.hp=Math.min(player.maxHp,player.hp+heal);
+            if(typeof PixelFxPolish!=='undefined')PixelFxPolish.heal(player,player.hp-beforeHeal);
         }
     },
     updateHolyShield(dt) {
@@ -101,7 +103,9 @@ const SkillBranchSystem = {
         if(shield.type==='guard'){
             const effect=SKILL_TREE.holy_shield.stage2.guard.effect;
             const heal=player.maxHp*(effect.healRatio+(player.skillTree.holy_shield.stage2.level-1)*effect.healPerLevel);
+            const beforeHeal=player.hp;
             player.hp=Math.min(player.maxHp,player.hp+heal);
+            if(typeof PixelFxPolish!=='undefined')PixelFxPolish.heal(player,player.hp-beforeHeal);
             createDamageNumber(player.x,player.y-40,`+${Math.floor(heal)}`,'#66ff88');
         }
         if(typeof HeroVfx !== 'undefined')HeroVfx.shieldEnd(player.x,player.y);

@@ -28,7 +28,7 @@ function layer(f,light){
  c.getContext('2d').putImageData(new ImageData(rgba,f.w,f.h),0,0);return c;
 }
 export function render(){
- const body=createCanvas(1536,208),light=createCanvas(1536,208),bc=body.getContext('2d'),lc=light.getContext('2d');
+ const body=createCanvas(1536,240),light=createCanvas(1536,240),bc=body.getContext('2d'),lc=light.getContext('2d');
  bc.imageSmoothingEnabled=false;lc.imageSmoothingEnabled=false;
  const fx=strike.create({...strike.meta.options}),C=fit(VOLT,8);let t=0;
  for(let i=0;i<12;i++){
@@ -40,9 +40,12 @@ export function render(){
   const R=new Rng(31+Math.floor(i/2)),shape=bowed(R,-106,0,106,0,-14,.13,.45),k=[1,.7,.95,.5,.88,.42,.75,.3,.55,.25,.16,.06][i];
   stroke(lp,shape,k,C,1.1,{hero:i===0,core:i<5?.7:0,light:.34});
   bc.drawImage(layer(link,false),i*128,144,128,64);lc.drawImage(layer(link,true),i*128,144,128,64);
+  const hostile=frame(256,128,-128,-64),hp=new Painter(hostile),H=fit(['#250d2a','#601f62','#a6449a','#dc7abb','#ffafd8','#ffd8eb','#fff6fc','#ffffff'],8);
+  stroke(hp,shape,k,H,1.1,{hero:i===0,core:i<5?.7:0,light:.25});
+  bc.drawImage(layer(hostile,false),0,32,256,64,i*128,208,128,32);lc.drawImage(layer(hostile,true),0,32,256,64,i*128,208,128,32);
  }
- return {body,light,meta:{sourceSHA256:sourceHash(),width:1536,height:208,cellWidth:128,frames:12,ages,duration:.68,
-  strike:{y:0,height:144,pivotX:64,pivotY:120},link:{y:144,height:64,startX:11,endX:117,pivotY:32},
+ return {body,light,meta:{sourceSHA256:sourceHash(),width:1536,height:240,cellWidth:128,frames:12,ages,duration:.68,
+  strike:{y:0,height:144,pivotX:64,pivotY:120},link:{y:144,height:64,startX:11,endX:117,pivotY:32},hostileLink:{y:208,height:32,startX:11,endX:117,pivotY:16},
   body:'art/lightning/body.webp',light:'art/lightning/light.webp'}};
 }
 export async function build(output=path.join(root,'art/lightning'),preview){

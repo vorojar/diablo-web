@@ -1,7 +1,7 @@
 {
-  "sourceSHA256": "4372d93773fe8d06e72d46e69bb268ba823ce1374fe0e5c4499a8c9c11493454",
+  "sourceSHA256": "2279f1da7f8897a3f97561401a6bf9d91eedfeabbb1423db77ff858176b3ff85",
   "width": 1536,
-  "height": 208,
+  "height": 240,
   "cellWidth": 128,
   "frames": 12,
   "ages": [
@@ -31,6 +31,13 @@
     "startX": 11,
     "endX": 117,
     "pivotY": 32
+  },
+  "hostileLink": {
+    "y": 208,
+    "height": 32,
+    "startX": 11,
+    "endX": 117,
+    "pivotY": 16
   },
   "body": "art/lightning/body.webp",
   "light": "art/lightning/light.webp"

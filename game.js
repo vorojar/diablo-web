@@ -361,7 +361,7 @@ const ParticlePool = {
             p.z = undefined; p.vz = undefined; p.vx = undefined; p.vy = undefined;
             p.spin = undefined; p.gravity = undefined; p.type = undefined; p.canBake = undefined; p.size = 3;
             p.maxLife = undefined; p.radius = undefined; p.grow = undefined; p.width = undefined;
-            p.maxAlpha = undefined; p.cosmetic = false;
+            p.maxAlpha = undefined; p.cosmetic = false; p.vfxSource = undefined; p.vfxReplaced = false;
             p.angle = undefined; p.length = undefined; p.color2 = undefined; p.rotation = undefined;
             this._pool.push(p);
         }
@@ -763,6 +763,7 @@ function claimQuestReward() {
     player.questState = 1;
 
     AudioSys.play('levelup'); // 借用一下升级音效，或者 cash 音效
+    if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.reward('quest', player.x, player.y - 55);
     showNotification(`任务完成！`);
 
     // 保存并更新UI
@@ -1322,6 +1323,7 @@ if (VFX_SPRITE_CONFIG?.sheet) {
         VfxDirector.setQuality(player.graphicsQuality !== 'low');
         LightningVfx.setQuality(player.graphicsQuality !== 'low');
         if (typeof HeroVfx !== 'undefined') HeroVfx.setQuality(player.graphicsQuality !== 'low');
+        if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.setQuality(player.graphicsQuality !== 'low');
         if (typeof EnemyVfx !== 'undefined') EnemyVfx.setQuality(player.graphicsQuality !== 'low');
     };
     vfxSpriteSheet.onerror = () => {
@@ -1353,6 +1355,7 @@ function spawnVfxEffect(effectId, x, y, scale = 1, rotation = 0, decorative = fa
 }
 
 function drawVfxEffect(ctx, fx) {
+    if (fx.effectId === 'levelUpBurst' && typeof PixelFxPolish !== 'undefined' && PixelFxPolish.hasEvent('level')) return;
     const effect = VFX_SPRITE_CONFIG?.effects?.[fx.effectId];
     if (effect && typeof EnemyVfx !== 'undefined' && EnemyVfx.drawVfx(ctx, fx)) return;
     if (effect && typeof HeroVfx !== 'undefined' && HeroVfx.drawVfx(ctx, fx, effect)) return;
@@ -2239,6 +2242,7 @@ const DestructibleSystem = {
         }
 
         // 掉落逻辑
+        const dropsBefore = groundItems.length;
         const rand = Math.random();
         const f = player.isInHell ? player.hellFloor : player.floor;
         if (rand < 0.2) { // 20% 爆金币
@@ -2272,6 +2276,7 @@ const DestructibleSystem = {
             });
         }
 
+        if (d.type.name === 'crate' && groundItems.length > dropsBefore && typeof PixelFxPolish !== 'undefined') PixelFxPolish.reward('chest', d.x, d.y);
         // 音效
         AudioSys.play('land_hard');
     },
@@ -3607,6 +3612,7 @@ function drawEnemyActor(ctx, e) {
     const reactAlpha = e.hitReactTimer > 0 ? Math.max(0, e.hitReactTimer / (e.hitReactDuration || 0.12)) : 0;
     const bodyX = rx + (e.hitReactX || 0) * reactAlpha;
     const bodyY = ry + (e.hitReactY || 0) * reactAlpha;
+    if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.drawActor(ctx, e, false);
     const animatedMonsterFrame = getMonsterSpriteFrame(e);
     const deathAlpha = e.dead ? Math.max(0, Math.min(1, e.deathVisualTimer / (e.isBoss ? 0.35 : 0.25))) : 1;
     const deathProgress = e.dead && !animatedMonsterFrame?.death ? 1 - deathAlpha : 0;
@@ -3677,6 +3683,7 @@ function drawEnemyActor(ctx, e) {
         ctx.fill();
     }
 
+    if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.drawActor(ctx, e, true);
     if (e.dead) return;
 
     ctx.fillStyle = '#500';
@@ -4257,6 +4264,7 @@ function completeAchievement(achievement) {
     player.achievements[achievement.id].completed = true;
     player.achievements[achievement.id].completedAt = Date.now();
 
+    if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.reward('achievement', player.x, player.y - 55);
     showNotification(`成就完成：${achievement.name}！`);
     AudioSys.play('quest');
 
@@ -4323,6 +4331,7 @@ function toggleGraphicsQuality() {
     VfxDirector.setQuality(val !== 'low');
     LightningVfx.setQuality(val !== 'low');
     if (typeof HeroVfx !== 'undefined') HeroVfx.setQuality(val !== 'low');
+    if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.setQuality(val !== 'low');
     if (typeof EnemyVfx !== 'undefined') EnemyVfx.setQuality(val !== 'low');
     document.body.classList.toggle('high-quality', val === 'high');
     resize();
@@ -4868,6 +4877,7 @@ const DeathPanel = {
 
     // 复活特效
     playReviveEffect() {
+        if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.revive(player);
         // 播放音效
         AudioSys.play('levelup');
 
@@ -4883,6 +4893,7 @@ const DeathPanel = {
                 life: 1,
                 maxLife: 1,
                 color: '#ffdd44',
+                vfxSource: 'resurrection',
                 size: 4 + Math.random() * 3
             });
         }
@@ -5498,6 +5509,7 @@ function enterFloor(f, spawnAt = 'start') {
     VfxDirector.clear();
     LightningVfx.clear();
     if (typeof HeroVfx !== 'undefined') HeroVfx.clear();
+    if (typeof PixelFxPolish !== 'undefined') {PixelFxPolish.clear();PixelFxPolish.setQuality(player.graphicsQuality !== 'low');if(f>0)PixelFxPolish.warmLarge();}
     if (typeof EnemyVfx !== 'undefined') EnemyVfx.clear();
     player.activeLightning = null;
     destructibles = []; // 清空可破坏物体
@@ -7282,6 +7294,7 @@ function update(dt) {
     VfxDirector.update(dt);
     LightningVfx.update(dt);
     if (typeof HeroVfx !== 'undefined') HeroVfx.update(dt);
+    if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.update(dt);
     if (typeof EnemyVfx !== 'undefined') EnemyVfx.update(dt);
     if (player.activeLightning) { player.activeLightning.life -= dt / .36; if (player.activeLightning.life <= 0) player.activeLightning = null; }
     // 更新敌人缓存（每帧只遍历一次enemies数组）
@@ -8600,6 +8613,7 @@ function draw() {
     VfxDirector.setQuality(player.graphicsQuality !== 'low');
     LightningVfx.setQuality(player.graphicsQuality !== 'low');
     if (typeof HeroVfx !== 'undefined') HeroVfx.setQuality(player.graphicsQuality !== 'low');
+    if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.setQuality(player.graphicsQuality !== 'low');
     if (typeof EnemyVfx !== 'undefined') EnemyVfx.setQuality(player.graphicsQuality !== 'low');
     const loadingOverlay=document.getElementById('art-loading');
     loadingOverlay.hidden=ArtSamples.pending===0&&!ArtSamples.loadError;
@@ -8620,6 +8634,7 @@ function draw() {
 
     // 摄像机已经是整数（基于Math.round(player)），直接使用避免额外取整误差
     ctx.save(); ctx.translate(-camera.x + shakeX, -camera.y + shakeY);
+    if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.beginFrame();
     const activeBiome = getBiomeStyle(player.isInHell ? player.hellFloor : player.floor);
 
     // 使用离屏Canvas缓存绘制地图（性能优化：从每帧5000+次ctx调用降为1次）
@@ -8780,6 +8795,11 @@ function draw() {
     // 渲染可破坏物体
     VfxDirector.ambient(ctx, camera, viewportWidth, viewportHeight, player.floor, player.isInHell, player.x, player.y, isWall, scenicProps);
     if (typeof HeroVfx !== 'undefined') HeroVfx.drawAreas(ctx, SkillBranchSystem.areas, camera, viewportWidth, viewportHeight);
+    if (typeof PixelFxPolish !== 'undefined') {
+        PixelFxPolish.drawEvents(ctx, camera, viewportWidth, viewportHeight, 0);
+        if (typeof HeroVfx !== 'undefined') HeroVfx.drawBack(ctx, camera, viewportWidth, viewportHeight);
+        if (typeof EnemyVfx !== 'undefined') EnemyVfx.drawBack(ctx, camera, viewportWidth, viewportHeight);
+    }
     drawGroundItems(ctx);
     DestructibleSystem.draw(ctx, 'behindPlayer');
     drawScenicProps(ctx, 'behindPlayer');
@@ -8807,6 +8827,7 @@ function draw() {
     const py = Math.round(player.y);
 
     if (!player.isDead && (player.frozen || player.slowedTimer > 0)) CombatVisuals.coldGround(ctx, px, py, player.radius, player.frozen, player.frozen ? player.frozenTimer : player.slowedTimer);
+    if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.drawActor(ctx, player, false);
     drawPlayerShieldBack(ctx, px, py);
     const heroFrame = getHeroFrame(player.direction);
     if (heroFrame.source || (heroSpritesLoaded && processedHeroSprites) || (spritesLoaded && processedSpriteSheet)) {
@@ -8850,6 +8871,7 @@ function draw() {
         drawPlayerShieldFront(ctx, px, py);
     }
 
+    if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.drawActor(ctx, player, true);
     // 渲染玩家头顶称号（最新优先：购买称号 vs 深渊称号）
     const displayTitle = getPlayerDisplayTitle();
     if (displayTitle) {
@@ -8958,6 +8980,8 @@ function draw() {
         if (p.x < camera.x - 100 || p.x > camera.x + viewportWidth + 100 ||
             p.y < camera.y - 120 || p.y > camera.y + viewportHeight + 100) continue;
 
+        if (p.vfxSource && typeof PixelFxPolish !== 'undefined' && PixelFxPolish.hasEvent(p.vfxSource)) p.vfxReplaced = true;
+        if (p.vfxReplaced) continue;
         // 新刀锋已包含碎屑与亮锋，避免重复绘制旧的平面地裂射线。
         if (p.growthStyle === 'earthsplit' && typeof HeroVfx !== 'undefined' && HeroVfx.isReady()) continue;
         if (CombatVisuals.isDecoration(p) && !CombatVisuals.allowDecoration(p.x, p.y)) continue;
@@ -9204,6 +9228,7 @@ function draw() {
     }
     VfxDirector.drawEvents(ctx, camera, viewportWidth, viewportHeight);
     VfxDirector.drawBosses(ctx, renderEnemies, camera, viewportWidth, viewportHeight);
+    if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.drawEvents(ctx, camera, viewportWidth, viewportHeight, 1);
     CombatVisuals.drawFeedback(ctx, camera, viewportWidth, viewportHeight);
     ctx.textAlign = 'center';
     drawBossDangerTelegraphs(ctx);
@@ -9259,7 +9284,7 @@ function draw() {
     }
 
     // 升级特效：金色闪光覆盖层
-    if (levelUpEffect.active && levelUpEffect.flashAlpha > 0) {
+    if (levelUpEffect.active && levelUpEffect.flashAlpha > 0 && !(typeof PixelFxPolish !== 'undefined' && PixelFxPolish.hasEvent('level'))) {
         ctx.save();
         // 金色径向渐变闪光
         const gradient = ctx.createRadialGradient(
@@ -9442,7 +9467,10 @@ function interactNPC(npc) {
                     }
                 }]);
         } else {
-            player.hp = player.maxHp; player.mp = player.maxMp; showNotification("阿卡拉治愈了你");
+            const beforeHeal = player.hp;
+            player.hp = player.maxHp; player.mp = player.maxMp;
+            if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.heal(player, player.hp - beforeHeal);
+            showNotification("阿卡拉治愈了你");
         }
     }
 }
@@ -12606,6 +12634,7 @@ function createFlyingPickup(item, type) {
 
 // 触发升级特效
 function triggerLevelUpEffect(newLevel) {
+    if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.reward('level', player.x, player.y);
     levelUpEffect.active = true;
     levelUpEffect.timer = 1.5; // 1.5秒特效持续时间
     levelUpEffect.flashAlpha = 0.8;
@@ -12664,6 +12693,7 @@ function createLevelUpBeam(x, y) {
 
     particles.push({
         type: 'drop_beam',
+        vfxSource: 'level',
         x: x,
         y: y,
         color: beamColor,
@@ -13044,7 +13074,9 @@ function finalizeEnemyDeath(e, totalDamage, fatalDamage = null) {
     const onKillHealPct = getTalentEffect('onKillHealPct', 0) + (player.onKillHealPct || 0);
     if (onKillHealPct > 0) {
         const healAmt = player.maxHp * onKillHealPct / 100;
+        const beforeHeal = player.hp;
         player.hp = Math.min(player.maxHp, player.hp + healAmt);
+        if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.heal(player, player.hp - beforeHeal);
         createDamageNumber(player.x, player.y - 30, `+${Math.floor(healAmt)}`, '#00ff00');
     }
 
@@ -13712,7 +13744,9 @@ function performAttack(t) {
     if (player.lifeSteal > 0) {
         let h = Math.ceil(dmg * player.lifeSteal / 100);
         if (h > 0) {
+            const beforeHeal = player.hp;
             player.hp = Math.min(player.maxHp, player.hp + h);
+            if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.heal(player, player.hp - beforeHeal);
             createDamageNumber(player.x, player.y - 40, "+" + h, COLORS.green);
         }
     }
@@ -14070,7 +14104,9 @@ function applyDamageToPlayer(damage, attacker) {
                         // 绝对防御的击杀回血
                         if (player.shield.stage3 === 'fortress') {
                             const lifesteal = reflectDamage * SKILL_TREE.holy_shield.stage3.reflect.fortress.effect.lifestealRatio;
+                            const beforeHeal = player.hp;
                             player.hp = Math.min(player.maxHp, player.hp + lifesteal);
+                            if (typeof PixelFxPolish !== 'undefined') PixelFxPolish.heal(player, player.hp - beforeHeal);
                         }
                     }
                     createDamageNumber(attacker.x, attacker.y - 20, '-' + Math.floor(reflectDamage), '#ffaa00');
